@@ -1,6 +1,6 @@
 {
   "extends": "@Alumni-Tracking-Ss/config/tsconfig.base.json",
-  "references": [{ "path": "../../packages/api" }],
+  "references": [],
   "compilerOptions": {
     "noEmit": true,
     "paths": {

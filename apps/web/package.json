@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
-    "build": "tsc -b ../../packages/api && vp build",
+    "build": "vp build",
     "serve": "vp preview",
     "start": "vp dev",
-    "check-types": "tsc -b ../../packages/api && vp build && tsc --noEmit",
+    "check-types": "tsc --noEmit",
     "env:generate": "varlock codegen"
   },
   "dependencies": {

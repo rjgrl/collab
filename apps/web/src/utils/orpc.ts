@@ -28,6 +28,7 @@ export const queryClient = createQueryClient();
 
 export const link = new RPCLink({
   url: `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/rpc`,
+  fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
 });
 
 export const client: AppRouterClient = createORPCClient(link);

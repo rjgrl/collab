@@ -6,13 +6,14 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "build": "tsc -b",
-    "check-types": "tsc -b",
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:seed": "tsx src/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@Alumni-Tracking-Ss/config": "workspace:*",
     "prisma": "6.19.3",
+    "tsx": "^4.23.13",
     "typescript": "catalog:",
     "varlock": "catalog:"
   }

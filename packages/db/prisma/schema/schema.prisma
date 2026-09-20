@@ -1,11 +1,311 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated"
+  provider     = "prisma-client"
+  output       = "../generated"
   moduleFormat = "esm"
-  runtime = "nodejs"
+  runtime      = "nodejs"
 }
 
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum EmploymentKind {
+  employed
+  unemployed
+  unknown
+}
+
+enum StorageProvider {
+  local
+  google_drive
+  imgbb
+}
+
+enum ImportSource {
+  csv
+  google_sheets
+  google_forms
+}
+
+enum ImportStatus {
+  pending
+  completed
+  failed
+}
+
+model User {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String     @unique
+  emailVerified Boolean    @default(false)
+  image         String?
+  passwordHash  String?
+  status        UserStatus @default(active)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  sessions  Session[]
+  userRoles UserRole[]
+  auditLogs AuditLog[]
+  importJobs ImportJob[]
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String   @unique
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Role {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String   @unique
+  name        String
+  description String   @default("")
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String   @unique
+  name        String
+  description String   @default("")
+  module      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+}
+
+model UserRole {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  roleId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  roleId       String     @db.ObjectId
+  permissionId String     @db.ObjectId
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model Department {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  code        String    @unique
+  name        String
+  description String    @default("")
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  programs            Program[]
+  facultyDepartments  FacultyDepartment[]
+}
+
+model Program {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  code         String
+  name         String
+  description  String    @default("")
+  departmentId String    @db.ObjectId
+  department   Department @relation(fields: [departmentId], references: [id])
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  alumni Alumni[]
+
+  @@unique([departmentId, code])
+  @@index([departmentId])
+}
+
+model Faculty {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeNumber String    @unique
+  firstName      String
+  lastName       String
+  email          String?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  facultyDepartments FacultyDepartment[]
+}
+
+model FacultyDepartment {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  facultyId    String     @db.ObjectId
+  departmentId String     @db.ObjectId
+  faculty      Faculty    @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([facultyId, departmentId])
+  @@index([departmentId])
+}
+
+model Alumni {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  studentNumber  String
+  firstName      String
+  lastName       String
+  middleName     String?
+  gender         String?
+  graduationYear Int?
+  batch          String?
+
+  mobileNumber    String?
+  personalEmail   String?
+  facebookAccount String?
+
+  employmentStatus EmploymentKind @default(unknown)
+  isTracked        Boolean        @default(false)
+  lastTrackedAt    DateTime?
+
+  programId String  @db.ObjectId
+  program   Program @relation(fields: [programId], references: [id])
+
+  photoUrl  String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  employments     Employment[]
+  trackingEvents  TrackingEvent[]
+  evidenceFiles   EvidenceFile[]
+
+  @@unique([studentNumber])
+  @@index([programId])
+  @@index([isTracked])
+  @@index([graduationYear])
+}
+
+model Employment {
+  id         String         @id @default(auto()) @map("_id") @db.ObjectId
+  alumniId   String         @db.ObjectId
+  alumni     Alumni         @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+  employer   String
+  jobTitle   String?
+  industry   String?
+  location   String?
+  startDate  DateTime?
+  endDate    DateTime?
+  isCurrent  Boolean        @default(false)
+  status     EmploymentKind @default(employed)
+  notes      String         @default("")
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([alumniId])
+}
+
+model TrackingEvent {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  alumniId   String   @db.ObjectId
+  alumni     Alumni   @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+  isTracked  Boolean
+  notes      String   @default("")
+  source     String   @default("manual")
+  recordedAt DateTime @default(now())
+  createdById String? @db.ObjectId
+  createdAt  DateTime @default(now())
+
+  evidenceFiles EvidenceFile[]
+
+  @@index([alumniId])
+}
+
+model EvidenceFile {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  alumniId        String          @db.ObjectId
+  alumni          Alumni          @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+  trackingEventId String?         @db.ObjectId
+  trackingEvent   TrackingEvent?  @relation(fields: [trackingEventId], references: [id], onDelete: SetNull)
+  originalName    String
+  mimeType        String
+  sizeBytes       Int
+  provider        StorageProvider
+  storageKey      String
+  url             String?
+  kind            String          @default("evidence")
+  createdById     String?         @db.ObjectId
+  deletedAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([alumniId])
+  @@index([trackingEventId])
+}
+
+model AuditLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId    String?  @db.ObjectId
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entity     String
+  entityId   String?
+  summary    String   @default("")
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model IntegrationSetting {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  enabled   Boolean  @default(true)
+  notes     String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+model ImportJob {
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  source       ImportSource
+  status       ImportStatus @default(pending)
+  fileName     String?
+  totalRows    Int          @default(0)
+  successCount Int          @default(0)
+  errorCount   Int          @default(0)
+  errors       Json?
+  createdById  String?      @db.ObjectId
+  createdBy    User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  completedAt  DateTime?
+
+  @@index([createdById])
 }

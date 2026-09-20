@@ -1,12 +1,8 @@
 {
   "extends": "@Alumni-Tracking-Ss/config/tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
-    "declaration": true,
-    "declarationMap": true,
-    "emitDeclarationOnly": true,
-    "outDir": "dist"
+    "noEmit": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "prisma/generated/**/*.ts"],
-  "references": []
+  "include": ["src/**/*.ts"]
 }

@@ -6,3 +6,9 @@ export function createPrismaClient(env: DatabaseConfig) {
 }
 
 export type Database = ReturnType<typeof createPrismaClient>;
+
+export { PERMISSIONS, PERMISSION_KEYS, ROLE_PRESETS } from "./permissions";
+export type { PermissionKey } from "./permissions";
+export { hashPassword, verifyPassword, createSessionToken } from "./password";
+export { percentTracked } from "./dashboard";
+export { notDeleted, notDeletedFilter, withNotDeleted } from "./filters";

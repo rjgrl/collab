@@ -7,6 +7,10 @@ import { defineConfig } from "vite-plus";
 export default defineConfig({
   server: {
     port: 3001,
+    proxy: {
+      "/rpc": "http://localhost:3000",
+      "/api": "http://localhost:3000",
+    },
   },
   resolve: {
     tsconfigPaths: true,
