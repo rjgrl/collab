@@ -1,0 +1,3 @@
+{
+  "extends": "@Alumni-Tracking-Ss/config/tsconfig.base.json"
+}

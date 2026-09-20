@@ -1,0 +1,27 @@
+{
+  "name": "@Alumni-Tracking-Ss/db",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check-types": "tsc -b",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@Alumni-Tracking-Ss/config": "workspace:*",
+    "prisma": "6.19.3",
+    "typescript": "catalog:",
+    "varlock": "catalog:"
+  }
+}

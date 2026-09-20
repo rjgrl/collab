@@ -1,0 +1,13 @@
+{
+  "extends": "@Alumni-Tracking-Ss/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": [],
+    "paths": {
+      "@Alumni-Tracking-Ss/ui/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules"]
+}
