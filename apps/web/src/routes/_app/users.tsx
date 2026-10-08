@@ -1,12 +1,21 @@
-import { Card, CardContent } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DataTable, QuietButton, TableCell, TableRow } from "@/components/data-table";
-import { FormField, PageHeader, PrimaryButton } from "@/components/page-header";
+import { CheckboxRow } from "@/components/checkbox-row";
+import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
+import {
+  FieldsetLabel,
+  FormActions,
+  FormCard,
+  FormField,
+  PageHeader,
+  PageShell,
+  PrimaryButton,
+} from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -47,98 +56,108 @@ function UsersPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <PageShell>
       <PageHeader title="Users" description="Assign roles to control access through RBAC." />
       {canWrite ? (
-        <Card>
-          <CardContent className="pt-4">
-            <form
-              className="grid gap-4 md:grid-cols-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                create.mutate();
-              }}
-            >
-              <FormField id="name" label="Name">
-                <Input
-                  id="name"
-                  value={draft.name}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                  required
-                />
-              </FormField>
-              <FormField id="email" label="Email">
-                <Input
-                  id="email"
-                  type="email"
-                  value={draft.email}
-                  onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-                  required
-                />
-              </FormField>
-              <FormField id="password" label="Password">
-                <Input
-                  id="password"
-                  type="password"
-                  value={draft.password}
-                  onChange={(event) => setDraft({ ...draft, password: event.target.value })}
-                  required
-                  minLength={8}
-                />
-              </FormField>
-              <div>
-                <p className="mb-2 text-xs">Roles</p>
-                <div className="flex flex-col gap-2">
-                  {roles.data?.map((role) => (
-                    <label key={role.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={draft.roleIds.includes(role.id)}
-                        onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            roleIds: event.target.checked
-                              ? [...draft.roleIds, role.id]
-                              : draft.roleIds.filter((id) => id !== role.id),
-                          })
-                        }
-                      />
-                      {role.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <PrimaryButton type="submit" pending={create.isPending}>
+        <FormCard title="Create user">
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              create.mutate();
+            }}
+          >
+            <FormField id="name" label="Name" required>
+              <Input
+                id="name"
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                required
+              />
+            </FormField>
+            <FormField id="email" label="Email" required>
+              <Input
+                id="email"
+                type="email"
+                value={draft.email}
+                onChange={(event) => setDraft({ ...draft, email: event.target.value })}
+                required
+              />
+            </FormField>
+            <FormField id="password" label="Password" required>
+              <Input
+                id="password"
+                type="password"
+                value={draft.password}
+                onChange={(event) => setDraft({ ...draft, password: event.target.value })}
+                required
+                minLength={8}
+              />
+            </FormField>
+            <div className="flex flex-col gap-2">
+              <FieldsetLabel>Roles</FieldsetLabel>
+              {roles.data?.map((role) => (
+                <CheckboxRow
+                  key={role.id}
+                  checked={draft.roleIds.includes(role.id)}
+                  onCheckedChange={(checked) =>
+                    setDraft({
+                      ...draft,
+                      roleIds: checked
+                        ? [...draft.roleIds, role.id]
+                        : draft.roleIds.filter((id) => id !== role.id),
+                    })
+                  }
+                >
+                  {role.name}
+                </CheckboxRow>
+              ))}
+            </div>
+            <FormActions>
+              <PrimaryButton type="submit" pending={create.isPending} pendingLabel="Creating">
                 Create user
               </PrimaryButton>
-            </form>
-          </CardContent>
-        </Card>
+            </FormActions>
+          </form>
+        </FormCard>
       ) : null}
-      <DataTable headers={["Name", "Email", "Roles", "Status", ""]} search={search} onSearch={setSearch}>
+      <DataTable
+        headers={["Name", "Email", "Roles", "Status", "Actions"]}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search users"
+        loading={users.isPending}
+        isEmpty={users.data?.length === 0}
+        emptyTitle="No users found"
+        emptyDescription="Create a user and assign at least one role."
+      >
         {users.data?.map((user) => (
           <TableRow key={user.id}>
             <TableCell>{user.name}</TableCell>
             <TableCell>{user.email}</TableCell>
             <TableCell>{user.userRoles.map((item) => item.role.name).join(", ") || "None"}</TableCell>
-            <TableCell>{user.status}</TableCell>
+            <TableCell>
+              <StatusBadge tone={user.status === "active" ? "active" : "disabled"} />
+            </TableCell>
             <TableCell>
               {canWrite ? (
-                <QuietButton
-                  onClick={() =>
-                    toggleStatus.mutate({
-                      id: user.id,
-                      status: user.status === "active" ? "disabled" : "active",
-                    })
-                  }
-                >
-                  {user.status === "active" ? "Disable" : "Enable"}
-                </QuietButton>
+                <RowActions>
+                  <QuietButton
+                    onClick={() =>
+                      toggleStatus.mutate({
+                        id: user.id,
+                        status: user.status === "active" ? "disabled" : "active",
+                      })
+                    }
+                  >
+                    {user.status === "active" ? "Disable" : "Enable"}
+                  </QuietButton>
+                </RowActions>
               ) : null}
             </TableCell>
           </TableRow>
         ))}
       </DataTable>
-    </div>
+    </PageShell>
   );
 }

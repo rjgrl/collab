@@ -4,12 +4,14 @@ import { varlockVitePlugin } from "@varlock/vite-integration";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
+const apiOrigin = process.env.API_PROXY_TARGET ?? "http://localhost:3000";
+
 export default defineConfig({
   server: {
     port: 3001,
     proxy: {
-      "/rpc": "http://localhost:3000",
-      "/api": "http://localhost:3000",
+      "/rpc": apiOrigin,
+      "/api": apiOrigin,
     },
   },
   resolve: {

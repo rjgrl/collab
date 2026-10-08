@@ -4,7 +4,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { PageHeader, PrimaryButton } from "@/components/page-header";
+import { NativeSelect } from "@/components/native-select";
+import { FilterBar, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { QuietButton } from "@/components/data-table";
 import { can, useSession } from "@/lib/session";
 import { client, orpc } from "@/utils/orpc";
 
@@ -45,7 +47,7 @@ function ReportsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <PageShell>
       <PageHeader
         title="Reports"
         description="Graduate tracking reports generated from live alumni data. CSV is the default export; Google Sheets is used when configured."
@@ -64,11 +66,12 @@ function ReportsPage() {
           <CardTitle>Export alumni</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <select
-              className="h-8 border border-input bg-transparent px-2 text-xs"
+          <FilterBar>
+            <NativeSelect
+              className="w-auto min-w-36"
               value={departmentId}
               onChange={(event) => setDepartmentId(event.target.value)}
+              aria-label="Department"
             >
               <option value="">All departments</option>
               {departments.data?.map((department) => (
@@ -76,31 +79,32 @@ function ReportsPage() {
                   {department.code}
                 </option>
               ))}
-            </select>
-            <select
-              className="h-8 border border-input bg-transparent px-2 text-xs"
+            </NativeSelect>
+            <NativeSelect
+              className="w-auto min-w-36"
               value={tracked}
               onChange={(event) => setTracked(event.target.value as typeof tracked)}
+              aria-label="Tracking"
             >
-              <option value="all">All</option>
+              <option value="all">All tracking</option>
               <option value="tracked">Tracked</option>
               <option value="untracked">Untracked</option>
-            </select>
-          </div>
+            </NativeSelect>
+          </FilterBar>
           {can(session.data?.permissions, "reports.export") ? (
-            <div className="flex gap-2">
-              <PrimaryButton onClick={() => exportCsv.mutate()} pending={exportCsv.isPending}>
+            <div className="flex flex-wrap gap-2">
+              <PrimaryButton onClick={() => exportCsv.mutate()} pending={exportCsv.isPending} pendingLabel="Downloading">
                 Download CSV
               </PrimaryButton>
-              <PrimaryButton variant="outline" onClick={() => exportSheets.mutate()} pending={exportSheets.isPending}>
-                Export to Google Sheets
-              </PrimaryButton>
+              <QuietButton onClick={() => exportSheets.mutate()} disabled={exportSheets.isPending}>
+                {exportSheets.isPending ? "Exporting..." : "Export to Google Sheets"}
+              </QuietButton>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">You can view totals but cannot export.</p>
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

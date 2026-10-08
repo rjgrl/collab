@@ -1,11 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { FormField, PageHeader, PrimaryButton } from "@/components/page-header";
+import { NativeSelect } from "@/components/native-select";
+import { FormActions, FormCard, FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -39,7 +39,7 @@ function NewAlumniPage() {
         programId: form.programId,
       }),
     onSuccess: async (alumni) => {
-      toast.success("Alumni record created");
+      toast.success("Alumni profile created");
       await queryClient.invalidateQueries();
       await navigate({ to: "/alumni/$id", params: { id: alumni.id } });
     },
@@ -47,28 +47,27 @@ function NewAlumniPage() {
   });
 
   if (!can(session.data?.permissions, "alumni.write")) {
-    return <p>You do not have permission to create alumni records.</p>;
+    return (
+      <PageShell>
+        <p className="text-sm text-muted-foreground">You do not have permission to create alumni records.</p>
+      </PageShell>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="New alumni profile" description="Attach the graduate to a program." />
-      <Card>
-        <CardHeader>
-          <CardTitle>Student details and contact info</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="grid gap-4 md:grid-cols-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              save.mutate();
-            }}
-          >
-            <FormField id="programId" label="Program">
-              <select
+    <PageShell>
+      <PageHeader title="Add alumni" description="Attach the graduate to a program." />
+      <FormCard title="Student details and contact info">
+        <form
+          className="grid gap-4 md:grid-cols-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            save.mutate();
+          }}
+        >
+            <FormField id="programId" label="Program" required>
+              <NativeSelect
                 id="programId"
-                className="h-8 border border-input bg-transparent px-2 text-xs"
                 value={form.programId}
                 onChange={(event) => setForm({ ...form, programId: event.target.value })}
                 required
@@ -79,9 +78,9 @@ function NewAlumniPage() {
                     {program.department.code} / {program.code} — {program.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </FormField>
-            <FormField id="studentNumber" label="Student number">
+            <FormField id="studentNumber" label="Student number" required>
               <Input
                 id="studentNumber"
                 value={form.studentNumber}
@@ -89,7 +88,7 @@ function NewAlumniPage() {
                 required
               />
             </FormField>
-            <FormField id="firstName" label="First name">
+            <FormField id="firstName" label="First name" required>
               <Input
                 id="firstName"
                 value={form.firstName}
@@ -97,7 +96,7 @@ function NewAlumniPage() {
                 required
               />
             </FormField>
-            <FormField id="lastName" label="Last name">
+            <FormField id="lastName" label="Last name" required>
               <Input
                 id="lastName"
                 value={form.lastName}
@@ -156,14 +155,13 @@ function NewAlumniPage() {
                 onChange={(event) => setForm({ ...form, facebookAccount: event.target.value })}
               />
             </FormField>
-            <div className="flex gap-2 md:col-span-2">
-              <PrimaryButton type="submit" pending={save.isPending}>
+            <FormActions>
+              <PrimaryButton type="submit" pending={save.isPending} pendingLabel="Creating">
                 Create profile
               </PrimaryButton>
-            </div>
+            </FormActions>
           </form>
-        </CardContent>
-      </Card>
-    </div>
+      </FormCard>
+    </PageShell>
   );
 }

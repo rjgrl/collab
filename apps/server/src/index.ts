@@ -6,10 +6,12 @@ import {
   createSession,
   destroySession,
   importAlumniRows,
+  isDatabaseUnavailable,
   isIntegrationEnabled,
   loadAuthUser,
   loadAuthUserFromToken,
   mapFormPayload,
+  publicErrorMessage,
   registerUser,
   storeFile,
   upsertGoogleUser,
@@ -83,6 +85,12 @@ export const rpcHandler = new RPCHandler(appRouter, {
   ],
 });
 
+app.onError((err, c) => {
+  console.error(err);
+  const status = isDatabaseUnavailable(err) ? 503 : 500;
+  return c.json({ error: publicErrorMessage(err, "Request failed.") }, status);
+});
+
 app.post("/api/auth/login", async (c) => {
   const body = await c.req.json<{
     email?: string;
@@ -95,18 +103,18 @@ app.post("/api/auth/login", async (c) => {
     return c.json({ error: "Email and password are required." }, 400);
   }
 
-  const recaptchaEnabled = await isIntegrationEnabled(db, "recaptcha");
-  if (recaptchaEnabled) {
-    const ok = await verifyRecaptcha(readIntegrationEnv(), {
-      token: body.recaptchaToken,
-      fallback: body.recaptchaFallback,
-    });
-    if (!ok) {
-      return c.json({ error: "Complete the reCAPTCHA check." }, 400);
-    }
-  }
-
   try {
+    const recaptchaEnabled = await isIntegrationEnabled(db, "recaptcha");
+    if (recaptchaEnabled) {
+      const ok = await verifyRecaptcha(readIntegrationEnv(), {
+        token: body.recaptchaToken,
+        fallback: body.recaptchaFallback,
+      });
+      if (!ok) {
+        return c.json({ error: "Complete the reCAPTCHA check." }, 400);
+      }
+    }
+
     const user = await authenticateWithPassword(db, {
       email: body.email,
       password: body.password,
@@ -120,6 +128,9 @@ app.post("/api/auth/login", async (c) => {
     const authUser = await loadAuthUser(db, user.id);
     return c.json({ user: authUser });
   } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      return c.json({ error: publicErrorMessage(error) }, 503);
+    }
     const message = error instanceof Error ? error.message : "Unable to sign in.";
     return c.json({ error: message }, 401);
   }
@@ -404,27 +415,36 @@ app.post("/api/integrations/google-forms/webhook", async (c) => {
 });
 
 app.use("/*", async (c, next) => {
+  const path = c.req.path;
+  if (!path.startsWith("/rpc") && !path.startsWith("/api-reference")) {
+    return next();
+  }
+
   const context = await createContext({ context: c });
 
-  const rpcResult = await rpcHandler.handle(c.req.raw, {
-    prefix: "/rpc",
-    context,
-  });
+  if (path.startsWith("/rpc")) {
+    const rpcResult = await rpcHandler.handle(c.req.raw, {
+      prefix: "/rpc",
+      context,
+    });
 
-  if (rpcResult.matched) {
-    return c.newResponse(rpcResult.response.body, rpcResult.response);
+    if (rpcResult.matched) {
+      return c.newResponse(rpcResult.response.body, rpcResult.response);
+    }
   }
 
-  const apiResult = await apiHandler.handle(c.req.raw, {
-    prefix: "/api-reference",
-    context,
-  });
+  if (path.startsWith("/api-reference")) {
+    const apiResult = await apiHandler.handle(c.req.raw, {
+      prefix: "/api-reference",
+      context,
+    });
 
-  if (apiResult.matched) {
-    return c.newResponse(apiResult.response.body, apiResult.response);
+    if (apiResult.matched) {
+      return c.newResponse(apiResult.response.body, apiResult.response);
+    }
   }
 
-  await next();
+  return next();
 });
 
 app.get("/", (c) => {
@@ -436,7 +456,7 @@ import { serve } from "@hono/node-server";
 serve(
   {
     fetch: app.fetch,
-    port: 3000,
+    port: Number(process.env.PORT) || 3000,
   },
   (info) => {
     console.log(`Server is running on http://localhost:${info.port}`);

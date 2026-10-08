@@ -7,7 +7,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { QuietButton } from "@/components/data-table";
-import { FormField, PageHeader, PrimaryButton } from "@/components/page-header";
+import Loader from "@/components/loader";
+import { NativeSelect } from "@/components/native-select";
+import { FormActions, FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -66,7 +69,7 @@ function AlumniDetailPage() {
         graduationYear: form.graduationYear ? Number(form.graduationYear) : undefined,
       }),
     onSuccess: async () => {
-      toast.success("Profile updated");
+      toast.success("Alumni profile saved");
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -124,8 +127,20 @@ function AlumniDetailPage() {
     toast.success("File uploaded");
   }
 
+  if (alumni.isPending) {
+    return (
+      <PageShell>
+        <Loader />
+      </PageShell>
+    );
+  }
+
   if (!record) {
-    return <p className="text-sm text-muted-foreground">Loading profile...</p>;
+    return (
+      <PageShell>
+        <PageHeader title="Alumni profile" description="This alumni record could not be found." />
+      </PageShell>
+    );
   }
 
   const canWrite = can(session.data?.permissions, "alumni.write");
@@ -133,10 +148,11 @@ function AlumniDetailPage() {
   const canUpload = can(session.data?.permissions, "files.write");
 
   return (
-    <div className="flex flex-col gap-6">
+    <PageShell>
       <PageHeader
         title={`${record.lastName}, ${record.firstName}`}
-        description={`${record.program.department.code} / ${record.program.code} · ${record.isTracked ? "Tracked" : "Not tracked"}`}
+        description={`${record.program.department.code} / ${record.program.code}`}
+        actions={<StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />}
       />
       <Card>
         <CardHeader>
@@ -151,9 +167,8 @@ function AlumniDetailPage() {
             }}
           >
             <FormField id="programId" label="Program">
-              <select
+              <NativeSelect
                 id="programId"
-                className="h-8 border border-input bg-transparent px-2 text-xs"
                 value={form.programId}
                 onChange={(event) => setForm({ ...form, programId: event.target.value })}
                 disabled={!canWrite}
@@ -163,7 +178,7 @@ function AlumniDetailPage() {
                     {program.department.code} / {program.code} — {program.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </FormField>
             <FormField id="studentNumber" label="Student number">
               <Input
@@ -188,6 +203,47 @@ function AlumniDetailPage() {
                 onChange={(event) => setForm({ ...form, lastName: event.target.value })}
                 disabled={!canWrite}
               />
+            </FormField>
+            <FormField id="middleName" label="Middle name">
+              <Input
+                id="middleName"
+                value={form.middleName}
+                onChange={(event) => setForm({ ...form, middleName: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
+            <FormField id="gender" label="Gender">
+              <Input
+                id="gender"
+                value={form.gender}
+                onChange={(event) => setForm({ ...form, gender: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
+            <FormField id="batch" label="Batch">
+              <Input
+                id="batch"
+                value={form.batch}
+                onChange={(event) => setForm({ ...form, batch: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
+            <FormField id="employmentStatus" label="Employment status">
+              <NativeSelect
+                id="employmentStatus"
+                value={form.employmentStatus}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    employmentStatus: event.target.value as typeof form.employmentStatus,
+                  })
+                }
+                disabled={!canWrite}
+              >
+                <option value="unknown">Unknown</option>
+                <option value="employed">Employed</option>
+                <option value="unemployed">Unemployed</option>
+              </NativeSelect>
             </FormField>
             <FormField id="mobileNumber" label="Mobile #">
               <Input
@@ -224,11 +280,11 @@ function AlumniDetailPage() {
               />
             </FormField>
             {canWrite ? (
-              <div className="md:col-span-2">
+              <FormActions>
                 <PrimaryButton type="submit" pending={save.isPending}>
-                  Save profile
+                  Save
                 </PrimaryButton>
-              </div>
+              </FormActions>
             ) : null}
           </form>
         </CardContent>
@@ -240,11 +296,11 @@ function AlumniDetailPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {record.employments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No employment records yet.</p>
+            <p className="text-sm text-muted-foreground">No employment records found.</p>
           ) : (
             <ul className="flex flex-col gap-2 text-sm">
               {record.employments.map((item) => (
-                <li key={item.id} className="border-b pb-2">
+                <li key={item.id} className="border-b pb-2 last:border-0">
                   <strong>{item.employer}</strong>
                   {item.jobTitle ? ` · ${item.jobTitle}` : ""}
                   {item.isCurrent ? " · current" : ""}
@@ -265,13 +321,15 @@ function AlumniDetailPage() {
                 value={job.employer}
                 onChange={(event) => setJob({ ...job, employer: event.target.value })}
                 required
+                aria-label="Employer"
               />
               <Input
                 placeholder="Job title"
                 value={job.jobTitle}
                 onChange={(event) => setJob({ ...job, jobTitle: event.target.value })}
+                aria-label="Job title"
               />
-              <PrimaryButton type="submit" pending={addJob.isPending}>
+              <PrimaryButton type="submit" pending={addJob.isPending} pendingLabel="Adding">
                 Add employment
               </PrimaryButton>
             </form>
@@ -284,26 +342,32 @@ function AlumniDetailPage() {
           <CardTitle>Tracking</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <p className="text-sm">
-            Current status: <strong>{record.isTracked ? "Tracked" : "Not tracked"}</strong>
-          </p>
-          <ul className="flex flex-col gap-2 text-sm">
-            {record.trackingEvents.map((event) => (
-              <li key={event.id}>
-                {new Date(event.recordedAt).toLocaleString()} · {event.isTracked ? "Tracked" : "Untracked"} ·{" "}
-                {event.source}
-                {event.notes ? ` · ${event.notes}` : ""}
-              </li>
-            ))}
-          </ul>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Current status</span>
+            <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
+          </div>
+          {record.trackingEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No tracking events found.</p>
+          ) : (
+            <ul className="flex flex-col gap-2 text-sm">
+              {record.trackingEvents.map((event) => (
+                <li key={event.id}>
+                  {new Date(event.recordedAt).toLocaleString()} · {event.isTracked ? "Tracked" : "Untracked"} ·{" "}
+                  {event.source}
+                  {event.notes ? ` · ${event.notes}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
           {canTrack ? (
             <div className="flex flex-col gap-2">
               <Textarea
                 value={trackingNotes}
                 onChange={(event) => setTrackingNotes(event.target.value)}
                 placeholder="Tracking notes"
+                aria-label="Tracking notes"
               />
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <PrimaryButton onClick={() => track.mutate(true)} pending={track.isPending}>
                   Mark tracked
                 </PrimaryButton>
@@ -325,7 +389,7 @@ function AlumniDetailPage() {
             <ul className="flex flex-col gap-2 text-sm">
               {record.evidenceFiles.map((file) => (
                 <li key={file.id}>
-                  <a className="underline" href={`/api/files/${file.id}`} target="_blank" rel="noreferrer">
+                  <a className="underline underline-offset-4" href={`/api/files/${file.id}`} target="_blank" rel="noreferrer">
                     {file.originalName}
                   </a>{" "}
                   · {file.provider} · {file.kind}
@@ -334,34 +398,32 @@ function AlumniDetailPage() {
             </ul>
           )}
           {canUpload ? (
-            <div className="flex flex-col gap-2">
-              <label className="text-xs">
-                Upload evidence
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField id="evidence" label="Upload evidence">
                 <Input
+                  id="evidence"
                   type="file"
-                  className="mt-1"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) void uploadFile(file, "evidence").catch((error) => toast.error(error.message));
                   }}
                 />
-              </label>
-              <label className="text-xs">
-                Upload image
+              </FormField>
+              <FormField id="image" label="Upload image">
                 <Input
+                  id="image"
                   type="file"
                   accept="image/*"
-                  className="mt-1"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) void uploadFile(file, "image").catch((error) => toast.error(error.message));
                   }}
                 />
-              </label>
+              </FormField>
             </div>
           ) : null}
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

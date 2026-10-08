@@ -1,8 +1,18 @@
 import { PrismaClient } from "../prisma/generated/client";
 import type { DatabaseConfig } from "./config";
 
+function withMongoDriverOptions(url: string) {
+  const queryIndex = url.indexOf("?");
+  const base = queryIndex === -1 ? url : url.slice(0, queryIndex);
+  const search = new URLSearchParams(queryIndex === -1 ? "" : url.slice(queryIndex + 1));
+  if (!search.has("serverSelectionTimeoutMS")) {
+    search.set("serverSelectionTimeoutMS", "8000");
+  }
+  return `${base}?${search.toString()}`;
+}
+
 export function createPrismaClient(env: DatabaseConfig) {
-  return new PrismaClient({ datasourceUrl: env.DATABASE_URL });
+  return new PrismaClient({ datasourceUrl: withMongoDriverOptions(env.DATABASE_URL) });
 }
 
 export type Database = ReturnType<typeof createPrismaClient>;

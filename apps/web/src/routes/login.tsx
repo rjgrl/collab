@@ -1,12 +1,12 @@
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
-import { Checkbox } from "@Alumni-Tracking-Ss/ui/components/checkbox";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
+import { CheckboxRow } from "@/components/checkbox-row";
 import { FormField, PrimaryButton } from "@/components/page-header";
 import { postJson } from "@/lib/session";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -24,6 +24,7 @@ function LoginPage() {
   const [password, setPassword] = useState("AlumniAdmin123!");
   const [fallbackChecked, setFallbackChecked] = useState(false);
   const [pending, setPending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const recaptcha = config.data?.recaptcha;
   const needsCheckbox = recaptcha?.enabled && !recaptcha.live;
@@ -31,6 +32,7 @@ function LoginPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
+    setFormError(null);
     try {
       await postJson(mode === "login" ? "/api/auth/login" : "/api/auth/signup", {
         name,
@@ -42,7 +44,9 @@ function LoginPage() {
       toast.success(mode === "login" ? "Signed in" : "Account created");
       await navigate({ to: "/dashboard" });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to continue");
+      const message = error instanceof Error ? error.message : "Unable to continue";
+      setFormError(message);
+      toast.error(message, { duration: 8000 });
     } finally {
       setPending(false);
     }
@@ -60,11 +64,11 @@ function LoginPage() {
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
             {mode === "signup" ? (
-              <FormField id="name" label="Name">
+              <FormField id="name" label="Name" required>
                 <Input id="name" value={name} onChange={(event) => setName(event.target.value)} required />
               </FormField>
             ) : null}
-            <FormField id="email" label="Email">
+            <FormField id="email" label="Email" required>
               <Input
                 id="email"
                 type="email"
@@ -73,7 +77,7 @@ function LoginPage() {
                 required
               />
             </FormField>
-            <FormField id="password" label="Password">
+            <FormField id="password" label="Password" required>
               <Input
                 id="password"
                 type="password"
@@ -84,17 +88,22 @@ function LoginPage() {
               />
             </FormField>
             {needsCheckbox ? (
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={fallbackChecked}
-                  onCheckedChange={(value) => setFallbackChecked(value === true)}
-                />
+              <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
                 I am not a robot
-              </label>
+              </CheckboxRow>
             ) : null}
-            <PrimaryButton type="submit" pending={pending}>
+            <PrimaryButton
+              type="submit"
+              pending={pending}
+              pendingLabel={mode === "login" ? "Signing in" : "Creating"}
+            >
               {mode === "login" ? "Sign in" : "Create account"}
             </PrimaryButton>
+            {formError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {formError}
+              </p>
+            ) : null}
             {config.data?.google.enabled ? (
               <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
                 Continue with Google

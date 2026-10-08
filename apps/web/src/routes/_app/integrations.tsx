@@ -6,13 +6,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { PageHeader, PrimaryButton } from "@/components/page-header";
+import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_app/integrations")({
   component: IntegrationsPage,
 });
+
+const INTEGRATION_NAMES: Record<string, string> = {
+  recaptcha: "reCAPTCHA",
+  google_auth: "Google Auth",
+  google_drive: "Google Drive",
+  email: "Email",
+  image_host: "Image host",
+  google_forms: "Google Forms",
+  google_sheets: "Google Sheets",
+};
 
 function IntegrationsPage() {
   const session = useSession();
@@ -41,8 +52,7 @@ function IntegrationsPage() {
 
   const importSheets = useMutation({
     mutationFn: () => client.integrations.importSheets(),
-    onSuccess: (result) =>
-      toast.success(`Imported ${result.successCount} rows from Sheets`),
+    onSuccess: (result) => toast.success(`Imported ${result.successCount} rows from Google Sheets`),
     onError: (error) => toast.error(error.message),
   });
 
@@ -53,25 +63,30 @@ function IntegrationsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <PageShell>
       <PageHeader
-        title="Modular integrations"
+        title="Integrations"
         description="Each integration can be enabled or disabled without rewriting core modules. Unconfigured services use a documented fallback."
       />
       <div className="grid gap-4 md:grid-cols-2">
         {list.data?.map((item) => (
           <Card key={item.key}>
             <CardHeader>
-              <CardTitle className="capitalize">{item.key.replaceAll("_", " ")}</CardTitle>
-              <CardDescription>
-                {item.mode} · {item.summary}
-              </CardDescription>
+              <div className="flex items-start justify-between gap-3">
+                <CardTitle>{INTEGRATION_NAMES[item.key] ?? item.key.replaceAll("_", " ")}</CardTitle>
+                <StatusBadge
+                  tone={item.mode === "live" ? "live" : item.mode === "disabled" ? "disabled" : "fallback"}
+                />
+              </div>
+              <CardDescription>{item.summary}</CardDescription>
             </CardHeader>
             <CardContent>
               {canWrite ? (
                 <PrimaryButton
                   variant="outline"
                   onClick={() => toggle.mutate({ key: item.key, enabled: !item.enabled })}
+                  pending={toggle.isPending && toggle.variables?.key === item.key}
+                  pendingLabel={item.enabled ? "Disabling" : "Enabling"}
                 >
                   {item.enabled ? "Disable" : "Enable"}
                 </PrimaryButton>
@@ -88,8 +103,13 @@ function IntegrationsPage() {
               <CardDescription>Fallback for Google Sheets when credentials are not configured.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <Textarea rows={8} value={csv} onChange={(event) => setCsv(event.target.value)} />
-              <PrimaryButton onClick={() => importCsv.mutate()} pending={importCsv.isPending}>
+              <Textarea
+                rows={8}
+                value={csv}
+                onChange={(event) => setCsv(event.target.value)}
+                aria-label="CSV import"
+              />
+              <PrimaryButton onClick={() => importCsv.mutate()} pending={importCsv.isPending} pendingLabel="Importing">
                 Import CSV
               </PrimaryButton>
             </CardContent>
@@ -99,8 +119,12 @@ function IntegrationsPage() {
               <CardTitle>Google Sheets import</CardTitle>
             </CardHeader>
             <CardContent>
-              <PrimaryButton onClick={() => importSheets.mutate()} pending={importSheets.isPending}>
-                Import from Sheets
+              <PrimaryButton
+                onClick={() => importSheets.mutate()}
+                pending={importSheets.isPending}
+                pendingLabel="Importing"
+              >
+                Import from Google Sheets
               </PrimaryButton>
             </CardContent>
           </Card>
@@ -108,20 +132,25 @@ function IntegrationsPage() {
             <CardHeader>
               <CardTitle>Test email</CardTitle>
             </CardHeader>
-            <CardContent className="flex gap-2">
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                value={testEmail}
-                onChange={(event) => setTestEmail(event.target.value)}
-              />
-              <PrimaryButton onClick={() => sendTest.mutate()} pending={sendTest.isPending}>
-                Send
-              </PrimaryButton>
+            <CardContent className="flex flex-col gap-3 sm:flex-row">
+              <FormField id="testEmail" label="Recipient">
+                <Input
+                  id="testEmail"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={testEmail}
+                  onChange={(event) => setTestEmail(event.target.value)}
+                />
+              </FormField>
+              <div className="flex items-end">
+                <PrimaryButton onClick={() => sendTest.mutate()} pending={sendTest.isPending} pendingLabel="Sending">
+                  Send test
+                </PrimaryButton>
+              </div>
             </CardContent>
           </Card>
         </>
       ) : null}
-    </div>
+    </PageShell>
   );
 }

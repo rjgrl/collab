@@ -21,6 +21,7 @@ docs/
 ├── README.md
 ├── source-guide.md
 ├── functional-requirements.md
+├── system-function-requirements.md
 ├── requirements-traceability.md
 ├── user-roles-and-permissions.md
 ├── workflows.md

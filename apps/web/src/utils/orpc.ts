@@ -7,13 +7,25 @@ import { toast } from "sonner";
 
 import { ENV } from "../env";
 
+function toToastMessage(error: Error) {
+  const message = error.message;
+  if (
+    message.includes("not valid JSON") ||
+    message.includes("Unexpected token") ||
+    message.includes("Internal Server")
+  ) {
+    return "Unable to reach the database. Check that MongoDB Atlas is running and this network is allowed.";
+  }
+  return message;
+}
+
 export function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
-        toast.error(`Error: ${error.message}`, {
+        toast.error(toToastMessage(error), {
           action: {
-            label: "retry",
+            label: "Retry",
             onClick: () => {
               query.invalidate();
             },

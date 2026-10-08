@@ -1,12 +1,20 @@
-import { Card, CardContent } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DataTable, QuietButton, TableCell, TableRow } from "@/components/data-table";
-import { FormField, PageHeader, PrimaryButton } from "@/components/page-header";
+import { CheckboxRow } from "@/components/checkbox-row";
+import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
+import {
+  FieldsetLabel,
+  FormActions,
+  FormCard,
+  FormField,
+  PageHeader,
+  PageShell,
+  PrimaryButton,
+} from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -53,7 +61,7 @@ function FacultiesPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <PageShell>
       <PageHeader
         title="Faculties"
         description="Faculties can be added to one or more departments."
@@ -76,85 +84,86 @@ function FacultiesPage() {
         }
       />
       {draft ? (
-        <Card>
-          <CardContent className="pt-4">
-            <form
-              className="grid gap-4 md:grid-cols-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                save.mutate(draft);
-              }}
-            >
-              <FormField id="employeeNumber" label="Employee number">
-                <Input
-                  id="employeeNumber"
-                  value={draft.employeeNumber}
-                  onChange={(event) => setDraft({ ...draft, employeeNumber: event.target.value })}
-                  required
-                />
-              </FormField>
-              <FormField id="email" label="Email">
-                <Input
-                  id="email"
-                  type="email"
-                  value={draft.email}
-                  onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-                />
-              </FormField>
-              <FormField id="firstName" label="First name">
-                <Input
-                  id="firstName"
-                  value={draft.firstName}
-                  onChange={(event) => setDraft({ ...draft, firstName: event.target.value })}
-                  required
-                />
-              </FormField>
-              <FormField id="lastName" label="Last name">
-                <Input
-                  id="lastName"
-                  value={draft.lastName}
-                  onChange={(event) => setDraft({ ...draft, lastName: event.target.value })}
-                  required
-                />
-              </FormField>
-              <div className="md:col-span-2">
-                <p className="mb-2 text-xs">Departments</p>
-                <div className="flex flex-col gap-2">
-                  {departments.data?.map((department) => {
-                    const checked = draft.departmentIds.includes(department.id);
-                    return (
-                      <label key={department.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(event) => {
-                            setDraft({
-                              ...draft,
-                              departmentIds: event.target.checked
-                                ? [...draft.departmentIds, department.id]
-                                : draft.departmentIds.filter((id) => id !== department.id),
-                            });
-                          }}
-                        />
-                        {department.code} — {department.name}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="flex gap-2 md:col-span-2">
-                <PrimaryButton type="submit" pending={save.isPending}>
-                  Save
-                </PrimaryButton>
-                <QuietButton type="button" onClick={() => setDraft(null)}>
-                  Cancel
-                </QuietButton>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+        <FormCard title={draft.id ? "Edit faculty" : "Add faculty"}>
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save.mutate(draft);
+            }}
+          >
+            <FormField id="employeeNumber" label="Employee number" required>
+              <Input
+                id="employeeNumber"
+                value={draft.employeeNumber}
+                onChange={(event) => setDraft({ ...draft, employeeNumber: event.target.value })}
+                required
+              />
+            </FormField>
+            <FormField id="email" label="Email">
+              <Input
+                id="email"
+                type="email"
+                value={draft.email}
+                onChange={(event) => setDraft({ ...draft, email: event.target.value })}
+              />
+            </FormField>
+            <FormField id="firstName" label="First name" required>
+              <Input
+                id="firstName"
+                value={draft.firstName}
+                onChange={(event) => setDraft({ ...draft, firstName: event.target.value })}
+                required
+              />
+            </FormField>
+            <FormField id="lastName" label="Last name" required>
+              <Input
+                id="lastName"
+                value={draft.lastName}
+                onChange={(event) => setDraft({ ...draft, lastName: event.target.value })}
+                required
+              />
+            </FormField>
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <FieldsetLabel>Departments</FieldsetLabel>
+              {departments.data?.map((department) => (
+                <CheckboxRow
+                  key={department.id}
+                  checked={draft.departmentIds.includes(department.id)}
+                  onCheckedChange={(checked) =>
+                    setDraft({
+                      ...draft,
+                      departmentIds: checked
+                        ? [...draft.departmentIds, department.id]
+                        : draft.departmentIds.filter((id) => id !== department.id),
+                    })
+                  }
+                >
+                  {department.code} — {department.name}
+                </CheckboxRow>
+              ))}
+            </div>
+            <FormActions>
+              <PrimaryButton type="submit" pending={save.isPending}>
+                Save
+              </PrimaryButton>
+              <QuietButton type="button" onClick={() => setDraft(null)}>
+                Cancel
+              </QuietButton>
+            </FormActions>
+          </form>
+        </FormCard>
       ) : null}
-      <DataTable headers={["Employee #", "Name", "Departments", ""]} search={search} onSearch={setSearch}>
+      <DataTable
+        headers={["Employee #", "Name", "Departments", "Actions"]}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search faculties"
+        loading={list.isPending}
+        isEmpty={list.data?.length === 0}
+        emptyTitle="No faculties found"
+        emptyDescription="Add a faculty record and assign it to a department."
+      >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
             <TableCell>{row.employeeNumber}</TableCell>
@@ -165,7 +174,7 @@ function FacultiesPage() {
               {row.facultyDepartments.map((item) => item.department.code).join(", ") || "—"}
             </TableCell>
             <TableCell>
-              <div className="flex gap-2">
+              <RowActions>
                 {canWrite ? (
                   <QuietButton
                     onClick={() =>
@@ -186,17 +195,19 @@ function FacultiesPage() {
                   <QuietButton
                     variant="destructive"
                     onClick={() => {
-                      if (confirm("Remove this faculty record?")) remove.mutate(row.id);
+                      if (confirm("Remove this faculty record? This cannot be undone.")) {
+                        remove.mutate(row.id);
+                      }
                     }}
                   >
                     Remove
                   </QuietButton>
                 ) : null}
-              </div>
+              </RowActions>
             </TableCell>
           </TableRow>
         ))}
       </DataTable>
-    </div>
+    </PageShell>
   );
 }

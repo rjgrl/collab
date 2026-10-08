@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { publicProcedure, requirePermission } from "../index";
 import { writeAudit } from "../audit";
+import { isDatabaseUnavailable } from "../errors";
 import { isIntegrationEnabled } from "../integrations/registry";
 import { verifyRecaptcha } from "../integrations/recaptcha";
 import { loginSchema, signupSchema } from "../validation";
@@ -16,19 +17,29 @@ import {
 
 export const authRouter = {
   config: publicProcedure.handler(async ({ context }) => {
-    const recaptchaEnabled = await isIntegrationEnabled(context.db, "recaptcha");
-    const googleEnabled = await isIntegrationEnabled(context.db, "google_auth");
+    try {
+      const recaptchaEnabled = await isIntegrationEnabled(context.db, "recaptcha");
+      const googleEnabled = await isIntegrationEnabled(context.db, "google_auth");
 
-    return {
-      recaptcha: {
-        enabled: recaptchaEnabled,
-        live: Boolean(context.integrationEnv.recaptchaSecretKey && context.integrationEnv.recaptchaSiteKey),
-        siteKey: recaptchaEnabled ? context.integrationEnv.recaptchaSiteKey ?? null : null,
-      },
-      google: {
-        enabled: googleEnabled && Boolean(context.integrationEnv.googleClientId && context.integrationEnv.googleClientSecret),
-      },
-    };
+      return {
+        recaptcha: {
+          enabled: recaptchaEnabled,
+          live: Boolean(context.integrationEnv.recaptchaSecretKey && context.integrationEnv.recaptchaSiteKey),
+          siteKey: recaptchaEnabled ? context.integrationEnv.recaptchaSiteKey ?? null : null,
+        },
+        google: {
+          enabled: googleEnabled && Boolean(context.integrationEnv.googleClientId && context.integrationEnv.googleClientSecret),
+        },
+      };
+    } catch (error) {
+      if (!isDatabaseUnavailable(error)) {
+        throw error;
+      }
+      return {
+        recaptcha: { enabled: false, live: false, siteKey: null },
+        google: { enabled: false },
+      };
+    }
   }),
 
   me: publicProcedure.handler(async ({ context }) => {

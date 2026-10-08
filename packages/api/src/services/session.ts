@@ -4,6 +4,7 @@ import { ORPCError } from "@orpc/server";
 
 import type { AuthUser } from "../context";
 import { writeAudit } from "../audit";
+import { isDatabaseUnavailable } from "../errors";
 
 const SESSION_DAYS = 7;
 
@@ -54,9 +55,17 @@ export async function loadAuthUserFromToken(db: Database, token: string | null) 
     return null;
   }
 
-  const session = await db.session.findUnique({
-    where: { token },
-  });
+  let session;
+  try {
+    session = await db.session.findUnique({
+      where: { token },
+    });
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      return null;
+    }
+    throw error;
+  }
 
   if (!session || session.expiresAt.getTime() < Date.now()) {
     if (session) {

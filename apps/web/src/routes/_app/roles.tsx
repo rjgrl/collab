@@ -1,11 +1,11 @@
-import { Card, CardContent } from "@Alumni-Tracking-Ss/ui/components/card";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { DataTable, QuietButton, TableCell, TableRow } from "@/components/data-table";
-import { PageHeader, PrimaryButton } from "@/components/page-header";
+import { CheckboxRow } from "@/components/checkbox-row";
+import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
+import { FormCard, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -45,57 +45,60 @@ function RolesPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <PageShell>
       <PageHeader
-        title="Roles and permissions"
+        title="Roles"
         description="Roles, users, and permissions operate together as RBAC."
       />
-      <DataTable headers={["Key", "Name", "Users", ""]}>
+      <DataTable
+        headers={["Key", "Name", "Users", "Actions"]}
+        loading={roles.isPending}
+        isEmpty={roles.data?.length === 0}
+        emptyTitle="No roles found"
+        emptyDescription="System roles are created when the database is seeded."
+      >
         {roles.data?.map((role) => (
           <TableRow key={role.id}>
             <TableCell>{role.key}</TableCell>
             <TableCell>{role.name}</TableCell>
             <TableCell>{role._count.userRoles}</TableCell>
             <TableCell>
-              <QuietButton onClick={() => setSelected(role.id)}>Manage permissions</QuietButton>
+              <RowActions>
+                <QuietButton onClick={() => setSelected(role.id)}>Manage permissions</QuietButton>
+              </RowActions>
             </TableCell>
           </TableRow>
         ))}
       </DataTable>
       {current && canWrite ? (
-        <Card>
-          <CardContent className="flex flex-col gap-4 pt-4">
-            <p className="text-sm font-medium">{current.name}</p>
+        <FormCard title={current.name} description="Select the permissions this role can use.">
+          <div className="flex flex-col gap-4">
             <div className="grid gap-2 md:grid-cols-2">
-              {permissions.data?.map((permission) => {
-                const checked = permissionIds.includes(permission.id);
-                return (
-                  <label key={permission.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(event) => {
-                        setPermissionIds((currentIds) =>
-                          event.target.checked
-                            ? [...currentIds, permission.id]
-                            : currentIds.filter((id) => id !== permission.id),
-                        );
-                      }}
-                    />
-                    <span>
-                      {permission.key}
-                      <span className="block text-xs text-muted-foreground">{permission.description}</span>
-                    </span>
-                  </label>
-                );
-              })}
+              {permissions.data?.map((permission) => (
+                <CheckboxRow
+                  key={permission.id}
+                  checked={permissionIds.includes(permission.id)}
+                  onCheckedChange={(checked) => {
+                    setPermissionIds((currentIds) =>
+                      checked
+                        ? [...currentIds, permission.id]
+                        : currentIds.filter((id) => id !== permission.id),
+                    );
+                  }}
+                >
+                  <span>
+                    {permission.key}
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{permission.description}</span>
+                  </span>
+                </CheckboxRow>
+              ))}
             </div>
             <PrimaryButton onClick={() => save.mutate()} pending={save.isPending}>
               Save permissions
             </PrimaryButton>
-          </CardContent>
-        </Card>
+          </div>
+        </FormCard>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
