@@ -51,6 +51,21 @@ lerna-debug.log*
 coverage
 .nyc_output
 
+# AI agent tooling
+# Vendored agent skills, MCP server config, editor/agent state, and the
+# Better-T-Stack manifest that declares the mcp/skills addons. None of this is
+# read by the build, the dev server, or the tests. Re-add individual entries
+# (e.g. !.mcp.json) if you want to share them with collaborators.
+.agents/
+.claude/
+.cursor/
+.kilo/
+.mcp.json
+skills-lock.json
+bts.jsonc
+AGENTS.md
+CLAUDE.md
+
 # Misc
 *.tgz
 .cache
