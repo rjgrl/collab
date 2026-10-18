@@ -26,7 +26,7 @@ async function main() {
   if (command === "db:local") return;
   const args =
     command === "dev"
-      ? ["-r", "dev"]
+      ? ["--filter", "web", "--filter", "server", "dev"]
       : command === "dev:server"
         ? ["--filter", "server", "dev"]
         : ["--filter", "@Alumni-Tracking-Ss/db", command];
