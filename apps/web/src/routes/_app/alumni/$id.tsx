@@ -1,3 +1,4 @@
+import { genderSchema, facebookSchema } from "@Alumni-Tracking-Ss/api/validation";
 import { Card, CardContent, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -9,7 +10,13 @@ import { toast } from "sonner";
 import { QuietButton } from "@/components/data-table";
 import Loader from "@/components/loader";
 import { NativeSelect } from "@/components/native-select";
-import { FormActions, FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import {
+  FormActions,
+  FormField,
+  PageHeader,
+  PageShell,
+  PrimaryButton,
+} from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -31,7 +38,6 @@ function AlumniDetailPage() {
     middleName: "",
     gender: "",
     graduationYear: "",
-    batch: "",
     mobileNumber: "",
     personalEmail: "",
     facebookAccount: "",
@@ -45,14 +51,14 @@ function AlumniDetailPage() {
     if (!record) {
       return;
     }
+    const gender = genderSchema.safeParse(record.gender);
     setForm({
       studentNumber: record.studentNumber,
       firstName: record.firstName,
       lastName: record.lastName,
       middleName: record.middleName ?? "",
-      gender: record.gender ?? "",
+      gender: gender.success ? gender.data : "",
       graduationYear: record.graduationYear ? String(record.graduationYear) : "",
-      batch: record.batch ?? "",
       mobileNumber: record.mobileNumber ?? "",
       personalEmail: record.personalEmail ?? "",
       facebookAccount: record.facebookAccount ?? "",
@@ -66,6 +72,7 @@ function AlumniDetailPage() {
       client.alumni.update({
         id,
         ...form,
+        gender: genderSchema.parse(form.gender),
         graduationYear: form.graduationYear ? Number(form.graduationYear) : undefined,
       }),
     onSuccess: async () => {
@@ -212,21 +219,18 @@ function AlumniDetailPage() {
                 disabled={!canWrite}
               />
             </FormField>
-            <FormField id="gender" label="Gender">
-              <Input
+            <FormField id="gender" label="Gender" required>
+              <NativeSelect
                 id="gender"
                 value={form.gender}
                 onChange={(event) => setForm({ ...form, gender: event.target.value })}
                 disabled={!canWrite}
-              />
-            </FormField>
-            <FormField id="batch" label="Batch">
-              <Input
-                id="batch"
-                value={form.batch}
-                onChange={(event) => setForm({ ...form, batch: event.target.value })}
-                disabled={!canWrite}
-              />
+                required
+              >
+                <option value="">Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </NativeSelect>
             </FormField>
             <FormField id="employmentStatus" label="Employment status">
               <NativeSelect
@@ -262,13 +266,26 @@ function AlumniDetailPage() {
                 disabled={!canWrite}
               />
             </FormField>
-            <FormField id="facebookAccount" label="Facebook account">
+            <FormField id="facebookAccount" label="Facebook profile link">
               <Input
                 id="facebookAccount"
+                type="url"
+                placeholder="https://www.facebook.com/username"
+                maxLength={2048}
                 value={form.facebookAccount}
                 onChange={(event) => setForm({ ...form, facebookAccount: event.target.value })}
                 disabled={!canWrite}
               />
+              {form.facebookAccount && facebookSchema.safeParse(form.facebookAccount).success ? (
+                <a
+                  href={form.facebookAccount.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary underline underline-offset-4"
+                >
+                  Open Facebook profile
+                </a>
+              ) : null}
             </FormField>
             <FormField id="graduationYear" label="Graduation year">
               <Input
@@ -352,8 +369,8 @@ function AlumniDetailPage() {
             <ul className="flex flex-col gap-2 text-sm">
               {record.trackingEvents.map((event) => (
                 <li key={event.id}>
-                  {new Date(event.recordedAt).toLocaleString()} · {event.isTracked ? "Tracked" : "Untracked"} ·{" "}
-                  {event.source}
+                  {new Date(event.recordedAt).toLocaleString()} ·{" "}
+                  {event.isTracked ? "Tracked" : "Untracked"} · {event.source}
                   {event.notes ? ` · ${event.notes}` : ""}
                 </li>
               ))}
@@ -389,7 +406,12 @@ function AlumniDetailPage() {
             <ul className="flex flex-col gap-2 text-sm">
               {record.evidenceFiles.map((file) => (
                 <li key={file.id}>
-                  <a className="underline underline-offset-4" href={`/api/files/${file.id}`} target="_blank" rel="noreferrer">
+                  <a
+                    className="underline underline-offset-4"
+                    href={`/api/files/${file.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     {file.originalName}
                   </a>{" "}
                   · {file.provider} · {file.kind}
@@ -405,7 +427,10 @@ function AlumniDetailPage() {
                   type="file"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) void uploadFile(file, "evidence").catch((error) => toast.error(error.message));
+                    if (file)
+                      void uploadFile(file, "evidence").catch((error) =>
+                        toast.error(error.message),
+                      );
                   }}
                 />
               </FormField>
@@ -416,7 +441,8 @@ function AlumniDetailPage() {
                   accept="image/*"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) void uploadFile(file, "image").catch((error) => toast.error(error.message));
+                    if (file)
+                      void uploadFile(file, "image").catch((error) => toast.error(error.message));
                   }}
                 />
               </FormField>

@@ -10,7 +10,6 @@ import {
   PageShell,
   PrimaryButton,
 } from "@/components/page-header";
-import { ModeToggle } from "@/components/mode-toggle";
 import { useSession } from "@/lib/session";
 import { client, queryClient } from "@/utils/orpc";
 
@@ -41,11 +40,7 @@ function AccountSettings() {
   });
   return (
     <PageShell>
-      <PageHeader
-        title="Account settings"
-        description="Manage your account and password."
-        actions={<ModeToggle />}
-      />
+      <PageHeader title="Account settings" description="Manage your account and password." />
       <div className="grid items-start gap-4 md:grid-cols-2">
         <FormCard title="Profile" description={session.data?.email}>
           <form

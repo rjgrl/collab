@@ -33,3 +33,5 @@ Reports can download CSV. Google Sheets export runs when that integration is con
 ## Integrations
 
 Super Admin / Staff with `integrations.write` can enable or disable each modular integration, import CSV, import Sheets, and send a test email.
+
+Alumni gender is required: select Male or Female. Use Graduation year; Batch is no longer collected. Facebook is optional and must be a full Facebook profile URL when supplied. CSV and Google Forms imports use these same rules; include the gender field.

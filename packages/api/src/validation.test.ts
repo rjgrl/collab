@@ -1,8 +1,73 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { csvToObjects, parseCsv, quoteCsv, toCsv } from "./validation";
+import {
+  alumniInputSchema,
+  alumniImportRowSchema,
+  facebookSchema,
+  csvToObjects,
+  parseCsv,
+  quoteCsv,
+  toCsv,
+} from "./validation";
 import { mapFormPayload } from "./integrations/forms";
+
+describe("alumni fields", () => {
+  const profile = {
+    studentNumber: "2020-0001",
+    firstName: "Ana",
+    lastName: "Cruz",
+    programId: "program",
+  };
+  it("requires Male or Female on creation and editing", () => {
+    for (const gender of [undefined, "", "Other", "male"]) {
+      assert.equal(alumniInputSchema.safeParse({ ...profile, gender }).success, false);
+    }
+    for (const gender of ["Male", "Female"]) {
+      assert.equal(alumniInputSchema.safeParse({ ...profile, gender }).success, true);
+    }
+    assert.equal(
+      "batch" in alumniInputSchema.parse({ ...profile, gender: "Female", batch: "2020" }),
+      false,
+    );
+  });
+  it("accepts optional Facebook URLs and rejects usernames and unsafe links", () => {
+    for (const value of [
+      undefined,
+      "",
+      "https://www.facebook.com/ana.cruz",
+      "https://m.facebook.com/profile.php?id=123",
+    ]) {
+      assert.equal(facebookSchema.safeParse(value).success, true);
+    }
+    for (const value of [
+      "ana.cruz",
+      "javascript:alert(1)",
+      "https://facebook.com.evil.test/ana",
+      "https://example.com",
+      "https://facebook.com@evil.test/ana",
+    ]) {
+      assert.equal(facebookSchema.safeParse(value).success, false);
+    }
+  });
+  it("applies the same gender and Facebook rules to imports", () => {
+    const row = { ...profile, programCode: "BSIT", departmentCode: "IT" };
+    assert.equal(alumniImportRowSchema.safeParse(row).success, false);
+    assert.equal(
+      alumniImportRowSchema.safeParse({ ...row, gender: "Female", facebookAccount: "username" })
+        .success,
+      false,
+    );
+    assert.equal(
+      alumniImportRowSchema.safeParse({
+        ...row,
+        gender: "Female",
+        facebookAccount: "https://facebook.com/ana",
+      }).success,
+      true,
+    );
+  });
+});
 
 describe("csv quoting", () => {
   it("neutralizes spreadsheet formulas while preserving numeric cells", () => {
@@ -47,6 +112,7 @@ describe("google form mapping", () => {
       "Student Number": "2021-0099",
       "First Name": "Kai",
       "Last Name": "Lim",
+      Gender: "Male",
       Program: "BSIT",
       Department: "IT",
       Tracked: "yes",

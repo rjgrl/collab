@@ -66,7 +66,7 @@ See [system/installation.md](./system/installation.md).
 3. A program belongs to exactly one department; an alumni record belongs to exactly one program.
 4. A faculty may belong to multiple departments.
 5. Contact fields are optional but validated when present.
-6. Student details include student number, name, gender, graduation year, and batch.
+6. Student details include student number, name, required gender (Male or Female), and graduation year.
 7. Employment supports history plus a current status on the alumni record.
 8. “Tracked” means the latest tracking event set `isTracked = true`.
 9. Evidence belongs to an alumni record (and optionally a tracking event).

@@ -36,7 +36,7 @@ Documented in [implementation.md](../implementation.md). Important ones:
 6. `IT` is a **department code**.
 7. “Tracked” means the alumni record’s latest tracking flag is true.
 8. Evidence files belong to an alumni record.
-9. Student details include student number, name, gender, graduation year, and batch so records can be identified.
+9. Student details include student number, name, required gender (Male or Female), and graduation year so records can be identified.
 
 ## Out of scope (not in docs)
 

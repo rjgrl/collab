@@ -30,7 +30,7 @@ export function IntegrationsPage() {
   const list = useQuery(orpc.integrations.list.queryOptions());
   const canWrite = can(session.data?.permissions, "integrations.write");
   const [csv, setCsv] = useState(
-    "studentNumber,firstName,lastName,departmentCode,programCode,personalEmail,isTracked\n",
+    "studentNumber,firstName,lastName,gender,departmentCode,programCode,personalEmail,isTracked\n",
   );
   const [testEmail, setTestEmail] = useState("");
 
@@ -106,7 +106,8 @@ export function IntegrationsPage() {
             <CardHeader>
               <CardTitle>CSV import</CardTitle>
               <CardDescription>
-                Fallback for Google Sheets when credentials are not configured.
+                Gender is required: Male or Female. Facebook links, when supplied, must be full
+                Facebook profile URLs.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">

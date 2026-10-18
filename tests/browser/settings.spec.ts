@@ -122,6 +122,22 @@ test("creation dialogs contain forms, trap focus and return focus to the add but
     await add.click();
     const dialog = page.getByRole("dialog", { name: title, exact: true });
     await expect(dialog.getByRole("textbox", { name: field, exact: true })).toBeVisible();
+    if (title === "Add alumni") {
+      const gender = dialog.getByRole("combobox", { name: "Gender", exact: true });
+      await expect(gender).toHaveAttribute("required", "");
+      await expect(gender.locator("option")).toHaveText(["Select gender", "Male", "Female"]);
+      expect(
+        await gender.evaluate((element) => (element as HTMLSelectElement).checkValidity()),
+      ).toBe(false);
+      await gender.selectOption("Female");
+      expect(
+        await gender.evaluate((element) => (element as HTMLSelectElement).checkValidity()),
+      ).toBe(true);
+      await expect(dialog.getByRole("textbox", { name: "Batch", exact: true })).toHaveCount(0);
+      await expect(
+        dialog.getByRole("textbox", { name: "Facebook profile link", exact: true }),
+      ).toHaveAttribute("type", "url");
+    }
     expect(
       (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
     ).toEqual([]);
@@ -153,6 +169,7 @@ test("account controls fit a desktop viewport and role dialogs scroll internally
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.goto("/settings");
   await expect(page.getByLabel("Full name")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Toggle theme", exact: true })).toHaveCount(1);
   if (testInfo.project.name === "desktop") {
     await expect(
       page.getByRole("button", { name: "Change password", exact: true }),

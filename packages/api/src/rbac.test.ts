@@ -112,6 +112,7 @@ const expectDenied = (procedure: unknown, user: AuthUser | null, input?: unknown
   expectCode("FORBIDDEN", procedure, user, input);
 
 const NEW_ALUMNI = {
+  gender: "Female",
   programId: "p1",
   studentNumber: "2020-0001",
   firstName: "Juan",

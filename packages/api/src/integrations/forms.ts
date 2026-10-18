@@ -10,7 +10,6 @@ export function mapFormPayload(payload: Record<string, unknown>): AlumniImportRo
     middleName: pick(source, ["middlename", "middle_name"]),
     gender: pick(source, ["gender", "sex"]),
     graduationYear: pick(source, ["graduationyear", "graduation_year", "year graduated"]),
-    batch: pick(source, ["batch", "year level"]),
     mobileNumber: pick(source, ["mobilenumber", "mobile", "mobile #", "phone"]),
     personalEmail: pick(source, ["personalemail", "email", "personal email"]),
     facebookAccount: pick(source, ["facebookaccount", "facebook", "facebook account"]),

@@ -25,12 +25,30 @@ export const mobileSchema = z
   .optional()
   .or(z.literal("").transform(() => undefined));
 
+export const genderSchema = z.enum(["Male", "Female"], { error: "Select Male or Female." });
+
 export const facebookSchema = z
   .string()
   .trim()
-  .max(200)
+  .max(2048)
+  .url("Enter a full Facebook profile link.")
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return (
+        ["http:", "https:"].includes(url.protocol) &&
+        !url.username &&
+        !url.password &&
+        (url.hostname === "facebook.com" ||
+          url.hostname.endsWith(".facebook.com") ||
+          url.hostname === "fb.com")
+      );
+    } catch {
+      return false;
+    }
+  }, "Enter a valid Facebook profile link.")
   .optional()
-  .or(z.literal("").transform(() => undefined));
+  .or(z.literal(""));
 
 export const codeSchema = z
   .string()
@@ -72,9 +90,8 @@ export const alumniInputSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
   middleName: z.string().trim().max(80).optional(),
-  gender: z.string().trim().max(40).optional(),
+  gender: genderSchema,
   graduationYear: z.number().int().min(1950).max(2100).optional(),
-  batch: z.string().trim().max(40).optional(),
   mobileNumber: mobileSchema,
   personalEmail: optionalEmailSchema,
   facebookAccount: facebookSchema,
@@ -122,12 +139,11 @@ export const alumniImportRowSchema = z.object({
   firstName: z.string().trim().min(1),
   lastName: z.string().trim().min(1),
   middleName: z.string().trim().optional(),
-  gender: z.string().trim().optional(),
+  gender: genderSchema,
   graduationYear: z.coerce.number().int().optional(),
-  batch: z.string().trim().optional(),
   mobileNumber: z.string().trim().optional(),
   personalEmail: z.string().trim().email().optional().or(z.literal("")),
-  facebookAccount: z.string().trim().optional(),
+  facebookAccount: facebookSchema,
   programCode: z.string().trim().min(1),
   departmentCode: z.string().trim().min(1),
   isTracked: z

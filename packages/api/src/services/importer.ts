@@ -40,11 +40,7 @@ export async function importAlumniRows(
   };
 }
 
-async function upsertImportedAlumni(
-  db: Database,
-  row: AlumniImportRow,
-  useTrackedFlag: boolean,
-) {
+async function upsertImportedAlumni(db: Database, row: AlumniImportRow, useTrackedFlag: boolean) {
   const department = await db.department.findFirst({
     where: withNotDeleted({ code: row.departmentCode }),
   });
@@ -72,12 +68,11 @@ async function upsertImportedAlumni(
     middleName: row.middleName,
     gender: row.gender,
     graduationYear: row.graduationYear,
-    batch: row.batch,
     mobileNumber: row.mobileNumber,
     personalEmail: row.personalEmail || undefined,
     facebookAccount: row.facebookAccount,
     programId: program.id,
-    isTracked: useTrackedFlag ? row.isTracked : existing?.isTracked ?? false,
+    isTracked: useTrackedFlag ? row.isTracked : (existing?.isTracked ?? false),
     lastTrackedAt: useTrackedFlag && row.isTracked ? new Date() : existing?.lastTrackedAt,
   };
 

@@ -1,3 +1,4 @@
+import { genderSchema } from "@Alumni-Tracking-Ss/api/validation";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -21,7 +22,6 @@ export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
     middleName: "",
     gender: "",
     graduationYear: "",
-    batch: "",
     mobileNumber: "",
     personalEmail: "",
     facebookAccount: "",
@@ -32,6 +32,7 @@ export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
     mutationFn: () =>
       client.alumni.create({
         ...form,
+        gender: genderSchema.parse(form.gender),
         graduationYear: form.graduationYear ? Number(form.graduationYear) : undefined,
         programId: form.programId,
       }),
@@ -121,12 +122,17 @@ export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
             onChange={(event) => setForm({ ...form, middleName: event.target.value })}
           />
         </FormField>
-        <FormField id="gender" label="Gender">
-          <Input
+        <FormField id="gender" label="Gender" required>
+          <NativeSelect
             id="gender"
             value={form.gender}
             onChange={(event) => setForm({ ...form, gender: event.target.value })}
-          />
+            required
+          >
+            <option value="">Select gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </NativeSelect>
         </FormField>
         <FormField id="graduationYear" label="Graduation year">
           <Input
@@ -134,13 +140,6 @@ export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
             type="number"
             value={form.graduationYear}
             onChange={(event) => setForm({ ...form, graduationYear: event.target.value })}
-          />
-        </FormField>
-        <FormField id="batch" label="Batch">
-          <Input
-            id="batch"
-            value={form.batch}
-            onChange={(event) => setForm({ ...form, batch: event.target.value })}
           />
         </FormField>
         <FormField id="mobileNumber" label="Mobile #">
@@ -158,9 +157,12 @@ export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
             onChange={(event) => setForm({ ...form, personalEmail: event.target.value })}
           />
         </FormField>
-        <FormField id="facebookAccount" label="Facebook account">
+        <FormField id="facebookAccount" label="Facebook profile link">
           <Input
             id="facebookAccount"
+            type="url"
+            placeholder="https://www.facebook.com/username"
+            maxLength={2048}
             value={form.facebookAccount}
             onChange={(event) => setForm({ ...form, facebookAccount: event.target.value })}
           />
