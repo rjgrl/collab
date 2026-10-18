@@ -38,3 +38,7 @@ Self-service alumni ownership is still unspecified: user accounts have no relati
 ## Dependency reference checks
 
 Compatibility and implementation choices were checked against the [file-type API and limitations](https://github.com/sindresorhus/file-type), [Hono body-limit API](https://hono.dev/docs/middleware/builtin/body-limit), [Base UI checkbox semantics](https://base-ui.com/react/components/checkbox), [Google reCAPTCHA display API](https://developers.google.com/recaptcha/docs/display), and [deepmerge-ts 8 release notes](https://github.com/RebeccaStevens/deepmerge-ts/releases/tag/v8.0.0). The dependency advisory results are observations from the recorded pnpm audit, not proof of complete application security.
+
+## Team clone/pull workflow
+
+Added native local setup and verification commands, committed safe local examples and a Node version hint, and documented installation of MongoDB Community Server plus Compass. Local startup waits for an rs0 primary before launching the apps or applying schema/seed commands. The setup creates missing private configuration and unique initial credentials, preserves existing values/passwords/data, rejects production or unmanaged database targets, and verifies real transaction rollback. No MongoDB data files, credentials, generated Prisma engines, dependency directories, or machine-specific service configurations are committed. A clean-clone run and a real database browser workflow are recorded in `test-report.md`.
