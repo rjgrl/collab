@@ -7,21 +7,23 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "vp run -r dev",
+    "dev": "node scripts/local-workflow.mjs dev",
     "build": "vp run -r build",
-    "check-types": "vp run -r check-types",
+    "check-types": "vp run -r check-types && tsc --project scripts/tsconfig.json",
     "check": "vp check && vp run -r check-types",
     "lint": "vp lint",
     "format": "vp fmt",
     "staged": "vp staged",
     "hooks:setup": "vp config",
     "dev:web": "vp run --filter web dev",
-    "dev:server": "vp run --filter server dev",
-    "db:push": "vp run --filter @Alumni-Tracking-Ss/db db:push",
+    "dev:server": "node scripts/local-workflow.mjs dev:server",
+    "db:push": "node scripts/local-workflow.mjs db:push",
+    "db:local": "node scripts/local-workflow.mjs db:local",
+    "setup:local": "node scripts/setup-local.mjs",
     "db:studio": "vp run --filter @Alumni-Tracking-Ss/db db:studio",
     "db:generate": "vp run --filter @Alumni-Tracking-Ss/db db:generate",
-    "db:seed": "vp run --filter @Alumni-Tracking-Ss/db db:seed",
-    "test": "tsx --test packages/db/src/*.test.ts packages/api/src/**/*.test.ts apps/server/src/*.test.ts",
+    "db:seed": "node scripts/local-workflow.mjs db:seed",
+    "test": "tsx --test packages/db/src/*.test.ts packages/api/src/**/*.test.ts apps/server/src/*.test.ts scripts/*.test.mjs",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "test:browser": "playwright test",
@@ -40,6 +42,10 @@
     "typescript": "catalog:",
     "varlock": "catalog:",
     "vite-plus": "0.3.1"
+  },
+  "engines": {
+    "node": ">=22.15.0",
+    "pnpm": "12.5.1"
   },
   "packageManager": "pnpm@12.5.1"
 }
