@@ -64,7 +64,19 @@ export const loginSchema = z.object({
   recaptchaFallback: z.boolean().optional(),
 });
 
-export const signupSchema = z.object({
+export const accountProfileSchema = z.object({
+  phoneNumber: z
+    .string()
+    .trim()
+    .min(7)
+    .max(30)
+    .regex(/^[+0-9() -]+$/, "Enter a valid phone number.")
+    .refine((value) => value.replace(/\D/g, "").length >= 7, "Enter a valid phone number."),
+  gender: genderSchema,
+  facebookAccount: facebookSchema,
+});
+
+export const signupSchema = accountProfileSchema.extend({
   name: z.string().trim().min(1).max(120),
   email: emailSchema,
   password: z.string().min(8).max(128),

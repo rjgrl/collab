@@ -22,7 +22,7 @@ import {
 } from "@Alumni-Tracking-Ss/api/server-utils";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { onError } from "@orpc/server";
+import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
@@ -186,8 +186,7 @@ export function createApp({
       if (isDatabaseUnavailable(error)) {
         return c.json({ error: publicErrorMessage(error) }, 503);
       }
-      const message =
-        error instanceof Error && error.name === "ORPCError" ? error.message : "Unable to sign in.";
+      const message = error instanceof ORPCError ? error.message : "Unable to sign in.";
       return c.json({ error: message }, 401);
     }
   });
@@ -195,7 +194,13 @@ export function createApp({
   app.post("/api/auth/signup", async (c) => {
     const parsed = signupSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success)
-      return c.json({ error: "Enter a name, valid email and password (8-128 characters)." }, 400);
+      return c.json(
+        {
+          error:
+            "Enter your name, valid email, phone number, gender, optional Facebook link and password (8-128 characters).",
+        },
+        400,
+      );
     const body = parsed.data;
 
     const recaptchaEnabled = await isIntegrationEnabled(db, "recaptcha");
@@ -211,9 +216,7 @@ export function createApp({
 
     try {
       const user = await registerUser(db, {
-        name: body.name,
-        email: body.email,
-        password: body.password,
+        ...body,
         ipAddress: c.req.header("x-forwarded-for"),
       });
       const session = await createSession(db, user.id, {
@@ -224,11 +227,11 @@ export function createApp({
       const authUser = await loadAuthUser(db, user.id);
       return c.json({ user: authUser });
     } catch (error) {
-      const message =
-        error instanceof Error && error.name === "ORPCError"
-          ? error.message
-          : "Unable to create account.";
-      return c.json({ error: message }, 400);
+      const message = error instanceof ORPCError ? error.message : "Unable to create account.";
+      return c.json(
+        { error: message },
+        error instanceof Error && "code" in error && error.code === "CONFLICT" ? 409 : 400,
+      );
     }
   });
 
@@ -283,45 +286,45 @@ export function createApp({
       return c.redirect(`${config.origin}/login?error=google`);
     }
 
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      signal: AbortSignal.timeout(15_000),
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: env.googleClientId,
-        client_secret: env.googleClientSecret,
-        redirect_uri: `${env.appUrl}/api/auth/google/callback`,
-        grant_type: "authorization_code",
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      return c.redirect(`${config.origin}/login?error=google`);
-    }
-
-    const tokens = (await tokenResponse.json()) as { access_token?: string };
-    if (!tokens.access_token) {
-      return c.redirect(`${config.origin}/login?error=google`);
-    }
-
-    const profileResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!profileResponse.ok) return c.redirect(config.origin + "/login?error=google");
-    const profile = (await profileResponse.json()) as {
-      email?: string;
-      name?: string;
-      picture?: string;
-      verified_email?: boolean;
-    };
-
-    if (!profile.email || profile.verified_email !== true) {
-      return c.redirect(`${config.origin}/login?error=google`);
-    }
-
     try {
+      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        signal: AbortSignal.timeout(15_000),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: env.googleClientId,
+          client_secret: env.googleClientSecret,
+          redirect_uri: `${env.appUrl}/api/auth/google/callback`,
+          grant_type: "authorization_code",
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        return c.redirect(`${config.origin}/login?error=google`);
+      }
+
+      const tokens = (await tokenResponse.json()) as { access_token?: string };
+      if (!tokens.access_token) {
+        return c.redirect(`${config.origin}/login?error=google`);
+      }
+
+      const profileResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!profileResponse.ok) return c.redirect(config.origin + "/login?error=google");
+      const profile = (await profileResponse.json()) as {
+        email?: string;
+        name?: string;
+        picture?: string;
+        verified_email?: boolean;
+      };
+
+      if (!profile.email || profile.verified_email !== true) {
+        return c.redirect(`${config.origin}/login?error=google`);
+      }
+
       const user = await upsertGoogleUser(db, {
         email: profile.email,
         name: profile.name || profile.email,
@@ -339,7 +342,9 @@ export function createApp({
         entityId: user.id,
         summary: "Signed in with Google",
       });
-      return c.redirect(`${config.origin}/dashboard`);
+      return c.redirect(
+        `${config.origin}${user.needsProfileCompletion ? "/complete-profile" : "/dashboard"}`,
+      );
     } catch {
       return c.redirect(`${config.origin}/login?error=google`);
     }

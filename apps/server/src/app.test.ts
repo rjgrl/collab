@@ -108,3 +108,114 @@ it("binds OAuth state to an HttpOnly cookie and rejects a callback without it", 
   assert.equal(callback.status, 302);
   assert.equal(callback.headers.get("location"), "https://app.example.test/login?error=google");
 });
+
+function googleFixture(existing = false) {
+  const created: Record<string, unknown>[] = [];
+  const account = {
+    id: "google-user",
+    name: "Google Member",
+    email: "member@example.test",
+    image: null,
+    status: "active",
+    needsProfileCompletion: false,
+  };
+  let sessions = 0;
+  const db = {
+    integrationSetting: { findUnique: async () => ({ enabled: true }) },
+    role: { findUnique: async () => ({ id: "viewer" }) },
+    user: {
+      findUnique: async () => (existing ? account : null),
+      update: async () => account,
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        created.push(data);
+        return { ...account, ...data };
+      },
+    },
+    session: {
+      create: async () => {
+        sessions++;
+        return { id: "session" };
+      },
+    },
+    auditLog: { create: async () => ({ id: "audit" }) },
+  } as unknown as Database;
+  const app = createApp({
+    db,
+    config: { nodeEnv: "test", origin: "https://app.example.test" },
+    integrationEnv: {
+      appUrl: "https://api.example.test",
+      googleClientId: "synthetic-client",
+      googleClientSecret: "synthetic-secret",
+    },
+  });
+  const callback = async () => {
+    const start = await app.request("/api/auth/google");
+    const state = new URL(start.headers.get("location")!).searchParams.get("state");
+    return app.request(`/api/auth/google/callback?code=synthetic&state=${state}`, {
+      headers: { Cookie: start.headers.get("set-cookie")!.split(";")[0]! },
+    });
+  };
+  return { callback, created, sessions: () => sessions };
+}
+
+it("Google callback creates a passwordless account and redirects to profile completion", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string | URL | Request) =>
+    Response.json(
+      String(url).includes("oauth2.googleapis.com/token")
+        ? { access_token: "synthetic-access-token" }
+        : { email: "member@example.test", name: "Google Member", verified_email: true },
+    ),
+  );
+  const f = googleFixture();
+  const response = await f.callback();
+  assert.equal(response.headers.get("location"), "https://app.example.test/complete-profile");
+  assert.match(response.headers.get("set-cookie")!, /ats_session=/);
+  assert.equal(f.sessions(), 1);
+  assert.equal(f.created[0]?.needsProfileCompletion, true);
+  assert.equal("passwordHash" in f.created[0]!, false);
+});
+
+it("Google callback signs into an existing email without creating a duplicate", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string | URL | Request) =>
+    Response.json(
+      String(url).includes("oauth2.googleapis.com/token")
+        ? { access_token: "synthetic-access-token" }
+        : { email: "member@example.test", verified_email: true },
+    ),
+  );
+  const f = googleFixture(true);
+  const response = await f.callback();
+  assert.equal(response.headers.get("location"), "https://app.example.test/dashboard");
+  assert.equal(f.created.length, 0);
+  assert.equal(f.sessions(), 1);
+});
+
+it("Google callback refuses an unverified email without creating an account or session", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string | URL | Request) =>
+    Response.json(
+      String(url).includes("oauth2.googleapis.com/token")
+        ? { access_token: "synthetic-access-token" }
+        : { email: "member@example.test", verified_email: false },
+    ),
+  );
+  const f = googleFixture();
+  assert.equal(
+    (await f.callback()).headers.get("location"),
+    "https://app.example.test/login?error=google",
+  );
+  assert.equal(f.created.length, 0);
+  assert.equal(f.sessions(), 0);
+});
+
+it("Google provider failures return to login without issuing a session", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => {
+    throw new Error("Synthetic provider timeout");
+  });
+  const f = googleFixture();
+  assert.equal(
+    (await f.callback()).headers.get("location"),
+    "https://app.example.test/login?error=google",
+  );
+  assert.equal(f.created.length, 0);
+  assert.equal(f.sessions(), 0);
+});

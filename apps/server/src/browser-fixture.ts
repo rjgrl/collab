@@ -34,6 +34,7 @@ const user = {
   image: null,
   status: "active",
   passwordHash,
+  needsProfileCompletion: false,
   userRoles: [{ role: adminRole }],
 };
 const sessions = new Map<string, { id: string; token: string; userId: string; expiresAt: Date }>();
@@ -103,7 +104,11 @@ const transaction = {
       }));
     },
   },
-  user: { findUnique: async () => user, findMany: async () => [user] },
+  user: {
+    findUnique: async () => user,
+    findMany: async () => [user],
+    update: async ({ data }: { data: Record<string, unknown> }) => Object.assign(user, data),
+  },
   userRole: { count: async () => 1 },
   session: {
     findUnique: async ({ where }: { where: { token: string } }) =>
@@ -150,9 +155,14 @@ const db = {
 const app = createApp({
   db,
   config: { nodeEnv: "test", origin: "http://127.0.0.1:3101" },
-  integrationEnv: {},
+  integrationEnv: {
+    googleClientId: "synthetic-browser-client",
+    googleClientSecret: "synthetic-browser-secret",
+    appUrl: "http://127.0.0.1:3100",
+  },
 });
 app.post("/__test/reset", (c) => {
+  user.needsProfileCompletion = false;
   createdRoles.length = 0;
   role.rolePermissions = [];
   role.updatedAt = new Date(initialDate);
@@ -160,6 +170,14 @@ app.post("/__test/reset", (c) => {
   integrationSettings.clear();
   integrationSettings.set("recaptcha", false);
   integrationSettings.set("google_auth", false);
+  return c.json({ ok: true });
+});
+app.post("/__test/google", (c) => {
+  integrationSettings.set("google_auth", true);
+  return c.json({ ok: true });
+});
+app.post("/__test/incomplete", (c) => {
+  user.needsProfileCompletion = true;
   return c.json({ ok: true });
 });
 app.post("/__test/fail", (c) => {

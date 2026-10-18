@@ -8,6 +8,7 @@ export const Route = createFileRoute("/_app")({
     if (!user) {
       throw redirect({ to: "/login" });
     }
+    if (user.needsProfileCompletion) throw redirect({ to: "/complete-profile" });
     return { user };
   },
   component: AppShell,

@@ -15,7 +15,7 @@ import {
   validatePermissionIds,
   validateRoleIds,
 } from "../services/authorization";
-import { loginSchema, signupSchema } from "../validation";
+import { accountProfileSchema, loginSchema, signupSchema } from "../validation";
 import {
   authenticateWithPassword,
   createSession,
@@ -26,6 +26,14 @@ import {
 } from "../services/session";
 
 export const authRouter = {
+  completeProfile: authenticated.input(accountProfileSchema).handler(async ({ context, input }) => {
+    await context.db.user.update({
+      where: { id: context.user.id },
+      data: { ...input, needsProfileCompletion: false },
+      select: { id: true },
+    });
+    return { ok: true };
+  }),
   updateProfile: authenticated
     .input(z.object({ name: z.string().trim().min(1).max(120) }))
     .handler(async ({ context, input }) => {
@@ -154,9 +162,7 @@ export const authRouter = {
     }
 
     const user = await registerUser(context.db, {
-      name: input.name,
-      email: input.email,
-      password: input.password,
+      ...input,
       ipAddress: context.ipAddress,
     });
     const session = await createSession(context.db, user.id, {

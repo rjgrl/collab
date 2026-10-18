@@ -45,6 +45,10 @@ model User {
   email         String     @unique
   emailVerified Boolean    @default(false)
   image         String?
+  phoneNumber   String?
+  gender        String?
+  facebookAccount String?
+  needsProfileCompletion Boolean @default(false)
   passwordHash  String?
   status        UserStatus @default(active)
   createdAt     DateTime   @default(now())

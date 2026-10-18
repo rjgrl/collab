@@ -120,3 +120,15 @@ pnpm build
 Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. See [test results](docs/test-report.md) for measured coverage and limits. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
 
 Settings contains Account, Members, Roles and permissions, and Integrations. Older `/users`, `/roles`, and `/integrations` links redirect to Settings. Production hosting, private storage, backups, and provider credentials are covered separately in [deployment.md](docs/deployment.md); local usability does not certify production readiness.
+
+## Google login and signup
+
+Create a Google Cloud **Web application** OAuth client and configure the consent screen and test users. In your private apps/server/.env, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET. Keep APP_URL=http://localhost:3000 for the default local server. Register this exact authorized redirect URI:
+
+`http://localhost:3000/api/auth/google/callback`
+
+In production, new-account registration also requires ALLOW_PUBLIC_SIGNUP=true; existing accounts can still sign in when registration is disabled. Restart the server, then enable **Google sign-in** in Settings > Integrations. Both sign-in and signup use the same Google button. Without credentials or with the integration disabled, the button is unavailable; local password sign-in still works. For a shared deployment, set APP_URL to the public origin serving /api/auth/google and register that origin's HTTPS callback. See [Google's OAuth setup instructions](https://developers.google.com/identity/openid-connect/openid-connect#settingup).
+
+Email signup requires a name, phone number, Male/Female selection, and password; the Facebook profile URL is optional. Emails are trimmed and stored in lowercase. Existing emails are rejected, including concurrent signup attempts protected by MongoDB's unique email index. Google sign-in reuses an existing account with the verified email instead of creating a duplicate. New Google accounts receive the Viewer role and complete their phone/gender details before entering the app. Google-only accounts have no local password; no automatic or shared password is generated. Creating a local password for a Google-only account is not currently supported.
+
+After pulling schema changes, stop the development server before running `pnpm setup:local` to avoid Windows locking Prisma's engine DLL, then restart `pnpm dev`.

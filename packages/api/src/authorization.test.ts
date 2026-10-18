@@ -90,6 +90,8 @@ it("production registration fails closed before database access unless explicitl
       () =>
         registerUser(db, {
           name: "Synthetic",
+          phoneNumber: "+639171234567",
+          gender: "Female",
           email: "test@example.test",
           password: "SyntheticPassword123!",
         }),

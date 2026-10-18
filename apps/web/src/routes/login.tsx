@@ -12,6 +12,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
+import { AccountProfileFields } from "@/components/account-profile-fields";
 import { CheckboxRow } from "@/components/checkbox-row";
 import { Recaptcha } from "@/components/recaptcha";
 import { FormField, PrimaryButton } from "@/components/page-header";
@@ -19,13 +20,17 @@ import { postJson } from "@/lib/session";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>): { error?: "google" } =>
+    search.error === "google" ? { error: "google" } : {},
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const config = useQuery(orpc.auth.config.queryOptions());
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [profile, setProfile] = useState({ phoneNumber: "", gender: "", facebookAccount: "" });
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +38,11 @@ function LoginPage() {
   const [recaptchaToken, setRecaptchaToken] = useState<string | undefined>();
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [pending, setPending] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(
+    search.error === "google"
+      ? "Google sign-in could not be completed. Please try again or sign in with your password."
+      : null,
+  );
 
   const recaptcha = config.data?.recaptcha;
   const needsCheckbox = recaptcha?.enabled && !recaptcha.live;
@@ -45,6 +54,7 @@ function LoginPage() {
     try {
       await postJson(mode === "login" ? "/api/auth/login" : "/api/auth/signup", {
         name,
+        ...(mode === "signup" ? profile : {}),
         email,
         password,
         recaptchaToken,
@@ -56,7 +66,6 @@ function LoginPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to continue";
       setFormError(message);
-      toast.error(message, { duration: 8000 });
     } finally {
       setRecaptchaToken(undefined);
       setCaptchaAttempt((attempt) => attempt + 1);
@@ -79,6 +88,7 @@ function LoginPage() {
               <FormField id="name" label="Name" required>
                 <Input
                   id="name"
+                  autoComplete="name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   required
@@ -89,15 +99,20 @@ function LoginPage() {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
             </FormField>
+            {mode === "signup" ? (
+              <AccountProfileFields value={profile} onChange={setProfile} />
+            ) : null}
             <FormField id="password" label="Password" required>
               <Input
                 id="password"
                 type="password"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
@@ -135,14 +150,28 @@ function LoginPage() {
             ) : null}
             {config.data?.google.enabled ? (
               <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
-                Continue with Google
+                {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
               </Button>
-            ) : null}
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Button type="button" variant="outline" disabled>
+                  {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
+                </Button>
+                {!config.isPending ? (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Google sign-in is currently unavailable.
+                  </p>
+                ) : null}
+              </div>
+            )}
             {config.data?.signupEnabled ? (
               <button
                 type="button"
                 className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-                onClick={() => setMode(mode === "login" ? "signup" : "login")}
+                onClick={() => {
+                  setFormError(null);
+                  setMode(mode === "login" ? "signup" : "login");
+                }}
               >
                 {mode === "login" ? "Need an account? Sign up" : "Already registered? Sign in"}
               </button>

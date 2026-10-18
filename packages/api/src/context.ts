@@ -7,6 +7,7 @@ export type AuthUser = {
   email: string;
   image: string | null;
   status: "active" | "disabled";
+  needsProfileCompletion?: boolean;
   roles: string[];
   permissions: PermissionKey[];
 };

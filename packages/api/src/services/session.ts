@@ -1,3 +1,5 @@
+import type { z } from "zod";
+import { signupSchema } from "../validation";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import {
   createSessionToken,
@@ -54,6 +56,7 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
     email: user.email,
     image: user.image,
     status: user.status,
+    needsProfileCompletion: user.needsProfileCompletion ?? false,
     roles,
     permissions,
   };
@@ -117,7 +120,7 @@ export async function authenticateWithPassword(
   db: Database,
   input: { email: string; password: string; ipAddress?: string | null },
 ) {
-  const user = await db.user.findUnique({ where: { email: input.email.toLowerCase() } });
+  const user = await db.user.findUnique({ where: { email: input.email.trim().toLowerCase() } });
   if (!user || !user.passwordHash) {
     throw new ORPCError("UNAUTHORIZED", { message: "Invalid email or password." });
   }
@@ -150,13 +153,14 @@ export async function authenticateWithPassword(
 
 export async function registerUser(
   db: Database,
-  input: { name: string; email: string; password: string; ipAddress?: string | null },
+  input: z.infer<typeof signupSchema> & { ipAddress?: string | null },
 ) {
   if (!publicSignupEnabled())
     throw new ORPCError("FORBIDDEN", {
       message: "Public registration is disabled. Contact an administrator for access.",
     });
-  const email = input.email.toLowerCase();
+  const profile = signupSchema.parse(input);
+  const email = profile.email.trim().toLowerCase();
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) {
     throw new ORPCError("CONFLICT", { message: "An account with that email already exists." });
@@ -168,17 +172,28 @@ export async function registerUser(
     throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
   }
 
-  const user = await db.user.create({
-    data: {
-      name: input.name,
-      email,
-      passwordHash: await hashPassword(input.password),
-      status: "active",
-      userRoles: {
-        create: { roleId: role.id },
+  const user = await db.user
+    .create({
+      data: {
+        name: profile.name,
+        phoneNumber: profile.phoneNumber,
+        gender: profile.gender,
+        facebookAccount: profile.facebookAccount,
+        email,
+        passwordHash: await hashPassword(input.password),
+        status: "active",
+        userRoles: {
+          create: { roleId: role.id },
+        },
       },
-    },
-  });
+    })
+    .catch((error: unknown) => {
+      if (isDuplicateEmail(error))
+        throw new ORPCError("CONFLICT", {
+          message: "An account with that email already exists. Sign in instead.",
+        });
+      throw error;
+    });
 
   await writeAudit(db, {
     actorId: user.id,
@@ -196,7 +211,7 @@ export async function upsertGoogleUser(
   db: Database,
   input: { email: string; name: string; image?: string | null },
 ) {
-  const email = input.email.toLowerCase();
+  const email = input.email.trim().toLowerCase();
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) {
     if (existing.status !== "active") {
@@ -223,16 +238,29 @@ export async function upsertGoogleUser(
     throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
   }
 
-  return db.user.create({
-    data: {
-      name: input.name,
-      email,
-      image: input.image ?? undefined,
-      emailVerified: true,
-      status: "active",
-      userRoles: {
-        create: { roleId: role.id },
+  return db.user
+    .create({
+      data: {
+        name: input.name,
+        email,
+        image: input.image ?? undefined,
+        needsProfileCompletion: true,
+        emailVerified: true,
+        status: "active",
+        userRoles: {
+          create: { roleId: role.id },
+        },
       },
-    },
-  });
+    })
+    .catch(async (error: unknown) => {
+      if (isDuplicateEmail(error)) {
+        const winner = await db.user.findUnique({ where: { email } });
+        if (winner?.status === "active") return winner;
+      }
+      throw error;
+    });
+}
+
+function isDuplicateEmail(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
