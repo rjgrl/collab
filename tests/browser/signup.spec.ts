@@ -46,10 +46,7 @@ test("Google is available in both modes when configured and enabled", async ({ p
   );
 });
 
-test("Google profile completion collects missing fields without requesting a password", async ({
-  page,
-  request,
-}) => {
+test("existing password accounts can save missing contact details", async ({ page, request }) => {
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -60,7 +57,7 @@ test("Google profile completion collects missing fields without requesting a pas
   await expect(page.locator('input[type="password"]')).toHaveCount(0);
   await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234567");
   await page.getByRole("combobox", { name: "Gender", exact: true }).selectOption("Male");
-  await page.getByRole("button", { name: "Finish signup" }).click();
+  await page.getByRole("button", { name: "Save contact details" }).click();
   await page.waitForURL("**/dashboard");
   await page.reload();
   await expect(page).toHaveURL(/\/dashboard$/);

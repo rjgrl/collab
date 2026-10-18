@@ -90,6 +90,14 @@ export function createApp({
     "/rpc/auth/login",
     "/rpc/auth/signup",
     "/rpc/auth/changePassword",
+    "/rpc/auth/sendVerification",
+    "/rpc/auth/confirmVerification",
+    "/rpc/auth/createGooglePassword",
+    "/rpc/auth/completeProfile",
+    "/api/auth/sendVerification",
+    "/api/auth/confirmVerification",
+    "/api/auth/createGooglePassword",
+    "/api/auth/completeProfile",
   ])
     app.use(route, limiter);
 
@@ -114,7 +122,8 @@ export function createApp({
   }
 
   async function currentUser(c: Parameters<typeof readSessionToken>[0]) {
-    return loadAuthUserFromToken(db, readSessionToken(c));
+    const user = await loadAuthUserFromToken(db, readSessionToken(c));
+    return user?.needsProfileCompletion ? null : user;
   }
 
   const apiHandler = new OpenAPIHandler(appRouter, {
@@ -261,6 +270,7 @@ export function createApp({
       response_type: "code",
       scope: "openid email profile",
       prompt: "select_account",
+      max_age: "0",
     });
 
     return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
@@ -333,6 +343,7 @@ export function createApp({
       const session = await createSession(db, user.id, {
         ipAddress: c.req.header("x-forwarded-for"),
         userAgent: c.req.header("user-agent"),
+        googleVerifiedAt: new Date(),
       });
       setCookie(c, SESSION_COOKIE, session.token, cookieOptions(session.expiresAt));
       await writeAudit(db, {
@@ -343,7 +354,7 @@ export function createApp({
         summary: "Signed in with Google",
       });
       return c.redirect(
-        `${config.origin}${user.needsProfileCompletion ? "/complete-profile" : "/dashboard"}`,
+        `${config.origin}${user.needsProfileCompletion || user.passwordHash === null || (user.verificationRequired && (!user.emailVerified || !user.phoneVerified)) ? "/complete-profile" : "/dashboard"}`,
       );
     } catch {
       return c.redirect(`${config.origin}/login?error=google`);

@@ -27,6 +27,10 @@ export const authenticated = o.use(async ({ context, next }) => {
 
 export function requirePermission(permission: PermissionKey) {
   return authenticated.use(async ({ context, next }) => {
+    if (context.user.needsProfileCompletion)
+      throw new ORPCError("FORBIDDEN", {
+        message: "Complete account verification before using the application.",
+      });
     if (!context.user.permissions.includes(permission)) {
       throw new ORPCError("FORBIDDEN", {
         message: `Missing permission: ${permission}`,

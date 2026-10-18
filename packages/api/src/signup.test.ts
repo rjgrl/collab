@@ -105,3 +105,18 @@ it("Google sign-in rejects disabled existing accounts", async () => {
   );
   assert.equal(f.writes.length, 0);
 });
+
+it("does not link Google to an unconfirmed password registration", async () => {
+  const f = fixture({
+    id: "pending",
+    status: "active",
+    verificationRequired: true,
+    emailVerified: false,
+    passwordHash: "existing-unconfirmed-hash",
+  });
+  await assert.rejects(
+    () => upsertGoogleUser(f.db, { email: input.email, name: "Google name" }),
+    /Confirm the pending registration email/,
+  );
+  assert.equal(f.writes.length, 0);
+});

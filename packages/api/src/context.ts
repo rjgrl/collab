@@ -8,6 +8,7 @@ export type AuthUser = {
   image: string | null;
   status: "active" | "disabled";
   needsProfileCompletion?: boolean;
+  needsPassword?: boolean;
   roles: string[];
   permissions: PermissionKey[];
 };
@@ -23,6 +24,11 @@ export type IntegrationEnv = {
   googleFormsWebhookSecret?: string;
   smtpUrl?: string;
   smtpFrom?: string;
+  verificationSecret?: string;
+  smsProvider?: {
+    sendCode: (phone: string) => Promise<string>;
+    checkCode: (sid: string, phone: string, code: string) => Promise<boolean>;
+  };
   imgbbApiKey?: string;
   imageHostProvider?: string;
   uploadDir?: string;

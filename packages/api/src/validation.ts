@@ -68,10 +68,9 @@ export const accountProfileSchema = z.object({
   phoneNumber: z
     .string()
     .trim()
-    .min(7)
     .max(30)
-    .regex(/^[+0-9() -]+$/, "Enter a valid phone number.")
-    .refine((value) => value.replace(/\D/g, "").length >= 7, "Enter a valid phone number."),
+    .transform((value) => value.replace(/[ ()-]/g, ""))
+    .pipe(z.string().regex(/^\+[1-9]\d{7,14}$/, "Use a country code, for example +639171234567.")),
   gender: genderSchema,
   facebookAccount: facebookSchema,
 });

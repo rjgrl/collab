@@ -17,6 +17,7 @@ export function AccountProfileFields({
         <Input
           id="phone-number"
           type="tel"
+          placeholder="+639171234567"
           autoComplete="tel"
           required
           minLength={7}

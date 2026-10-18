@@ -1,3 +1,9 @@
+import {
+  verificationStatus,
+  startVerification,
+  confirmVerification,
+  createGooglePassword,
+} from "../services/verification";
 import { isPermissionKey } from "@Alumni-Tracking-Ss/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -26,10 +32,37 @@ import {
 } from "../services/session";
 
 export const authRouter = {
+  verificationStatus: authenticated.handler(({ context }) => verificationStatus(context)),
+  sendVerification: authenticated
+    .input(z.object({ kind: z.enum(["email", "phone"]) }))
+    .handler(({ context, input }) => startVerification(context, input.kind)),
+  confirmVerification: authenticated
+    .input(
+      z.object({
+        kind: z.enum(["email", "phone"]),
+        code: z.string().regex(/^\d{6}$/, "Enter the six-digit code."),
+      }),
+    )
+    .handler(({ context, input }) => confirmVerification(context, input.kind, input.code)),
+  createGooglePassword: authenticated
+    .input(
+      z
+        .object({ password: z.string().min(8).max(128), confirmation: z.string().min(8).max(128) })
+        .refine((value) => value.password === value.confirmation, {
+          message: "Passwords must match.",
+          path: ["confirmation"],
+        }),
+    )
+    .handler(({ context, input }) => createGooglePassword(context, input.password)),
   completeProfile: authenticated.input(accountProfileSchema).handler(async ({ context, input }) => {
+    const current = await context.db.user.findUniqueOrThrow({ where: { id: context.user.id } });
     await context.db.user.update({
       where: { id: context.user.id },
-      data: { ...input, needsProfileCompletion: false },
+      data: {
+        ...input,
+        needsProfileCompletion: false,
+        ...(current.phoneNumber !== input.phoneNumber ? { phoneVerified: false } : {}),
+      },
       select: { id: true },
     });
     return { ok: true };

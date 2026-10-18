@@ -118,6 +118,7 @@ function googleFixture(existing = false) {
     image: null,
     status: "active",
     needsProfileCompletion: false,
+    passwordHash: "synthetic-existing-hash",
   };
   let sessions = 0;
   const db = {

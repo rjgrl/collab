@@ -1,3 +1,4 @@
+import { accountAccessPending } from "./verification";
 import type { z } from "zod";
 import { signupSchema } from "../validation";
 import type { Database } from "@Alumni-Tracking-Ss/db";
@@ -56,7 +57,8 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
     email: user.email,
     image: user.image,
     status: user.status,
-    needsProfileCompletion: user.needsProfileCompletion ?? false,
+    needsProfileCompletion: accountAccessPending(user),
+    needsPassword: user.passwordHash === null,
     roles,
     permissions,
   };
@@ -92,7 +94,7 @@ export async function loadAuthUserFromToken(db: Database, token: string | null) 
 export async function createSession(
   db: Database,
   userId: string,
-  meta: { ipAddress?: string | null; userAgent?: string | null },
+  meta: { ipAddress?: string | null; userAgent?: string | null; googleVerifiedAt?: Date },
 ) {
   const token = createSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
@@ -103,6 +105,7 @@ export async function createSession(
       expiresAt,
       ipAddress: meta.ipAddress ?? undefined,
       userAgent: meta.userAgent ?? undefined,
+      googleVerifiedAt: meta.googleVerifiedAt,
     },
   });
   return { token, expiresAt };
@@ -176,6 +179,7 @@ export async function registerUser(
     .create({
       data: {
         name: profile.name,
+        verificationRequired: true,
         phoneNumber: profile.phoneNumber,
         gender: profile.gender,
         facebookAccount: profile.facebookAccount,
@@ -217,12 +221,15 @@ export async function upsertGoogleUser(
     if (existing.status !== "active") {
       throw new ORPCError("FORBIDDEN", { message: "This account is disabled." });
     }
+    assertGoogleLinkAllowed(existing);
     return db.user.update({
       where: { id: existing.id },
       data: {
         name: input.name || existing.name,
         image: input.image ?? existing.image,
         emailVerified: true,
+        verificationRequired: existing.verificationRequired || existing.passwordHash === null,
+        needsProfileCompletion: existing.needsProfileCompletion || existing.passwordHash === null,
       },
     });
   }
@@ -245,6 +252,7 @@ export async function upsertGoogleUser(
         email,
         image: input.image ?? undefined,
         needsProfileCompletion: true,
+        verificationRequired: true,
         emailVerified: true,
         status: "active",
         userRoles: {
@@ -255,7 +263,10 @@ export async function upsertGoogleUser(
     .catch(async (error: unknown) => {
       if (isDuplicateEmail(error)) {
         const winner = await db.user.findUnique({ where: { email } });
-        if (winner?.status === "active") return winner;
+        if (winner?.status === "active") {
+          assertGoogleLinkAllowed(winner);
+          return winner;
+        }
       }
       throw error;
     });
@@ -263,4 +274,18 @@ export async function upsertGoogleUser(
 
 function isDuplicateEmail(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
+// Do not activate a password/phone chosen by someone who reserved another
+// person's email address before that email address was confirmed.
+function assertGoogleLinkAllowed(user: {
+  verificationRequired?: boolean;
+  emailVerified?: boolean;
+  passwordHash?: string | null;
+}) {
+  if (user.verificationRequired && !user.emailVerified && user.passwordHash)
+    throw new ORPCError("FORBIDDEN", {
+      message:
+        "Confirm the pending registration email and sign in with its password before linking Google.",
+    });
 }

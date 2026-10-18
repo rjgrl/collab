@@ -35,3 +35,5 @@ Reports can download CSV. Google Sheets export runs when that integration is con
 Super Admin / Staff with `integrations.write` can enable or disable each modular integration, import CSV, import Sheets, and send a test email.
 
 Alumni gender is required: select Male or Female. Use Graduation year; Batch is no longer collected. Facebook is optional and must be a full Facebook profile URL when supplied. CSV and Google Forms imports use these same rules; include the gender field.
+
+New accounts must complete the verification page before accessing the app. Form signups confirm an emailed code; Google signups create a mandatory password after recent Google verification, without entering a current password. Both verify their saved phone. SMS delivery is currently disconnected, so phone verification remains pending until a provider is connected. Codes expire after 10 minutes, allow five attempts, and can be resent after 60 seconds.

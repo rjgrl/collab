@@ -44,6 +44,8 @@ model User {
   name          String
   email         String     @unique
   emailVerified Boolean    @default(false)
+  phoneVerified Boolean    @default(false)
+  verificationRequired Boolean @default(false)
   image         String?
   phoneNumber   String?
   gender        String?
@@ -68,6 +70,7 @@ model Session {
   expiresAt DateTime
   ipAddress String?
   userAgent String?
+  googleVerifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -312,4 +315,20 @@ model ImportJob {
   completedAt  DateTime?
 
   @@index([createdById])
+}
+
+model VerificationChallenge {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  kind String
+  target String
+  nonce String
+  codeHash String?
+  providerSid String?
+  expiresAt DateTime
+  sentAt DateTime
+  attempts Int @default(0)
+  consumedAt DateTime?
+  updatedAt DateTime @updatedAt
+  @@unique([userId, kind])
 }

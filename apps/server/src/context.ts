@@ -30,6 +30,7 @@ export function readIntegrationEnv(): IntegrationEnv {
     googleFormsWebhookSecret: envString("GOOGLE_FORMS_WEBHOOK_SECRET"),
     smtpUrl: envString("SMTP_URL"),
     smtpFrom: envString("SMTP_FROM"),
+    verificationSecret: envString("SESSION_SECRET"),
     imgbbApiKey: envString("IMGBB_API_KEY"),
     imageHostProvider: envString("IMAGE_HOST_PROVIDER"),
     uploadDir: envString("UPLOAD_DIR") ?? "./uploads",
