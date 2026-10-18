@@ -229,10 +229,22 @@ export function quoteCsv(value: string) {
   return value;
 }
 
-export function toCsv(headers: string[], rows: Array<Array<string | number | boolean | null | undefined>>) {
+export function toCsv(
+  headers: string[],
+  rows: Array<Array<string | number | boolean | null | undefined>>,
+) {
   const lines = [headers.map((header) => quoteCsv(header)).join(",")];
   for (const row of rows) {
-    lines.push(row.map((cell) => quoteCsv(cell == null ? "" : String(cell))).join(","));
+    lines.push(
+      row
+        .map((cell) => {
+          const value = cell == null ? "" : String(cell);
+          return quoteCsv(
+            typeof cell === "string" && /^[\s]*[=+\-@]/.test(cell) ? `'${value}` : value,
+          );
+        })
+        .join(","),
+    );
   }
   return `${lines.join("\n")}\n`;
 }

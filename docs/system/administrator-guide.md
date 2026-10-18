@@ -19,7 +19,7 @@ Permissions are assigned only through roles.
 
 - Back up the MongoDB database on a schedule
 - Back up `UPLOAD_DIR` if local evidence storage is used
-- Rotate `admin@alumni.local` credentials after first deployment
+- Rotate the bootstrap administrator account credentials after first deployment
 - Keep `DATABASE_URL` and OAuth secrets out of git
 
 ## Logs

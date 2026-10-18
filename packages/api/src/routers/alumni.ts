@@ -59,13 +59,31 @@ export const alumniRouter = {
           program: { include: { department: true } },
           employments: { orderBy: { isCurrent: "desc" } },
           trackingEvents: { orderBy: { recordedAt: "desc" } },
-          evidenceFiles: { where: withNotDeleted(), orderBy: { createdAt: "desc" } },
+          evidenceFiles: context.user.permissions.includes("files.read")
+            ? {
+                where: withNotDeleted(),
+                orderBy: { createdAt: "desc" },
+                select: {
+                  id: true,
+                  originalName: true,
+                  mimeType: true,
+                  sizeBytes: true,
+                  kind: true,
+                  createdAt: true,
+                },
+              }
+            : false,
         },
       });
       if (!alumni) {
         throw new ORPCError("NOT_FOUND", { message: "Alumni record not found." });
       }
-      return alumni;
+      return {
+        ...alumni,
+        evidenceFiles: context.user.permissions.includes("files.read")
+          ? (alumni.evidenceFiles ?? [])
+          : [],
+      };
     }),
 
   create: requirePermission("alumni.write")

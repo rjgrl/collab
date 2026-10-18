@@ -16,6 +16,7 @@ export function createPrismaClient(env: DatabaseConfig) {
 }
 
 export type Database = ReturnType<typeof createPrismaClient>;
+export type { Prisma } from "../prisma/generated/client";
 
 export { PERMISSIONS, PERMISSION_KEYS, ROLE_PRESETS } from "./permissions";
 export type { PermissionKey } from "./permissions";

@@ -1,6 +1,7 @@
 import { createSign, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, realpath, readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileTypeFromBuffer } from "file-type";
 
 import type { IntegrationEnv } from "../context";
 
@@ -24,15 +25,16 @@ export async function storeFile(
     preferImageHost?: boolean;
   },
 ): Promise<StoredFile> {
-  if (input.preferImageHost && env.imgbbApiKey) {
+  if (input.preferImageHost && env.imageHostProvider === "local") return storeLocal(env, input);
+  if (input.preferImageHost && env.imageHostProvider !== "google_drive" && env.imgbbApiKey) {
     return uploadImgbb(env.imgbbApiKey, input.buffer, input.originalName);
   }
 
-  if (env.googleServiceAccountJson) {
+  if (env.googleServiceAccountJson && env.googleDriveFolderId) {
     try {
       return await uploadDrive(env, input);
-    } catch (error) {
-      console.error("[drive:fallback]", error);
+    } catch {
+      console.warn("Drive storage unavailable; storing file in private local storage.");
     }
   }
 
@@ -45,9 +47,8 @@ async function storeLocal(
 ): Promise<StoredFile> {
   const uploadDir = env.uploadDir || path.join(process.cwd(), "uploads");
   await mkdir(uploadDir, { recursive: true });
-  const safeName = input.originalName.replaceAll(/[^A-Za-z0-9._-]/g, "_");
-  const storageKey = `${Date.now()}-${randomUUID()}-${safeName}`;
-  await writeFile(path.join(uploadDir, storageKey), input.buffer);
+  const storageKey = randomUUID();
+  await writeFile(path.join(uploadDir, storageKey), input.buffer, { flag: "wx", mode: 0o600 });
   return { provider: "local", storageKey };
 }
 
@@ -60,6 +61,7 @@ async function uploadImgbb(apiKey: string, buffer: Buffer, name: string): Promis
 
   const response = await fetch("https://api.imgbb.com/1/upload", {
     method: "POST",
+    signal: AbortSignal.timeout(20_000),
     body,
   });
 
@@ -116,6 +118,7 @@ async function uploadDrive(
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",
     {
       method: "POST",
+      signal: AbortSignal.timeout(20_000),
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": `multipart/related; boundary=${boundary}`,
@@ -157,6 +160,7 @@ export async function googleAccessToken(json: string, scopes: string[]) {
 
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -179,10 +183,65 @@ export const ALLOWED_EVIDENCE_TYPES = new Set([
   "image/webp",
   "image/gif",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-excel",
   "text/csv",
-  "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
 export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
+
+export async function validateEvidence(buffer: Buffer, claimedType: string) {
+  if (
+    !buffer.length ||
+    buffer.length > MAX_EVIDENCE_BYTES ||
+    !ALLOWED_EVIDENCE_TYPES.has(claimedType)
+  )
+    return false;
+  try {
+    const detected = await fileTypeFromBuffer(buffer);
+    if (detected) return detected.mime === claimedType && ALLOWED_EVIDENCE_TYPES.has(detected.mime);
+    if (claimedType !== "text/csv" || buffer.includes(0)) return false;
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    return !/^\s*</.test(text) && text.includes(",");
+  } catch {
+    return false;
+  }
+}
+
+export async function readPrivateFile(
+  env: IntegrationEnv,
+  file: { provider: string; storageKey: string; url: string | null },
+) {
+  if (file.provider === "local") {
+    const root = await realpath(env.uploadDir || path.join(process.cwd(), "uploads"));
+    const target = await realpath(path.resolve(root, file.storageKey));
+    const relative = path.relative(root, target);
+    if (relative.startsWith("..") || path.isAbsolute(relative))
+      throw new Error("Invalid storage key.");
+    return readFile(target);
+  }
+  if (file.provider === "google_drive" && env.googleServiceAccountJson) {
+    const token = await googleAccessToken(env.googleServiceAccountJson, [
+      "https://www.googleapis.com/auth/drive.readonly",
+    ]);
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.storageKey)}?alt=media`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20_000),
+        redirect: "error",
+      },
+    );
+    if (!response.ok || !response.body) throw new Error("Private file is unavailable.");
+    return response.body;
+  }
+  // imgBB is used only for intentionally public profile photos.
+  if (file.provider === "imgbb" && file.url) {
+    const url = new URL(file.url);
+    if (url.protocol !== "https:" || !["i.ibb.co", "image.ibb.co"].includes(url.hostname))
+      throw new Error("Invalid image host.");
+    const response = await fetch(url, { signal: AbortSignal.timeout(15_000), redirect: "error" });
+    if (!response.ok || !response.body) throw new Error("Image unavailable.");
+    return response.body;
+  }
+  throw new Error("Private storage is not configured.");
+}

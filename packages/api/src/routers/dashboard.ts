@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requirePermission } from "../index";
 import { toCsv } from "../validation";
-import { listIntegrations } from "../integrations/registry";
+import { INTEGRATION_KEYS, listIntegrations, requireIntegration } from "../integrations/registry";
 import { sendEmail } from "../integrations/email";
 import { appendSheetRows, readSheetRows } from "../integrations/sheets";
 import { csvToObjects } from "../validation";
@@ -69,6 +69,15 @@ export const dashboardRouter = {
 };
 
 export const reportsRouter = {
+  summary: requirePermission("reports.read").handler(async ({ context }) => {
+    const where = departmentFilter();
+    const [graduates, tracked, departments] = await Promise.all([
+      context.db.alumni.count({ where }),
+      context.db.alumni.count({ where: { AND: [where, { isTracked: true }] } }),
+      context.db.department.findMany({ where: withNotDeleted(), select: { id: true, code: true } }),
+    ]);
+    return { graduates, tracked, percentTracked: percentTracked(graduates, tracked), departments };
+  }),
   alumniCsv: requirePermission("reports.export")
     .input(
       z
@@ -128,7 +137,7 @@ export const integrationsRouter = {
   }),
 
   toggle: requirePermission("integrations.write")
-    .input(z.object({ key: z.string(), enabled: z.boolean() }))
+    .input(z.object({ key: z.enum(INTEGRATION_KEYS), enabled: z.boolean() }))
     .handler(async ({ context, input }) => {
       const row = await context.db.integrationSetting.upsert({
         where: { key: input.key },
@@ -149,6 +158,7 @@ export const integrationsRouter = {
   sendTestEmail: requirePermission("integrations.write")
     .input(z.object({ to: z.string().email() }))
     .handler(async ({ context, input }) => {
+      await requireIntegration(context.db, "email");
       return sendEmail(context.integrationEnv, {
         to: input.to,
         subject: "Alumni Tracking System test message",
@@ -159,9 +169,12 @@ export const integrationsRouter = {
   notifyAlumni: requirePermission("integrations.write")
     .input(z.object({ alumniId: z.string(), subject: z.string(), text: z.string() }))
     .handler(async ({ context, input }) => {
+      await requireIntegration(context.db, "email");
       const alumni = await context.db.alumni.findUnique({ where: { id: input.alumniId } });
       if (!alumni?.personalEmail) {
-        throw new ORPCError("BAD_REQUEST", { message: "This alumni record has no personal email." });
+        throw new ORPCError("BAD_REQUEST", {
+          message: "This alumni record has no personal email.",
+        });
       }
       return sendEmail(context.integrationEnv, {
         to: alumni.personalEmail,
@@ -191,6 +204,7 @@ export const integrationsRouter = {
     }),
 
   importSheets: requirePermission("integrations.write").handler(async ({ context }) => {
+    await requireIntegration(context.db, "google_sheets");
     const values = await readSheetRows(context.integrationEnv);
     const header = values[0] ?? [];
     const objects = values.slice(1).map((row) => {
@@ -217,19 +231,13 @@ export const integrationsRouter = {
   }),
 
   exportSheets: requirePermission("reports.export").handler(async ({ context }) => {
+    await requireIntegration(context.db, "google_sheets");
     const rows = await context.db.alumni.findMany({
       where: withNotDeleted(),
       include: { program: { include: { department: true } } },
     });
     await appendSheetRows(context.integrationEnv, [
-      [
-        "studentNumber",
-        "firstName",
-        "lastName",
-        "departmentCode",
-        "programCode",
-        "isTracked",
-      ],
+      ["studentNumber", "firstName", "lastName", "departmentCode", "programCode", "isTracked"],
       ...rows.map((row) => [
         row.studentNumber,
         row.firstName,

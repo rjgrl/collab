@@ -1,5 +1,11 @@
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -7,6 +13,7 @@ import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { CheckboxRow } from "@/components/checkbox-row";
+import { Recaptcha } from "@/components/recaptcha";
 import { FormField, PrimaryButton } from "@/components/page-header";
 import { postJson } from "@/lib/session";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -20,9 +27,11 @@ function LoginPage() {
   const config = useQuery(orpc.auth.config.queryOptions());
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("admin@alumni.local");
-  const [password, setPassword] = useState("AlumniAdmin123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [fallbackChecked, setFallbackChecked] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | undefined>();
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -38,6 +47,7 @@ function LoginPage() {
         name,
         email,
         password,
+        recaptchaToken,
         recaptchaFallback: needsCheckbox ? fallbackChecked : true,
       });
       await queryClient.invalidateQueries();
@@ -48,6 +58,8 @@ function LoginPage() {
       setFormError(message);
       toast.error(message, { duration: 8000 });
     } finally {
+      setRecaptchaToken(undefined);
+      setCaptchaAttempt((attempt) => attempt + 1);
       setPending(false);
     }
   }
@@ -65,7 +77,12 @@ function LoginPage() {
           <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
             {mode === "signup" ? (
               <FormField id="name" label="Name" required>
-                <Input id="name" value={name} onChange={(event) => setName(event.target.value)} required />
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                />
               </FormField>
             ) : null}
             <FormField id="email" label="Email" required>
@@ -87,6 +104,13 @@ function LoginPage() {
                 minLength={8}
               />
             </FormField>
+            {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
+              <Recaptcha
+                key={captchaAttempt}
+                siteKey={recaptcha.siteKey}
+                onToken={setRecaptchaToken}
+              />
+            ) : null}
             {needsCheckbox ? (
               <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
                 I am not a robot
@@ -95,6 +119,11 @@ function LoginPage() {
             <PrimaryButton
               type="submit"
               pending={pending}
+              disabled={
+                config.isPending ||
+                config.isError ||
+                Boolean(recaptcha?.enabled && recaptcha.live && !recaptchaToken)
+              }
               pendingLabel={mode === "login" ? "Signing in" : "Creating"}
             >
               {mode === "login" ? "Sign in" : "Create account"}
@@ -109,16 +138,15 @@ function LoginPage() {
                 Continue with Google
               </Button>
             ) : null}
-            <button
-              type="button"
-              className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-              onClick={() => setMode(mode === "login" ? "signup" : "login")}
-            >
-              {mode === "login" ? "Need an account? Sign up" : "Already registered? Sign in"}
-            </button>
-            <p className="text-xs text-muted-foreground">
-              Seeded Super Admin: admin@alumni.local / AlumniAdmin123!
-            </p>
+            {config.data?.signupEnabled ? (
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              >
+                {mode === "login" ? "Need an account? Sign up" : "Already registered? Sign in"}
+              </button>
+            ) : null}
           </form>
         </CardContent>
       </Card>

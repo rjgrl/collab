@@ -46,6 +46,9 @@ function stubDb(rows: Record<string, unknown> = {}) {
   const reads: { model: string; method: string; args: unknown }[] = [];
   const db = new Proxy({} as Record<string, unknown>, {
     get(_target, modelName) {
+      if (modelName === "$transaction")
+        return async (work: (tx: Context["db"]) => Promise<unknown>) =>
+          work(db as unknown as Context["db"]);
       const model = String(modelName);
       return new Proxy(
         {},
@@ -136,6 +139,15 @@ describe("RBAC: authentication gate", () => {
 });
 
 describe("RBAC: alumni permission granularity", () => {
+  it("keeps evidence metadata empty without file-read permission", async () => {
+    const { db } = stubDb({ alumni: { id: "a1", evidenceFiles: [{ id: "private" }] } });
+    const result = await invoke(
+      alumniRouter.get,
+      { id: "a1" },
+      makeContext(makeUser(["alumni.read"]), db),
+    );
+    assert.deepEqual((result as { evidenceFiles: unknown[] }).evidenceFiles, []);
+  });
   it("a read-only viewer can list and read but cannot mutate", async () => {
     const { db, reads } = stubDb({ alumni: [] });
     const viewer = makeUser([...ROLE_PRESETS.viewer.permissions]);
@@ -164,7 +176,11 @@ describe("RBAC: alumni permission granularity", () => {
 
     const tracker = makeUser(["alumni.read", "tracking.write"]);
     const { db } = stubDb({ trackingEvent: {}, alumni: {}, auditLog: {} });
-    await invoke(alumniRouter.addTracking, { alumniId: "a1", isTracked: true }, makeContext(tracker, db));
+    await invoke(
+      alumniRouter.addTracking,
+      { alumniId: "a1", isTracked: true },
+      makeContext(tracker, db),
+    );
   });
 
   it("a user holding only the alumni module cannot reach other modules", async () => {
@@ -230,14 +246,6 @@ describe("RBAC: coverage of the permission catalog", () => {
     assert.deepEqual(unknown, []);
   });
 
-  // KNOWN FAILURE. Two catalog entries grant no access anywhere:
-  //   users.delete  - no procedure requires it; disabling a user needs
-  //                   users.write, so the Roles page checkbox is a no-op.
-  //   reports.read  - no procedure requires it; it only gates the nav item,
-  //                   and reports.tsx reads through departments.list and
-  //                   dashboard.summary instead.
-  // The assertion below is the correct end state. It fails until the catalog
-  // is reconciled; the failure message names the offending keys.
   it("every permission key actually grants something", () => {
     const enforced = collectRequiredPermissions();
     // files.read / files.write are enforced in apps/server raw HTTP routes
@@ -252,10 +260,7 @@ describe("RBAC: role presets", () => {
   it("staff can manage alumni but not RBAC or the audit log", () => {
     const { permissions } = ROLE_PRESETS.staff;
     for (const key of ["alumni.read", "alumni.write", "alumni.delete", "tracking.write"]) {
-      assert.ok(
-        (permissions as readonly string[]).includes(key),
-        `staff must hold ${key}`,
-      );
+      assert.ok((permissions as readonly string[]).includes(key), `staff must hold ${key}`);
     }
     for (const key of permissions) {
       assert.ok(
@@ -316,10 +321,11 @@ describe("RBAC: effective permission resolution", () => {
     ]);
 
     const user = await loadAuthUser(db, "u1");
-    assert.deepEqual(
-      [...(user?.permissions ?? [])].sort(),
-      ["alumni.read", "alumni.write", "dashboard.read"],
-    );
+    assert.deepEqual([...(user?.permissions ?? [])].sort(), [
+      "alumni.read",
+      "alumni.write",
+      "dashboard.read",
+    ]);
     assert.deepEqual(user?.roles.sort(), ["staff", "viewer"]);
   });
 
@@ -351,56 +357,64 @@ describe("RBAC: hasPermission helper", () => {
   });
 });
 
-describe("RBAC: admin control surface", () => {
-  const superAdmin = () => makeUser([...PERMISSION_KEYS], { id: "admin-1", roles: ["super_admin"] });
-
-  it("lets an admin rewrite the permission set of a system role", async () => {
-    const { db, reads } = stubDb({ role: { id: "r1", name: "Super Admin" }, auditLog: {} });
-    await invoke(rolesRouter.update, { id: "r1", permissionIds: [] }, makeContext(superAdmin(), db));
-    assert.ok(
-      reads.some((r) => r.model === "rolePermission" && r.method === "deleteMany"),
-      "system role permissions should be clearable",
+describe("RBAC: protected administration", () => {
+  const superAdmin = () =>
+    makeUser([...PERMISSION_KEYS], { id: "admin-1", roles: ["super_admin"] });
+  const role = {
+    id: "r1",
+    key: "super_admin",
+    name: "Super Admin",
+    isSystem: true,
+    rolePermissions: [],
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+  };
+  const target = { id: "admin-1", email: "admin@example.test", userRoles: [{ role }] };
+  it("rejects changing the protected administrator permission set", async () => {
+    const { db, reads } = stubDb({ role });
+    await expectCode(
+      "FORBIDDEN",
+      rolesRouter.update,
+      superAdmin(),
+      { id: "r1", permissionIds: [], expectedUpdatedAt: role.updatedAt.toISOString() },
+      db,
+    );
+    assert.equal(
+      reads.some((r) => r.method === "deleteMany"),
+      false,
     );
   });
-
-  it("lets an admin remove their own super_admin role", async () => {
-    const { db, reads } = stubDb({ user: { id: "admin-1", email: "admin@alumni.local" }, auditLog: {} });
-    await invoke(usersRouter.update, { id: "admin-1", roleIds: [] }, makeContext(superAdmin(), db));
-    assert.ok(
-      reads.some((r) => r.model === "userRole" && r.method === "deleteMany"),
-      "the caller's own role assignment should be deletable",
-    );
-  });
-
-  it("lets an admin disable the last remaining super admin", async () => {
-    const { db, reads } = stubDb({ user: { id: "admin-1", email: "admin@alumni.local" }, auditLog: {} });
-    await invoke(
+  it("rejects removal of administrator role assignments", async () => {
+    const { db, reads } = stubDb({ user: target });
+    await expectCode(
+      "FORBIDDEN",
       usersRouter.update,
-      { id: "admin-1", status: "disabled" },
-      makeContext(superAdmin(), db),
+      superAdmin(),
+      { id: target.id, roleIds: [] },
+      db,
     );
-    assert.ok(
-      reads.some((r) => r.model === "user" && r.method === "update"),
-      "self-disable should not be blocked",
+    assert.equal(
+      reads.some((r) => r.method === "deleteMany"),
+      false,
     );
   });
-
-  it("rejects deletion of a system role but not editing of one", async () => {
-    const { db } = stubDb({ role: { id: "r1", name: "Super Admin", isSystem: true } });
-    await expectCode("BAD_REQUEST", rolesRouter.delete, makeUser(["roles.delete"]), { id: "r1" }, db);
-  });
-
-  it("has no way to scope a permission to a department or program", () => {
-    // RolePermission is a plain join table (roleId + permissionId) in the Prisma
-    // schema, so `alumni.read` can only ever mean "every alumni record".
-    const schema = readFileSync(
-      join(ROOT, "..", "db", "prisma", "schema", "schema.prisma"),
-      "utf8",
+  it("rejects disabling protected administrator accounts", async () => {
+    const { db } = stubDb({ user: target });
+    await expectCode(
+      "FORBIDDEN",
+      usersRouter.setStatus,
+      superAdmin(),
+      { id: target.id, status: "disabled" },
+      db,
     );
-    const model = schema.match(/model RolePermission \{[\s\S]*?\n\}/)?.[0] ?? "";
-    const fields = [...model.matchAll(/^\s{2}(\w+)\s/gm)].map((m) => m[1] ?? "");
-    assert.ok(fields.includes("roleId") && fields.includes("permissionId"));
-    const scoping = fields.filter((field) => /department|program|scope|tenant|faculty/i.test(field));
-    assert.deepEqual(scoping, [], `unexpected scoping fields: ${scoping.join(", ")}`);
+  });
+  it("separates account status from account editing", async () => {
+    await expectDenied(usersRouter.setStatus, makeUser(["users.write"]), {
+      id: "u1",
+      status: "disabled",
+    });
+  });
+  it("rejects deletion of system roles", async () => {
+    const { db } = stubDb({ role });
+    await expectCode("BAD_REQUEST", rolesRouter.delete, superAdmin(), { id: "r1" }, db);
   });
 });

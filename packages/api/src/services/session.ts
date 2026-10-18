@@ -8,6 +8,10 @@ import { isDatabaseUnavailable } from "../errors";
 
 const SESSION_DAYS = 7;
 
+export function publicSignupEnabled() {
+  return process.env.NODE_ENV !== "production" || process.env.ALLOW_PUBLIC_SIGNUP === "true";
+}
+
 export async function loadAuthUser(db: Database, userId: string): Promise<AuthUser | null> {
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -26,7 +30,7 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
     },
   });
 
-  if (!user) {
+  if (!user || user.status !== "active") {
     return null;
   }
 
@@ -143,14 +147,17 @@ export async function registerUser(
   db: Database,
   input: { name: string; email: string; password: string; ipAddress?: string | null },
 ) {
+  if (!publicSignupEnabled())
+    throw new ORPCError("FORBIDDEN", {
+      message: "Public registration is disabled. Contact an administrator for access.",
+    });
   const email = input.email.toLowerCase();
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) {
     throw new ORPCError("CONFLICT", { message: "An account with that email already exists." });
   }
 
-  const userCount = await db.user.count();
-  const roleKey = userCount === 0 ? "super_admin" : "viewer";
+  const roleKey = "viewer";
   const role = await db.role.findUnique({ where: { key: roleKey } });
   if (!role) {
     throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
@@ -200,8 +207,12 @@ export async function upsertGoogleUser(
     });
   }
 
-  const userCount = await db.user.count();
-  const roleKey = userCount === 0 ? "super_admin" : "viewer";
+  if (!publicSignupEnabled())
+    throw new ORPCError("FORBIDDEN", {
+      message: "Ask an administrator to create your account before using Google sign-in.",
+    });
+
+  const roleKey = "viewer";
   const role = await db.role.findUnique({ where: { key: roleKey } });
   if (!role) {
     throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });

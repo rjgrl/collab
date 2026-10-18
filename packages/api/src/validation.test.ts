@@ -5,6 +5,18 @@ import { csvToObjects, parseCsv, quoteCsv, toCsv } from "./validation";
 import { mapFormPayload } from "./integrations/forms";
 
 describe("csv quoting", () => {
+  it("neutralizes spreadsheet formulas while preserving numeric cells", () => {
+    const csv = toCsv(
+      ["formula", "number"],
+      [
+        ["=HYPERLINK(1)", -10],
+        ["\t+cmd", 2],
+      ],
+    );
+    assert.equal(parseCsv(csv)[1]?.[0], "'=HYPERLINK(1)");
+    assert.equal(parseCsv(csv)[1]?.[1], "-10");
+    assert.equal(parseCsv(csv)[2]?.[0], "'\t+cmd");
+  });
   it("quotes commas and quotes", () => {
     assert.equal(quoteCsv('IT, "track"'), '"IT, ""track"""');
     assert.equal(quoteCsv("plain"), "plain");

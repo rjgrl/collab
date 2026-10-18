@@ -42,7 +42,9 @@ function FacultiesPage() {
 
   const save = useMutation({
     mutationFn: (value: Draft) =>
-      value.id ? client.faculties.update(value) : client.faculties.create(value),
+      value.id
+        ? client.faculties.update({ ...value, id: value.id })
+        : client.faculties.create(value),
     onSuccess: async () => {
       toast.success("Faculty saved");
       setDraft(null);

@@ -1,10 +1,7 @@
 import { googleAccessToken } from "./files";
 import type { IntegrationEnv } from "../context";
 
-export async function appendSheetRows(
-  env: IntegrationEnv,
-  values: string[][],
-) {
+export async function appendSheetRows(env: IntegrationEnv, values: string[][]) {
   if (!env.googleServiceAccountJson || !env.googleSheetsSpreadsheetId) {
     throw new Error("Google Sheets is not configured.");
   }
@@ -17,6 +14,7 @@ export async function appendSheetRows(
     `https://sheets.googleapis.com/v4/spreadsheets/${env.googleSheetsSpreadsheetId}/values/A1:append?valueInputOption=RAW`,
     {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -42,6 +40,7 @@ export async function readSheetRows(env: IntegrationEnv) {
   const response = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${env.googleSheetsSpreadsheetId}/values/A1:Z1000`,
     {
+      signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${token}` },
     },
   );

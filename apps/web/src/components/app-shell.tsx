@@ -12,13 +12,11 @@ import {
   Building2,
   ClipboardList,
   GraduationCap,
-  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
-  Plug,
   ScrollText,
-  Shield,
+  Settings,
   UserRound,
   Users,
 } from "lucide-react";
@@ -35,9 +33,7 @@ const NAV = [
   { to: "/faculties", label: "Faculties", permission: "faculties.read", icon: Users },
   { to: "/alumni", label: "Alumni", permission: "alumni.read", icon: UserRound },
   { to: "/reports", label: "Reports", permission: "reports.read", icon: ClipboardList },
-  { to: "/users", label: "Users", permission: "users.read", icon: Shield },
-  { to: "/roles", label: "Roles", permission: "roles.read", icon: KeyRound },
-  { to: "/integrations", label: "Integrations", permission: "integrations.read", icon: Plug },
+  { to: "/settings", label: "Settings", permission: null, icon: Settings },
   { to: "/audit", label: "Audit log", permission: "audit.read", icon: ScrollText },
 ] as const;
 
@@ -53,10 +49,14 @@ export function AppShell() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const permissions = session.data?.permissions ?? [];
-  const items = NAV.filter((item) => can(permissions, item.permission));
+  const items = NAV.filter((item) => item.permission === null || can(permissions, item.permission));
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    const response = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    if (!response.ok) {
+      toast.error("Unable to sign out. Try again.");
+      return;
+    }
     await queryClient.clear();
     toast.success("Signed out");
     await navigate({ to: "/login" });
@@ -95,7 +95,11 @@ export function AppShell() {
               <DropdownMenuContent align="start" className="min-w-52">
                 <DropdownMenuGroup>
                   {items.map((item) => (
-                    <DropdownMenuItem key={item.to} nativeButton={false} render={<Link to={item.to} />}>
+                    <DropdownMenuItem
+                      key={item.to}
+                      nativeButton={false}
+                      render={<Link to={item.to} />}
+                    >
                       <item.icon className="size-4" />
                       {item.label}
                     </DropdownMenuItem>
@@ -109,7 +113,9 @@ export function AppShell() {
             <ModeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-                <span className="max-w-[8.5rem] truncate sm:max-w-[14rem]">{session.data?.name ?? "Account"}</span>
+                <span className="max-w-[8.5rem] truncate sm:max-w-[14rem]">
+                  {session.data?.name ?? "Account"}
+                </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-48">
                 <DropdownMenuGroup>

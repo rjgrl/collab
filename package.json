@@ -20,22 +20,25 @@
     "db:push": "vp run --filter @Alumni-Tracking-Ss/db db:push",
     "db:studio": "vp run --filter @Alumni-Tracking-Ss/db db:studio",
     "db:generate": "vp run --filter @Alumni-Tracking-Ss/db db:generate",
-    "db:migrate": "vp run --filter @Alumni-Tracking-Ss/db db:migrate",
     "db:seed": "vp run --filter @Alumni-Tracking-Ss/db db:seed",
-    "test": "tsx --test packages/db/src/*.test.ts packages/api/src/**/*.test.ts",
+    "test": "tsx --test packages/db/src/*.test.ts packages/api/src/**/*.test.ts apps/server/src/*.test.ts",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
-    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/"
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
+    "test:browser": "playwright test",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "zod": "catalog:"
   },
   "devDependencies": {
     "@Alumni-Tracking-Ss/config": "workspace:*",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
     "@types/node": "catalog:",
     "rolldown": "1.2.7",
+    "tsx": "^4.23.13",
     "typescript": "catalog:",
     "varlock": "catalog:",
-    "tsx": "^4.23.13",
     "vite-plus": "0.3.1"
   },
   "packageManager": "pnpm@12.5.1"

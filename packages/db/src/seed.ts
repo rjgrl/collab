@@ -36,6 +36,7 @@ async function seedRoles() {
   const permissionByKey = new Map(permissions.map((item) => [item.key, item]));
 
   for (const preset of Object.values(ROLE_PRESETS)) {
+    const existingRole = await db.role.findUnique({ where: { key: preset.key } });
     const role = await db.role.upsert({
       where: { key: preset.key },
       update: {
@@ -51,6 +52,7 @@ async function seedRoles() {
       },
     });
 
+    if (existingRole && preset.key !== "super_admin") continue; // Preserve editable role assignments; repair protected administrator rights.
     for (const key of preset.permissions) {
       const permission = permissionByKey.get(key);
       if (!permission) {
@@ -75,8 +77,14 @@ async function seedRoles() {
 }
 
 async function seedAdmin() {
+  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.SEED_ADMIN_PASSWORD;
+  if (!email || !password || password.length < 12)
+    throw new Error(
+      "Provide SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (at least 12 characters) through protected environment configuration.",
+    );
   const existing = await db.user.findUnique({
-    where: { email: "admin@alumni.local" },
+    where: { email },
   });
 
   if (existing) {
@@ -90,9 +98,9 @@ async function seedAdmin() {
   const user = await db.user.create({
     data: {
       name: "System Administrator",
-      email: "admin@alumni.local",
+      email,
       emailVerified: true,
-      passwordHash: await hashPassword("AlumniAdmin123!"),
+      passwordHash: await hashPassword(password),
       status: "active",
       userRoles: {
         create: { roleId: superAdmin.id },
@@ -123,7 +131,10 @@ async function backfillDeletedAt() {
     db.program.updateMany({ where: { deletedAt: { isSet: false } }, data: { deletedAt: null } }),
     db.faculty.updateMany({ where: { deletedAt: { isSet: false } }, data: { deletedAt: null } }),
     db.alumni.updateMany({ where: { deletedAt: { isSet: false } }, data: { deletedAt: null } }),
-    db.evidenceFile.updateMany({ where: { deletedAt: { isSet: false } }, data: { deletedAt: null } }),
+    db.evidenceFile.updateMany({
+      where: { deletedAt: { isSet: false } },
+      data: { deletedAt: null },
+    }),
   ]);
 }
 
@@ -334,12 +345,24 @@ async function seedAlumni(programIds: { bsit: string; bsed: string }) {
 }
 
 async function main() {
+  if (process.env.SEED_DEMO_DATA === "true" && process.env.NODE_ENV === "production")
+    throw new Error("Demo data is disabled in production.");
+  if (
+    !process.env.SEED_ADMIN_EMAIL ||
+    !process.env.SEED_ADMIN_PASSWORD ||
+    process.env.SEED_ADMIN_PASSWORD.length < 12
+  )
+    throw new Error("Configure bootstrap administrator credentials before seeding.");
   await seedPermissions();
   await seedRoles();
   await seedAdmin();
   await seedIntegrations();
-  const academic = await seedAcademicStructure();
-  await seedAlumni({ bsit: academic.bsit.id, bsed: academic.bsed.id });
+  if (process.env.SEED_DEMO_DATA === "true") {
+    if (process.env.NODE_ENV === "production")
+      throw new Error("Demo data is disabled in production.");
+    const academic = await seedAcademicStructure();
+    await seedAlumni({ bsit: academic.bsit.id, bsed: academic.bsed.id });
+  }
   await backfillDeletedAt();
 }
 

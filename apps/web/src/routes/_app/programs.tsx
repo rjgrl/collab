@@ -7,7 +7,14 @@ import { toast } from "sonner";
 
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
 import { NativeSelect } from "@/components/native-select";
-import { FormActions, FormCard, FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import {
+  FormActions,
+  FormCard,
+  FormField,
+  PageHeader,
+  PageShell,
+  PrimaryButton,
+} from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -33,7 +40,8 @@ function ProgramsPage() {
   const canDelete = can(session.data?.permissions, "programs.delete");
 
   const save = useMutation({
-    mutationFn: (value: Draft) => (value.id ? client.programs.update(value) : client.programs.create(value)),
+    mutationFn: (value: Draft) =>
+      value.id ? client.programs.update({ ...value, id: value.id }) : client.programs.create(value),
     onSuccess: async () => {
       toast.success("Program saved");
       setDraft(null);
@@ -172,7 +180,8 @@ function ProgramsPage() {
                   <QuietButton
                     variant="destructive"
                     onClick={() => {
-                      if (confirm("Remove this program? This cannot be undone.")) remove.mutate(row.id);
+                      if (confirm("Remove this program? This cannot be undone."))
+                        remove.mutate(row.id);
                     }}
                   >
                     Remove

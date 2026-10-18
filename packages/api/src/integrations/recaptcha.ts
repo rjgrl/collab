@@ -5,7 +5,7 @@ export async function verifyRecaptcha(
   input: { token?: string; fallback?: boolean },
 ) {
   if (!env.recaptchaSecretKey) {
-    return Boolean(input.fallback);
+    return process.env.NODE_ENV !== "production" && Boolean(input.fallback);
   }
 
   if (!input.token) {
@@ -19,6 +19,7 @@ export async function verifyRecaptcha(
 
   const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
     method: "POST",
+    signal: AbortSignal.timeout(10_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });

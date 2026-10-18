@@ -1,42 +1,11 @@
-# Installation
+﻿# Installation
 
-1. Install **Node.js 22+** and **pnpm 12**.
-2. Clone the repository and run `pnpm install`.
-3. Copy environment files:
-   - `apps/server/.env.example` → `apps/server/.env`
-   - Set `DATABASE_URL` to a MongoDB connection string that includes a database name, for example `...mongodb.net/alumni_tracking?appName=Cluster0`
-   - Set `CORS_ORIGIN=http://localhost:3001` and `APP_URL=http://localhost:3000`
-   - `apps/web/.env` must include `VITE_SERVER_URL=http://localhost:3001`
-4. Generate env accessors if needed: `pnpm run env:generate`
-5. Generate the Prisma client: `pnpm run db:generate`
-6. Push the schema: `pnpm run db:push`
-7. Seed RBAC, the IT department, and a Super Admin: `pnpm run db:seed`
-8. Start the apps: `pnpm run dev`
+Follow the current [deployment and setup guide](../deployment.md) for the complete environment inventory, private bootstrap credentials, MongoDB replica-set requirement, commands, storage, and release checks.
 
-- Web: http://localhost:3001
-- API: http://localhost:3000
+For local development, configure `apps/server/.env` and `apps/web/.env` from their examples, install pnpm 12.5.1, run `pnpm install --frozen-lockfile`, `pnpm env:generate`, and `pnpm db:generate`. Run `pnpm db:push` only against a new approved database or after reviewing/backing up an existing one. Supply private `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` values before `pnpm db:seed`, then run `pnpm dev`.
 
-Seeded login:
+There is no default administrator password. Public registration always creates a Viewer. Previously seeded demo credentials must be rotated manually on existing databases. Demo sample data is development-only and opt-in.
 
-- Email: `admin@alumni.local`
-- Password: `AlumniAdmin123!`
+Web runs on port 3001; API runs on port 3000. Set `VITE_SERVER_URL=http://localhost:3001` so the local proxy handles RPC, authentication, and private files consistently.
 
-Change this password after first login on a shared database.
-
-## Optional integrations
-
-Add these to `apps/server/.env` only when you want live providers. Unset values use fallbacks.
-
-- `RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY` — otherwise a local checkbox is used
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — otherwise email/password only
-- `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID` — otherwise local `UPLOAD_DIR`
-- `SMTP_URL`, `SMTP_FROM` — otherwise email is logged
-- `IMGBB_API_KEY` — otherwise local/Drive image storage
-- `GOOGLE_SHEETS_SPREADSHEET_ID` — otherwise CSV import/export
-- `GOOGLE_FORMS_WEBHOOK_SECRET` — `POST /api/integrations/google-forms/webhook`
-
-Google OAuth redirect URI: `{APP_URL}/api/auth/google/callback`
-
-## File storage
-
-Local evidence files are stored in `UPLOAD_DIR` (default `./uploads`). Google Drive and imgBB are used when configured.
+Production must use HTTPS, persistent private storage, a replica set, and the staging verification steps in the linked guide. Prisma Migrate is unsupported for MongoDB; use reviewed schema/index provisioning with Prisma db push.

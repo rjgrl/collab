@@ -1,11 +1,14 @@
 packages:
   - apps/*
   - packages/*
-overrides:
-  vite: npm:@voidzero-dev/vite-plus-core@0.3.1
 # pnpm 10+ reads overrides from this file, not package.json. vite-plus
 # requires the real `vite` package to resolve to its own core build.
 overrides:
+  seroval: ^1.6.3
+  tinypool: ^2.1.2
+  "@prisma/config>deepmerge-ts": ^8.0.0
+  source-map-js: ^1.2.2
+  "shadcn>@modelcontextprotocol/sdk": ^1.31.0
   vite: "npm:@voidzero-dev/vite-plus-core@0.3.1"
 allowBuilds:
   esbuild: true
@@ -13,7 +16,7 @@ allowBuilds:
   "@prisma/engines": true
   prisma: true
   bufferutil: true
-utf-8-validate: true
+  utf-8-validate: true
 catalog:
   zod: ^4.5.4
   typescript: ^6.0.3

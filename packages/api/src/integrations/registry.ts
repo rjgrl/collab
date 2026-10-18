@@ -1,4 +1,5 @@
 import type { Database } from "@Alumni-Tracking-Ss/db";
+import { ORPCError } from "@orpc/server";
 
 import type { IntegrationEnv } from "../context";
 
@@ -18,11 +19,14 @@ export type IntegrationStatus = {
   key: IntegrationKey;
   enabled: boolean;
   configured: boolean;
-  mode: "live" | "fallback" | "disabled";
+  mode: "configured" | "fallback" | "disabled";
   summary: string;
 };
 
-export async function listIntegrations(db: Database, env: IntegrationEnv): Promise<IntegrationStatus[]> {
+export async function listIntegrations(
+  db: Database,
+  env: IntegrationEnv,
+): Promise<IntegrationStatus[]> {
   const rows = await db.integrationSetting.findMany();
   const enabledByKey = new Map(rows.map((row) => [row.key, row.enabled]));
 
@@ -33,7 +37,7 @@ export async function listIntegrations(db: Database, env: IntegrationEnv): Promi
     if (!enabled) {
       mode = "disabled";
     } else if (configured) {
-      mode = "live";
+      mode = "configured";
     }
 
     return {
@@ -49,13 +53,13 @@ export async function listIntegrations(db: Database, env: IntegrationEnv): Promi
 export function isConfigured(key: IntegrationKey, env: IntegrationEnv) {
   switch (key) {
     case "recaptcha":
-      return Boolean(env.recaptchaSecretKey);
+      return Boolean(env.recaptchaSecretKey && env.recaptchaSiteKey);
     case "google_auth":
       return Boolean(env.googleClientId && env.googleClientSecret);
     case "google_drive":
-      return Boolean(env.googleServiceAccountJson);
+      return Boolean(env.googleServiceAccountJson && env.googleDriveFolderId);
     case "email":
-      return Boolean(env.smtpUrl);
+      return Boolean(env.smtpUrl?.startsWith("https://"));
     case "image_host":
       return Boolean(env.imgbbApiKey || env.googleServiceAccountJson);
     case "google_forms":
@@ -72,9 +76,9 @@ function summarize(key: IntegrationKey, mode: IntegrationStatus["mode"]) {
     recaptcha: "Local checkbox on login/signup",
     google_auth: "Email and password sign-in only",
     google_drive: "Local disk evidence storage",
-    email: "Messages written to the server log",
+    email: "Email delivery is not configured",
     image_host: "Local disk image storage",
-    google_forms: "Signed webhook still accepted in development without a secret",
+    google_forms: "Configure a shared webhook secret before enabling production imports",
     google_sheets: "CSV import and export",
   };
 
@@ -82,8 +86,8 @@ function summarize(key: IntegrationKey, mode: IntegrationStatus["mode"]) {
     return "Turned off in Settings";
   }
 
-  if (mode === "live") {
-    return "Using live credentials";
+  if (mode === "configured") {
+    return "Configuration present; connection has not been verified";
   }
 
   return fallbacks[key];
@@ -92,4 +96,9 @@ function summarize(key: IntegrationKey, mode: IntegrationStatus["mode"]) {
 export async function isIntegrationEnabled(db: Database, key: IntegrationKey) {
   const row = await db.integrationSetting.findUnique({ where: { key } });
   return row?.enabled ?? true;
+}
+
+export async function requireIntegration(db: Database, key: IntegrationKey) {
+  if (!(await isIntegrationEnabled(db, key)))
+    throw new ORPCError("FORBIDDEN", { message: "This integration is disabled." });
 }

@@ -3,12 +3,14 @@ import { loadAuthUserFromToken } from "@Alumni-Tracking-Ss/api/server-utils";
 import type { Context as HonoContext } from "hono";
 import { getCookie } from "hono/cookie";
 
-import { db } from "./services";
+import type { Database } from "@Alumni-Tracking-Ss/db";
 
 export const SESSION_COOKIE = "ats_session";
 
 export type CreateContextOptions = {
   context: HonoContext;
+  db: Database;
+  integrationEnv: IntegrationEnv;
 };
 
 function envString(key: string) {
@@ -44,6 +46,7 @@ export function readSessionToken(c: HonoContext) {
 }
 
 export async function createContext(options: CreateContextOptions): Promise<ApiContext> {
+  const { db } = options;
   const token = readSessionToken(options.context);
   const user = await loadAuthUserFromToken(db, token);
 
@@ -53,7 +56,7 @@ export async function createContext(options: CreateContextOptions): Promise<ApiC
     user,
     ipAddress: options.context.req.header("x-forwarded-for") ?? null,
     userAgent: options.context.req.header("user-agent") ?? null,
-    integrationEnv: readIntegrationEnv(),
+    integrationEnv: options.integrationEnv,
   };
 }
 

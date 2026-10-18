@@ -16,8 +16,7 @@ export const Route = createFileRoute("/_app/reports")({
 
 function ReportsPage() {
   const session = useSession();
-  const departments = useQuery(orpc.departments.list.queryOptions({ input: {} }));
-  const summary = useQuery(orpc.dashboard.summary.queryOptions({ input: {} }));
+  const summary = useQuery(orpc.reports.summary.queryOptions());
   const [departmentId, setDepartmentId] = useState("");
   const [tracked, setTracked] = useState<"all" | "tracked" | "untracked">("all");
 
@@ -74,7 +73,7 @@ function ReportsPage() {
               aria-label="Department"
             >
               <option value="">All departments</option>
-              {departments.data?.map((department) => (
+              {summary.data?.departments.map((department) => (
                 <option key={department.id} value={department.id}>
                   {department.code}
                 </option>
@@ -93,7 +92,11 @@ function ReportsPage() {
           </FilterBar>
           {can(session.data?.permissions, "reports.export") ? (
             <div className="flex flex-wrap gap-2">
-              <PrimaryButton onClick={() => exportCsv.mutate()} pending={exportCsv.isPending} pendingLabel="Downloading">
+              <PrimaryButton
+                onClick={() => exportCsv.mutate()}
+                pending={exportCsv.isPending}
+                pendingLabel="Downloading"
+              >
                 Download CSV
               </PrimaryButton>
               <QuietButton onClick={() => exportSheets.mutate()} disabled={exportSheets.isPending}>

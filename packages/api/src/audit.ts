@@ -2,7 +2,7 @@ import type { Database } from "@Alumni-Tracking-Ss/db";
 import type { PermissionKey } from "@Alumni-Tracking-Ss/db";
 
 export async function writeAudit(
-  db: Database,
+  db: Pick<Database, "auditLog">,
   input: {
     actorId?: string | null;
     action: string;

@@ -25,7 +25,7 @@ Browser (Vite SPA, proxied /rpc and /api)
   → Modular adapters (reCAPTCHA, Google, email, imgBB, local files)
 ```
 
-- **Auth:** email/password plus optional Google OAuth. First created user receives `super_admin` if no users exist. Seed creates `admin@alumni.local`.
+- **Auth:** email/password plus optional Google OAuth. Public registration always receives `viewer`. The seed initializes a Super Admin from private bootstrap environment variables.
 - **RBAC:** Users → Roles → Permissions. Multiple roles per user. Keys live in `packages/db/src/permissions.ts`.
 - **Academic hierarchy:** Department ← Program ← Alumni. Department ← Faculty (many-to-many).
 - **Alumni profile:** student details, contact (mobile, personal email, Facebook), employment history, tracking events, evidence/images.
@@ -43,15 +43,15 @@ The whiteboard example (`14750` graduates, `10000` tracked, `5%`) is internally 
 
 ## Modular integrations
 
-| Key | Live behavior | Fallback when unconfigured |
-|-----|---------------|----------------------------|
-| reCAPTCHA | Verifies login/signup with Google reCAPTCHA | Local "I'm not a robot" checkbox |
-| Google Auth | OAuth sign-in | Email/password only |
-| Google Drive | Evidence upload | Local disk |
-| Email | SMTP via nodemailer | Console log |
-| Image host | imgBB or Drive | Local disk |
-| Google Forms | Signed webhook import | Accepted without secret in development |
-| Google Sheets | Import/export | CSV import/export |
+| Key           | Live behavior                               | Fallback when unconfigured             |
+| ------------- | ------------------------------------------- | -------------------------------------- |
+| reCAPTCHA     | Verifies login/signup with Google reCAPTCHA | Local "I'm not a robot" checkbox       |
+| Google Auth   | OAuth sign-in                               | Email/password only                    |
+| Google Drive  | Evidence upload                             | Local disk                             |
+| Email         | SMTP via nodemailer                         | Console log                            |
+| Image host    | imgBB or Drive                              | Local disk                             |
+| Google Forms  | Signed webhook import                       | Accepted without secret in development |
+| Google Sheets | Import/export                               | CSV import/export                      |
 
 Enable/disable flags are stored in `IntegrationSetting`.
 
