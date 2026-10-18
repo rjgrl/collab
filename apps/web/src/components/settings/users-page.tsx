@@ -1,3 +1,4 @@
+import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -7,8 +8,6 @@ import { CheckboxRow } from "@/components/checkbox-row";
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
 import {
   FieldsetLabel,
-  FormActions,
-  FormCard,
   FormField,
   PageHeader,
   PageShell,
@@ -20,6 +19,7 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 
 export function UsersPage() {
   const session = useSession();
+  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const users = useQuery(orpc.users.list.queryOptions({ input: { search } }));
   const roles = useQuery(orpc.roles.list.queryOptions());
@@ -35,6 +35,7 @@ export function UsersPage() {
     mutationFn: () => client.users.create(draft),
     onSuccess: async () => {
       toast.success("User created");
+      setOpen(false);
       setDraft({ name: "", email: "", password: "", roleIds: [] });
       await queryClient.invalidateQueries();
     },
@@ -53,10 +54,46 @@ export function UsersPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Users" description="Assign roles to control access through RBAC." />
-      {canWrite ? (
-        <FormCard title="Create user">
+      <PageHeader
+        title="Members"
+        description="Manage accounts and their roles."
+        actions={
+          canWrite ? (
+            <PrimaryButton
+              onClick={() => {
+                create.reset();
+                setDraft({ name: "", email: "", password: "", roleIds: [] });
+                setOpen(true);
+              }}
+            >
+              Add user
+            </PrimaryButton>
+          ) : null
+        }
+      />
+      {canWrite && open ? (
+        <FormDialog
+          open
+          onOpenChange={setOpen}
+          pending={create.isPending}
+          footer={
+            <>
+              <PrimaryButton
+                type="submit"
+                form="create-user"
+                pending={create.isPending}
+                disabled={!draft.roleIds.length || !roles.data}
+                pendingLabel="Creating"
+              >
+                Create user
+              </PrimaryButton>
+            </>
+          }
+          title="Add user"
+          description="Create an account and assign its roles."
+        >
           <form
+            id="create-user"
             className="grid gap-4 md:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
@@ -109,13 +146,8 @@ export function UsersPage() {
                 </CheckboxRow>
               ))}
             </div>
-            <FormActions>
-              <PrimaryButton type="submit" pending={create.isPending} pendingLabel="Creating">
-                Create user
-              </PrimaryButton>
-            </FormActions>
           </form>
-        </FormCard>
+        </FormDialog>
       ) : null}
       <DataTable
         headers={["Name", "Email", "Roles", "Status", "Actions"]}

@@ -9,7 +9,7 @@ import type { AuthUser, Context } from "./context";
 import { PERMISSION_KEYS, ROLE_PRESETS } from "@Alumni-Tracking-Ss/db";
 
 import { alumniRouter } from "./routers/alumni";
-import { usersRouter, rolesRouter, authRouter } from "./routers/rbac";
+import { usersRouter, rolesRouter, authRouter, permissionsRouter } from "./routers/rbac";
 import { dashboardRouter, auditRouter, filesRouter, reportsRouter } from "./routers/dashboard";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -340,6 +340,20 @@ describe("RBAC: effective permission resolution", () => {
     assert.deepEqual((await loadAuthUser(after, "u1"))?.permissions, []);
   });
 
+  it("ignores retired faculty grants from existing databases", async () => {
+    const { loadAuthUser } = await import("./services/session");
+    const db = userDb([
+      {
+        key: "legacy",
+        rolePermissions: [
+          { permission: { key: "faculties.read" } },
+          { permission: { key: "alumni.read" } },
+        ],
+      },
+    ]);
+    assert.deepEqual((await loadAuthUser(db, "u1"))?.permissions, ["alumni.read"]);
+  });
+
   it("a user with no roles resolves to an empty permission set", async () => {
     const { loadAuthUser } = await import("./services/session");
     const user = await loadAuthUser(userDb([]), "u1");
@@ -417,4 +431,21 @@ describe("RBAC: protected administration", () => {
     const { db } = stubDb({ role });
     await expectCode("BAD_REQUEST", rolesRouter.delete, superAdmin(), { id: "r1" }, db);
   });
+});
+
+it("hides retired faculty permissions and routes without deleting legacy records", async () => {
+  const { appRouter } = await import("./routers/index");
+  assert.equal("faculties" in appRouter, false);
+  const legacy = { id: "old", key: "faculties.read" };
+  const active = { id: "current", key: "alumni.read" };
+  const { db } = stubDb({
+    permission: [legacy, active],
+    role: [{ id: "r1", rolePermissions: [{ permission: legacy }, { permission: active }] }],
+  });
+  const context = makeContext(makeUser(["permissions.read", "roles.read"]), db);
+  assert.deepEqual(await invoke(permissionsRouter.list, undefined, context), [active]);
+  const roles = (await invoke(rolesRouter.list, undefined, context)) as {
+    rolePermissions: { permission: { key: string } }[];
+  }[];
+  assert.deepEqual(roles[0]?.rolePermissions, [{ permission: active }]);
 });

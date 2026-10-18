@@ -43,79 +43,79 @@ function AccountSettings() {
     <PageShell>
       <PageHeader
         title="Account settings"
-        description="Manage your account, password and appearance."
+        description="Manage your account and password."
+        actions={<ModeToggle />}
       />
-      <FormCard title="Profile" description={session.data?.email}>
-        <form
-          className="flex max-w-lg flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            profile.mutate();
-          }}
-        >
-          <FormField id="account-name" label="Full name" required>
-            <Input
-              id="account-name"
-              autoComplete="name"
-              required
-              maxLength={120}
-              value={name ?? session.data?.name ?? ""}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </FormField>
-          {profile.isError ? <p role="alert">{profile.error.message}</p> : null}
-          <PrimaryButton
-            type="submit"
-            pending={profile.isPending}
-            disabled={name === null || name === session.data?.name}
+      <div className="grid items-start gap-4 md:grid-cols-2">
+        <FormCard title="Profile" description={session.data?.email}>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              profile.mutate();
+            }}
           >
-            Save profile
-          </PrimaryButton>
-        </form>
-      </FormCard>
-      <FormCard
-        title="Password"
-        description="Enter your current password. A successful change signs out your other sessions."
-      >
-        <form
-          className="flex max-w-lg flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            changePassword.mutate();
-          }}
+            <FormField id="account-name" label="Full name" required>
+              <Input
+                id="account-name"
+                autoComplete="name"
+                required
+                maxLength={120}
+                value={name ?? session.data?.name ?? ""}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </FormField>
+            {profile.isError ? <p role="alert">{profile.error.message}</p> : null}
+            <PrimaryButton
+              type="submit"
+              pending={profile.isPending}
+              disabled={name === null || name === session.data?.name}
+            >
+              Save profile
+            </PrimaryButton>
+          </form>
+        </FormCard>
+        <FormCard
+          title="Password"
+          description="Enter your current password. A successful change signs out your other sessions."
         >
-          <FormField id="current-password" label="Current password" required>
-            <Input
-              id="current-password"
-              type="password"
-              autoComplete="current-password"
-              required
-              maxLength={128}
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-            />
-          </FormField>
-          <FormField id="new-password" label="New password" required>
-            <Input
-              id="new-password"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              maxLength={128}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </FormField>
-          {changePassword.isError ? <p role="alert">{changePassword.error.message}</p> : null}
-          <PrimaryButton type="submit" pending={changePassword.isPending}>
-            Change password
-          </PrimaryButton>
-        </form>
-      </FormCard>
-      <FormCard title="Appearance">
-        <ModeToggle />
-      </FormCard>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              changePassword.mutate();
+            }}
+          >
+            <FormField id="current-password" label="Current password" required>
+              <Input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                required
+                maxLength={128}
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+              />
+            </FormField>
+            <FormField id="new-password" label="New password" required>
+              <Input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                maxLength={128}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </FormField>
+            {changePassword.isError ? <p role="alert">{changePassword.error.message}</p> : null}
+            <PrimaryButton type="submit" pending={changePassword.isPending}>
+              Change password
+            </PrimaryButton>
+          </form>
+        </FormCard>
+      </div>
     </PageShell>
   );
 }

@@ -13,28 +13,30 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 test("group and individual controls save through oRPC and survive reload", async ({ page }) => {
-  const master = page.getByRole("checkbox", { name: "Enable all evidence and files permissions" });
+  const master = page.getByRole("switch", { name: "Enable all evidence and files permissions" });
   await master.check();
-  await expect(page.getByRole("checkbox", { name: /^Upload evidence/ })).toBeChecked();
-  await page.getByRole("checkbox", { name: /^Upload evidence/ }).uncheck();
-  await expect(master).toHaveAttribute("aria-checked", "mixed");
+  await expect(page.getByRole("switch", { name: /^Upload evidence/ })).toBeChecked();
+  await page.getByRole("switch", { name: /^Upload evidence/ }).uncheck();
+  await expect(master).not.toBeChecked();
+  await expect(page.getByText(/Partially enabled/)).toBeVisible();
   await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Save permissions", exact: true }).click();
   await expect(page.getByText("No unsaved changes", { exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Test Staff/ }).click();
-  await expect(master).toHaveAttribute("aria-checked", "mixed");
-  await expect(page.getByRole("checkbox", { name: /^Upload evidence/ })).not.toBeChecked();
+  await expect(master).not.toBeChecked();
+  await expect(page.getByText(/Partially enabled/)).toBeVisible();
+  await expect(page.getByRole("switch", { name: /^Upload evidence/ })).not.toBeChecked();
   await master.check();
   await master.uncheck();
-  await expect(page.getByRole("checkbox", { name: /^View evidence/ })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: /^View evidence/ })).not.toBeChecked();
 });
 
 test("failed saves preserve the draft and stale saves require reload", async ({
   page,
   request,
 }) => {
-  await page.getByRole("checkbox", { name: /^View evidence/ }).check();
+  await page.getByRole("switch", { name: /^View evidence/ }).check();
   await request.post("http://127.0.0.1:3100/__test/fail");
   await page.getByRole("button", { name: "Save permissions", exact: true }).click();
   await expect(
@@ -57,10 +59,12 @@ test("settings and grouped controls pass automated accessibility and fit the vie
     true,
   );
   await page.screenshot({ path: testInfo.outputPath("roles.png"), fullPage: true });
-  const master = page.getByRole("checkbox", { name: "Enable all evidence and files permissions" });
+  const master = page.getByRole("switch", { name: "Enable all evidence and files permissions" });
   await master.focus();
   await page.keyboard.press("Space");
   await expect(master).toBeChecked();
+  await page.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await page.getByRole("button", { name: "Close dialog" }).click();
   await page
     .getByRole("navigation", { name: "Settings", exact: true })
     .getByRole("link", { name: "Integrations" })
@@ -83,4 +87,79 @@ test("settings and grouped controls pass automated accessibility and fit the vie
     ).violations,
   ).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("integrations.png"), fullPage: true });
+});
+
+test("new roles show the full catalog switched off and persist without grants", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Add Role", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add Role", exact: true });
+  expect(await dialog.getByRole("switch").count()).toBeGreaterThan(25);
+  await expect(dialog.getByRole("switch", { checked: true })).toHaveCount(0);
+  await expect(dialog.getByText(/facult/i)).toHaveCount(0);
+  await dialog.getByRole("textbox", { name: "Key", exact: true }).fill("test_custom");
+  await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Custom access");
+  await dialog.getByRole("button", { name: "Create role", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Custom access", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("switch", { checked: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Custom access.*0 permissions/ })).toBeVisible();
+});
+
+test("creation dialogs contain forms, trap focus and return focus to the add button", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  for (const [path, title, field] of [
+    ["/settings/users", "Add user", "Name"],
+    ["/departments", "Add department", "Code"],
+    ["/programs", "Add program", "Code"],
+    ["/alumni", "Add alumni", "Student number"],
+  ]) {
+    await page.goto(path);
+    const add = page.getByRole("button", { name: title, exact: true });
+    await add.click();
+    const dialog = page.getByRole("dialog", { name: title, exact: true });
+    await expect(dialog.getByRole("textbox", { name: field, exact: true })).toBeVisible();
+    expect(
+      (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
+    ).toEqual([]);
+    await dialog.getByRole("button", { name: "Close dialog" }).focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(add).toBeFocused();
+  }
+  await page.goto("/faculties");
+  await expect(page).toHaveURL(/\/departments$/);
+  await expect(page.getByRole("link", { name: "Faculties", exact: true })).toHaveCount(0);
+});
+
+test("account controls fit a desktop viewport and role dialogs scroll internally", async ({
+  page,
+}, testInfo) => {
+  const dialog = page.getByRole("dialog");
+  const save = dialog.getByRole("button", { name: "Save permissions", exact: true });
+  const before = await save.boundingBox();
+  await dialog.locator("[data-dialog-body]").evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  expect(await save.boundingBox()).toEqual(before);
+  await expect(save).toBeInViewport();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.goto("/settings");
+  await expect(page.getByLabel("Full name")).toBeVisible();
+  if (testInfo.project.name === "desktop") {
+    await expect(
+      page.getByRole("button", { name: "Change password", exact: true }),
+    ).toBeInViewport();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight),
+    ).toBe(true);
+  }
+  await page.screenshot({ path: testInfo.outputPath("account.png"), fullPage: true });
 });

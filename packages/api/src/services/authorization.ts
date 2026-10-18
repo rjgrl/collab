@@ -1,3 +1,4 @@
+import { isPermissionKey } from "@Alumni-Tracking-Ss/db";
 import type { Database, Prisma } from "@Alumni-Tracking-Ss/db";
 import { ORPCError } from "@orpc/server";
 import type { AuthUser } from "../context";
@@ -29,7 +30,9 @@ export function assertRoleScope(actor: AuthUser, roles: RoleScope[]) {
     }
     if (
       role.rolePermissions.some(
-        ({ permission }) => !actor.permissions.some((key) => key === permission.key),
+        ({ permission }) =>
+          !permission.key.startsWith("faculties.") &&
+          !actor.permissions.some((key) => key === permission.key),
       )
     ) {
       throw new ORPCError("FORBIDDEN", {
@@ -58,7 +61,11 @@ export async function validatePermissionIds(
   const permissions = await db.permission.findMany({ where: { id: { in: ids } } });
   if (permissions.length !== ids.length)
     throw new ORPCError("BAD_REQUEST", { message: "One or more permissions no longer exist." });
-  if (permissions.some(({ key }) => !actor.permissions.some((own) => own === key))) {
+  if (
+    permissions.some(
+      ({ key }) => !isPermissionKey(key) || !actor.permissions.some((own) => own === key),
+    )
+  ) {
     throw new ORPCError("FORBIDDEN", { message: "You cannot grant permissions you do not hold." });
   }
 }

@@ -1,3 +1,4 @@
+import { isPermissionKey } from "@Alumni-Tracking-Ss/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
@@ -337,10 +338,19 @@ export const usersRouter = {
 
 export const rolesRouter = {
   list: requirePermission("roles.read").handler(async ({ context }) =>
-    context.db.role.findMany({
-      include: { ...roleScopeInclude, _count: { select: { userRoles: true } } },
-      orderBy: { name: "asc" },
-    }),
+    context.db.role
+      .findMany({
+        include: { ...roleScopeInclude, _count: { select: { userRoles: true } } },
+        orderBy: { name: "asc" },
+      })
+      .then((roles) =>
+        roles.map((role) => ({
+          ...role,
+          rolePermissions: role.rolePermissions.filter(({ permission }) =>
+            isPermissionKey(permission.key),
+          ),
+        })),
+      ),
   ),
   create: requirePermission("roles.write")
     .input(
@@ -466,6 +476,8 @@ export const rolesRouter = {
 };
 export const permissionsRouter = {
   list: requirePermission("permissions.read").handler(async ({ context }) =>
-    context.db.permission.findMany({ orderBy: [{ module: "asc" }, { key: "asc" }] }),
+    context.db.permission
+      .findMany({ orderBy: [{ module: "asc" }, { key: "asc" }] })
+      .then((items) => items.filter((item) => isPermissionKey(item.key))),
   ),
 };

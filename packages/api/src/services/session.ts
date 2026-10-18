@@ -1,5 +1,10 @@
-import type { Database, PermissionKey } from "@Alumni-Tracking-Ss/db";
-import { createSessionToken, hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
+import type { Database } from "@Alumni-Tracking-Ss/db";
+import {
+  createSessionToken,
+  hashPassword,
+  verifyPassword,
+  isPermissionKey,
+} from "@Alumni-Tracking-Ss/db";
 import { ORPCError } from "@orpc/server";
 
 import type { AuthUser } from "../context";
@@ -41,7 +46,7 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
         item.role.rolePermissions.map((rolePermission) => rolePermission.permission.key),
       ),
     ),
-  ] as PermissionKey[];
+  ].filter(isPermissionKey);
 
   return {
     id: user.id,

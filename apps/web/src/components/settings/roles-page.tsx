@@ -1,4 +1,5 @@
-import { Checkbox } from "@Alumni-Tracking-Ss/ui/components/checkbox";
+import { Switch } from "@Alumni-Tracking-Ss/ui/components/switch";
+import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import {
   groupPermissions,
@@ -9,13 +10,7 @@ import type { PermissionItem } from "@Alumni-Tracking-Ss/api/permission-groups";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  FormCard,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
+import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -32,15 +27,19 @@ export function RolesPage() {
   });
   const [selected, setSelected] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newIds, setNewIds] = useState<string[]>([]);
   const [newRole, setNewRole] = useState({ key: "", name: "", description: "" });
   const create = useMutation({
-    mutationFn: () => client.roles.create({ ...newRole, permissionIds: [] }),
+    mutationFn: () => client.roles.create({ ...newRole, permissionIds: newIds }),
     onSuccess: async (created) => {
       await queryClient.invalidateQueries();
       setDirty(false);
       setSelected(created.id);
+      setCreating(false);
+      setNewIds([]);
       setNewRole({ key: "", name: "", description: "" });
-      toast.success("Role created. Select its permissions below.");
+      toast.success("Role created");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -49,12 +48,39 @@ export function RolesPage() {
     <PageShell>
       <PageHeader
         title="Roles and permissions"
-        description="Choose a role, adjust access by group or permission, then save your changes."
+        description="Select a role to review and manage its permissions."
+        actions={
+          can(session.data?.permissions, "roles.write") ? (
+            <PrimaryButton
+              disabled={!permissions.data}
+              onClick={() => {
+                create.reset();
+                setNewRole({ key: "", name: "", description: "" });
+                setNewIds([]);
+                setCreating(true);
+              }}
+            >
+              Add Role
+            </PrimaryButton>
+          ) : null
+        }
       />
-      {can(session.data?.permissions, "roles.write") ? (
-        <FormCard title="Create role" description="New roles start with no permissions.">
+      {creating && permissions.data ? (
+        <FormDialog
+          open
+          onOpenChange={setCreating}
+          pending={create.isPending}
+          title="Add Role"
+          description="All permissions start off. Enable only the access this role needs."
+          footer={
+            <PrimaryButton form="create-role" type="submit" pending={create.isPending}>
+              Create role
+            </PrimaryButton>
+          }
+        >
           <form
-            className="grid gap-4 sm:grid-cols-2"
+            id="create-role"
+            className="grid gap-3 sm:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
               if (!dirty || window.confirm("Discard unsaved permission changes?")) {
@@ -90,11 +116,16 @@ export function RolesPage() {
               />
             </FormField>
             {create.isError ? <p role="alert">{create.error.message}</p> : null}
-            <PrimaryButton type="submit" pending={create.isPending}>
-              Create role
-            </PrimaryButton>
+            <div className="sm:col-span-2">
+              <PermissionControls
+                permissions={permissions.data}
+                ids={newIds}
+                setIds={setNewIds}
+                locked={create.isPending}
+              />
+            </div>
           </form>
-        </FormCard>
+        </FormDialog>
       ) : null}
       {roles.isPending ? <p role="status">Loading roles...</p> : null}
       {roles.isError ? (
@@ -144,6 +175,12 @@ export function RolesPage() {
           role={current}
           permissions={permissions.data}
           onDirty={setDirty}
+          onClose={() => {
+            if (!dirty || window.confirm("Discard unsaved permission changes?")) {
+              setSelected(null);
+              setDirty(false);
+            }
+          }}
         />
       ) : null}
     </PageShell>
@@ -154,10 +191,12 @@ function RoleEditor({
   role,
   permissions,
   onDirty,
+  onClose,
 }: {
   role: Role;
   permissions: PermissionItem[];
   onDirty: (dirty: boolean) => void;
+  onClose: () => void;
 }) {
   const session = useSession();
   const [baseline, setBaseline] = useState(() => ({
@@ -197,76 +236,13 @@ function RoleEditor({
   }, [dirty]);
   const locked = !editable || save.isPending;
   return (
-    <FormCard
-      title={role.name}
-      description={
-        editable
-          ? "Group controls affect every permission you are allowed to grant. Changes apply after saving."
-          : "This role is read-only for your account."
-      }
-    >
-      <div className="flex flex-col gap-5">
-        <p role="status" aria-live="polite" className="text-sm">
-          {dirty ? "Unsaved changes" : "No unsaved changes"}
-        </p>
-        {stale ? (
-          <p role="alert" className="text-sm text-destructive">
-            This role changed on the server. Your draft is preserved. Reload the latest permissions
-            before saving.
-          </p>
-        ) : null}
-        {save.isError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {save.error.message} Your draft has been preserved.
-          </p>
-        ) : null}
-        {groupPermissions(permissions).map((group) => {
-          const applicable = group.items
-            .filter((permission) => can(session.data?.permissions, permission.key))
-            .map((permission) => permission.id);
-          const state = groupState(applicable, ids);
-          return (
-            <fieldset key={group.key} className="rounded-lg border p-4">
-              <legend className="px-1 text-sm font-medium">{group.label}</legend>
-              <label className="mb-4 flex min-h-10 items-center gap-3 text-sm">
-                <Checkbox
-                  checked={state.checked}
-                  indeterminate={state.indeterminate}
-                  disabled={locked || !applicable.length}
-                  aria-label={`Enable all ${group.label.toLowerCase()} permissions`}
-                  onCheckedChange={(checked) =>
-                    setIds((current) => togglePermissions(current, applicable, checked))
-                  }
-                />
-                <span>
-                  All applicable permissions{" "}
-                  <span className="text-muted-foreground">
-                    ({state.count}/{applicable.length})
-                    {state.indeterminate ? " | Partially enabled" : ""}
-                  </span>
-                </span>
-              </label>
-              <div className="grid gap-4 md:grid-cols-2">
-                {group.items.map((permission) => (
-                  <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
-                    <Checkbox
-                      className="mt-1"
-                      checked={ids.includes(permission.id)}
-                      disabled={locked || !can(session.data?.permissions, permission.key)}
-                      onCheckedChange={(checked) =>
-                        setIds((current) => togglePermissions(current, [permission.id], checked))
-                      }
-                    />
-                    <span>
-                      <span className="font-medium">{permission.name}</span>
-                      <span className="block text-muted-foreground">{permission.description}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          );
-        })}
+    <FormDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      pending={save.isPending}
+      footer={
         <div className="flex flex-wrap gap-3">
           {editable ? (
             <PrimaryButton
@@ -290,7 +266,114 @@ function RoleEditor({
             {stale ? "Load latest permissions" : "Discard changes"}
           </PrimaryButton>
         </div>
+      }
+      title={role.name}
+      description={
+        editable
+          ? "Enable access by group or permission, then save."
+          : "This role is read-only for your account."
+      }
+    >
+      <div className="flex flex-col gap-5">
+        <p role="status" aria-live="polite" className="text-sm">
+          {dirty ? "Unsaved changes" : "No unsaved changes"}
+        </p>
+        {stale ? (
+          <p role="alert" className="text-sm text-destructive">
+            This role changed on the server. Your draft is preserved. Reload the latest permissions
+            before saving.
+          </p>
+        ) : null}
+        {save.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {save.error.message} Your draft has been preserved.
+          </p>
+        ) : null}
+        <PermissionControls permissions={permissions} ids={ids} setIds={setIds} locked={locked} />
       </div>
-    </FormCard>
+    </FormDialog>
+  );
+}
+
+function PermissionControls({
+  permissions,
+  ids,
+  setIds,
+  locked,
+}: {
+  permissions: PermissionItem[];
+  ids: string[];
+  setIds: React.Dispatch<React.SetStateAction<string[]>>;
+  locked: boolean;
+}) {
+  const session = useSession();
+  const [search, setSearch] = useState("");
+  const matches = (permission: PermissionItem) =>
+    `${permission.name} ${permission.description} ${permission.key}`
+      .toLowerCase()
+      .includes(search.trim().toLowerCase());
+  return (
+    <div className="flex flex-col gap-3">
+      <Input
+        aria-label="Search permissions"
+        placeholder="Find a permission..."
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      <p className="text-xs text-muted-foreground">
+        {ids.length} permissions enabled. Group switches apply to all permissions in their group.
+      </p>
+      {groupPermissions(permissions)
+        .filter((group) => group.items.some(matches))
+        .map((group) => {
+          const applicable = group.items
+            .filter((permission) => can(session.data?.permissions, permission.key))
+            .map((permission) => permission.id);
+          const state = groupState(applicable, ids);
+          return (
+            <fieldset key={group.key} className="rounded-lg border p-3">
+              <legend className="px-1 text-sm font-medium">{group.label}</legend>
+              <label className="mb-2 flex min-h-10 items-center gap-3 text-sm">
+                <Switch
+                  checked={state.checked}
+                  disabled={locked || !applicable.length}
+                  aria-label={`Enable all ${group.label.toLowerCase()} permissions`}
+                  aria-describedby={`permission-group-${group.key}`}
+                  onCheckedChange={(checked) =>
+                    setIds((current) => togglePermissions(current, applicable, checked))
+                  }
+                />
+                <span>
+                  All applicable permissions{" "}
+                  <span id={`permission-group-${group.key}`} className="text-muted-foreground">
+                    ({state.count}/{applicable.length})
+                    {state.indeterminate ? " | Partially enabled" : ""}
+                  </span>
+                </span>
+              </label>
+              <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
+                {group.items.filter(matches).map((permission) => (
+                  <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
+                    <Switch
+                      className="mt-1"
+                      checked={ids.includes(permission.id)}
+                      disabled={locked || !can(session.data?.permissions, permission.key)}
+                      onCheckedChange={(checked) =>
+                        setIds((current) => togglePermissions(current, [permission.id], checked))
+                      }
+                    />
+                    <span>
+                      <span className="font-medium">{permission.name}</span>
+                      <span className="block text-muted-foreground">{permission.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          );
+        })}
+
+      {!permissions.some(matches) ? <p role="status">No matching permissions.</p> : null}
+    </div>
   );
 }

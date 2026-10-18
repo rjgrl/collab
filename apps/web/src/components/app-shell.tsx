@@ -18,7 +18,6 @@ import {
   ScrollText,
   Settings,
   UserRound,
-  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,7 +29,6 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", permission: "dashboard.read", icon: LayoutDashboard },
   { to: "/departments", label: "Departments", permission: "departments.read", icon: Building2 },
   { to: "/programs", label: "Programs", permission: "programs.read", icon: GraduationCap },
-  { to: "/faculties", label: "Faculties", permission: "faculties.read", icon: Users },
   { to: "/alumni", label: "Alumni", permission: "alumni.read", icon: UserRound },
   { to: "/reports", label: "Reports", permission: "reports.read", icon: ClipboardList },
   { to: "/settings", label: "Settings", permission: null, icon: Settings },

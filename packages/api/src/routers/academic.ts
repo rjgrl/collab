@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { requirePermission } from "../index";
 import { writeAudit } from "../audit";
-import { departmentInputSchema, facultyInputSchema, programInputSchema } from "../validation";
+import { departmentInputSchema, programInputSchema } from "../validation";
 
 export const departmentsRouter = {
   list: requirePermission("departments.read")
@@ -12,18 +12,18 @@ export const departmentsRouter = {
     .handler(async ({ context, input }) => {
       const search = input?.search?.trim();
       return context.db.department.findMany({
-        where: withNotDeleted({
-          ...(search
+        where: withNotDeleted(
+          search
             ? {
                 OR: [
                   { name: { contains: search, mode: "insensitive" } },
                   { code: { contains: search, mode: "insensitive" } },
                 ],
               }
-            : {}),
-        }),
+            : {},
+        ),
         include: {
-          _count: { select: { programs: true, facultyDepartments: true } },
+          _count: { select: { programs: true } },
         },
         orderBy: { name: "asc" },
       });
@@ -36,7 +36,6 @@ export const departmentsRouter = {
         where: withNotDeleted({ id: input.id }),
         include: {
           programs: { where: withNotDeleted() },
-          facultyDepartments: { include: { faculty: true } },
         },
       });
       if (!department) {
@@ -109,7 +108,9 @@ export const departmentsRouter = {
 
 export const programsRouter = {
   list: requirePermission("programs.read")
-    .input(z.object({ search: z.string().optional(), departmentId: z.string().optional() }).optional())
+    .input(
+      z.object({ search: z.string().optional(), departmentId: z.string().optional() }).optional(),
+    )
     .handler(async ({ context, input }) => {
       const search = input?.search?.trim();
       return context.db.program.findMany({
@@ -199,109 +200,6 @@ export const programsRouter = {
         entity: "program",
         entityId: input.id,
         summary: "Soft-deleted program",
-        ipAddress: context.ipAddress,
-      });
-      return { ok: true };
-    }),
-};
-
-export const facultiesRouter = {
-  list: requirePermission("faculties.read")
-    .input(z.object({ search: z.string().optional() }).optional())
-    .handler(async ({ context, input }) => {
-      const search = input?.search?.trim();
-      return context.db.faculty.findMany({
-        where: withNotDeleted({
-          ...(search
-            ? {
-                OR: [
-                  { firstName: { contains: search, mode: "insensitive" } },
-                  { lastName: { contains: search, mode: "insensitive" } },
-                  { employeeNumber: { contains: search, mode: "insensitive" } },
-                ],
-              }
-            : {}),
-        }),
-        include: {
-          facultyDepartments: { include: { department: true } },
-        },
-        orderBy: { lastName: "asc" },
-      });
-    }),
-
-  create: requirePermission("faculties.write")
-    .input(facultyInputSchema)
-    .handler(async ({ context, input }) => {
-      const faculty = await context.db.faculty.create({
-        data: {
-          employeeNumber: input.employeeNumber,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          email: input.email,
-          facultyDepartments: {
-            create: input.departmentIds.map((departmentId) => ({ departmentId })),
-          },
-        },
-        include: { facultyDepartments: { include: { department: true } } },
-      });
-      await writeAudit(context.db, {
-        actorId: context.user.id,
-        action: "faculties.create",
-        entity: "faculty",
-        entityId: faculty.id,
-        summary: `Created faculty ${faculty.employeeNumber}`,
-        ipAddress: context.ipAddress,
-      });
-      return faculty;
-    }),
-
-  update: requirePermission("faculties.write")
-    .input(facultyInputSchema.extend({ id: z.string() }))
-    .handler(async ({ context, input }) => {
-      await context.db.facultyDepartment.deleteMany({ where: { facultyId: input.id } });
-      if (input.departmentIds.length > 0) {
-        await context.db.facultyDepartment.createMany({
-          data: input.departmentIds.map((departmentId) => ({
-            facultyId: input.id,
-            departmentId,
-          })),
-        });
-      }
-
-      const faculty = await context.db.faculty.update({
-        where: { id: input.id },
-        data: {
-          employeeNumber: input.employeeNumber,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          email: input.email,
-        },
-        include: { facultyDepartments: { include: { department: true } } },
-      });
-      await writeAudit(context.db, {
-        actorId: context.user.id,
-        action: "faculties.update",
-        entity: "faculty",
-        entityId: faculty.id,
-        summary: `Updated faculty ${faculty.employeeNumber}`,
-        ipAddress: context.ipAddress,
-      });
-      return faculty;
-    }),
-
-  delete: requirePermission("faculties.delete")
-    .input(z.object({ id: z.string() }))
-    .handler(async ({ context, input }) => {
-      await context.db.faculty.update({
-        where: { id: input.id },
-        data: { deletedAt: new Date() },
-      });
-      await writeAudit(context.db, {
-        actorId: context.user.id,
-        action: "faculties.delete",
-        entity: "faculty",
-        entityId: input.id,
-        summary: "Soft-deleted faculty",
         ipAddress: context.ipAddress,
       });
       return { ok: true };

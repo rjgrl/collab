@@ -39,7 +39,7 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 5. Applies the Prisma collections/indexes without reset/data-loss flags, then seeds permissions, roles, and the local administrator.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
-For sample departments, faculties, and three synthetic alumni, use **`pnpm setup:local --demo`** instead of `pnpm setup:local`. This is optional; normal setup gives you an administrator and an empty application ready for data entry. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
+For sample departments and three synthetic alumni, use **`pnpm setup:local --demo`** instead of `pnpm setup:local`. This is optional; normal setup gives you an administrator and an empty application ready for data entry. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 

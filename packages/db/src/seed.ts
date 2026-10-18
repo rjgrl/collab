@@ -194,52 +194,6 @@ async function seedAcademicStructure() {
     },
   });
 
-  const facultyA = await db.faculty.upsert({
-    where: { employeeNumber: "FAC-1001" },
-    update: { firstName: "Maria", lastName: "Santos", email: "maria.santos@alumni.local" },
-    create: {
-      employeeNumber: "FAC-1001",
-      firstName: "Maria",
-      lastName: "Santos",
-      email: "maria.santos@alumni.local",
-      deletedAt: null,
-    },
-  });
-
-  const facultyB = await db.faculty.upsert({
-    where: { employeeNumber: "FAC-1002" },
-    update: { firstName: "Jose", lastName: "Reyes" },
-    create: {
-      employeeNumber: "FAC-1002",
-      firstName: "Jose",
-      lastName: "Reyes",
-      email: "jose.reyes@alumni.local",
-      deletedAt: null,
-    },
-  });
-
-  await db.facultyDepartment.upsert({
-    where: {
-      facultyId_departmentId: {
-        facultyId: facultyA.id,
-        departmentId: it.id,
-      },
-    },
-    update: {},
-    create: { facultyId: facultyA.id, departmentId: it.id },
-  });
-
-  await db.facultyDepartment.upsert({
-    where: {
-      facultyId_departmentId: {
-        facultyId: facultyB.id,
-        departmentId: educ.id,
-      },
-    },
-    update: {},
-    create: { facultyId: facultyB.id, departmentId: educ.id },
-  });
-
   return { it, educ, bsit, bsed };
 }
 

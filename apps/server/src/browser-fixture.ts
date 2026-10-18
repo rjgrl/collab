@@ -41,12 +41,39 @@ const integrationSettings = new Map<string, boolean>([
   ["recaptcha", false],
   ["google_auth", false],
 ]);
+const createdRoles: (typeof role)[] = [];
 let failNext = false;
 const transaction = {
-  alumni: { count: async () => 0 },
+  alumni: { count: async () => 0, findMany: async () => [] },
+  program: { findMany: async () => [] },
   department: { findMany: async () => [] },
   role: {
-    findMany: async () => [adminRole, role],
+    findMany: async () => [adminRole, role, ...createdRoles],
+    create: async ({
+      data,
+    }: {
+      data: {
+        key: string;
+        name: string;
+        description?: string;
+        rolePermissions: { create: { permissionId: string }[] };
+      };
+    }) => {
+      const created = {
+        ...role,
+        id: `role-${createdRoles.length}`,
+        key: data.key,
+        name: data.name,
+        description: data.description ?? "",
+        updatedAt: new Date(),
+        rolePermissions: data.rolePermissions.create.map(({ permissionId }) => ({
+          permissionId,
+          permission: permissions.find((item) => item.id === permissionId)!,
+        })),
+      };
+      createdRoles.push(created);
+      return created;
+    },
     findUnique: async () => role,
     findUniqueOrThrow: async () => role,
     updateMany: async ({
@@ -76,7 +103,7 @@ const transaction = {
       }));
     },
   },
-  user: { findUnique: async () => user },
+  user: { findUnique: async () => user, findMany: async () => [user] },
   userRole: { count: async () => 1 },
   session: {
     findUnique: async ({ where }: { where: { token: string } }) =>
@@ -126,6 +153,7 @@ const app = createApp({
   integrationEnv: {},
 });
 app.post("/__test/reset", (c) => {
+  createdRoles.length = 0;
   role.rolePermissions = [];
   role.updatedAt = new Date(initialDate);
   failNext = false;

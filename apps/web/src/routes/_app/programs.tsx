@@ -1,3 +1,4 @@
+import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -7,14 +8,7 @@ import { toast } from "sonner";
 
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
 import { NativeSelect } from "@/components/native-select";
-import {
-  FormActions,
-  FormCard,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
+import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -82,8 +76,26 @@ function ProgramsPage() {
         }
       />
       {draft ? (
-        <FormCard title={draft.id ? "Edit program" : "Add program"}>
+        <FormDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setDraft(null);
+          }}
+          pending={save.isPending}
+          footer={
+            <div className="flex gap-2">
+              <PrimaryButton type="submit" form="academic-form" pending={save.isPending}>
+                Save
+              </PrimaryButton>
+              <QuietButton type="button" disabled={save.isPending} onClick={() => setDraft(null)}>
+                Cancel
+              </QuietButton>
+            </div>
+          }
+          title={draft.id ? "Edit program" : "Add program"}
+        >
           <form
+            id="academic-form"
             className="grid gap-4 md:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
@@ -130,16 +142,8 @@ function ProgramsPage() {
                 />
               </FormField>
             </div>
-            <FormActions>
-              <PrimaryButton type="submit" pending={save.isPending}>
-                Save
-              </PrimaryButton>
-              <QuietButton type="button" onClick={() => setDraft(null)}>
-                Cancel
-              </QuietButton>
-            </FormActions>
           </form>
-        </FormCard>
+        </FormDialog>
       ) : null}
       <DataTable
         headers={["Code", "Name", "Department", "Alumni", "Actions"]}

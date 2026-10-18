@@ -1,3 +1,4 @@
+import { AlumniCreateDialog } from "@/components/alumni-create-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/_app/alumni/")({
 
 function AlumniPage() {
   const session = useSession();
+  const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [tracked, setTracked] = useState<"all" | "tracked" | "untracked">("all");
@@ -36,12 +38,11 @@ function AlumniPage() {
         description="Student details, contact info, employment, tracking, and program attachment."
         actions={
           can(session.data?.permissions, "alumni.write") ? (
-            <PrimaryButton nativeButton={false} render={<Link to="/alumni/new" />}>
-              Add alumni
-            </PrimaryButton>
+            <PrimaryButton onClick={() => setCreating(true)}>Add alumni</PrimaryButton>
           ) : null
         }
       />
+      {creating ? <AlumniCreateDialog onClose={() => setCreating(false)} /> : null}
       <DataTable
         headers={["Student #", "Name", "Program", "Contact", "Tracking", "Actions"]}
         search={search}
@@ -99,7 +100,10 @@ function AlumniPage() {
             </TableCell>
             <TableCell>
               <RowActions>
-                <QuietButton nativeButton={false} render={<Link to="/alumni/$id" params={{ id: row.id }} />}>
+                <QuietButton
+                  nativeButton={false}
+                  render={<Link to="/alumni/$id" params={{ id: row.id }} />}
+                >
                   View profile
                 </QuietButton>
               </RowActions>

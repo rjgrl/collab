@@ -1,3 +1,4 @@
+import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -6,7 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { FormActions, FormCard, FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -63,7 +64,7 @@ function DepartmentsPage() {
     <PageShell>
       <PageHeader
         title="Departments"
-        description="Programs attach to a department. Faculties can also be added to a department."
+        description="Organize alumni programs by department."
         actions={
           canWrite ? (
             <PrimaryButton onClick={() => setDraft(emptyDraft)}>Add department</PrimaryButton>
@@ -71,8 +72,26 @@ function DepartmentsPage() {
         }
       />
       {draft ? (
-        <FormCard title={draft.id ? "Edit department" : "Add department"}>
+        <FormDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setDraft(null);
+          }}
+          pending={save.isPending}
+          footer={
+            <div className="flex gap-2">
+              <PrimaryButton type="submit" form="academic-form" pending={save.isPending}>
+                Save
+              </PrimaryButton>
+              <QuietButton type="button" disabled={save.isPending} onClick={() => setDraft(null)}>
+                Cancel
+              </QuietButton>
+            </div>
+          }
+          title={draft.id ? "Edit department" : "Add department"}
+        >
           <form
+            id="academic-form"
             className="grid gap-4 md:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
@@ -104,33 +123,24 @@ function DepartmentsPage() {
                 />
               </FormField>
             </div>
-            <FormActions>
-              <PrimaryButton type="submit" pending={save.isPending}>
-                Save
-              </PrimaryButton>
-              <QuietButton type="button" onClick={() => setDraft(null)}>
-                Cancel
-              </QuietButton>
-            </FormActions>
           </form>
-        </FormCard>
+        </FormDialog>
       ) : null}
       <DataTable
-        headers={["Code", "Name", "Programs", "Faculties", "Actions"]}
+        headers={["Code", "Name", "Programs", "Actions"]}
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search departments"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
         emptyTitle="No departments found"
-        emptyDescription="Add a department to start attaching programs and faculties."
+        emptyDescription="Add a department to start attaching programs."
       >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
             <TableCell>{row.code}</TableCell>
             <TableCell>{row.name}</TableCell>
             <TableCell>{row._count.programs}</TableCell>
-            <TableCell>{row._count.facultyDepartments}</TableCell>
             <TableCell>
               <RowActions>
                 {canWrite ? (
