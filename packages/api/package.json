@@ -1,0 +1,25 @@
+{
+  "name": "@Alumni-Tracking-Ss/api",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts",
+    "./server-utils": "./src/server-utils.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@Alumni-Tracking-Ss/db": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/zod": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@Alumni-Tracking-Ss/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

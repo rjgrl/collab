@@ -1,13 +1,83 @@
-node_modules/
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+build
+*.tsbuildinfo
+
+# Generated files
+apps/web/src/routeTree.gen.ts
+local.db
+local.db-*
+
+# Environment variables
 .env
+.env*.local
+
+# IDEs and editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs
+.evlog/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Turbo
+.turbo
+.nx
+
+# Better-T-Stack
+.alchemy
+.vercel
+
+# Testing
+coverage
+.nyc_output
+
+# AI agent tooling
+# Vendored agent skills, MCP server config, editor/agent state, and the
+# Better-T-Stack manifest that declares the mcp/skills addons. None of this is
+# read by the build, the dev server, or the tests. Re-add individual entries
+# (e.g. !.mcp.json) if you want to share them with collaborators.
+.agents/
+.claude/
+.cursor/
+.kilo/
+.mcp.json
+skills-lock.json
+bts.jsonc
+AGENTS.md
+CLAUDE.md
+
+# Misc
+*.tgz
+.cache
+tmp
+temp
+uploads
+*.db
+
+# Local secrets and generated caches
 .env.*
 !.env.example
 !.env.*.example
-dist/
-build/
-coverage/
-.turbo/
+!.env.schema
 .vite/
 .tanstack/
-*.tsbuildinfo
-*.log

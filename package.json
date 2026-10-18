@@ -1,0 +1,42 @@
+{
+  "name": "Alumni-Tracking-Ss",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "vp run -r dev",
+    "build": "vp run -r build",
+    "check-types": "vp run -r check-types",
+    "check": "vp check && vp run -r check-types",
+    "lint": "vp lint",
+    "format": "vp fmt",
+    "staged": "vp staged",
+    "hooks:setup": "vp config",
+    "dev:web": "vp run --filter web dev",
+    "dev:server": "vp run --filter server dev",
+    "db:push": "vp run --filter @Alumni-Tracking-Ss/db db:push",
+    "db:studio": "vp run --filter @Alumni-Tracking-Ss/db db:studio",
+    "db:generate": "vp run --filter @Alumni-Tracking-Ss/db db:generate",
+    "db:migrate": "vp run --filter @Alumni-Tracking-Ss/db db:migrate",
+    "db:seed": "vp run --filter @Alumni-Tracking-Ss/db db:seed",
+    "test": "tsx --test packages/db/src/*.test.ts packages/api/src/**/*.test.ts",
+    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@Alumni-Tracking-Ss/config": "workspace:*",
+    "@types/node": "catalog:",
+    "rolldown": "1.2.7",
+    "typescript": "catalog:",
+    "varlock": "catalog:",
+    "tsx": "^4.23.13",
+    "vite-plus": "0.3.1"
+  },
+  "packageManager": "pnpm@12.5.1"
+}

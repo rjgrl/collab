@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Alumni Tracking System — Function Requirements</title>
+  <style>
+    @page { size: A4 landscape; margin: 12mm 12mm 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Calibri, Arial, sans-serif;
+      color: #1c2430;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 {
+      font-size: 14px;
+      margin: 16px 0 4px;
+      padding-bottom: 3px;
+      border-bottom: 2px solid #1f4e79;
+      color: #1f4e79;
+      page-break-after: avoid;
+    }
+    p { margin: 4px 0 8px; }
+    .meta { color: #4b5563; margin-bottom: 10px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6px 0 12px;
+      page-break-inside: auto;
+    }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th, td {
+      border: 1px solid #c5ced8;
+      padding: 5px 7px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      background: #1f4e79;
+      color: #fff;
+      font-weight: 600;
+    }
+    tbody tr:nth-child(even) td { background: #f4f7fb; }
+    td.code { width: 92px; white-space: nowrap; font-weight: 600; }
+    td.name { width: 210px; font-weight: 600; }
+    .note {
+      background: #f4f7fb;
+      border-left: 3px solid #1f4e79;
+      padding: 6px 8px;
+      margin: 8px 0 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Alumni Tracking System</h1>
+  <p class="meta">System function requirements by user</p>
+  <p>A higher user also has every function of the users below them. Admin includes Staff / Coordinator and User / Alumni. Staff / Coordinator includes User / Alumni.</p>
+
+  <h2>Users</h2>
+  <table>
+    <thead>
+      <tr><th>User</th><th>System role</th><th>What this user is for</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Admin</td><td>super_admin</td><td>Runs the whole system, including accounts, roles, and the audit log.</td></tr>
+      <tr><td>Staff / Coordinator</td><td>staff</td><td>Maintains departments, programs, faculties, alumni, tracking, files, reports, and integrations.</td></tr>
+      <tr><td>User / Alumni</td><td>viewer</td><td>Signs in and reads academic structure, alumni profiles, evidence, the dashboard, and reports. A new sign-up receives this role.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Admin</h2>
+  <p>Functions only the Admin can perform. The Admin also has every function in the Staff / Coordinator and User / Alumni sections.</p>
+  <table>
+    <thead><tr><th>Code</th><th>Name</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td class="code">RBAC-001</td><td class="name">View users</td><td>Lists accounts and the roles assigned to each account.</td></tr>
+      <tr><td class="code">RBAC-002</td><td class="name">Create user</td><td>Creates an account with a name, email, password, and one or more roles.</td></tr>
+      <tr><td class="code">RBAC-003</td><td class="name">Update user</td><td>Changes a user's name, password, status, or role assignments.</td></tr>
+      <tr><td class="code">RBAC-004</td><td class="name">Disable user</td><td>Sets an account to disabled so it can no longer sign in.</td></tr>
+      <tr><td class="code">RBAC-005</td><td class="name">View roles</td><td>Lists roles and the permissions attached to each role.</td></tr>
+      <tr><td class="code">RBAC-006</td><td class="name">Create role</td><td>Creates a role with a key, name, description, and a set of permissions.</td></tr>
+      <tr><td class="code">RBAC-007</td><td class="name">Update role</td><td>Changes a role's name, description, or permission set.</td></tr>
+      <tr><td class="code">RBAC-008</td><td class="name">Delete role</td><td>Deletes a role that is not a protected system role.</td></tr>
+      <tr><td class="code">RBAC-009</td><td class="name">View permissions</td><td>Lists the permission catalog grouped by module.</td></tr>
+      <tr><td class="code">RBAC-010</td><td class="name">Enforce access</td><td>Every protected action checks the caller's permissions. A missing permission is rejected. Permissions come from the user's roles.</td></tr>
+      <tr><td class="code">AUD-001</td><td class="name">View audit log</td><td>Lists recent activity, including the actor, action, entity, summary, and time.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Staff / Coordinator</h2>
+  <p>Functions the Staff / Coordinator can perform beyond read-only access. This user also has every function in the User / Alumni section. This user cannot manage accounts, roles, permissions, or the audit log.</p>
+  <table>
+    <thead><tr><th>Code</th><th>Name</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td class="code">ACAD-002</td><td class="name">Create department</td><td>Creates a department with a code, name, and description.</td></tr>
+      <tr><td class="code">ACAD-003</td><td class="name">Update department</td><td>Changes a department's code, name, or description.</td></tr>
+      <tr><td class="code">ACAD-004</td><td class="name">Delete department</td><td>Soft-deletes a department so it no longer appears in active lists.</td></tr>
+      <tr><td class="code">ACAD-006</td><td class="name">Create program</td><td>Creates a program and attaches it to a department.</td></tr>
+      <tr><td class="code">ACAD-007</td><td class="name">Update program</td><td>Changes a program's details or moves it to another department.</td></tr>
+      <tr><td class="code">ACAD-008</td><td class="name">Delete program</td><td>Soft-deletes a program.</td></tr>
+      <tr><td class="code">ACAD-010</td><td class="name">Create faculty</td><td>Creates a faculty record.</td></tr>
+      <tr><td class="code">ACAD-011</td><td class="name">Assign faculty to department</td><td>Adds a faculty to one or more departments, or updates that assignment.</td></tr>
+      <tr><td class="code">ACAD-012</td><td class="name">Delete faculty</td><td>Soft-deletes a faculty record.</td></tr>
+      <tr><td class="code">ALUM-003</td><td class="name">Create alumni</td><td>Creates a profile with student details, contact info, and a required program. The student number must be unique.</td></tr>
+      <tr><td class="code">ALUM-004</td><td class="name">Update alumni</td><td>Edits student details, contact info, employment status, or the attached program.</td></tr>
+      <tr><td class="code">ALUM-005</td><td class="name">Delete alumni</td><td>Soft-deletes an alumni record.</td></tr>
+      <tr><td class="code">ALUM-008</td><td class="name">Add employment</td><td>Records an employer, job title, industry, location, dates, and whether the job is current. The profile's employment status is updated from that record.</td></tr>
+      <tr><td class="code">ALUM-009</td><td class="name">Remove employment</td><td>Removes an employment record from a profile.</td></tr>
+      <tr><td class="code">ALUM-010</td><td class="name">Update tracking</td><td>Marks a graduate tracked or untracked and records a tracking event with a note and timestamp.</td></tr>
+      <tr><td class="code">ALUM-011</td><td class="name">Attach alumni to program</td><td>Sets the program on an alumni record. That program belongs to one department.</td></tr>
+      <tr><td class="code">RPT-002</td><td class="name">Export CSV</td><td>Downloads an alumni CSV, optionally filtered by department and tracked status.</td></tr>
+      <tr><td class="code">RPT-003</td><td class="name">Export Google Sheets</td><td>Exports alumni rows to Google Sheets when that integration is configured.</td></tr>
+      <tr><td class="code">FILE-001</td><td class="name">Upload evidence</td><td>Uploads an evidence file or image and attaches it to an alumni profile.</td></tr>
+      <tr><td class="code">FILE-003</td><td class="name">Delete evidence</td><td>Soft-deletes an evidence file.</td></tr>
+      <tr><td class="code">FILE-004</td><td class="name">Store images</td><td>Stores images on imgBB, Google Drive, or local disk, depending on which provider is configured.</td></tr>
+      <tr><td class="code">INT-001</td><td class="name">reCAPTCHA</td><td>Enables or disables reCAPTCHA. Live keys call Google; missing keys use the local checkbox.</td></tr>
+      <tr><td class="code">INT-002</td><td class="name">Google authentication</td><td>Enables or disables Google sign-in. It is available only when client id and secret are set.</td></tr>
+      <tr><td class="code">INT-003</td><td class="name">Google Drive evidence</td><td>Sends evidence uploads to Google Drive when a service account and folder are configured; otherwise they stay on local disk.</td></tr>
+      <tr><td class="code">INT-004</td><td class="name">Email</td><td>Sends email through SMTP when configured. Otherwise the message is logged. Can send a test message and a message to an alumnus.</td></tr>
+      <tr><td class="code">INT-005</td><td class="name">Image hosting</td><td>Sends image uploads to imgBB or Google Drive when configured, and to local storage otherwise.</td></tr>
+      <tr><td class="code">INT-006</td><td class="name">Google Forms import</td><td>Accepts a signed Google Forms webhook and creates or updates alumni rows.</td></tr>
+      <tr><td class="code">INT-007</td><td class="name">Google Sheets import</td><td>Imports alumni rows from the configured spreadsheet.</td></tr>
+      <tr><td class="code">INT-008</td><td class="name">CSV import</td><td>Imports pasted or uploaded CSV rows as alumni and records success count, error count, and row errors.</td></tr>
+      <tr><td class="code">INT-009</td><td class="name">Integration status</td><td>Shows which modular integrations are enabled and whether their credentials are present.</td></tr>
+      <tr><td class="code">INT-010</td><td class="name">Toggle integration</td><td>Enables or disables a modular integration without changing the rest of the system.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>User / Alumni</h2>
+  <p>Functions a User / Alumni can perform. This is the role given to a new sign-up. Access is read-only.</p>
+  <table>
+    <thead><tr><th>Code</th><th>Name</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td class="code">AUTH-001</td><td class="name">Sign in</td><td>Signs in with email and password. A valid account receives a session; a wrong password or disabled account is rejected.</td></tr>
+      <tr><td class="code">AUTH-002</td><td class="name">Sign up</td><td>Registers with name, email, and password and receives a session. Duplicate emails are rejected. The first account becomes Admin; later accounts become User / Alumni.</td></tr>
+      <tr><td class="code">AUTH-003</td><td class="name">Sign out</td><td>Ends the current session and clears the session cookie.</td></tr>
+      <tr><td class="code">AUTH-004</td><td class="name">Current session</td><td>Returns the signed-in user, assigned roles, and effective permissions, or an empty session when nobody is signed in.</td></tr>
+      <tr><td class="code">AUTH-005</td><td class="name">Google sign-in</td><td>Signs in through Google and returns to the app with a session, when Google OAuth is configured and enabled.</td></tr>
+      <tr><td class="code">AUTH-006</td><td class="name">Bot check</td><td>Sign-in and sign-up require reCAPTCHA when it is enabled. Live keys use Google reCAPTCHA; otherwise a local "I am not a robot" checkbox is used.</td></tr>
+      <tr><td class="code">ACAD-001</td><td class="name">View departments</td><td>Lists and opens departments, including their programs and assigned faculties.</td></tr>
+      <tr><td class="code">ACAD-005</td><td class="name">View programs</td><td>Lists programs and the department each program belongs to.</td></tr>
+      <tr><td class="code">ACAD-009</td><td class="name">View faculties</td><td>Lists faculties and the departments they belong to.</td></tr>
+      <tr><td class="code">ALUM-001</td><td class="name">Search alumni</td><td>Lists alumni and filters by name or student number, department, program, graduation year, and tracked or untracked status.</td></tr>
+      <tr><td class="code">ALUM-002</td><td class="name">View alumni profile</td><td>Opens one profile, including program and department, contact, employment history, tracking events, and evidence files.</td></tr>
+      <tr><td class="code">ALUM-006</td><td class="name">Student details</td><td>Reads student number, name, middle name, gender, graduation year, and batch on a profile.</td></tr>
+      <tr><td class="code">ALUM-007</td><td class="name">Contact info</td><td>Reads mobile number, personal email, and Facebook account on a profile.</td></tr>
+      <tr><td class="code">FILE-002</td><td class="name">View evidence</td><td>Opens or downloads an evidence file.</td></tr>
+      <tr><td class="code">DASH-001</td><td class="name">Graduate statistics</td><td>Sees total graduates, tracked count, untracked count, and tracked percentage. Percentage is tracked divided by graduates, rounded to two decimals.</td></tr>
+      <tr><td class="code">DASH-002</td><td class="name">Statistics by department</td><td>Sees graduate count, tracked count, and tracked percentage for each department.</td></tr>
+      <tr><td class="code">RPT-001</td><td class="name">View reports</td><td>Opens graduate and alumni report totals. Export stays with Staff / Coordinator and Admin.</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>
