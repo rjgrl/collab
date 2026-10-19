@@ -4,7 +4,10 @@ Phase 6: [local consolidation and cross-device work](audits/PHASE6_SUMMARY.md). 
 
 - [x] Preserve inherited work; add isolated checkout setup, explicit existing-database updates and read-only diagnostics.
 - [x] Record committed-clone install/build/app/MFA and complete setup-rerun preservation acceptance.
-- [ ] Obtain public-publication/deployment-hook approval; verify remote clone/CI and physical laptop separately.
+- [x] Obtain explicit public-publication/deployment-hook confirmation and publish only the dedicated testing branch.
+- [x] Verify fresh GitHub clone, synthetic initialization, app/MFA and full setup-rerun preservation.
+- [x] Verify hosted Windows/Ubuntu quality CI at published `ff07351` ([run](https://github.com/rjgrl/collab/actions/runs/39206075312)).
+- [ ] Verify physical laptop and hosted/native MongoDB setup/recovery separately; current hosted quality workflow has no real-DB job.
 
 Phase 5: [assessment/owner register](audits/PHASE5_STAGING_READINESS.md). No deployment authorized.
 

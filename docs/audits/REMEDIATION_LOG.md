@@ -2,6 +2,8 @@
 
 ## Phase 6 developer reproducibility — 2026-10-19
 
+Publication continuation: after explicit owner approval/no-deployment-hook confirmation, published `ff07351` on the dedicated branch and verified a fresh HTTPS remote clone through setup/build/141 tests/real application MFA and full rerun preservation. README quickstart now explicitly clones the testing branch because main is intentionally unmerged. No application code or permissions weakened; evidence/docs-only follow-up. Hosted CI results are distinguished from local/native-DB tests.
+
 `scripts/local-env.mjs` and tests: random persistent DB per fresh checkout, preserving existing values. `scripts/development.*`, `initialize-local-db.ts`, `setup-local.mjs`: toolchain admission, explicit existing-schema/seed update, verification-only default. `doctor.mjs`/`doctor-db.ts`: read-only redacted readiness. `local-tools.mjs`: actionable Windows engine-lock failure. `packages/db/src/seed.ts`: refuse production seeding and use explicit synthetic demo identities without real-looking phones/social links. No dependency/schema upgrade.
 
 `rehearse-clone.mjs`/`clone-acceptance.ts`, package scripts: opt-in committed local clone, independent generated config/database, normal install/build and actual app smoke acceptance; retains private evidence without deleting databases. `.github/workflows/quality.yml`: proposed Windows/Linux matrix. README and development/Windows/troubleshooting/audit/checklist documents updated. Local baseline 139 Node tests; updated suite 141, browser suite 34, other selected gates pass. See [Phase 6](PHASE6_SUMMARY.md) for exact outcomes/limits and [test commands](TEST_RESULTS.md#phase-6-validation).

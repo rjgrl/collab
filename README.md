@@ -22,7 +22,7 @@ Restart your terminal after installing Node/pnpm or changing PATH. Initial depen
 ## First run after cloning
 
 ```sh
-git clone https://github.com/rjgrl/collab.git
+git clone --branch development/phase6-cross-device-testing --single-branch https://github.com/rjgrl/collab.git
 cd collab
 pnpm install --frozen-lockfile
 pnpm setup:local

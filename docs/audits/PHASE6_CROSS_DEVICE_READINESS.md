@@ -1,5 +1,9 @@
 # Cross-device readiness
 
+Hosted Windows/Ubuntu quality CI PASS at `ff07351`: [run](https://github.com/rjgrl/collab/actions/runs/39206075312). This proves hosted install/generation/build/type/unit/browser gates, not native MongoDB startup/recovery on another OS or a physical laptop. Remote-clone acceptance also passed on the original Windows host.
+
+Publication update: owner-approved public branch push succeeded, and an actual GitHub clone at `ff07351` passed setup/build/types, 141 Node tests and real app/MFA plus complete setup-rerun preservation. See [remote evidence](PHASE6_FRESH_CLONE_RESULTS.md). Hosted Windows/Linux CI is tracked separately; it does not test native MongoDB startup or recovery on those runners. Physical second-device acceptance remains pending.
+
 Physical laptop acceptance is pending. Record OS/CPU, browser/version, commit and viewport. Chromium desktop/mobile fixture automation is the measured boundary; Firefox, Safari/iOS and actual Android devices remain unverified.
 
 Second-device checklist:
@@ -21,7 +25,7 @@ LAN/mobile access to another machine is not configured. Prefer independent lapto
 | Prisma          | Generated per machine after install. Windows DLL lock requires stopping this checkout's servers, without copying another engine.          |
 | Doctor          | Explicit `pnpm run doctor`, read-only, redacted; selected readiness only.                                                                 |
 | Committed clone | Rehearsal harness implemented; execution recorded in clone results.                                                                       |
-| Other devices   | Physical laptop/Linux/macOS/remote CI pending. Quality matrix proposed only.                                                              |
+| Other devices   | Hosted Windows/Ubuntu quality CI passed; physical laptop/macOS and native Linux MongoDB setup remain pending.                             |
 | Providers       | Disabled/disconnected until configured. Seeded admin works locally; new signup verification remains restricted.                           |
 
 See [setup](../DEVELOPMENT_SETUP.md), [Windows](../WINDOWS_SETUP.md), [troubleshooting](../TROUBLESHOOTING.md). Independent loopback instances are the supported multi-device mode; LAN sharing requires separate network/TLS/origin review. No copied secrets or shared unauthenticated MongoDB exposure.
