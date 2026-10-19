@@ -1,5 +1,11 @@
 # Local verification results
 
+## Local authenticator testing exception — 2026-10-19
+
+User requested temporary local MFA pause for all accounts. `pnpm test`: 146/146 pass; `pnpm test:browser`: 34/34 desktop/mobile pass. New regressions cover explicit-development-only switch/default enforcement, enrolled non-admin/admin behavior, protected procedure permission/status/profile/sign-in gates, honest session/status flags with preserved enrollment and re-enable, raw private-file route permissions and re-enable, and production startup refusal. Browser fixtures keep MFA enforced and existing enrollment/recovery acceptance passes; these browser results do not claim a separate end-to-end development-bypass browser journey.
+
+Passed commands: `pnpm env:generate`, `pnpm check-types`, `pnpm exec vp lint --deny-warnings`, `pnpm build`, `pnpm check:production-build`, `pnpm check:server-build`, `pnpm check:secrets`, `git diff --check`. Private logs: `.tools/local-mfa-{tests,browser,types,build,env-types}.log`. No external provider or DB mutation required. The ignored server .env now has LOCAL_DISABLE_MFA=true with development mode verified; restart the API and refresh the browser. The owner subsequently authorized committing/pushing these changes to the testing branch; private environment/login files remain excluded. No deployment. Existing earlier security evidence describes strict MFA and remains historical, not proof of current development enforcement.
+
 ## Phase 6 validation
 
 Remote CI PASS: [39206075312](https://github.com/rjgrl/collab/actions/runs/39206075312), published SHA `ff07351fceebe2cb36e619a38ca0240229469c92`; Windows and Ubuntu jobs both completed successfully. Every quality gate passed, including frozen install, Prisma generate/validate, web build, types/browser types, warning-as-failure lint, Node tests, secrets/advisories, Chromium browser tests, full build and web/server artifact checks. [Frozen sanitized evidence](PHASE6_REMOTE_RESULTS.json) records job/step outcomes from public GitHub API. No hosted real-DB/recovery or physical-laptop result is inferred.

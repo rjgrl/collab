@@ -5,7 +5,11 @@ import { createApp } from "./app";
 import { createContext } from "./context";
 import { Hono } from "hono";
 
-function fixture(status: "active" | "disabled" = "active") {
+function fixture(
+  status: "active" | "disabled" = "active",
+  enrolled = false,
+  permissions = ["files.read", "files.write"],
+) {
   const db = {
     session: {
       findUnique: async () => ({ id: "s", userId: "u", expiresAt: new Date(Date.now() + 60_000) }),
@@ -18,11 +22,12 @@ function fixture(status: "active" | "disabled" = "active") {
         email: "test@example.test",
         image: null,
         status,
+        mfaCredential: enrolled ? { secretCipher: "synthetic", version: "saved" } : null,
         userRoles: [
           {
             role: {
               key: "test",
-              rolePermissions: ["files.read", "files.write"].map((key) => ({
+              rolePermissions: permissions.map((key) => ({
                 permission: { key },
               })),
             },
@@ -31,6 +36,7 @@ function fixture(status: "active" | "disabled" = "active") {
       }),
     },
     integrationSetting: { findUnique: async () => ({ enabled: true }) },
+    evidenceFile: { findFirst: async () => null },
   } as unknown as Database;
   return createApp({
     db,
@@ -42,6 +48,38 @@ function fixture(status: "active" | "disabled" = "active") {
     },
   });
 }
+it("pauses enrolled-account MFA on raw file routes locally while retaining permissions", async (t) => {
+  const prior = {
+    NODE_ENV: process.env.NODE_ENV,
+    LOCAL_DISABLE_MFA: process.env.LOCAL_DISABLE_MFA,
+  };
+  t.after(() => {
+    for (const [key, value] of Object.entries(prior)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  process.env.NODE_ENV = "development";
+  process.env.LOCAL_DISABLE_MFA = "true";
+  const headers = { Cookie: "ats_session=synthetic" };
+  assert.equal(
+    (await fixture("active", true).request("/api/files/missing", { headers })).status,
+    404,
+  );
+  assert.equal(
+    (await fixture("active", true, []).request("/api/files/missing", { headers })).status,
+    403,
+  );
+  assert.equal(
+    (await fixture("disabled", true).request("/api/files/missing", { headers })).status,
+    401,
+  );
+  process.env.LOCAL_DISABLE_MFA = "false";
+  assert.equal(
+    (await fixture("active", true).request("/api/files/missing", { headers })).status,
+    401,
+  );
+});
 it("does not trust forwarded headers for account audit/session metadata", async () => {
   const app = new Hono();
   app.get("/", async (c) => {

@@ -49,6 +49,8 @@ Administrators must enroll an authenticator after signing in, before accessing p
 
 ## Run again, or update after a pull
 
+For local testing only, set `LOCAL_DISABLE_MFA=true` in your private `apps/server/.env` with `NODE_ENV=development`, then restart the API and refresh the browser. This pauses authenticator enrollment/code requirements for all local accounts, including previously enrolled accounts. Password sign-in and permissions still apply; enrollment/recovery codes are preserved. Remove the setting or set it to `false` and restart to restore MFA. New checkouts enforce MFA by default. Production refuses to start with this flag enabled.
+
 For ordinary daily use, including after reboot:
 
 ```sh

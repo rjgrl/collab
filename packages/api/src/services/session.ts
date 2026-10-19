@@ -1,6 +1,6 @@
 import { accountAccessPending } from "./verification";
 import { createHash } from "node:crypto";
-import { privilegedAccount } from "./mfa";
+import { requiresMfa } from "./mfa-policy";
 import { assertPasswordSafe } from "./password-security";
 import { consumeAuthAttempt, boundedSetting } from "./throttle";
 import type { z } from "zod";
@@ -69,8 +69,11 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
     needsPassword: user.passwordHash === null,
     roles,
     permissions,
-    mfaRequired:
-      privilegedAccount({ roles, permissions }) || Boolean(user.mfaCredential?.secretCipher),
+    mfaRequired: requiresMfa({
+      roles,
+      permissions,
+      mfaEnrolled: Boolean(user.mfaCredential?.secretCipher),
+    }),
     mfaEnrolled: Boolean(user.mfaCredential?.secretCipher),
     mfaVersion: user.mfaCredential?.version,
     mfaVerified: false,

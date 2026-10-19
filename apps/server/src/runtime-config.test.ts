@@ -23,6 +23,12 @@ const valid = {
 it("accepts explicit safe runtime settings without connecting to providers", () => {
   assert.deepEqual(validateRuntimeConfig(valid, {}), { trustedProxyIps: [] });
 });
+it("refuses the local authenticator bypass in production", () => {
+  assert.throws(
+    () => validateRuntimeConfig(valid, { LOCAL_DISABLE_MFA: "true" }),
+    /development-only/,
+  );
+});
 it("rejects production URL credential/path/query ambiguities and missing keys", () => {
   for (const origin of [
     "http://app.example.test",

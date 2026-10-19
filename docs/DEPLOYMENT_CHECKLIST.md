@@ -1,5 +1,7 @@
 # Controlled release review checklist
 
+- [ ] Remove `LOCAL_DISABLE_MFA=true` from deployment configuration. Production rejects it; verify administrator enrollment, login and recovery with MFA enforced before release. Local testing may temporarily pause enforcement without deleting enrollment.
+
 Phase 6: [local consolidation and cross-device work](audits/PHASE6_SUMMARY.md). Public publication requires explicit approval; no deployment authorized.
 
 - [x] Preserve inherited work; add isolated checkout setup, explicit existing-database updates and read-only diagnostics.

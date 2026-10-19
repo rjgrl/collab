@@ -1,4 +1,5 @@
 import { appRouter } from "@Alumni-Tracking-Ss/api/routers/index";
+import { requiresMfa } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
 import {
   ALLOWED_EVIDENCE_TYPES,
   validateEvidence,
@@ -201,7 +202,9 @@ export function createApp({
 
   async function currentUser(c: Parameters<typeof readSessionToken>[0]) {
     const user = await loadAuthUserFromToken(db, readSessionToken(c));
-    return user?.needsProfileCompletion || (user?.mfaRequired && !user.mfaVerified) ? null : user;
+    return user?.needsProfileCompletion || (user && requiresMfa(user) && !user.mfaVerified)
+      ? null
+      : user;
   }
 
   const apiHandler = new OpenAPIHandler(appRouter, {
