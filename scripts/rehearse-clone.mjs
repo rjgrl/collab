@@ -89,6 +89,19 @@ try {
   ])
     await run(launcher, pnpmArgs(command), root, command.replaceAll(":", "-"));
   await run(launcher, pnpmArgs("exec", "tsx", "scripts/clone-acceptance.ts"), root, "application");
+  await run(
+    launcher,
+    pnpmArgs("exec", "tsx", "scripts/clone-acceptance.ts", "--capture-state"),
+    root,
+    "capture-state",
+  );
+  await run(launcher, pnpmArgs("setup:local"), root, "full-setup-rerun");
+  await run(
+    launcher,
+    pnpmArgs("exec", "tsx", "scripts/clone-acceptance.ts", "--verify-state"),
+    root,
+    "verify-state",
+  );
   await run("git", ["diff", "--exit-code"], root, "tracked-clean");
 } catch (error) {
   console.error(error.message);

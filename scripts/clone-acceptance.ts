@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { once } from "node:events";
 import net from "node:net";
 import path from "node:path";
@@ -42,12 +42,49 @@ async function snapshot() {
       singleBatch: true,
     });
     const indexes = await db.$runCommandRaw({ listIndexes: name });
+    assert.ok(
+      (rows.cursor as { firstBatch: unknown[] }).firstBatch.length < 500,
+      "synthetic snapshot bound exceeded",
+    );
     all[name] = {
       documents: (rows.cursor as { firstBatch: unknown[] }).firstBatch,
       indexes: (indexes.cursor as { firstBatch: unknown[] }).firstBatch,
     };
   }
   return createHash("sha256").update(JSON.stringify(all)).digest("hex");
+}
+const stateMode = process.argv.find((arg) => ["--capture-state", "--verify-state"].includes(arg));
+if (stateMode) {
+  try {
+    const files = [
+      "apps/server/.env",
+      "apps/web/.env",
+      "packages/db/.env",
+      ".tools/local-login.txt",
+    ];
+    const state = JSON.stringify({
+      database: await snapshot(),
+      files: await Promise.all(
+        files.map(async (file) =>
+          createHash("sha256")
+            .update(await readFile(path.join(projectRoot, file)))
+            .digest("hex"),
+        ),
+      ),
+    });
+    const saved = path.join(projectRoot, ".tools/phase6-before-rerun.json");
+    if (stateMode === "--capture-state") await writeFile(saved, state, { flag: "wx", mode: 0o600 });
+    else
+      assert.equal(
+        state,
+        await readFile(saved, "utf8"),
+        "full setup rerun changed documents, indexes or private configuration",
+      );
+    console.log("PASS full-rerun " + stateMode.slice(2));
+  } finally {
+    await db.$disconnect();
+  }
+  process.exit(0);
 }
 async function waitReady(url: string) {
   for (let attempt = 0; attempt < 120; attempt++) {
