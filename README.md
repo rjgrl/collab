@@ -1,16 +1,17 @@
-﻿# Alumni Tracking System
+# Alumni Tracking System
 
 A local testing setup for the team: React/TanStack Router, Hono/oRPC, Prisma, and MongoDB. Every laptop/desktop runs its own database. No Atlas account, shared database password, Docker, or Google credentials are required for the core application.
 
 ## Install once on each device
 
-| Requirement     | What to install                                                                                                                                                                                             |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Git             | [Git installer](https://git-scm.com/downloads)                                                                                                                                                              |
-| Node.js         | Node **26.10.0** is the tested version, recorded in `.node-version`. The project requires Node 22.15+; use the tested version for consistent team results. [Node downloads](https://nodejs.org/en/download) |
-| pnpm            | Install **12.5.1** after Node: `npm install --global pnpm@12.5.1`                                                                                                                                           |
-| MongoDB Server  | [MongoDB Community Server](https://www.mongodb.com/docs/manual/administration/install-community/), including `mongod`. **MongoDB 9.0 is tested.** Use an installer supported by your OS/CPU.                |
-| MongoDB Compass | [Compass](https://www.mongodb.com/try/download/compass), for viewing/editing the local test database                                                                                                        |
+| Requirement       | What to install                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Git               | [Git installer](https://git-scm.com/downloads)                                                                                                                                                              |
+| Node.js           | Node **26.10.0** is the tested version, recorded in `.node-version`. The project requires Node 22.15+; use the tested version for consistent team results. [Node downloads](https://nodejs.org/en/download) |
+| pnpm              | Install **12.5.1** after Node: `npm install --global pnpm@12.5.1`                                                                                                                                           |
+| MongoDB Server    | [MongoDB Community Server](https://www.mongodb.com/docs/manual/administration/install-community/), including `mongod`. **MongoDB 9.0 is tested.** Use an installer supported by your OS/CPU.                |
+| MongoDB Compass   | [Compass](https://www.mongodb.com/try/download/compass), for viewing/editing the local test database                                                                                                        |
+| Authenticator app | A TOTP authenticator supporting six-digit, 30-second codes; required for administrator accounts. Manual setup keys and recovery codes are supported.                                                        |
 
 **Compass is the database GUI; it does not replace MongoDB Server.** Install both. The app connects to the same server that you open in Compass. Prisma requires a replica set for transactions, even when there is only one local server. The committed scripts initialize that replica set automatically.
 
@@ -25,6 +26,7 @@ git clone https://github.com/rjgrl/collab.git
 cd collab
 pnpm install --frozen-lockfile
 pnpm setup:local
+pnpm run doctor
 pnpm dev
 ```
 
@@ -36,12 +38,14 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 2. Generates a unique initial administrator password on that device and saves the login privately in **`.tools/local-login.txt`**. Open that file to get your email/password; do not commit or share it.
 3. Generates environment types and the platform-specific Prisma client.
 4. Starts MongoDB on loopback port 27018, initializes replica set **rs0**, and waits until it has a writable primary.
-5. Applies the Prisma collections/indexes without reset/data-loss flags, then seeds permissions, roles, and the local administrator.
+5. Initializes a new, randomly named database for this checkout, applies Prisma collections/indexes without reset/data-loss flags, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
 For sample departments and three synthetic alumni, use **`pnpm setup:local --demo`** instead of `pnpm setup:local`. This is optional; normal setup gives you an administrator and an empty application ready for data entry. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
+
+Administrators must enroll an authenticator after signing in, before accessing protected pages or APIs. Enter the current password, add the displayed key to your authenticator, confirm its code, and save the one-time recovery codes privately. Setup generates missing encryption/verification keys per device. For enrollment, local lost-authenticator recovery, password resets and configuration details, see [account security operations](docs/operations/ACCOUNT_SECURITY.md).
 
 ## Run again, or update after a pull
 
@@ -62,7 +66,7 @@ pnpm setup:local
 pnpm dev
 ```
 
-Setup is safe to rerun: it preserves local configuration, existing account passwords, and database records. Schema changes still need review before applying them to valuable data. If Prisma reports an index conflict or a potentially destructive change, setup stops; do not add `--accept-data-loss` or delete your data to bypass it. The system uses MongoDB, so **do not run Prisma Migrate**.
+Stop this checkout's development servers before pulling/installing/generating on Windows. Setup preserves local configuration and existing account passwords; populated databases are verified without schema/seed updates. If schema changes are needed, back up local data, review the changes, then run `pnpm setup:local --update-existing`. If Prisma reports an index conflict or a potentially destructive change, setup stops; do not add `--accept-data-loss` or delete your data to bypass it. The system uses MongoDB, so **do not run Prisma Migrate**.
 
 ## Connect using MongoDB Compass
 
@@ -73,12 +77,12 @@ Setup is safe to rerun: it preserves local configuration, existing account passw
    mongodb://127.0.0.1:27018/?replicaSet=rs0
    ```
 
-3. Connect and open **`alumni_tracking`**. You should see collections such as `User`, `Role`, `Permission`, `Alumni`, and `Department` after setup.
+3. Connect and open the database named in your private `apps/server/.env` (`collab_dev_` plus a random suffix for new clones). Existing configured database names are preserved. You should see collections such as `User`, `Role`, `Permission`, `Alumni`, and `Department` after setup.
 
 The application's generated local server environment uses:
 
 ```dotenv
-DATABASE_URL=mongodb://127.0.0.1:27018/alumni_tracking?replicaSet=rs0
+DATABASE_URL=mongodb://127.0.0.1:27018/collab_dev_<generated-suffix>?replicaSet=rs0
 ```
 
 Closing Compass does not stop MongoDB. Closing the application terminal leaves the local database process running for Compass and future app starts. Database files persist in **`.tools/mongodb-rs0/data`**; logs are in **`.tools/mongodb-rs0/mongod.log`**. Do not delete that directory unless you deliberately intend to discard that local database. This loopback-only, single-node, unauthenticated setup is for local testing, not public hosting or real confidential alumni records.
@@ -92,6 +96,8 @@ Ignored deliberately: real `.env` files, per-device passwords, MongoDB data/logs
 Do not copy another person's `node_modules`, generated Prisma engine, `.tools`, or `.env` files into your clone. Do not overwrite your local environment with examples on every pull.
 
 ## Troubleshooting
+
+Start with `pnpm run doctor` (read-only; credentials are never printed). See the [development setup](docs/DEVELOPMENT_SETUP.md), [Windows guide](docs/WINDOWS_SETUP.md), and [troubleshooting guide](docs/TROUBLESHOOTING.md). `pnpm setup:dev` is an alias for `pnpm setup:local`.
 
 | Symptom                                                                | Action                                                                                                                                                                                                            |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -115,9 +121,14 @@ pnpm lint
 pnpm test
 pnpm check:secrets
 pnpm build
+pnpm check:production-build
 ```
 
 Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. See [test results](docs/test-report.md) for measured coverage and limits. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
+
+The web build always uses production mode without editing your local `.env`; development tools remain available through `pnpm dev`. The latest [pre-production audit](docs/audits/SECURITY_AUDIT.md), [verification results](docs/audits/TEST_RESULTS.md), [remaining risks](docs/audits/REMAINING_RISKS.md), and [release checklist](docs/DEPLOYMENT_CHECKLIST.md) distinguish completed local fixes from unresolved release blockers. MFA, password policy/reset, shared throttling and session hardening are implemented with local acceptance tests. Live verification delivery, production recovery/operations and other documented review gates remain pending; this application is not certified production-ready.
+
+Optional real-database security checks: `pnpm test:security-db`. This creates a fresh random loopback test database and rolls back synthetic account records; it does not touch the working application database. Tests use local mocks and send no real verification messages. See the security operations guide for the exact scope and retained test artifacts.
 
 Settings contains Account, Members, Roles and permissions, and Integrations. Older `/users`, `/roles`, and `/integrations` links redirect to Settings. Production hosting, private storage, backups, and provider credentials are covered separately in [deployment.md](docs/deployment.md); local usability does not certify production readiness.
 

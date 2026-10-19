@@ -8,11 +8,12 @@ import {
 } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { AccountProfileFields } from "@/components/account-profile-fields";
+import { PasswordGuidance } from "@/components/password-guidance";
 import { CheckboxRow } from "@/components/checkbox-row";
 import { Recaptcha } from "@/components/recaptcha";
 import { FormField, PrimaryButton } from "@/components/page-header";
@@ -116,9 +117,19 @@ function LoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
-                minLength={8}
+                minLength={mode === "signup" ? 15 : 1}
+                maxLength={256}
+                aria-describedby={mode === "signup" ? "signup-password-guidance" : undefined}
               />
             </FormField>
+            {mode === "signup" ? (
+              <PasswordGuidance id="signup-password-guidance" value={password} />
+            ) : null}
+            {mode === "login" ? (
+              <Link className="text-sm underline" to="/reset-password">
+                Forgot password?
+              </Link>
+            ) : null}
             {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
               <Recaptcha
                 key={captchaAttempt}

@@ -7,12 +7,11 @@ import {
   authenticateWithPassword,
   createSession,
   destroySession,
-  importAlumniRows,
   isDatabaseUnavailable,
   isIntegrationEnabled,
   loadAuthUser,
   loadAuthUserFromToken,
-  mapFormPayload,
+  acceptFormsSubmission,
   publicErrorMessage,
   registerUser,
   storeFile,
@@ -28,18 +27,20 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { cors } from "hono/cors";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { rateLimiter } from "hono-rate-limiter";
-import { getConnInfo } from "@hono/node-server/conninfo";
 import { loginSchema, signupSchema } from "@Alumni-Tracking-Ss/api/validation";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import type { IntegrationEnv } from "@Alumni-Tracking-Ss/api/context";
+import { ZodError } from "zod";
+import { boundedSetting, consumeAuthAttempt } from "@Alumni-Tracking-Ss/api/services/throttle";
+import type { MiddlewareHandler } from "hono";
 
 import { withNotDeleted } from "@Alumni-Tracking-Ss/db";
 
-import { SESSION_COOKIE, createContext, readSessionToken } from "./context";
+import { SESSION_COOKIE, createContext, readSessionToken, readPeerAddress } from "./context";
 
 export function createApp({
   db,
@@ -47,12 +48,44 @@ export function createApp({
   integrationEnv,
 }: {
   db: Database;
-  config: { nodeEnv: string; origin: string };
+  config: { nodeEnv: string; origin: string; trustedProxyIps?: readonly string[] };
   integrationEnv: IntegrationEnv;
 }) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { requestId: string } }>();
   const isProduction = config.nodeEnv === "production";
+  const clientAddress = (c: Parameters<typeof readSessionToken>[0]) =>
+    readPeerAddress(c, config.trustedProxyIps);
+  const sessionCookie = isProduction ? "__Host-ats_session" : SESSION_COOKIE;
   const readIntegrationEnv = () => integrationEnv;
+  app.use("*", async (c, next) => {
+    const requestId = randomUUID();
+    c.set("requestId", requestId);
+    c.header("X-Request-ID", requestId);
+    const start = performance.now();
+    await next();
+    if (isProduction || process.env.HTTP_LOGGING === "true")
+      console.info(
+        JSON.stringify({
+          event: "http_request",
+          requestId,
+          method: c.req.method,
+          status: c.res.status,
+          category:
+            c.res.status >= 500
+              ? "server"
+              : c.res.status === 429
+                ? "throttled"
+                : c.res.status === 401
+                  ? "unauthenticated"
+                  : c.res.status === 403
+                    ? "forbidden"
+                    : c.res.status >= 400
+                      ? "request"
+                      : "success",
+          durationMs: Math.round((performance.now() - start) * 100) / 100,
+        }),
+      );
+  });
   app.use("*", secureHeaders());
   app.use(
     "*",
@@ -64,42 +97,87 @@ export function createApp({
   app.use("*", async (c, next) => {
     c.header("Cache-Control", "no-store");
     const origin = c.req.header("origin");
+    const cookieMutation = Boolean(
+      getCookie(c, SESSION_COOKIE) || getCookie(c, "__Host-ats_session"),
+    );
+    let trustedReferer = false;
+    if (origin === undefined && cookieMutation) {
+      try {
+        trustedReferer = new URL(c.req.header("referer") ?? "").origin === config.origin;
+      } catch {
+        // Missing or malformed source headers cannot authorize a cookie mutation.
+      }
+    }
     if (
       !["GET", "HEAD", "OPTIONS"].includes(c.req.method) &&
-      ((origin && origin !== config.origin) || c.req.header("sec-fetch-site") === "cross-site")
+      ((origin !== undefined && origin !== config.origin) ||
+        (cookieMutation && origin === undefined && !trustedReferer) ||
+        c.req.header("sec-fetch-site") === "cross-site")
     )
       return c.json({ error: "Origin is not allowed." }, 403);
     await next();
   });
-  const limiter = rateLimiter({
-    windowMs: 15 * 60 * 1000,
-    limit: 30,
-    keyGenerator: (c) => {
-      try {
-        return getConnInfo(c).remote.address || "unknown";
-      } catch {
-        return "unknown";
-      }
-    },
+  const ipWindowMs = boundedSetting(process.env.AUTH_IP_WINDOW_SECONDS, 900, 86400) * 1000;
+  const ipLimit = boundedSetting(process.env.AUTH_IP_LIMIT, 30, 1000);
+  const peerAddress = (c: Parameters<typeof readSessionToken>[0]) => clientAddress(c) ?? "unknown";
+  const memoryLimiter = rateLimiter({
+    windowMs: boundedSetting(process.env.AUTH_IP_WINDOW_SECONDS, 900, 86400) * 1000,
+    limit: boundedSetting(process.env.AUTH_IP_LIMIT, 30, 1000),
+    keyGenerator: peerAddress,
   });
-  for (const route of [
-    "/api/auth/login",
-    "/api/auth/signup",
-    "/api/auth/google",
-    "/api/auth/google/callback",
-    "/rpc/auth/login",
-    "/rpc/auth/signup",
-    "/rpc/auth/changePassword",
-    "/rpc/auth/sendVerification",
-    "/rpc/auth/confirmVerification",
-    "/rpc/auth/createGooglePassword",
-    "/rpc/auth/completeProfile",
-    "/api/auth/sendVerification",
-    "/api/auth/confirmVerification",
-    "/api/auth/createGooglePassword",
-    "/api/auth/completeProfile",
-  ])
-    app.use(route, limiter);
+  if (process.env.AUTH_IP_STORE && !["mongodb", "memory"].includes(process.env.AUTH_IP_STORE))
+    throw new Error("AUTH_IP_STORE must be mongodb or memory.");
+  const limiter: MiddlewareHandler =
+    (process.env.AUTH_IP_STORE || (isProduction ? "mongodb" : "memory")) === "mongodb"
+      ? async (c, next) => {
+          try {
+            await consumeAuthAttempt(db, "auth-ip", peerAddress(c), ipLimit, ipWindowMs);
+          } catch (error) {
+            if (error instanceof ORPCError && error.code === "TOO_MANY_REQUESTS") {
+              c.header(
+                "Retry-After",
+                String((error.data as { retryAfterSeconds: number }).retryAfterSeconds),
+              );
+              return c.json({ error: error.message }, 429);
+            }
+            throw error;
+          }
+          await next();
+        }
+      : memoryLimiter;
+  // All transports share one budget; adding an alias must not reset the allowance.
+  const limitedAuthActions = new Set([
+    "login",
+    "signup",
+    "changePassword",
+    "sendVerification",
+    "confirmVerification",
+    "createGooglePassword",
+    "completeProfile",
+    "beginMfa",
+    "confirmMfa",
+    "verifyMfa",
+    "forgotPassword",
+    "resetPassword",
+    "google",
+  ]);
+  app.use("*", async (c, next) => {
+    // oRPC accepts a trailing slash. Match decoded path segments rather than
+    // registering only the exact spelling of each authentication endpoint.
+    let segments: string[];
+    try {
+      segments = decodeURIComponent(c.req.path).split("/").filter(Boolean);
+    } catch {
+      return c.json({ error: "Invalid request path." }, 400);
+    }
+    if (
+      ["api", "rpc", "api-reference"].includes(segments[0] ?? "") &&
+      segments[1] === "auth" &&
+      limitedAuthActions.has(segments[2] ?? "")
+    )
+      return limiter(c, next);
+    await next();
+  });
 
   app.use(
     "/*",
@@ -123,7 +201,7 @@ export function createApp({
 
   async function currentUser(c: Parameters<typeof readSessionToken>[0]) {
     const user = await loadAuthUserFromToken(db, readSessionToken(c));
-    return user?.needsProfileCompletion ? null : user;
+    return user?.needsProfileCompletion || (user?.mfaRequired && !user.mfaVerified) ? null : user;
   }
 
   const apiHandler = new OpenAPIHandler(appRouter, {
@@ -153,7 +231,7 @@ export function createApp({
   });
 
   app.onError((err, c) => {
-    console.error("HTTP request failed", { name: err.name });
+    console.error("HTTP request failed", { name: err.name, requestId: c.get("requestId") });
     const status = isDatabaseUnavailable(err) ? 503 : 500;
     return c.json(
       { error: isDatabaseUnavailable(err) ? publicErrorMessage(err) : "Request failed." },
@@ -163,8 +241,7 @@ export function createApp({
 
   app.post("/api/auth/login", async (c) => {
     const parsed = loginSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success)
-      return c.json({ error: "Enter a valid email and password (8-128 characters)." }, 400);
+    if (!parsed.success) return c.json({ error: "Enter a valid email and password." }, 400);
     const body = parsed.data;
 
     try {
@@ -182,13 +259,13 @@ export function createApp({
       const user = await authenticateWithPassword(db, {
         email: body.email,
         password: body.password,
-        ipAddress: c.req.header("x-forwarded-for"),
+        ipAddress: clientAddress(c),
       });
       const session = await createSession(db, user.id, {
-        ipAddress: c.req.header("x-forwarded-for"),
+        ipAddress: clientAddress(c),
         userAgent: c.req.header("user-agent"),
       });
-      setCookie(c, SESSION_COOKIE, session.token, cookieOptions(session.expiresAt));
+      setCookie(c, sessionCookie, session.token, cookieOptions(session.expiresAt));
       const authUser = await loadAuthUser(db, user.id);
       return c.json({ user: authUser });
     } catch (error) {
@@ -196,6 +273,11 @@ export function createApp({
         return c.json({ error: publicErrorMessage(error) }, 503);
       }
       const message = error instanceof ORPCError ? error.message : "Unable to sign in.";
+      if (error instanceof ORPCError && error.code === "TOO_MANY_REQUESTS") {
+        const data = error.data as { retryAfterSeconds?: number } | undefined;
+        c.header("Retry-After", String(data?.retryAfterSeconds ?? 900));
+        return c.json({ error: message }, 429);
+      }
       return c.json({ error: message }, 401);
     }
   });
@@ -206,7 +288,7 @@ export function createApp({
       return c.json(
         {
           error:
-            "Enter your name, valid email, phone number, gender, optional Facebook link and password (8-128 characters).",
+            "Enter your name, valid email, phone number, gender, optional Facebook link and password (15-128 characters).",
         },
         400,
       );
@@ -226,13 +308,13 @@ export function createApp({
     try {
       const user = await registerUser(db, {
         ...body,
-        ipAddress: c.req.header("x-forwarded-for"),
+        ipAddress: clientAddress(c),
       });
       const session = await createSession(db, user.id, {
-        ipAddress: c.req.header("x-forwarded-for"),
+        ipAddress: clientAddress(c),
         userAgent: c.req.header("user-agent"),
       });
-      setCookie(c, SESSION_COOKIE, session.token, cookieOptions(session.expiresAt));
+      setCookie(c, sessionCookie, session.token, cookieOptions(session.expiresAt));
       const authUser = await loadAuthUser(db, user.id);
       return c.json({ user: authUser });
     } catch (error) {
@@ -248,6 +330,7 @@ export function createApp({
     const token = readSessionToken(c);
     await destroySession(db, token);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    deleteCookie(c, "__Host-ats_session", { path: "/", secure: true });
     return c.json({ ok: true });
   });
 
@@ -341,11 +424,11 @@ export function createApp({
         image: profile.picture,
       });
       const session = await createSession(db, user.id, {
-        ipAddress: c.req.header("x-forwarded-for"),
+        ipAddress: clientAddress(c),
         userAgent: c.req.header("user-agent"),
         googleVerifiedAt: new Date(),
       });
-      setCookie(c, SESSION_COOKIE, session.token, cookieOptions(session.expiresAt));
+      setCookie(c, sessionCookie, session.token, cookieOptions(session.expiresAt));
       await writeAudit(db, {
         actorId: user.id,
         action: "auth.google",
@@ -463,7 +546,7 @@ export function createApp({
     }
 
     const evidence = await db.evidenceFile.findFirst({
-      where: withNotDeleted({ id: c.req.param("id") }),
+      where: withNotDeleted({ id: c.req.param("id"), alumni: withNotDeleted() }),
     });
     if (!evidence) {
       return c.json({ error: "File not found." }, 404);
@@ -492,33 +575,44 @@ export function createApp({
     }
 
     const secret = c.req.header("x-webhook-secret");
-    if (env.googleFormsWebhookSecret && secret !== env.googleFormsWebhookSecret) {
+    if (
+      env.googleFormsWebhookSecret &&
+      (!secret ||
+        Buffer.byteLength(secret) !== Buffer.byteLength(env.googleFormsWebhookSecret) ||
+        !timingSafeEqual(Buffer.from(secret), Buffer.from(env.googleFormsWebhookSecret)))
+    ) {
       return c.json({ error: "Invalid webhook secret." }, 401);
     }
 
-    if (!env.googleFormsWebhookSecret && config.nodeEnv === "production") {
-      return c.json({ error: "Webhook secret is required in production." }, 401);
+    if (!env.googleFormsWebhookSecret) {
+      return c.json({ error: "Webhook secret is required." }, 401);
     }
 
-    const payload = (await c.req.json()) as Record<string, unknown>;
     try {
-      const row = mapFormPayload(payload);
-      const result = await importAlumniRows(db, [{ ...row, isTracked: true }]);
-      await db.importJob.create({
-        data: {
-          source: "google_forms",
-          status: result.errorCount > 0 ? "failed" : "completed",
-          totalRows: result.totalRows,
-          successCount: result.successCount,
-          errorCount: result.errorCount,
-          errors: result.errors,
-          completedAt: new Date(),
-        },
-      });
+      const payload: unknown = await c.req.json();
+      if (!payload || typeof payload !== "object" || Array.isArray(payload))
+        return c.json({ error: "Invalid form payload." }, 400);
+      const result = await acceptFormsSubmission(
+        db,
+        c.req.header("idempotency-key"),
+        payload as Record<string, unknown>,
+      );
       return c.json(result);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Invalid form payload.";
-      return c.json({ error: message }, 400);
+      if (error instanceof ORPCError) {
+        if (error.code === "BAD_REQUEST") return c.json({ error: error.message }, 400);
+        if (error.code === "CONFLICT") return c.json({ error: error.message }, 409);
+        if (error.code === "SERVICE_UNAVAILABLE") {
+          c.header("Retry-After", "1");
+          return c.json({ error: error.message }, 503);
+        }
+      }
+      if (error instanceof ZodError || error instanceof SyntaxError)
+        return c.json({ error: "Invalid form payload. Check the required fields." }, 400);
+      return c.json(
+        { error: "Unable to process form submission." },
+        isDatabaseUnavailable(error) ? 503 : 500,
+      );
     }
   });
 
@@ -528,7 +622,13 @@ export function createApp({
       return next();
     }
 
-    const context = await createContext({ context: c, db, integrationEnv });
+    const context = await createContext({
+      context: c,
+      db,
+      integrationEnv,
+      secureCookies: isProduction,
+      trustedProxyIps: config.trustedProxyIps,
+    });
 
     if (path.startsWith("/rpc")) {
       const rpcResult = await rpcHandler.handle(c.req.raw, {
@@ -537,6 +637,7 @@ export function createApp({
       });
 
       if (rpcResult.matched) {
+        if (rpcResult.response.status === 429) c.header("Retry-After", "900");
         return c.newResponse(rpcResult.response.body, rpcResult.response);
       }
     }
@@ -548,6 +649,7 @@ export function createApp({
       });
 
       if (apiResult.matched) {
+        if (apiResult.response.status === 429) c.header("Retry-After", "900");
         return c.newResponse(apiResult.response.body, apiResult.response);
       }
     }
@@ -562,7 +664,8 @@ export function createApp({
   app.get("/health/live", (c) => c.json({ ok: true }));
   app.get("/health/ready", async (c) => {
     try {
-      await db.$runCommandRaw({ ping: 1 });
+      const result = await db.$runCommandRaw({ hello: 1 });
+      if (result.isWritablePrimary !== true) return c.json({ ok: false }, 503);
       return c.json({ ok: true });
     } catch {
       return c.json({ ok: false }, 503);

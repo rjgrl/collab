@@ -118,7 +118,7 @@ async function seedIntegrations() {
       update: {},
       create: {
         key,
-        enabled: true,
+        enabled: key !== "google_forms",
         notes: "Modular integration. Live credentials are optional; fallbacks are used when unset.",
       },
     });
@@ -201,43 +201,39 @@ async function seedAlumni(programIds: { bsit: string; bsed: string }) {
   const samples = [
     {
       studentNumber: "2020-0001",
-      firstName: "Ana",
-      lastName: "Cruz",
+      firstName: "Synthetic",
+      lastName: "Graduate One",
       gender: "Female",
       graduationYear: 2024,
-      mobileNumber: "09171234567",
-      personalEmail: "ana.cruz@example.com",
-      facebookAccount: "https://facebook.com/ana.cruz",
+      personalEmail: "graduate.one@collab.test",
       employmentStatus: "employed" as const,
       isTracked: true,
       programId: programIds.bsit,
-      employer: "SoftServe PH",
+      employer: "Synthetic Test Employer",
       jobTitle: "Junior Developer",
     },
     {
       studentNumber: "2020-0002",
-      firstName: "Luis",
-      lastName: "Garcia",
+      firstName: "Synthetic",
+      lastName: "Graduate Two",
       gender: "Male",
       graduationYear: 2024,
-      mobileNumber: "09181234567",
-      personalEmail: "luis.garcia@example.com",
-      facebookAccount: "https://www.facebook.com/luis.garcia",
+      personalEmail: "graduate.two@collab.test",
       employmentStatus: "unknown" as const,
       isTracked: false,
       programId: programIds.bsit,
     },
     {
       studentNumber: "2019-0144",
-      firstName: "Elena",
-      lastName: "Ramos",
+      firstName: "Synthetic",
+      lastName: "Graduate Three",
       gender: "Female",
       graduationYear: 2023,
-      personalEmail: "elena.ramos@example.com",
+      personalEmail: "graduate.three@collab.test",
       employmentStatus: "employed" as const,
       isTracked: true,
       programId: programIds.bsed,
-      employer: "Rizal National High School",
+      employer: "Synthetic Test School",
       jobTitle: "Teacher I",
     },
   ];
@@ -258,9 +254,7 @@ async function seedAlumni(programIds: { bsit: string; bsed: string }) {
         lastName: sample.lastName,
         gender: sample.gender,
         graduationYear: sample.graduationYear,
-        mobileNumber: sample.mobileNumber,
         personalEmail: sample.personalEmail,
-        facebookAccount: sample.facebookAccount,
         employmentStatus: sample.employmentStatus,
         isTracked: sample.isTracked,
         lastTrackedAt: sample.isTracked ? new Date() : null,
@@ -295,6 +289,10 @@ async function seedAlumni(programIds: { bsit: string; bsed: string }) {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production")
+    throw Error(
+      "Repository seeding is development/test only; production provisioning requires a reviewed operator procedure.",
+    );
   if (process.env.SEED_DEMO_DATA === "true" && process.env.NODE_ENV === "production")
     throw new Error("Demo data is disabled in production.");
   if (

@@ -13,6 +13,7 @@ const actor = {
   email: "admin@example.test",
   image: null,
   status: "active" as const,
+  mfaVerified: true,
   roles: ["super_admin"],
   permissions: [...PERMISSION_KEYS],
 };

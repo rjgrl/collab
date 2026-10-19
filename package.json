@@ -20,14 +20,25 @@
     "db:push": "node scripts/local-workflow.mjs db:push",
     "db:local": "node scripts/local-workflow.mjs db:local",
     "setup:local": "node scripts/setup-local.mjs",
+    "setup:dev": "node scripts/setup-local.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "test:clone-local": "node scripts/rehearse-clone.mjs",
     "db:studio": "vp run --filter @Alumni-Tracking-Ss/db db:studio",
     "db:generate": "vp run --filter @Alumni-Tracking-Ss/db db:generate",
     "db:seed": "node scripts/local-workflow.mjs db:seed",
-    "test": "tsx --test packages/db/src/*.test.ts packages/api/src/**/*.test.ts apps/server/src/*.test.ts scripts/*.test.mjs",
+    "test": "node scripts/test-local.mjs",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "test:browser": "playwright test",
-    "check:secrets": "node scripts/check-secrets.mjs"
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:production-build": "node scripts/check-production-build.mjs",
+    "test:security-db": "tsx scripts/security-db-check.ts",
+    "test:pentest-local": "tsx apps/server/src/pentest-local.ts",
+    "test:forms-db": "tsx apps/server/src/forms-local.ts",
+    "test:recovery-local": "tsx scripts/rehearse-recovery.ts",
+    "test:staging-local": "tsx apps/server/src/phase5-local.ts",
+    "test:browser-types": "tsc --project scripts/tsconfig.browser.json",
+    "check:server-build": "node scripts/check-server-build.mjs"
   },
   "dependencies": {
     "zod": "catalog:"
@@ -35,8 +46,10 @@
   "devDependencies": {
     "@Alumni-Tracking-Ss/config": "workspace:*",
     "@axe-core/playwright": "^4.14.0",
+    "@orpc/server": "catalog:",
     "@playwright/test": "^1.64.1",
     "@types/node": "catalog:",
+    "otplib": "13.5.0",
     "rolldown": "1.2.7",
     "tsx": "^4.23.13",
     "typescript": "catalog:",

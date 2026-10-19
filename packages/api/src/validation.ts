@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { newPasswordSchema } from "./password-policy";
 
 export const objectIdSchema = z.string().min(1);
 
@@ -8,7 +9,7 @@ export const paginationSchema = z.object({
   search: z.string().trim().optional(),
 });
 
-export const emailSchema = z.string().trim().email();
+export const emailSchema = z.string().trim().max(254).email();
 
 export const optionalEmailSchema = z
   .string()
@@ -59,7 +60,7 @@ export const codeSchema = z
 
 export const loginSchema = z.object({
   email: emailSchema,
-  password: z.string().min(8).max(128),
+  password: z.string().min(1).max(256),
   recaptchaToken: z.string().optional(),
   recaptchaFallback: z.boolean().optional(),
 });
@@ -78,7 +79,7 @@ export const accountProfileSchema = z.object({
 export const signupSchema = accountProfileSchema.extend({
   name: z.string().trim().min(1).max(120),
   email: emailSchema,
-  password: z.string().min(8).max(128),
+  password: newPasswordSchema,
   recaptchaToken: z.string().optional(),
   recaptchaFallback: z.boolean().optional(),
 });
@@ -133,7 +134,7 @@ export const trackingInputSchema = z.object({
 export const userInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: emailSchema,
-  password: z.string().min(8).max(128).optional(),
+  password: newPasswordSchema.optional(),
   status: z.enum(["active", "disabled"]).optional(),
   roleIds: z.array(objectIdSchema).default([]),
 });

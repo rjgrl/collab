@@ -22,7 +22,7 @@ export const dashboardRouter = {
     .input(z.object({ departmentId: z.string().optional() }).optional())
     .handler(async ({ context, input }) => {
       const where = departmentFilter(input?.departmentId);
-      const [graduates, tracked, departments] = await Promise.all([
+      const [graduates, tracked, departments, groups] = await Promise.all([
         context.db.alumni.count({ where }),
         context.db.alumni.count({ where: { AND: [where, { isTracked: true }] } }),
         context.db.department.findMany({
@@ -35,15 +35,25 @@ export const dashboardRouter = {
           },
           orderBy: { name: "asc" },
         }),
+        context.db.alumni.groupBy({
+          by: ["programId", "isTracked"],
+          where: departmentFilter(),
+          _count: { _all: true },
+        }),
       ]);
 
+      const totalsByProgram = new Map<string, { graduates: number; tracked: number }>();
+      for (const group of groups) {
+        const totals = totalsByProgram.get(group.programId) ?? { graduates: 0, tracked: 0 };
+        totals.graduates += group._count._all;
+        if (group.isTracked) totals.tracked += group._count._all;
+        totalsByProgram.set(group.programId, totals);
+      }
       const byDepartment = await Promise.all(
         departments.map(async (department) => {
-          const deptWhere = departmentFilter(department.id);
-          const [deptGraduates, deptTracked] = await Promise.all([
-            context.db.alumni.count({ where: deptWhere }),
-            context.db.alumni.count({ where: { AND: [deptWhere, { isTracked: true }] } }),
-          ]);
+          const totals = department.programs.map((program) => totalsByProgram.get(program.id));
+          const deptGraduates = totals.reduce((sum, group) => sum + (group?.graduates ?? 0), 0);
+          const deptTracked = totals.reduce((sum, group) => sum + (group?.tracked ?? 0), 0);
           return {
             id: department.id,
             code: department.code,
@@ -91,6 +101,7 @@ export const reportsRouter = {
       const trackedFilter =
         input?.tracked === "tracked" ? true : input?.tracked === "untracked" ? false : undefined;
       const rows = await context.db.alumni.findMany({
+        take: 10001,
         where: {
           AND: [departmentFilter(input?.departmentId), { isTracked: trackedFilter }],
         },
@@ -98,6 +109,11 @@ export const reportsRouter = {
         orderBy: { lastName: "asc" },
       });
 
+      if (rows.length > 10000)
+        throw new ORPCError("BAD_REQUEST", {
+          message:
+            "This export exceeds 10,000 rows. Narrow the department or tracking filters before exporting.",
+        });
       const csv = toCsv(
         [
           "studentNumber",
@@ -235,9 +251,14 @@ export const integrationsRouter = {
   exportSheets: requirePermission("reports.export").handler(async ({ context }) => {
     await requireIntegration(context.db, "google_sheets");
     const rows = await context.db.alumni.findMany({
+      take: 10001,
       where: withNotDeleted(),
       include: { program: { include: { department: true } } },
     });
+    if (rows.length > 10000)
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Google Sheets export exceeds 10,000 rows. Use a filtered CSV export instead.",
+      });
     await appendSheetRows(context.integrationEnv, [
       ["studentNumber", "firstName", "lastName", "departmentCode", "programCode", "isTracked"],
       ...rows.map((row) => [

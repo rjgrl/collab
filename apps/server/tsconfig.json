@@ -2,6 +2,8 @@
   "extends": "@Alumni-Tracking-Ss/config/tsconfig.base.json",
   "references": [],
   "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"]

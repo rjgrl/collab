@@ -1,0 +1,164 @@
+import assert from "node:assert/strict";
+import { it } from "node:test";
+import { createHash } from "node:crypto";
+import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
+import type { Context } from "../context";
+import { requestPasswordReset, resetPassword } from "./password-reset";
+import { assertPasswordSafe } from "./password-security";
+import { newPasswordSchema } from "../password-policy";
+import { digest } from "./mfa";
+
+async function fixture() {
+  const user = {
+    id: "user",
+    email: "test@example.test",
+    status: "active",
+    emailVerified: true,
+    passwordHash: await hashPassword("Previous private passphrase 12"),
+  };
+  let reset: Record<string, unknown> | null = null;
+  let revoked = 0;
+  const tx = {
+    authThrottle: { upsert: async () => ({ count: 1 }) },
+    integrationSetting: { findUnique: async () => ({ enabled: true }) },
+    user: {
+      findUnique: async () => ({ ...user }),
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { passwordHash: string };
+        data: { passwordHash: string };
+      }) => {
+        if (where.passwordHash !== user.passwordHash) return { count: 0 };
+        Object.assign(user, data);
+        return { count: 1 };
+      },
+    },
+    passwordReset: {
+      create: async ({ data }: { data: object }) => {
+        reset = { id: "reset", consumedAt: null, ...data };
+        return reset;
+      },
+      findUnique: async ({ where }: { where: { tokenHash: string } }) =>
+        reset?.tokenHash === where.tokenHash ? { ...reset } : null,
+      updateMany: async ({ data }: { data: object }) => {
+        if (!reset || reset.consumedAt) return { count: 0 };
+        Object.assign(reset, data);
+        return { count: 1 };
+      },
+    },
+    session: {
+      deleteMany: async () => {
+        revoked++;
+      },
+    },
+    auditLog: { create: async () => ({ id: "audit" }) },
+  };
+  const context = {
+    db: { ...tx, $transaction: async (work: (db: typeof tx) => Promise<unknown>) => work(tx) },
+    user: null,
+    sessionToken: null,
+    ipAddress: null,
+    userAgent: null,
+    integrationEnv: { webOrigin: "https://app.example.test", smtpUrl: "https://mail.example.test" },
+  } as unknown as Context;
+  return {
+    context,
+    user,
+    get row() {
+      return reset;
+    },
+    get revoked() {
+      return revoked;
+    },
+  };
+}
+it("enforces long passphrases and screens common passwords without imposing composition", async () => {
+  assert.equal(newPasswordSchema.safeParse("short").success, false);
+  await assertPasswordSafe("a quiet river carries seven blue boats");
+  await assertPasswordSafe("界".repeat(64));
+  await assert.rejects(() => assertPasswordSafe("passwordpassword"), /commonly used|compromised/);
+});
+it("HIBP opt-in sends only a padded five-character hash prefix and fails closed", async () => {
+  const old = process.env.PASSWORD_BREACH_CHECK;
+  const native = globalThis.fetch;
+  const password = "Synthetic unique password 8245";
+  const hash = createHash("sha1").update(password).digest("hex").toUpperCase();
+  try {
+    process.env.PASSWORD_BREACH_CHECK = "hibp";
+    globalThis.fetch = async (input, init) => {
+      assert.equal(String(input), `https://api.pwnedpasswords.com/range/${hash.slice(0, 5)}`);
+      assert.equal(new Headers(init?.headers).get("Add-Padding"), "true");
+      return new Response(`${hash.slice(5)}:9`);
+    };
+    await assert.rejects(() => assertPasswordSafe(password), /breach/);
+    globalThis.fetch = async () => new Response("unavailable", { status: 503 });
+    await assert.rejects(() => assertPasswordSafe(password), /temporarily unavailable/);
+  } finally {
+    globalThis.fetch = native;
+    if (old === undefined) delete process.env.PASSWORD_BREACH_CHECK;
+    else process.env.PASSWORD_BREACH_CHECK = old;
+  }
+});
+it("sends single-use fragment reset links, stores a digest and revokes all sessions", async () => {
+  const f = await fixture();
+  const native = globalThis.fetch;
+  let link = "";
+  try {
+    globalThis.fetch = async (_input, init) => {
+      link = JSON.parse(String(init?.body)).text.match(/https:\/\/[^\s]+/)[0];
+      return Response.json({ ok: true });
+    };
+    const response = await requestPasswordReset(f.context, f.user.email);
+    assert.equal("token" in response, false);
+    const token = new URLSearchParams(new URL(link).hash.slice(1)).get("token")!;
+    assert.equal(f.row?.tokenHash, digest(token));
+    assert.ok(!JSON.stringify(f.row).includes(token));
+    await resetPassword(f.context, token, "A new private passphrase 8484");
+    assert.equal(await verifyPassword("A new private passphrase 8484", f.user.passwordHash), true);
+    assert.equal(f.revoked, 1);
+    await assert.rejects(
+      () => resetPassword(f.context, token, "Another private passphrase 5353"),
+      /invalid, expired or already used/,
+    );
+  } finally {
+    globalThis.fetch = native;
+  }
+});
+it("does not disclose missing/unverified accounts or send when delivery is disabled", async () => {
+  const f = await fixture();
+  f.context.integrationEnv.smtpUrl = undefined;
+  const a = await requestPasswordReset(f.context, f.user.email);
+  f.user.emailVerified = false;
+  const b = await requestPasswordReset(f.context, "missing@example.test");
+  assert.deepEqual(a, b);
+  assert.equal(f.row, null);
+});
+it("rejects expired reset links and links invalidated by another password change", async () => {
+  const f = await fixture();
+  const native = globalThis.fetch;
+  let token = "";
+  try {
+    globalThis.fetch = async (_input, init) => {
+      token = new URLSearchParams(
+        new URL(JSON.parse(String(init?.body)).text.match(/https:\/\/[^\s]+/)[0]).hash.slice(1),
+      ).get("token")!;
+      return Response.json({ ok: true });
+    };
+    await requestPasswordReset(f.context, f.user.email);
+    f.row!.expiresAt = new Date(0);
+    await assert.rejects(
+      () => resetPassword(f.context, token, "A new private passphrase 9999"),
+      /invalid/,
+    );
+    f.row!.expiresAt = new Date(Date.now() + 60_000);
+    f.user.passwordHash = await hashPassword("Changed elsewhere passphrase 6767");
+    await assert.rejects(
+      () => resetPassword(f.context, token, "A new private passphrase 9999"),
+      /invalid/,
+    );
+  } finally {
+    globalThis.fetch = native;
+  }
+});

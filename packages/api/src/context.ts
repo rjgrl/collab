@@ -9,6 +9,11 @@ export type AuthUser = {
   status: "active" | "disabled";
   needsProfileCompletion?: boolean;
   needsPassword?: boolean;
+  mfaRequired?: boolean;
+  mfaEnrolled?: boolean;
+  mfaVerified?: boolean;
+  mfaFresh?: boolean;
+  mfaVersion?: string;
   roles: string[];
   permissions: PermissionKey[];
 };
@@ -25,6 +30,7 @@ export type IntegrationEnv = {
   smtpUrl?: string;
   smtpFrom?: string;
   verificationSecret?: string;
+  mfaEncryptionKey?: string;
   smsProvider?: {
     sendCode: (phone: string) => Promise<string>;
     checkCode: (sid: string, phone: string, code: string) => Promise<boolean>;
@@ -33,11 +39,14 @@ export type IntegrationEnv = {
   imageHostProvider?: string;
   uploadDir?: string;
   appUrl?: string;
+  webOrigin?: string;
 };
 
 export type Context = {
   db: Database;
   sessionToken: string | null;
+  sessionStorageToken?: string | null;
+  onSessionRotation?: (session: { token: string; expiresAt: Date }) => void;
   user: AuthUser | null;
   ipAddress: string | null;
   userAgent: string | null;

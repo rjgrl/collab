@@ -16,6 +16,8 @@ export const alumniRouter = {
           programId: z.string().optional(),
           tracked: z.enum(["all", "tracked", "untracked"]).optional(),
           graduationYear: z.number().int().optional(),
+          page: z.number().int().min(1).max(100000).default(1),
+          pageSize: z.number().int().min(1).max(100).default(20),
         })
         .optional(),
     )
@@ -46,7 +48,9 @@ export const alumniRouter = {
         include: {
           program: { include: { department: true } },
         },
-        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
+        skip: ((input?.page ?? 1) - 1) * (input?.pageSize ?? 20),
+        take: input?.pageSize ?? 20,
       });
     }),
 

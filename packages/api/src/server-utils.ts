@@ -17,6 +17,7 @@ export {
 } from "./integrations/files";
 export { isIntegrationEnabled } from "./integrations/registry";
 export { mapFormPayload } from "./integrations/forms";
+export { acceptFormsSubmission } from "./services/forms";
 export { importAlumniRows } from "./services/importer";
 export { writeAudit } from "./audit";
 export { verifyRecaptcha } from "./integrations/recaptcha";

@@ -1,0 +1,115 @@
+{
+  "date": "2026-10-19T04:32:32.369Z",
+  "database": "collab_forms_93a4e88901a7",
+  "checks": [
+    {
+      "test": "disabled integration",
+      "status": 403
+    },
+    {
+      "test": "wrong shared secret",
+      "status": 401
+    },
+    {
+      "test": "unconfigured secret",
+      "status": 401
+    },
+    {
+      "test": "missing key",
+      "status": 400
+    },
+    {
+      "test": "invalid payload",
+      "status": 400
+    },
+    {
+      "test": "domain error rollback",
+      "status": 400
+    },
+    {
+      "test": "first commit",
+      "status": 200
+    },
+    {
+      "test": "serial duplicate another instance",
+      "status": 200
+    },
+    {
+      "test": "changed payload reuses key",
+      "status": 409
+    },
+    {
+      "test": "8 concurrent deliveries / same committed job",
+      "status": 200
+    },
+    {
+      "test": "injected partial failure",
+      "status": 500
+    },
+    {
+      "test": "same key retries after rollback",
+      "status": 200
+    },
+    {
+      "test": "distinct response IDs same student: one alumni record",
+      "status": 200
+    },
+    {
+      "test": "archived alumni cannot be changed",
+      "status": 400
+    },
+    {
+      "test": "new response updates existing profile",
+      "status": 200
+    },
+    {
+      "test": "old response replay preserves newer update",
+      "status": 200
+    },
+    {
+      "test": "viewer: users/list",
+      "status": 403
+    },
+    {
+      "test": "viewer: reports/alumniCsv",
+      "status": 403
+    },
+    {
+      "test": "staff: users/list",
+      "status": 403
+    },
+    {
+      "test": "staff: reports/alumniCsv",
+      "status": 200
+    },
+    {
+      "test": "super_admin: users/list",
+      "status": 200
+    },
+    {
+      "test": "viewer global alumni read is current permission policy",
+      "status": 200
+    },
+    {
+      "test": "profile userId manipulation changes only the caller",
+      "status": 200
+    },
+    {
+      "test": "disabled even on known replay",
+      "status": 403
+    }
+  ],
+  "concurrentStatuses": [200, 200, 200, 200, 503, 200, 200, 200],
+  "counts": {
+    "alumni": 4,
+    "tracking": 4,
+    "receipts": 6,
+    "jobs": 6
+  },
+  "formsEnabledAtEnd": false,
+  "limits": [
+    "only synthetic loopback data",
+    "same-key atomic DB effects, no provider exactly-once claim",
+    "custom roles use union of explicit permissions; institution scope unchanged"
+  ]
+}

@@ -7,6 +7,8 @@ import { checkPhoneCode, sendPhoneCode, smsConfigured } from "../integrations/sm
 import { isIntegrationEnabled } from "../integrations/registry";
 import { writeAudit } from "../audit";
 import { authorizationTransaction } from "./authorization";
+import { assertPasswordSafe } from "./password-security";
+import { rotateSession } from "./session-rotation";
 
 export type VerificationKind = "email" | "phone";
 const VALID_MS = 10 * 60_000;
@@ -38,7 +40,9 @@ function codeDigest(env: IntegrationEnv, nonce: string, code: string) {
 export async function verificationStatus(context: Context) {
   const user = await context.db.user.findUniqueOrThrow({ where: { id: context.user!.id } });
   const session = context.sessionToken
-    ? await context.db.session.findUnique({ where: { token: context.sessionToken } })
+    ? await context.db.session.findUnique({
+        where: { token: context.sessionStorageToken ?? context.sessionToken },
+      })
     : null;
   const secretReady = Boolean(
     context.integrationEnv.verificationSecret &&
@@ -46,6 +50,7 @@ export async function verificationStatus(context: Context) {
   );
   return {
     email: user.email,
+    emailVerified: user.emailVerified,
     phoneNumber: user.phoneNumber ?? "",
     gender: user.gender ?? "",
     facebookAccount: user.facebookAccount ?? "",
@@ -71,7 +76,10 @@ export async function startVerification(context: Context, kind: VerificationKind
   const { db, integrationEnv: env } = context;
   const user = await db.user.findUniqueOrThrow({ where: { id: context.user!.id } });
   const target = kind === "email" ? user.email : user.phoneNumber;
-  if (!user.verificationRequired || (kind === "email" ? user.emailVerified : user.phoneVerified))
+  if (
+    (kind === "phone" && !user.verificationRequired) ||
+    (kind === "email" ? user.emailVerified : user.phoneVerified)
+  )
     throw new ORPCError("BAD_REQUEST", { message: "This contact is already verified." });
   if (!target || (kind === "phone" && !/^\+[1-9]\d{7,14}$/.test(target)))
     throw new ORPCError("BAD_REQUEST", {
@@ -228,11 +236,12 @@ export async function confirmVerification(context: Context, kind: VerificationKi
 }
 
 export async function createGooglePassword(context: Context, password: string) {
+  await assertPasswordSafe(password);
   const passwordHash = await hashPassword(password);
-  return authorizationTransaction(context.db, async (tx) => {
+  const rotated = await authorizationTransaction(context.db, async (tx) => {
     const fresh = await tx.session.updateMany({
       where: {
-        token: context.sessionToken ?? "",
+        token: context.sessionStorageToken ?? context.sessionToken ?? "",
         userId: context.user!.id,
         expiresAt: { gt: new Date() },
         googleVerifiedAt: { gt: new Date(Date.now() - GOOGLE_FRESH_MS) },
@@ -255,9 +264,7 @@ export async function createGooglePassword(context: Context, password: string) {
       throw new ORPCError("CONFLICT", {
         message: "A password is already set. Use Change password with your current password.",
       });
-    await tx.session.deleteMany({
-      where: { userId: context.user!.id, token: { not: context.sessionToken ?? "" } },
-    });
+    const session = await rotateSession(tx, context, undefined, true);
     await writeAudit(tx, {
       actorId: context.user!.id,
       action: "auth.password.create",
@@ -265,6 +272,13 @@ export async function createGooglePassword(context: Context, password: string) {
       entityId: context.user!.id,
       summary: "Created required password after recent Google verification",
     });
-    return { ok: true };
+    return session;
   });
+  context.onSessionRotation?.(rotated);
+  return {
+    ok: true,
+    ...(context.onSessionRotation
+      ? {}
+      : { sessionToken: rotated.token, expiresAt: rotated.expiresAt.toISOString() }),
+  };
 }

@@ -84,7 +84,11 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
         "Existing DATABASE_URL is not the managed localhost:27018 rs0 database. It was preserved. Use the manual setup guide for a custom database.",
       );
   }
-  const databaseUrl = effective.DATABASE_URL || LOCAL_DATABASE_URL;
+  // Each checkout gets its own persistent development database. Never silently
+  // reuse another clone's default database on the same MongoDB instance.
+  const databaseUrl =
+    effective.DATABASE_URL ||
+    `mongodb://127.0.0.1:27018/collab_dev_${randomBytes(6).toString("hex")}?replicaSet=rs0`;
   const email = effective.SEED_ADMIN_EMAIL || "admin@collab.test";
   const password = effective.SEED_ADMIN_PASSWORD || randomBytes(24).toString("base64url");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12)
@@ -97,6 +101,8 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     APP_URL: "http://localhost:3000",
     DATABASE_URL: databaseUrl,
     UPLOAD_DIR: "./uploads",
+    SESSION_SECRET: randomBytes(32).toString("hex"),
+    MFA_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
   });
   await fillMissingEnv(path.join(root, "apps/web/.env"), {
     NODE_ENV: "development",

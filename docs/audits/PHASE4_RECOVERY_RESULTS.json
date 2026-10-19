@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-19T04:31:25.016Z",
+  "sourceName": "collab_recovery_source_30c575002cc9",
+  "targetName": "collab_recovery_target_30c575002cc9",
+  "toolsVersion": "mongodump version: 100.19.1",
+  "serverVersion": "9.0.2",
+  "backupMs": 85.52629999999999,
+  "recoveryMs": 1921.0212999999999,
+  "recoveryPoint": "2026-10-19T04:31:22.946Z",
+  "collections": 22,
+  "documents": 8,
+  "indexDefinitions": 58,
+  "runtimeFileCount": 59,
+  "runtimeBytes": 23355672,
+  "tamperRejected": true,
+  "integrity": "all documents and index definitions equal; relations/file/runtime hashes pass; duplicate index rejects",
+  "access": "owner/SYSTEM protected local root; inherited broad access removed",
+  "backupSha256": "f24b7f2293bd85a3f68841e68f6fa21d2c4fd2ed318a83467f98d4c8a6f676e3",
+  "postBackupDocumentRestored": false,
+  "restoredReplaySuppressed": true,
+  "limits": [
+    "quiesced synthetic source; no online snapshot consistency claim",
+    "same local server, clean namespace; not a machine/site-loss rehearsal",
+    "complete built server/web directories restored for integrity, not launched; runtime/dependency installation and separately held production keys still required",
+    "key directory separate from encrypted archive but same host; production off-host key custody not tested",
+    "ACL inspected, no second OS identity login test"
+  ]
+}

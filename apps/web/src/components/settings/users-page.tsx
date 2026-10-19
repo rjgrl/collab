@@ -14,6 +14,7 @@ import {
   PrimaryButton,
 } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { TablePagination } from "@/components/table-pagination";
 import { can, useSession } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -21,7 +22,8 @@ export function UsersPage() {
   const session = useSession();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const users = useQuery(orpc.users.list.queryOptions({ input: { search } }));
+  const [page, setPage] = useState(1);
+  const users = useQuery(orpc.users.list.queryOptions({ input: { search, page, pageSize: 20 } }));
   const roles = useQuery(orpc.roles.list.queryOptions());
   const canWrite = can(session.data?.permissions, "users.write");
   const [draft, setDraft] = useState({
@@ -124,9 +126,15 @@ export function UsersPage() {
                 value={draft.password}
                 onChange={(event) => setDraft({ ...draft, password: event.target.value })}
                 required
-                minLength={8}
+                minLength={15}
+                maxLength={256}
+                autoComplete="new-password"
+                aria-describedby="member-password-guidance"
               />
             </FormField>
+            <p id="member-password-guidance" className="text-xs text-muted-foreground">
+              Use 15–128 characters. Spaces and Unicode are welcome. Choose a unique passphrase.
+            </p>
             <div className="flex flex-col gap-2">
               <FieldsetLabel>Roles</FieldsetLabel>
               {roles.data?.map((role) => (
@@ -152,7 +160,10 @@ export function UsersPage() {
       <DataTable
         headers={["Name", "Email", "Roles", "Status", "Actions"]}
         search={search}
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         searchPlaceholder="Search users"
         loading={users.isPending}
         isEmpty={users.data?.length === 0}
@@ -188,6 +199,12 @@ export function UsersPage() {
           </TableRow>
         ))}
       </DataTable>
+      <TablePagination
+        page={page}
+        onPage={setPage}
+        hasNext={users.data?.length === 20}
+        pending={users.isFetching}
+      />
     </PageShell>
   );
 }

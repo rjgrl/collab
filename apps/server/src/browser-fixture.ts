@@ -6,6 +6,7 @@ import { hashPassword, PERMISSIONS } from "@Alumni-Tracking-Ss/db";
 import { createApp } from "./app";
 
 if (process.env.NODE_ENV !== "test") throw new Error("Browser fixtures require NODE_ENV=test.");
+process.env.PASSWORD_BREACH_CHECK = "local";
 const permissions = PERMISSIONS.map((item, i) => ({ ...item, id: String(i + 1) }));
 const initialDate = "2026-01-01T00:00:00.000Z";
 const role = {
@@ -28,7 +29,13 @@ const adminRole = {
   _count: { userRoles: 1 },
 };
 const passwordHash = await hashPassword("BrowserTest123!");
+type MfaRow = Awaited<ReturnType<Database["mfaCredential"]["findUniqueOrThrow"]>>;
+let credential: MfaRow | null = null;
+const throttleCounts = new Map<string, number>();
 const user = {
+  get mfaCredential() {
+    return credential;
+  },
   id: "test-user",
   name: "Test Administrator",
   email: "admin@example.test",
@@ -45,6 +52,9 @@ const user = {
   userRoles: [{ role: adminRole }],
 };
 type TestSession = {
+  createdAt: Date;
+  mfaVersion?: string | null;
+  mfaVerifiedAt?: Date | null;
   id: string;
   token: string;
   userId: string;
@@ -59,6 +69,9 @@ const integrationSettings = new Map<string, boolean>([
 
 type Challenge = Awaited<ReturnType<Database["verificationChallenge"]["findUniqueOrThrow"]>>;
 const challenges = new Map<string, Challenge>();
+type ResetRow = Awaited<ReturnType<Database["passwordReset"]["findUniqueOrThrow"]>>;
+const resets = new Map<string, ResetRow>();
+let resetLink = "";
 let emailCode = "";
 function matches(record: object, where: Record<string, unknown>): boolean {
   return Object.entries(where).every(([key, condition]) => {
@@ -74,6 +87,8 @@ function matches(record: object, where: Record<string, unknown>): boolean {
         if (op === "lte") return actual != null && Number(actual) <= Number(test);
         if (op === "not") return value !== expected;
         if (op === "isSet") return (value !== undefined) === expected;
+        if (op === "equals") return JSON.stringify(value) === JSON.stringify(expected);
+        if (op === "in") return (expected as unknown[]).includes(value);
         return false;
       });
     }
@@ -96,6 +111,7 @@ globalThis.fetch = async (input, init) => {
   if (String(input) === "https://mail.example.test") {
     const body = JSON.parse(String(init?.body)) as { text: string };
     emailCode = body.text.match(/\b[0-9]{6}\b/)?.[0] ?? "";
+    resetLink = body.text.match(/https?:\/\/[^\s]+\/reset-password#[^\s]+/)?.[0] ?? "";
     return Response.json({ ok: true });
   }
   return nativeFetch(input, init);
@@ -104,7 +120,72 @@ globalThis.fetch = async (input, init) => {
 const createdRoles: (typeof role)[] = [];
 let failNext = false;
 const transaction = {
-  alumni: { count: async () => 0, findMany: async () => [] },
+  passwordReset: {
+    create: async ({ data }: { data: Omit<ResetRow, "id" | "consumedAt"> }) => {
+      const row = { id: data.tokenHash, consumedAt: null, ...data };
+      resets.set(data.tokenHash, row);
+      return row;
+    },
+    findUnique: async ({ where }: { where: { tokenHash: string } }) =>
+      resets.get(where.tokenHash) ?? null,
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => {
+      let count = 0;
+      for (const row of resets.values())
+        if (matches(row, where)) {
+          apply(row, data);
+          count++;
+        }
+      return { count };
+    },
+  },
+  authThrottle: {
+    updateMany: async ({ where }: { where: { key: string } }) => {
+      throttleCounts.set(where.key, Math.max(0, (throttleCounts.get(where.key) ?? 0) - 1));
+      return { count: 1 };
+    },
+    upsert: async ({ where }: { where: { key: string } }) => {
+      const count = (throttleCounts.get(where.key) ?? 0) + 1;
+      throttleCounts.set(where.key, count);
+      return { count };
+    },
+  },
+  mfaCredential: {
+    findUnique: async () => (credential ? structuredClone(credential) : null),
+    create: async ({ data }: { data: Partial<MfaRow> }) => {
+      credential = {
+        id: "mfa",
+        userId: user.id,
+        version: "",
+        lastStep: -1,
+        recoveryHashes: [],
+        secretCipher: null,
+        pendingCipher: null,
+        pendingSession: null,
+        pendingUntil: null,
+        updatedAt: new Date(),
+        ...data,
+      };
+      return credential;
+    },
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => {
+      if (!credential || !matches(credential, where)) return { count: 0 };
+      apply(credential, data);
+      return { count: 1 };
+    },
+  },
+  alumni: { count: async () => 0, findMany: async () => [], groupBy: async () => [] },
   program: { findMany: async () => [] },
   department: { findMany: async () => [] },
   role: {
@@ -217,7 +298,7 @@ const transaction = {
     findUnique: async ({ where }: { where: { token: string } }) =>
       sessions.get(where.token) ?? null,
     create: async ({ data }: { data: { token: string; userId: string; expiresAt: Date } }) => {
-      const session = { ...data, id: data.token };
+      const session = { ...data, id: data.token, createdAt: new Date() };
       sessions.set(data.token, session);
       return session;
     },
@@ -258,7 +339,8 @@ const db = {
   $runCommandRaw: async () => ({ ok: 1 }),
   $transaction: async (work: (tx: typeof transaction) => Promise<unknown>) => {
     const before = { ...role, rolePermissions: [...role.rolePermissions] };
-    const beforeUser = { ...user };
+    const { mfaCredential: _credential, ...beforeUser } = user;
+    const beforeMfa = structuredClone(credential);
     const beforeSessions = structuredClone(sessions);
     const beforeChallenges = structuredClone(challenges);
     try {
@@ -271,6 +353,7 @@ const db = {
     } catch (error) {
       Object.assign(role, before);
       Object.assign(user, beforeUser);
+      credential = beforeMfa;
       sessions.clear();
       for (const [key, row] of beforeSessions) sessions.set(key, row);
       challenges.clear();
@@ -285,6 +368,8 @@ const verificationEnv = {
   appUrl: "http://127.0.0.1:3100",
   smtpUrl: "https://mail.example.test",
   verificationSecret: "synthetic-test-only-verification-key-1234567890",
+  mfaEncryptionKey: "12".repeat(32),
+  webOrigin: "http://127.0.0.1:3101",
   smsProvider: undefined as
     | {
         sendCode: (phone: string) => Promise<string>;
@@ -301,6 +386,10 @@ const createTestApplication = () =>
 let testApplication = createTestApplication();
 const app = new Hono();
 app.post("/__test/reset", (c) => {
+  credential = null;
+  resets.clear();
+  resetLink = "";
+  throttleCounts.clear();
   Object.assign(user, {
     passwordHash,
     needsProfileCompletion: false,
@@ -334,6 +423,12 @@ app.post("/__test/incomplete", (c) => {
   return c.json({ ok: true });
 });
 app.get("/__test/code", (c) => c.json({ emailCode }));
+app.get("/__test/reset-link", (c) => c.json({ resetLink }));
+app.post("/__test/legacy-unverified-email", (c) => {
+  user.emailVerified = false;
+  user.verificationRequired = false;
+  return c.json({ ok: true });
+});
 app.post("/__test/unverified", (c) => {
   Object.assign(user, {
     verificationRequired: true,
