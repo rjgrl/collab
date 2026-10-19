@@ -1,5 +1,7 @@
 # Development setup
 
+The optional `pnpm test:clone-local` harness additionally requires Chromium (`pnpm exec playwright install chromium`), Git on PATH, free ports 3200/3201 and the testing branch committed locally. It retains private clone/log artifacts and synthetic databases. It does not publish the branch or replace a physical laptop test. Normal app setup has no Playwright or Database Tools prerequisite.
+
 Install Git, Node 26.10.0 (`.node-version`), pnpm 12.5.1 (`npm install --global pnpm@12.5.1`) and MongoDB Community Server. Node 22.15+ is the minimum; the pinned version is the tested team baseline. Compass is optional inspection software, not the MongoDB server. Docker, Atlas, mongosh and provider credentials are unnecessary for local core workflows. Use MongoDB's supported installer for your OS/CPU; Windows MongoDB 9.0.2 is the measured environment, other OS versions remain pending.
 
 Corepack is not bundled starting with Node 25 ([Node documentation](https://nodejs.org/download/release/v25.8.0/docs/api/corepack.html)). The tested Node 26 environment has no Corepack executable, so the direct pinned pnpm installation above is the simplest path. If your managed Node installation already includes a maintained Corepack, `corepack enable` can provide shims; verify `pnpm --version` resolves 12.5.1. Do not install competing shims or change PowerShell security policy to bypass installation errors. All other CLIs are repository dependencies.

@@ -3,7 +3,8 @@
 Phase 6: [local consolidation and cross-device work](audits/PHASE6_SUMMARY.md). Public publication requires explicit approval; no deployment authorized.
 
 - [x] Preserve inherited work; add isolated checkout setup, explicit existing-database updates and read-only diagnostics.
-- [ ] Record committed-clone acceptance, approved public publication, remote clone/CI and physical laptop verification.
+- [x] Record committed-clone install/build/app/MFA and complete setup-rerun preservation acceptance.
+- [ ] Obtain public-publication/deployment-hook approval; verify remote clone/CI and physical laptop separately.
 
 Phase 5: [assessment/owner register](audits/PHASE5_STAGING_READINESS.md). No deployment authorized.
 

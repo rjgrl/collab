@@ -1,0 +1,102 @@
+﻿{
+  "date": "2026-10-19",
+  "sourceCommit": "9c7bbace4aef0f9aaea51ca53983ed7c0ea4b92e",
+  "source": "local committed branch, not remote",
+  "branch": "development/phase6-cross-device-testing",
+  "passed": true,
+  "toolchain": {
+    "node": "26.10.0",
+    "pnpm": "12.5.1",
+    "mongodb": "9.0.2",
+    "os": "Windows"
+  },
+  "steps": [
+    {
+      "step": "clone",
+      "exitCode": 0,
+      "milliseconds": 886
+    },
+    {
+      "step": "install",
+      "exitCode": 0,
+      "milliseconds": 6980
+    },
+    {
+      "step": "setup",
+      "exitCode": 0,
+      "milliseconds": 7702
+    },
+    {
+      "step": "doctor",
+      "exitCode": 0,
+      "milliseconds": 792
+    },
+    {
+      "step": "build",
+      "exitCode": 0,
+      "milliseconds": 3895
+    },
+    {
+      "step": "check-types",
+      "exitCode": 0,
+      "milliseconds": 6225
+    },
+    {
+      "step": "test-browser-types",
+      "exitCode": 0,
+      "milliseconds": 772
+    },
+    {
+      "step": "test",
+      "exitCode": 0,
+      "milliseconds": 5617
+    },
+    {
+      "step": "check-secrets",
+      "exitCode": 0,
+      "milliseconds": 185
+    },
+    {
+      "step": "check-production-build",
+      "exitCode": 0,
+      "milliseconds": 70
+    },
+    {
+      "step": "check-server-build",
+      "exitCode": 0,
+      "milliseconds": 105
+    },
+    {
+      "step": "application",
+      "exitCode": 0,
+      "milliseconds": 7160
+    },
+    {
+      "step": "capture-state",
+      "exitCode": 0,
+      "milliseconds": 1025
+    },
+    {
+      "step": "full-setup-rerun",
+      "exitCode": 0,
+      "milliseconds": 3668
+    },
+    {
+      "step": "verify-state",
+      "exitCode": 0,
+      "milliseconds": 1037
+    },
+    {
+      "step": "tracked-clean",
+      "exitCode": 0,
+      "milliseconds": 136
+    }
+  ],
+  "limits": [
+    "Same host, local package/browser caches and existing MongoDB server reused",
+    "Own random database and generated private configuration",
+    "No original private env or generated engine copied",
+    "Remote clone/CI, physical second laptop and other OS acceptance pending",
+    "Synthetic databases/private clones retained; no cleanup deletion"
+  ]
+}

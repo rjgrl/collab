@@ -1,5 +1,7 @@
 # Pre-production security audit
 
+Phase 6 continuation: [summary](PHASE6_SUMMARY.md), [committed-clone acceptance](PHASE6_FRESH_CLONE_RESULTS.md), [Git publication boundary](PHASE6_GIT_RELEASE.md). Existing security regressions passed again; developer onboarding now isolates new databases and requires explicit existing-database updates. Public publication/remote CI, actual second-device, provider, institutional privacy, manual accessibility and production operational gates remain open. No production-ready claim.
+
 Phase 5: [assessment/register](PHASE5_STAGING_READINESS.md). Archived-parent evidence disclosure now has a red/green TCP regression and active-parent filter. Strict production config, explicit trusted proxies, loopback/timeouts, safe log categories and CI browser/artifact gates are locally tested. 139 Node / 34 browser / 67 HTTP / 24 grouped Forms checks pass; representative performance, exact export boundary and fresh restore evidence linked. Real infrastructure/provider/manual/privacy acceptance remains pending.
 
 Phase 4 current evidence: [report](PHASE4_VALIDATION.md). Additive Forms receipts now provide transactional replay/rollback protection with real MongoDB/HTTP tests; default enablement remains off. Encrypted synthetic backup/restore verified all eight documents, 58 indexes and 59 required files into a clean database/directory. Production backup/key/identity/provider/CI/accessibility/privacy gates remain open; prior absent-feature statements below are historical.

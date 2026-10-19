@@ -1,5 +1,18 @@
 # Cross-device readiness
 
+Physical laptop acceptance is pending. Record OS/CPU, browser/version, commit and viewport. Chromium desktop/mobile fixture automation is the measured boundary; Firefox, Safari/iOS and actual Android devices remain unverified.
+
+Second-device checklist:
+
+- [ ] Follow only committed documentation; verify frozen install, setup, doctor and build.
+- [ ] Use that device's private bootstrap login, enroll MFA, save recovery codes and test logout/reauthentication.
+- [ ] Navigate dashboard/alumni/departments/programs/settings/reports and selected denied APIs using synthetic roles.
+- [ ] Test create/edit dialogs, validation, filters/pagination, evidence and authorized export with synthetic records.
+- [ ] Check narrow navigation/dialog scrolling, keyboard focus, labels/errors, touch targets, zoom, forced colors and an actual screen reader.
+- [ ] Confirm session persistence/logout; stop only owned processes. Do not remove database files to troubleshoot.
+
+LAN/mobile access to another machine is not configured. Prefer independent laptop testing until private HTTPS, firewall allowlist, coherent origins/cookies and non-debug exposure are authorized. No router forwarding, browser-security bypass or MongoDB network exposure.
+
 | Gate            | State / limit                                                                                                                             |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Toolchain       | Node 26.10.0 / pnpm 12.5.1 pinned; minimum Node 22.15. Corepack availability documented.                                                  |

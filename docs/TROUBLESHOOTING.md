@@ -1,5 +1,9 @@
 # Local troubleshooting
 
+Database authentication errors: managed setup accepts only unauthenticated loopback rs0. For an intentionally credentialed/custom database, use the manual/deployment guide and verify the least-privilege user privately. Never remove authentication or publish the URI. Incorrect seed state: doctor checks selected roles/permissions/indexes; setup verifies the bootstrap account without resetting or elevating it. Review private bootstrap settings and back up before an explicit update.
+
+Browser CORS/cookie errors: use one web origin consistently; avoid mixing localhost and 127.0.0.1. CORS_ORIGIN must match the browser origin, APP_URL the API/OAuth origin, and the development proxy its own API. Restart after edits; never disable CSRF/browser security. Fresh-clone build failures: first confirm frozen install and setup/client generation, then `pnpm build`; report the first redacted error instead of copying dist/generated files from another machine.
+
 Run `pnpm run doctor` first after installing dependencies. It is read-only and redacts configuration values.
 
 | Symptom                                  | Next step                                                                                                                                      |

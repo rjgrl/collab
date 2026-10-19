@@ -1,5 +1,9 @@
 # Phase 6 cross-device engineering
 
+Final local acceptance: two committed-clone rehearsals pass; the expanded run of `9c7bbac` completed 16 steps including full setup rerun with unchanged data/index/private-config hashes, actual app login/MFA/navigation, 141 Node tests and a clean tracked clone. Recovery rerun restored eight documents, 22 collections, 58 indexes and 59 runtime/required files; dump 95.17 ms, restore/verification 2,071.26 ms. Ciphertext tampering rejected, post-backup write excluded and receipt replay suppressed. [Clone evidence](PHASE6_CLONE_RESULTS.json), [recovery evidence](PHASE6_RECOVERY_RESULTS.json). Same-host checks do not prove physical cross-device or off-host recovery.
+
+`pnpm test:staging-local` passed again with synthetic bounded data/export/plan/proxy acceptance, and package advisory audit reported no known vulnerabilities. Remote CI and physical assistive-technology testing were not run. Source history records local baseline/follow-up commits; the final documentation commit adds evidence and onboarding clarifications only.
+
 2026-10-19. Local only; production remains blocked. Preserved the inherited tree at ignored `.tools/phase6-checkpoint-20261019-132508/`: tracked patch, HEAD/status and 300 hash-verified eligible source copies. Continued on `development/phase6-cross-device-testing` from `b04aab8dcd3926ae114a65eeacb120da98286432`. No private configuration, existing application records or providers modified.
 
 Implemented random persistent databases per new checkout, explicit existing-database schema/seed updates, read-only `pnpm run doctor`, toolchain guards, production seed refusal, synthetic demo identities, onboarding/Windows/troubleshooting guides and proposed Windows/Linux CI matrix. No Phase 6 dependency upgrade or schema change. Previous security controls preserved.
