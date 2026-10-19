@@ -7,7 +7,10 @@ import { projectRoot } from "./local-tools.mjs";
 // Opt-in committed-source rehearsal. It never copies the caller's private env,
 // local credentials, generated client or database into the new checkout.
 const pnpm = process.env.npm_execpath;
-if (!pnpm || !/\.(?:c?js|mjs)$/.test(pnpm)) throw Error("Run with pnpm run test:clone-local.");
+if (!pnpm) throw Error("Run with pnpm run test:clone-local.");
+// pnpm can expose either its JS entry or a standalone native executable.
+const launcher = /\.(?:c?js|mjs)$/.test(pnpm) ? process.execPath : pnpm;
+const pnpmArgs = (...args) => (launcher === process.execPath ? [pnpm, ...args] : args);
 const root = path.join(projectRoot, ".tools", "phase6-clone-" + randomUUID());
 const env = Object.fromEntries(
   Object.entries(process.env).filter(([key]) =>
@@ -66,16 +69,16 @@ try {
     projectRoot,
     "clone",
   );
-  await run(process.execPath, [pnpm, "install", "--frozen-lockfile"], root, "install");
+  await run(launcher, pnpmArgs("install", "--frozen-lockfile"), root, "install");
   // Nonsecret alternate origins avoid interfering with the developer's app.
   await writeFile(
     path.join(root, "apps/server/.env"),
     "CORS_ORIGIN=http://127.0.0.1:3201\nAPP_URL=http://127.0.0.1:3200\n",
   );
   await writeFile(path.join(root, "apps/web/.env"), "VITE_SERVER_URL=http://127.0.0.1:3201\n");
-  await run(process.execPath, [pnpm, "setup:local", "--demo"], root, "setup");
-  await run(process.execPath, [pnpm, "run", "doctor"], root, "doctor");
-  await run(process.execPath, [pnpm, "build"], root, "build");
+  await run(launcher, pnpmArgs("setup:local", "--demo"), root, "setup");
+  await run(launcher, pnpmArgs("run", "doctor"), root, "doctor");
+  await run(launcher, pnpmArgs("build"), root, "build");
   for (const command of [
     "check-types",
     "test:browser-types",
@@ -84,13 +87,8 @@ try {
     "check:production-build",
     "check:server-build",
   ])
-    await run(process.execPath, [pnpm, command], root, command.replaceAll(":", "-"));
-  await run(
-    process.execPath,
-    [pnpm, "exec", "tsx", "scripts/clone-acceptance.ts"],
-    root,
-    "application",
-  );
+    await run(launcher, pnpmArgs(command), root, command.replaceAll(":", "-"));
+  await run(launcher, pnpmArgs("exec", "tsx", "scripts/clone-acceptance.ts"), root, "application");
   await run("git", ["diff", "--exit-code"], root, "tracked-clean");
 } catch (error) {
   console.error(error.message);
