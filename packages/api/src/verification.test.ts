@@ -12,8 +12,23 @@ import {
   startVerification,
 } from "./services/verification";
 import { sendPhoneCode } from "./integrations/sms";
+import { storedSessionToken } from "./services/session";
 
 const secret = "synthetic-unit-test-key-only-1234567890";
+it("lets an existing password account confirm its email without adding phone restrictions", async (t) => {
+  const f = fixture();
+  f.user.verificationRequired = false;
+  let code = "";
+  t.mock.method(globalThis, "fetch", async (_input: unknown, init?: RequestInit) => {
+    code = JSON.parse(String(init?.body)).text.match(/\b\d{6}\b/)[0];
+    return Response.json({ ok: true });
+  });
+  await startVerification(f.context, "email");
+  await confirmVerification(f.context, "email", code);
+  assert.equal(f.user.emailVerified, true);
+  assert.equal(f.user.verificationRequired, false);
+  assert.equal(f.user.phoneVerified, false);
+});
 function fixture() {
   const user = {
     id: "user",
@@ -70,6 +85,11 @@ function fixture() {
       },
     },
     session: {
+      findUnique: async () => ({ ...session }),
+      create: async ({ data }: { data: object }) => {
+        Object.assign(session, data);
+        return session;
+      },
       updateMany: async ({
         where,
       }: {
@@ -132,6 +152,10 @@ function fixture() {
     sessionToken: session.token,
     integrationEnv: { verificationSecret: secret, smtpUrl: "https://mail.example.test" },
   } as unknown as Context;
+  context.onSessionRotation = (value) => {
+    context.sessionToken = value.token;
+    context.sessionStorageToken = storedSessionToken(value.token);
+  };
   return { context, user, session, row };
 }
 

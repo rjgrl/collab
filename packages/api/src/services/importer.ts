@@ -3,6 +3,8 @@ import { withNotDeleted } from "@Alumni-Tracking-Ss/db";
 import { alumniImportRowSchema } from "../validation";
 import type { AlumniImportRow } from "../validation";
 
+export class ImportRowError extends Error {}
+
 export async function importAlumniRows(
   db: Database,
   rows: unknown[],
@@ -27,7 +29,10 @@ export async function importAlumniRows(
     } catch (error) {
       errors.push({
         row: index + 1,
-        message: error instanceof Error ? error.message : "Unable to import row",
+        message:
+          error instanceof ImportRowError
+            ? error.message
+            : "Unable to import row. Try again or contact an administrator.",
       });
     }
   }
@@ -40,12 +45,16 @@ export async function importAlumniRows(
   };
 }
 
-async function upsertImportedAlumni(db: Database, row: AlumniImportRow, useTrackedFlag: boolean) {
+export async function upsertImportedAlumni(
+  db: Pick<Database, "department" | "program" | "alumni" | "trackingEvent">,
+  row: AlumniImportRow,
+  useTrackedFlag: boolean,
+) {
   const department = await db.department.findFirst({
     where: withNotDeleted({ code: row.departmentCode }),
   });
   if (!department) {
-    throw new Error(`Unknown department code: ${row.departmentCode}`);
+    throw new ImportRowError(`Unknown department code: ${row.departmentCode}`);
   }
 
   const program = await db.program.findFirst({
@@ -55,7 +64,7 @@ async function upsertImportedAlumni(db: Database, row: AlumniImportRow, useTrack
     }),
   });
   if (!program) {
-    throw new Error(`Unknown program code ${row.programCode} in ${row.departmentCode}`);
+    throw new ImportRowError(`Unknown program code ${row.programCode} in ${row.departmentCode}`);
   }
 
   const existing = await db.alumni.findUnique({

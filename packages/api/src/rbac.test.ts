@@ -74,6 +74,7 @@ function makeUser(permissions: string[], overrides: Partial<AuthUser> = {}): Aut
     email: "test@alumni.local",
     image: null,
     status: "active",
+    mfaVerified: true, // These tests exercise authorization after successful MFA.
     roles: ["test"],
     permissions: permissions as AuthUser["permissions"],
     ...overrides,

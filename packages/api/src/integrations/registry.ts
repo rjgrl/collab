@@ -31,7 +31,7 @@ export async function listIntegrations(
   const enabledByKey = new Map(rows.map((row) => [row.key, row.enabled]));
 
   return INTEGRATION_KEYS.map((key) => {
-    const enabled = enabledByKey.get(key) ?? true;
+    const enabled = enabledByKey.get(key) ?? key !== "google_forms";
     const configured = isConfigured(key, env);
     let mode: IntegrationStatus["mode"] = "fallback";
     if (!enabled) {
@@ -95,7 +95,7 @@ function summarize(key: IntegrationKey, mode: IntegrationStatus["mode"]) {
 
 export async function isIntegrationEnabled(db: Database, key: IntegrationKey) {
   const row = await db.integrationSetting.findUnique({ where: { key } });
-  return row?.enabled ?? true;
+  return row?.enabled ?? key !== "google_forms";
 }
 
 export async function requireIntegration(db: Database, key: IntegrationKey) {

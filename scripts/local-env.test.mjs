@@ -38,14 +38,23 @@ it("creates complete local config and unique private bootstrap credentials once"
   const root = await fixture(t);
   const first = await prepareLocalEnv(root, { inherited: {} });
   const server = parseEnv(await readFile(path.join(root, "apps/server/.env"), "utf8"));
-  assert.equal(server.DATABASE_URL, LOCAL_DATABASE_URL);
+  assert.match(
+    server.DATABASE_URL,
+    /^mongodb:\/\/127\.0\.0\.1:27018\/collab_dev_[a-f0-9]{12}\?replicaSet=rs0$/,
+  );
   assert.equal(server.CORS_ORIGIN, "http://localhost:3001");
+  assert.match(server.MFA_ENCRYPTION_KEY, /^[a-f0-9]{64}$/);
+  assert.ok(server.SESSION_SECRET.length >= 32);
   assert.ok(first.password.length >= 24);
   const second = await prepareLocalEnv(root, { inherited: {} });
   assert.equal(first.password, second.password);
   assert.equal(first.email, second.email);
+  const preserved = parseEnv(await readFile(path.join(root, "apps/server/.env"), "utf8"));
+  assert.equal(preserved.MFA_ENCRYPTION_KEY, server.MFA_ENCRYPTION_KEY);
   const otherRoot = await fixture(t);
-  assert.notEqual((await prepareLocalEnv(otherRoot, { inherited: {} })).password, first.password);
+  const other = await prepareLocalEnv(otherRoot, { inherited: {} });
+  assert.notEqual(other.password, first.password);
+  assert.notEqual(other.databaseUrl, first.databaseUrl);
 });
 
 it("preserves existing environment values, comments, and bootstrap password on a pull/setup rerun", async (t) => {

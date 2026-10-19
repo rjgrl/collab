@@ -1,0 +1,336 @@
+{
+  "date": "2026-10-19T05:08:10.777Z",
+  "database": "collab_phase5_dad17a7bd7a2",
+  "hardware": {
+    "node": "v26.10.0",
+    "platform": "win32",
+    "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor           ",
+    "logicalCpus": 16,
+    "totalMemoryGiB": 31.14455795288086
+  },
+  "dataset": 1000,
+  "exportBoundaryDataset": 10001,
+  "workloadLimit": "240 concurrent measured reads/exports at concurrency 4, 12 sequential Forms commits, single login/MFA and limited proxy probes; no sustained stress",
+  "metrics": [
+    {
+      "workflow": "password login (cold, strong scrypt)",
+      "requests": 1,
+      "durationMs": 229.3842999999997
+    },
+    {
+      "workflow": "MFA confirmation and session rotation",
+      "requests": 1,
+      "durationMs": 25.376999999999953
+    },
+    {
+      "workflow": "session validation",
+      "requests": 40,
+      "concurrency": 4,
+      "elapsedMs": 260.6667000000002,
+      "rps": 153.4526657988917,
+      "p50": 6.691899999999805,
+      "p95": 260.1979000000001,
+      "p99": 260.30070000000023,
+      "errors": 0,
+      "rssStart": 144871424,
+      "rssEnd": 149327872,
+      "cpuMs": 187
+    },
+    {
+      "workflow": "tracked alumni page",
+      "requests": 40,
+      "concurrency": 4,
+      "elapsedMs": 419.3580000000002,
+      "rps": 95.38389633678142,
+      "p50": 34.64899999999989,
+      "p95": 43.57300000000032,
+      "p99": 289.8663999999999,
+      "errors": 0,
+      "rssStart": 150642688,
+      "rssEnd": 172216320,
+      "cpuMs": 235
+    },
+    {
+      "workflow": "substring search",
+      "requests": 40,
+      "concurrency": 4,
+      "elapsedMs": 147.6208000000006,
+      "rps": 270.9645253243434,
+      "p50": 14.284300000000258,
+      "p95": 16.24409999999989,
+      "p99": 16.269600000000537,
+      "errors": 0,
+      "rssStart": 172294144,
+      "rssEnd": 187162624,
+      "cpuMs": 250
+    },
+    {
+      "workflow": "deep page 20",
+      "requests": 40,
+      "concurrency": 4,
+      "elapsedMs": 623.2673999999997,
+      "rps": 64.17791143897469,
+      "p50": 59.66730000000007,
+      "p95": 69.71540000000005,
+      "p99": 70.61520000000019,
+      "errors": 0,
+      "rssStart": 187273216,
+      "rssEnd": 191700992,
+      "cpuMs": 422
+    },
+    {
+      "workflow": "dashboard aggregate",
+      "requests": 40,
+      "concurrency": 4,
+      "elapsedMs": 899.5153,
+      "rps": 44.46839314461911,
+      "p50": 63.76579999999922,
+      "p95": 277.78340000000026,
+      "p99": 289.1882999999998,
+      "errors": 0,
+      "rssStart": 192401408,
+      "rssEnd": 198160384,
+      "cpuMs": 187
+    },
+    {
+      "workflow": "CSV 1000 rows",
+      "requests": 40,
+      "concurrency": 4,
+      "elapsedMs": 986.7647000000006,
+      "rps": 40.53651290930855,
+      "p50": 90.67699999999968,
+      "p95": 128.0661,
+      "p99": 128.40329999999994,
+      "errors": 0,
+      "rssStart": 199606272,
+      "rssEnd": 260767744,
+      "cpuMs": 1547
+    },
+    {
+      "workflow": "12 sequential Forms commits",
+      "requests": 12,
+      "elapsedMs": 131.33550000000014,
+      "errors": 0
+    }
+  ],
+  "plans": {
+    "before": {
+      "executionSuccess": true,
+      "nReturned": 20,
+      "executionTimeMillis": 0,
+      "executionTimeMicros": 834,
+      "totalKeysExamined": 500,
+      "totalDocsExamined": 500,
+      "executionStages": {
+        "isCached": false,
+        "stage": "SORT",
+        "nReturned": 20,
+        "executionTimeMillisEstimate": 0,
+        "works": 522,
+        "advanced": 20,
+        "needTime": 501,
+        "needYield": 0,
+        "saveState": 0,
+        "restoreState": 0,
+        "isEOF": 1,
+        "sortPattern": {
+          "lastName": 1,
+          "firstName": 1,
+          "_id": 1
+        },
+        "memLimit": 104857600,
+        "limitAmount": 20,
+        "type": "simple",
+        "totalDataSizeSorted": 6775,
+        "usedDisk": false,
+        "spills": 0,
+        "spilledRecords": 0,
+        "spilledBytes": 0,
+        "spilledDataStorageSize": 0,
+        "peakTrackedMemBytes": 6775,
+        "inputStage": {
+          "stage": "FETCH",
+          "nReturned": 500,
+          "executionTimeMillisEstimate": 0,
+          "works": 501,
+          "advanced": 500,
+          "needTime": 0,
+          "needYield": 0,
+          "saveState": 0,
+          "restoreState": 0,
+          "isEOF": 1,
+          "nss": "collab_phase5_dad17a7bd7a2.Alumni",
+          "docsExamined": 500,
+          "alreadyHasObj": 0,
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": 500,
+            "executionTimeMillisEstimate": 0,
+            "works": 501,
+            "advanced": 500,
+            "needTime": 0,
+            "needYield": 0,
+            "saveState": 0,
+            "restoreState": 0,
+            "isEOF": 1,
+            "nss": "collab_phase5_dad17a7bd7a2.Alumni",
+            "keyPattern": {
+              "isTracked": 1
+            },
+            "indexName": "Alumni_isTracked_idx",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "isTracked": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": 2,
+            "direction": "forward",
+            "indexBounds": {
+              "isTracked": ["[true, true]"]
+            },
+            "keysExamined": 500,
+            "seeks": 1,
+            "dupsTested": 0,
+            "dupsDropped": 0,
+            "peakTrackedMemBytes": 0
+          }
+        }
+      }
+    },
+    "after": {
+      "executionSuccess": true,
+      "nReturned": 20,
+      "executionTimeMillis": 0,
+      "executionTimeMicros": 858,
+      "totalKeysExamined": 20,
+      "totalDocsExamined": 20,
+      "executionStages": {
+        "isCached": false,
+        "stage": "LIMIT",
+        "nReturned": 20,
+        "executionTimeMillisEstimate": 0,
+        "works": 21,
+        "advanced": 20,
+        "needTime": 0,
+        "needYield": 0,
+        "saveState": 1,
+        "restoreState": 1,
+        "isEOF": 1,
+        "limitAmount": 20,
+        "inputStage": {
+          "stage": "FETCH",
+          "nReturned": 20,
+          "executionTimeMillisEstimate": 0,
+          "works": 20,
+          "advanced": 20,
+          "needTime": 0,
+          "needYield": 0,
+          "saveState": 1,
+          "restoreState": 1,
+          "isEOF": 0,
+          "nss": "collab_phase5_dad17a7bd7a2.Alumni",
+          "docsExamined": 20,
+          "alreadyHasObj": 0,
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": 20,
+            "executionTimeMillisEstimate": 0,
+            "works": 20,
+            "advanced": 20,
+            "needTime": 0,
+            "needYield": 0,
+            "saveState": 1,
+            "restoreState": 1,
+            "isEOF": 0,
+            "nss": "collab_phase5_dad17a7bd7a2.Alumni",
+            "keyPattern": {
+              "isTracked": 1,
+              "lastName": 1,
+              "firstName": 1,
+              "_id": 1
+            },
+            "indexName": "phase5_candidate_list",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "isTracked": [],
+              "lastName": [],
+              "firstName": [],
+              "_id": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": 2,
+            "direction": "forward",
+            "indexBounds": {
+              "isTracked": ["[true, true]"],
+              "lastName": ["[MinKey, MaxKey]"],
+              "firstName": ["[MinKey, MaxKey]"],
+              "_id": ["[MinKey, MaxKey]"]
+            },
+            "keysExamined": 20,
+            "seeks": 1,
+            "dupsTested": 0,
+            "dupsDropped": 0,
+            "peakTrackedMemBytes": 0
+          }
+        }
+      }
+    },
+    "scope": "candidate index only in disposable DB; direct representative query, not exact Prisma pipeline"
+  },
+  "checks": [
+    {
+      "test": "trusted proxy separates client budgets",
+      "status": 429
+    },
+    {
+      "test": "untrusted forwarding cannot reset peer budget",
+      "status": 429
+    },
+    {
+      "test": "malformed trusted forwarding shares unknown budget",
+      "status": 429
+    },
+    {
+      "test": "production cookie and trusted audit IP over local HTTP simulation",
+      "status": 200
+    },
+    {
+      "test": "CSV exactly 10000 allowed; 10001 rejected over TCP",
+      "status": 400
+    },
+    {
+      "test": "own Prisma client reconnects after disconnect",
+      "status": 200
+    }
+  ],
+  "connections": {
+    "current": 6,
+    "available": 408211,
+    "totalCreated": 963,
+    "rejected": 0,
+    "active": 3,
+    "queuedForEstablishment": 0,
+    "establishmentRateLimit": {
+      "rejected": 0,
+      "exempted": 0,
+      "interruptedDueToClientDisconnect": 0
+    },
+    "threaded": 6,
+    "exhaustIsMaster": 0,
+    "exhaustHello": 0,
+    "awaitingTopologyChanges": 2,
+    "loadBalanced": 0,
+    "priority": 0
+  },
+  "limits": [
+    "same process client/server; no TLS handshake",
+    "shared local MongoDB instance, connection counts include other local clients",
+    "one short run; percentile samples small; no capacity or memory-leak inference",
+    "candidate index remains only in disposable DB; application schema unchanged",
+    "no actual Nginx/firewall or production signal/failover test"
+  ]
+}

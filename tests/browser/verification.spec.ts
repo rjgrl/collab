@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { enrollAdministrator } from "./security-helper";
 
 test.beforeEach(async ({ page, request }) => {
   await request.post("http://127.0.0.1:3100/__test/reset");
@@ -7,7 +8,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.waitForURL("**/dashboard");
+  await enrollAdministrator(page);
 });
 
 test("Google users must create a matching password after recent verification", async ({
@@ -67,7 +68,11 @@ test("email confirmation is enforced and SMS remains disconnected until a provid
   await expect(page.getByRole("button", { name: "Send SMS code" })).toBeDisabled();
   await expect(page).toHaveURL(/\/complete-profile$/);
   expect(
-    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+    ).violations,
   ).toEqual([]);
   // This isolated fixture provides an in-memory adapter; production has no SMS provider.
   await request.post("http://127.0.0.1:3100/__test/connect-sms");

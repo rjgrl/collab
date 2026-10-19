@@ -7,6 +7,11 @@ import {
 import { isPermissionKey } from "@Alumni-Tracking-Ss/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+import { newPasswordSchema } from "../password-policy";
+import { assertPasswordSafe } from "../services/password-security";
+import { requestPasswordReset, resetPassword } from "../services/password-reset";
+import { rotateSession } from "../services/session-rotation";
+import { beginMfa, confirmMfa, mfaStatus, verifyMfa } from "../services/mfa";
 
 import { authenticated, publicProcedure, requirePermission } from "../index";
 import { writeAudit } from "../audit";
@@ -32,6 +37,22 @@ import {
 } from "../services/session";
 
 export const authRouter = {
+  forgotPassword: publicProcedure
+    .input(z.object({ email: z.string().trim().email().max(254) }))
+    .handler(({ context, input }) => requestPasswordReset(context, input.email)),
+  resetPassword: publicProcedure
+    .input(z.object({ token: z.string().regex(/^[a-f0-9]{64}$/), password: newPasswordSchema }))
+    .handler(({ context, input }) => resetPassword(context, input.token, input.password)),
+  mfaStatus: authenticated.handler(({ context }) => mfaStatus(context)),
+  beginMfa: authenticated
+    .input(z.object({ password: z.string().min(1).max(256) }))
+    .handler(({ context, input }) => beginMfa(context, input.password)),
+  confirmMfa: authenticated
+    .input(z.object({ code: z.string().regex(/^\d{6}$/) }))
+    .handler(({ context, input }) => confirmMfa(context, input.code)),
+  verifyMfa: authenticated
+    .input(z.object({ code: z.string().regex(/^(\d{6}|[a-fA-F0-9]{32})$/) }))
+    .handler(({ context, input }) => verifyMfa(context, input.code)),
   verificationStatus: authenticated.handler(({ context }) => verificationStatus(context)),
   sendVerification: authenticated
     .input(z.object({ kind: z.enum(["email", "phone"]) }))
@@ -47,7 +68,7 @@ export const authRouter = {
   createGooglePassword: authenticated
     .input(
       z
-        .object({ password: z.string().min(8).max(128), confirmation: z.string().min(8).max(128) })
+        .object({ password: newPasswordSchema, confirmation: z.string().max(256) })
         .refine((value) => value.password === value.confirmation, {
           message: "Passwords must match.",
           path: ["confirmation"],
@@ -80,14 +101,15 @@ export const authRouter = {
   changePassword: authenticated
     .input(
       z.object({
-        currentPassword: z.string().min(1).max(128),
-        password: z.string().min(8).max(128),
+        currentPassword: z.string().min(1).max(256),
+        password: newPasswordSchema,
       }),
     )
     .handler(async ({ context, input }) => {
+      await assertPasswordSafe(input.password);
       const { hashPassword, verifyPassword } = await import("@Alumni-Tracking-Ss/db");
       const passwordHash = await hashPassword(input.password);
-      return authorizationTransaction(context.db, async (tx) => {
+      const rotated = await authorizationTransaction(context.db, async (tx) => {
         const user = await tx.user.findUnique({ where: { id: context.user.id } });
         if (
           !user?.passwordHash ||
@@ -98,9 +120,7 @@ export const authRouter = {
           });
         }
         await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
-        await tx.session.deleteMany({
-          where: { userId: user.id, token: { not: context.sessionToken ?? "" } },
-        });
+        const session = await rotateSession(tx, context, undefined, true);
         await writeAudit(tx, {
           actorId: user.id,
           action: "auth.password",
@@ -108,8 +128,15 @@ export const authRouter = {
           entityId: user.id,
           summary: "Changed password and revoked other sessions",
         });
-        return { ok: true };
+        return session;
       });
+      context.onSessionRotation?.(rotated);
+      return {
+        ok: true,
+        ...(context.onSessionRotation
+          ? {}
+          : { sessionToken: rotated.token, expiresAt: rotated.expiresAt.toISOString() }),
+      };
     }),
   config: publicProcedure.handler(async ({ context }) => {
     try {
@@ -234,7 +261,15 @@ const idsSchema = z
 
 export const usersRouter = {
   list: requirePermission("users.read")
-    .input(z.object({ search: z.string().trim().max(120).optional() }).optional())
+    .input(
+      z
+        .object({
+          search: z.string().trim().max(120).optional(),
+          page: z.number().int().min(1).max(100000).default(1),
+          pageSize: z.number().int().min(1).max(100).default(20),
+        })
+        .optional(),
+    )
     .handler(async ({ context, input }) =>
       context.db.user.findMany({
         where: input?.search
@@ -246,7 +281,9 @@ export const usersRouter = {
             }
           : undefined,
         select: publicUserSelect,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: ((input?.page ?? 1) - 1) * (input?.pageSize ?? 20),
+        take: input?.pageSize ?? 20,
       }),
     ),
   create: requirePermission("users.write")
@@ -254,11 +291,12 @@ export const usersRouter = {
       z.object({
         name: z.string().trim().min(1).max(120),
         email: z.string().trim().email(),
-        password: z.string().min(8).max(128),
+        password: newPasswordSchema,
         roleIds: idsSchema.min(1),
       }),
     )
     .handler(async ({ context, input }) => {
+      await assertPasswordSafe(input.password);
       const { hashPassword } = await import("@Alumni-Tracking-Ss/db");
       const passwordHash = await hashPassword(input.password);
       return authorizationTransaction(context.db, async (tx) => {
@@ -292,11 +330,12 @@ export const usersRouter = {
           id: z.string(),
           name: z.string().trim().min(1).max(120).optional(),
           roleIds: idsSchema.optional(),
-          password: z.string().min(8).max(128).optional(),
+          password: newPasswordSchema.optional(),
         })
         .strict(),
     )
     .handler(async ({ context, input }) => {
+      if (input.password) await assertPasswordSafe(input.password);
       const { hashPassword } = await import("@Alumni-Tracking-Ss/db");
       const passwordHash = input.password ? await hashPassword(input.password) : undefined;
       return authorizationTransaction(context.db, async (tx) => {
@@ -326,7 +365,8 @@ export const usersRouter = {
           data: { name: input.name, passwordHash },
           select: publicUserSelect,
         });
-        if (passwordHash) await tx.session.deleteMany({ where: { userId: input.id } });
+        if (passwordHash || input.roleIds)
+          await tx.session.deleteMany({ where: { userId: input.id } });
         await writeAudit(tx, {
           actorId: context.user.id,
           action: "users.update",

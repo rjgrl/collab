@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
-    "build": "vp build",
+    "build": "node ../../scripts/build-web.mjs",
     "serve": "vp preview",
     "start": "vp dev",
     "check-types": "tsc --noEmit",

@@ -38,7 +38,7 @@ export async function runTool(
           ? resolve()
           : reject(
               new Error(
-                `${binName} ${args[0] ?? ""} stopped (${signal || code}). Review the preceding error; later setup steps were not run.`,
+                `${binName} ${args[0] ?? ""} stopped (${signal || code}). Review the preceding error; later setup steps were not run.${binName === "vp" && args.includes("db:generate") ? " On Windows EPERM: stop the dev servers using this checkout before generation. Do not copy another checkout's Prisma engine. See docs/WINDOWS_SETUP.md." : ""}`,
               ),
             ),
       );

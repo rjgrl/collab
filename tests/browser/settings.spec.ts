@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { enrollAdministrator } from "./security-helper";
 
 test.beforeEach(async ({ page, request }) => {
   await request.post("http://127.0.0.1:3100/__test/reset");
@@ -7,7 +8,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.waitForURL("**/dashboard");
+  await enrollAdministrator(page);
   await page.goto("/settings/roles");
   await page.getByRole("button", { name: /Test Staff/ }).click();
 });
@@ -116,7 +117,7 @@ test("creation dialogs contain forms, trap focus and return focus to the add but
     ["/departments", "Add department", "Code"],
     ["/programs", "Add program", "Code"],
     ["/alumni", "Add alumni", "Student number"],
-  ]) {
+  ] as const) {
     await page.goto(path);
     const add = page.getByRole("button", { name: title, exact: true });
     await add.click();

@@ -40,39 +40,43 @@ enum ImportStatus {
 }
 
 model User {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  email         String     @unique
-  emailVerified Boolean    @default(false)
-  phoneVerified Boolean    @default(false)
-  verificationRequired Boolean @default(false)
-  image         String?
-  phoneNumber   String?
-  gender        String?
-  facebookAccount String?
-  needsProfileCompletion Boolean @default(false)
-  passwordHash  String?
-  status        UserStatus @default(active)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id                     String     @id @default(auto()) @map("_id") @db.ObjectId
+  name                   String
+  email                  String     @unique
+  emailVerified          Boolean    @default(false)
+  phoneVerified          Boolean    @default(false)
+  verificationRequired   Boolean    @default(false)
+  image                  String?
+  phoneNumber            String?
+  gender                 String?
+  facebookAccount        String?
+  needsProfileCompletion Boolean    @default(false)
+  passwordHash           String?
+  status                 UserStatus @default(active)
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 
-  sessions  Session[]
-  userRoles UserRole[]
-  auditLogs AuditLog[]
-  importJobs ImportJob[]
+  sessions      Session[]
+  userRoles     UserRole[]
+  auditLogs     AuditLog[]
+  importJobs    ImportJob[]
+  mfaCredential MfaCredential?
 }
 
 model Session {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  token     String   @unique
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  ipAddress String?
-  userAgent String?
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  token            String    @unique
+  userId           String    @db.ObjectId
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt        DateTime
+  ipAddress        String?
+  userAgent        String?
   googleVerifiedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  mfaVersion       String?
+  mfaVerifiedAt    DateTime?
+  lastSeenAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([userId])
 }
@@ -135,20 +139,20 @@ model Department {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  programs            Program[]
-  facultyDepartments  FacultyDepartment[]
+  programs           Program[]
+  facultyDepartments FacultyDepartment[]
 }
 
 model Program {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
   code         String
   name         String
-  description  String    @default("")
-  departmentId String    @db.ObjectId
+  description  String     @default("")
+  departmentId String     @db.ObjectId
   department   Department @relation(fields: [departmentId], references: [id])
   deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   alumni Alumni[]
 
@@ -208,9 +212,9 @@ model Alumni {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  employments     Employment[]
-  trackingEvents  TrackingEvent[]
-  evidenceFiles   EvidenceFile[]
+  employments    Employment[]
+  trackingEvents TrackingEvent[]
+  evidenceFiles  EvidenceFile[]
 
   @@unique([studentNumber])
   @@index([programId])
@@ -219,34 +223,34 @@ model Alumni {
 }
 
 model Employment {
-  id         String         @id @default(auto()) @map("_id") @db.ObjectId
-  alumniId   String         @db.ObjectId
-  alumni     Alumni         @relation(fields: [alumniId], references: [id], onDelete: Cascade)
-  employer   String
-  jobTitle   String?
-  industry   String?
-  location   String?
-  startDate  DateTime?
-  endDate    DateTime?
-  isCurrent  Boolean        @default(false)
-  status     EmploymentKind @default(employed)
-  notes      String         @default("")
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  alumniId  String         @db.ObjectId
+  alumni    Alumni         @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+  employer  String
+  jobTitle  String?
+  industry  String?
+  location  String?
+  startDate DateTime?
+  endDate   DateTime?
+  isCurrent Boolean        @default(false)
+  status    EmploymentKind @default(employed)
+  notes     String         @default("")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
   @@index([alumniId])
 }
 
 model TrackingEvent {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  alumniId   String   @db.ObjectId
-  alumni     Alumni   @relation(fields: [alumniId], references: [id], onDelete: Cascade)
-  isTracked  Boolean
-  notes      String   @default("")
-  source     String   @default("manual")
-  recordedAt DateTime @default(now())
-  createdById String? @db.ObjectId
-  createdAt  DateTime @default(now())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  alumniId    String   @db.ObjectId
+  alumni      Alumni   @relation(fields: [alumniId], references: [id], onDelete: Cascade)
+  isTracked   Boolean
+  notes       String   @default("")
+  source      String   @default("manual")
+  recordedAt  DateTime @default(now())
+  createdById String?  @db.ObjectId
+  createdAt   DateTime @default(now())
 
   evidenceFiles EvidenceFile[]
 
@@ -276,16 +280,16 @@ model EvidenceFile {
 }
 
 model AuditLog {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  actorId    String?  @db.ObjectId
-  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  action     String
-  entity     String
-  entityId   String?
-  summary    String   @default("")
-  metadata   Json?
-  ipAddress  String?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId   String?  @db.ObjectId
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  summary   String   @default("")
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
 
   @@index([actorId])
   @@index([entity, entityId])
@@ -318,17 +322,63 @@ model ImportJob {
 }
 
 model VerificationChallenge {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  userId String @db.ObjectId
-  kind String
-  target String
-  nonce String
-  codeHash String?
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  kind        String
+  target      String
+  nonce       String
+  codeHash    String?
   providerSid String?
-  expiresAt DateTime
-  sentAt DateTime
-  attempts Int @default(0)
-  consumedAt DateTime?
-  updatedAt DateTime @updatedAt
+  expiresAt   DateTime
+  sentAt      DateTime
+  attempts    Int       @default(0)
+  consumedAt  DateTime?
+  updatedAt   DateTime  @updatedAt
+
   @@unique([userId, kind])
+}
+
+model MfaCredential {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String    @unique @db.ObjectId
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version        String    @default("")
+  secretCipher   String?
+  lastStep       Int       @default(-1)
+  recoveryHashes String[]
+  pendingCipher  String?
+  pendingSession String?
+  pendingUntil   DateTime?
+  updatedAt      DateTime  @updatedAt
+}
+
+model AuthThrottle {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model PasswordReset {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  tokenHash       String    @unique
+  userId          String    @db.ObjectId
+  passwordVersion String
+  expiresAt       DateTime
+  consumedAt      DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Durable replay receipt. Retain until the approved webhook replay window ends.
+// No raw submission ID or personal payload is stored here.
+model FormsReceipt {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  keyHash     String   @unique
+  payloadHash String
+  importJobId String   @db.ObjectId
+  createdAt   DateTime @default(now())
 }

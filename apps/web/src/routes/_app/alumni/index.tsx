@@ -1,4 +1,5 @@
 import { AlumniCreateDialog } from "@/components/alumni-create-dialog";
+import { TablePagination } from "@/components/table-pagination";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -18,6 +19,7 @@ function AlumniPage() {
   const session = useSession();
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [departmentId, setDepartmentId] = useState("");
   const [tracked, setTracked] = useState<"all" | "tracked" | "untracked">("all");
   const departments = useQuery(orpc.departments.list.queryOptions({ input: {} }));
@@ -27,6 +29,8 @@ function AlumniPage() {
         search,
         departmentId: departmentId || undefined,
         tracked,
+        page,
+        pageSize: 20,
       },
     }),
   );
@@ -46,14 +50,20 @@ function AlumniPage() {
       <DataTable
         headers={["Student #", "Name", "Program", "Contact", "Tracking", "Actions"]}
         search={search}
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         searchPlaceholder="Search name, student number, or email"
         toolbar={
           <FilterBar>
             <NativeSelect
               className="w-auto min-w-36"
               value={departmentId}
-              onChange={(event) => setDepartmentId(event.target.value)}
+              onChange={(event) => {
+                setDepartmentId(event.target.value);
+                setPage(1);
+              }}
               aria-label="Department"
             >
               <option value="">All departments</option>
@@ -66,7 +76,10 @@ function AlumniPage() {
             <NativeSelect
               className="w-auto min-w-36"
               value={tracked}
-              onChange={(event) => setTracked(event.target.value as typeof tracked)}
+              onChange={(event) => {
+                setTracked(event.target.value as typeof tracked);
+                setPage(1);
+              }}
               aria-label="Tracking"
             >
               <option value="all">All tracking</option>
@@ -111,6 +124,12 @@ function AlumniPage() {
           </TableRow>
         ))}
       </DataTable>
+      <TablePagination
+        page={page}
+        onPage={setPage}
+        hasNext={list.data?.length === 20}
+        pending={list.isFetching}
+      />
     </PageShell>
   );
 }

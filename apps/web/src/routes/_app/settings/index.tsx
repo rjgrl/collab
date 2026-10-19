@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
@@ -11,6 +11,8 @@ import {
   PrimaryButton,
 } from "@/components/page-header";
 import { useSession } from "@/lib/session";
+import { PasswordGuidance } from "@/components/password-guidance";
+import { EmailVerification } from "@/components/email-verification";
 import { client, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_app/settings/")({ component: AccountSettings });
@@ -41,6 +43,9 @@ function AccountSettings() {
   return (
     <PageShell>
       <PageHeader title="Account settings" description="Manage your account and password." />
+      <Link className="underline" to="/security">
+        Manage authenticator and recovery codes
+      </Link>
       <div className="grid items-start gap-4 md:grid-cols-2">
         <FormCard title="Profile" description={session.data?.email}>
           <form
@@ -69,6 +74,7 @@ function AccountSettings() {
               Save profile
             </PrimaryButton>
           </form>
+          <EmailVerification />
         </FormCard>
         <FormCard
           title="Password"
@@ -95,16 +101,18 @@ function AccountSettings() {
             <FormField id="new-password" label="New password" required>
               <Input
                 id="new-password"
+                aria-describedby="account-password-guidance"
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={8}
-                maxLength={128}
+                minLength={15}
+                maxLength={256}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
             </FormField>
             {changePassword.isError ? <p role="alert">{changePassword.error.message}</p> : null}
+            <PasswordGuidance id="account-password-guidance" value={password} />
             <PrimaryButton type="submit" pending={changePassword.isPending}>
               Change password
             </PrimaryButton>

@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { AccountProfileFields } from "@/components/account-profile-fields";
+import { PasswordGuidance } from "@/components/password-guidance";
 import { FormField, PrimaryButton } from "@/components/page-header";
 import { postJson } from "@/lib/session";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -152,8 +153,9 @@ export function AccountVerification() {
                       id="setup-password"
                       type="password"
                       autoComplete="new-password"
-                      minLength={8}
-                      maxLength={128}
+                      minLength={15}
+                      maxLength={256}
+                      aria-describedby="setup-password-guidance"
                       required
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
@@ -164,13 +166,14 @@ export function AccountVerification() {
                       id="setup-confirmation"
                       type="password"
                       autoComplete="new-password"
-                      minLength={8}
-                      maxLength={128}
+                      minLength={15}
+                      maxLength={256}
                       required
                       value={confirmation}
                       onChange={(event) => setConfirmation(event.target.value)}
                     />
                   </FormField>
+                  <PasswordGuidance id="setup-password-guidance" value={password} />
                   <PrimaryButton
                     type="submit"
                     pending={createPassword.isPending}
