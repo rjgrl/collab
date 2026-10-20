@@ -3,18 +3,14 @@ import { generateSecret, generateURI, verify } from "otplib";
 import { ORPCError } from "@orpc/server";
 import { verifyPassword } from "@Alumni-Tracking-Ss/db";
 import { rotateSession } from "./session-rotation";
-import type { AuthUser, Context } from "../context";
+import type { Context } from "../context";
 import { writeAudit } from "../audit";
 import { authorizationTransaction } from "./authorization";
 import { consumeAuthAttempt } from "./throttle";
+import { localMfaDisabled, requiresMfa } from "./mfa-policy";
+export { privilegedAccount } from "./mfa-policy";
 
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
-export function privilegedAccount(user: Pick<AuthUser, "roles" | "permissions">) {
-  return (
-    user.roles.includes("super_admin") ||
-    user.permissions.some((key) => /^(users|roles|permissions|integrations)\./.test(key))
-  );
-}
 function encryptionKey(context: Context) {
   const key = context.integrationEnv.mfaEncryptionKey;
   if (!key || !/^[a-f0-9]{64}$/i.test(key))
@@ -48,7 +44,8 @@ export async function mfaStatus(context: Context) {
   const row = await context.db.mfaCredential.findUnique({ where: { userId: context.user!.id } });
   return {
     enrolled: Boolean(row?.secretCipher),
-    required: privilegedAccount(context.user!) || Boolean(row?.secretCipher),
+    required: requiresMfa({ ...context.user!, mfaEnrolled: Boolean(row?.secretCipher) }),
+    enforcementDisabled: localMfaDisabled(),
     verified: Boolean(context.user?.mfaVerified),
     fresh: Boolean(context.user?.mfaFresh),
     configured: /^[a-f0-9]{64}$/i.test(context.integrationEnv.mfaEncryptionKey ?? ""),

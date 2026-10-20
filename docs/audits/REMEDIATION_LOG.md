@@ -1,5 +1,11 @@
 # Remediation log
 
+## User-authorized local authenticator pause — 2026-10-19
+
+Added server-only `LOCAL_DISABLE_MFA` policy, honored exclusively with explicit NODE_ENV=development. Session projections/frontend redirect, protected oRPC procedures and raw private-file access share the policy. Stored enrollment/recovery codes and actual MFA proof stay unchanged; password/status/profile verification/permission checks remain. Production startup rejects the enabled flag. Existing defaults/test fixtures still enforce MFA. The owner's ignored server .env was updated to true without exposing/changing other private values; restart/reload required. No DB records or dependencies changed. Subsequent owner-authorized publication uses the testing branch only; no deployment.
+
+Files: new `packages/api/src/services/mfa-policy.ts` and regression tests; session/MFA services, API middleware, server file gate/runtime validation/tests, security-page notice, doctor, server environment schema/example and setup/security/release documentation. Relevant Node, browser, type, lint and artifact results recorded in TEST_RESULTS. Previous Phase 6 evidence remains historical acceptance with MFA enforced.
+
 ## Phase 6 developer reproducibility — 2026-10-19
 
 Publication continuation: after explicit owner approval/no-deployment-hook confirmation, published `ff07351` on the dedicated branch and verified a fresh HTTPS remote clone through setup/build/141 tests/real application MFA and full rerun preservation. README quickstart now explicitly clones the testing branch because main is intentionally unmerged. No application code or permissions weakened; evidence/docs-only follow-up. Hosted CI results are distinguished from local/native-DB tests.

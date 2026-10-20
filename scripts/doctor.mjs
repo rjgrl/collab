@@ -30,6 +30,11 @@ async function main() {
       );
   }
   const config = await readLocalConfig(projectRoot);
+  console.log(
+    config.effective.NODE_ENV === "development" && config.effective.LOCAL_DISABLE_MFA === "true"
+      ? "INFO authenticator requirement paused for local testing; unset LOCAL_DISABLE_MFA to restore it."
+      : "INFO authenticator requirement follows the normal account policy.",
+  );
   if (
     config.effective.NODE_ENV === "production" ||
     !isManagedLocalDatabase(config.effective.DATABASE_URL)

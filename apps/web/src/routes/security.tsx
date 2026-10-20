@@ -44,6 +44,14 @@ function SecurityPage() {
           description="Administrative access requires a second factor. Keep recovery codes somewhere private, outside this browser."
         >
           {error || status.isError ? <p role="alert">{error || status.error?.message}</p> : null}
+          {status.data?.enforcementDisabled ? (
+            <p role="status">
+              Authenticator checks are paused for local testing. Existing enrollment is preserved.{" "}
+              <Link to="/dashboard" className="underline">
+                Continue to application
+              </Link>
+            </p>
+          ) : null}
           {status.isPending ? (
             <p role="status">Loading security settings…</p>
           ) : !status.data?.configured ? (

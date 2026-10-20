@@ -1,5 +1,7 @@
 # Development setup
 
+Optional local convenience: `LOCAL_DISABLE_MFA=true` in the private server .env pauses authenticator requirements for every account only when `NODE_ENV=development`. Restart the API and refresh the browser. Existing enrollment/recovery codes stay saved, and password/RBAC/verification checks remain. Set it to false or remove it and restart to resume MFA. The committed default enforces MFA, tests keep exercising it, and production startup rejects the bypass flag.
+
 The optional `pnpm test:clone-local` harness additionally requires Chromium (`pnpm exec playwright install chromium`), Git on PATH, free ports 3200/3201 and the testing branch committed locally. It retains private clone/log artifacts and synthetic databases. It does not publish the branch or replace a physical laptop test. Normal app setup has no Playwright or Database Tools prerequisite.
 
 Install Git, Node 26.10.0 (`.node-version`), pnpm 12.5.1 (`npm install --global pnpm@12.5.1`) and MongoDB Community Server. Node 22.15+ is the minimum; the pinned version is the tested team baseline. Compass is optional inspection software, not the MongoDB server. Docker, Atlas, mongosh and provider credentials are unnecessary for local core workflows. Use MongoDB's supported installer for your OS/CPU; Windows MongoDB 9.0.2 is the measured environment, other OS versions remain pending.

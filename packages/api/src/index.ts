@@ -3,7 +3,7 @@ import { ORPCError, os } from "@orpc/server";
 import type { PermissionKey } from "@Alumni-Tracking-Ss/db";
 
 import type { AuthUser, Context } from "./context";
-import { privilegedAccount } from "./services/mfa";
+import { requiresMfa } from "./services/mfa-policy";
 
 export const o = os.$context<Context>();
 
@@ -32,7 +32,7 @@ export function requirePermission(permission: PermissionKey) {
       throw new ORPCError("FORBIDDEN", {
         message: "Complete account verification before using the application.",
       });
-    if ((context.user.mfaRequired || privilegedAccount(context.user)) && !context.user.mfaVerified)
+    if (requiresMfa(context.user) && !context.user.mfaVerified)
       throw new ORPCError("FORBIDDEN", {
         message: "Verify your authenticator before using the application.",
       });
