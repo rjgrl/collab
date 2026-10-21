@@ -2,7 +2,7 @@
 
 User-authorized local testing exception: set `LOCAL_DISABLE_MFA=true` in the private server environment with `NODE_ENV=development` and restart the API. This pauses login/enrollment enforcement for all local accounts while preserving stored factors/recovery codes. It does not mark sessions MFA-verified or allow replacement of an existing factor without its normal proof. Permissions, password and account-verification requirements remain enforced. Remove the flag or set false and restart to resume MFA. Production startup rejects an enabled flag; normal/test environments enforce MFA by default. Do not place this flag in staging/production templates.
 
-Updated 2026-10-19. Local implementation and synthetic tests only; no deployment or live messages were sent.
+Updated 2026-10-21. The local pause applies to every role, including already-enrolled administrators. While paused, the security page hides enrollment, code and replacement forms and offers a link back to the application. Set `LOCAL_DISABLE_MFA=false` or remove it and restart to restore the saved factors. Startup rejects the enabled flag outside explicit development. No database records are changed by the pause.
 
 ## Update a development machine
 

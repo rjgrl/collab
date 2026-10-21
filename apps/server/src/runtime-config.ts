@@ -40,9 +40,11 @@ export function validateRuntimeConfig(
   boundedSetting(settings.AUTH_IP_WINDOW_SECONDS, 900, 86400);
   boundedSetting(settings.AUTH_ACCOUNT_LIMIT, 5, 100);
   boundedSetting(settings.SESSION_IDLE_MINUTES, 30, 1440);
+  if (settings.LOCAL_DISABLE_MFA === "true" && input.nodeEnv !== "development")
+    throw Error(
+      "LOCAL_DISABLE_MFA is development-only. Remove it before starting staging or production.",
+    );
   if (input.nodeEnv !== "production") return { trustedProxyIps };
-  if (settings.LOCAL_DISABLE_MFA === "true")
-    throw Error("LOCAL_DISABLE_MFA is development-only. Remove it before starting production.");
   for (const value of [input.origin, input.appUrl]) {
     let url: URL;
     try {

@@ -386,6 +386,8 @@ const createTestApplication = () =>
 let testApplication = createTestApplication();
 const app = new Hono();
 app.post("/__test/reset", (c) => {
+  process.env.NODE_ENV = "test";
+  process.env.LOCAL_DISABLE_MFA = "false";
   credential = null;
   resets.clear();
   resetLink = "";
@@ -412,6 +414,12 @@ app.post("/__test/reset", (c) => {
   integrationSettings.set("recaptcha", false);
   integrationSettings.set("google_auth", false);
   testApplication = createTestApplication();
+  return c.json({ ok: true });
+});
+// Isolated fixture only; never imported by the real server entrypoint.
+app.post("/__test/pause-mfa", (c) => {
+  process.env.NODE_ENV = "development";
+  process.env.LOCAL_DISABLE_MFA = "true";
   return c.json({ ok: true });
 });
 app.post("/__test/google", (c) => {

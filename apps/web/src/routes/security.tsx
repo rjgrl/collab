@@ -41,7 +41,11 @@ function SecurityPage() {
       <div className="mx-auto w-full max-w-lg py-8">
         <FormCard
           title="Authenticator security"
-          description="Administrative access requires a second factor. Keep recovery codes somewhere private, outside this browser."
+          description={
+            status.data?.enforcementDisabled
+              ? "MFA is temporarily disabled for all accounts, including administrators, in local development."
+              : "Administrative access requires a second factor. Keep recovery codes somewhere private, outside this browser."
+          }
         >
           {error || status.isError ? <p role="alert">{error || status.error?.message}</p> : null}
           {status.data?.enforcementDisabled ? (
@@ -54,7 +58,7 @@ function SecurityPage() {
           ) : null}
           {status.isPending ? (
             <p role="status">Loading security settings…</p>
-          ) : !status.data?.configured ? (
+          ) : status.data?.enforcementDisabled ? null : !status.data?.configured ? (
             <p role="alert">
               Authenticator security is unavailable. Ask the local administrator to run setup:local
               and restart the server, or configure the encryption key.

@@ -12,6 +12,40 @@ async function login(page: import("@playwright/test").Page, password = "BrowserT
 test.beforeEach(async ({ request }) => {
   await request.post("http://127.0.0.1:3100/__test/reset");
 });
+
+test("local MFA pause lets an enrolled administrator sign in and hides all MFA forms", async ({
+  page,
+  request,
+}) => {
+  await login(page);
+  await enrollAdministrator(page);
+  await page.goto("/security");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await request.post("http://127.0.0.1:3100/__test/pause-mfa");
+  await page.goto("/login");
+  await page.locator("#email").fill("admin@example.test");
+  await page.locator("#password").fill("BrowserTest123!");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL("**/dashboard");
+  expect(
+    (
+      await page.request.post("/rpc/dashboard/summary", {
+        headers: { Origin: "http://127.0.0.1:3101" },
+        data: { json: {} },
+      })
+    ).status(),
+  ).toBe(200);
+  await page.goto("/security");
+  await expect(page.getByText(/Authenticator checks are paused for local testing/)).toBeVisible();
+  await expect(page.locator("#mfa-code, #mfa-password")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: /Verify authenticator|Set up authenticator|Replace authenticator/,
+    }),
+  ).toHaveCount(0);
+  await page.getByRole("link", { name: "Continue to application", exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
 test("legacy accounts can confirm a recovery email without losing app access", async ({
   page,
   request,

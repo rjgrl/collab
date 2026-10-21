@@ -56,6 +56,12 @@ it("permits local protected procedures without MFA while keeping sign-in, status
   const procedure = requirePermission("dashboard.read").handler(() => "allowed");
   const context = { user: admin, integrationEnv: {} } as Context;
   assert.equal(await call(procedure, undefined, { context }), "allowed");
+  for (const roles of [["super_admin"], ["staff"], ["viewer"]]) {
+    // Previously enrolled accounts and administrators share the same override.
+    const user = { ...admin, roles, mfaRequired: true, mfaEnrolled: true };
+    assert.equal(requiresMfa(user), false);
+    assert.equal(await call(procedure, undefined, { context: { ...context, user } }), "allowed");
+  }
   for (const user of [
     null,
     { ...admin, status: "disabled" as const },
