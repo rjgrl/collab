@@ -1,3 +1,5 @@
+import { TablePagination } from "@/components/table-pagination";
+import { useDepartmentOptions } from "@/lib/academic-options";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -10,7 +12,7 @@ import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/compo
 import { NativeSelect } from "@/components/native-select";
 import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/_app/programs")({
   component: ProgramsPage,
@@ -27,9 +29,10 @@ type Draft = {
 function ProgramsPage() {
   const session = useSession();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const departments = useQuery(orpc.departments.list.queryOptions({ input: {} }));
-  const list = useQuery(orpc.programs.list.queryOptions({ input: { search } }));
+  const departments = useDepartmentOptions();
+  const list = useQuery(api.programs.list.queryOptions({ input: { search, page, pageSize: 20 } }));
   const canWrite = can(session.data?.permissions, "programs.write");
   const canDelete = can(session.data?.permissions, "programs.delete");
 
@@ -112,7 +115,7 @@ function ProgramsPage() {
                 <option value="">Select department</option>
                 {departments.data?.map((department) => (
                   <option key={department.id} value={department.id}>
-                    {department.code} — {department.name}
+                    {department.name}
                   </option>
                 ))}
               </NativeSelect>
@@ -148,7 +151,10 @@ function ProgramsPage() {
       <DataTable
         headers={["Code", "Name", "Department", "Alumni", "Actions"]}
         search={search}
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         searchPlaceholder="Search programs"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
@@ -160,7 +166,7 @@ function ProgramsPage() {
             <TableCell>{row.code}</TableCell>
             <TableCell>{row.name}</TableCell>
             <TableCell>
-              {row.department.code} — {row.department.name}
+              {row.department.name}
             </TableCell>
             <TableCell>{row._count.alumni}</TableCell>
             <TableCell>
@@ -196,6 +202,12 @@ function ProgramsPage() {
           </TableRow>
         ))}
       </DataTable>
+      <TablePagination
+        page={page}
+        onPage={setPage}
+        hasNext={list.data?.length === 20}
+        pending={list.isFetching}
+      />
     </PageShell>
   );
 }

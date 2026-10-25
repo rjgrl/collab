@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import { createApp } from "./app";
+import supertest from "supertest";
 
 if (process.env.NODE_ENV === "production") throw new Error("Use an isolated local test process.");
 const app = createApp({
@@ -12,7 +13,7 @@ const app = createApp({
 });
 const cases = [
   { name: "liveness", path: "/health/live", init: {}, status: 200 },
-  { name: "public RPC", path: "/rpc/healthCheck", init: { method: "POST" }, status: 200 },
+  { name: "public session inspection", path: "/api/auth/me", init: {}, status: 200 },
   { name: "anonymous private evidence", path: "/api/files/synthetic", init: {}, status: 401 },
   {
     name: "rejected cookie mutation",
@@ -27,8 +28,13 @@ for (const scenario of cases) {
   const durations: number[] = [];
   const send = async () => {
     const start = performance.now();
-    const response = await app.request(scenario.path, scenario.init);
-    await response.arrayBuffer();
+    const pending =
+      "method" in scenario.init && scenario.init.method === "POST"
+        ? supertest(app).post(scenario.path)
+        : supertest(app).get(scenario.path);
+    const response = await ("headers" in scenario.init
+      ? pending.set(scenario.init.headers ?? {})
+      : pending);
     assert.equal(response.status, scenario.status, scenario.name);
     durations.push(performance.now() - start);
   };

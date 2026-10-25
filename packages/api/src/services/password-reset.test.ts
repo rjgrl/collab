@@ -7,6 +7,7 @@ import { requestPasswordReset, resetPassword } from "./password-reset";
 import { assertPasswordSafe } from "./password-security";
 import { newPasswordSchema } from "../password-policy";
 import { digest } from "./mfa";
+import { modelFixture } from "./model-test-fixture";
 
 async function fixture() {
   const user = {
@@ -16,61 +17,24 @@ async function fixture() {
     emailVerified: true,
     passwordHash: await hashPassword("Previous private passphrase 12"),
   };
-  let reset: Record<string, unknown> | null = null;
-  let revoked = 0;
-  const tx = {
-    authThrottle: { upsert: async () => ({ count: 1 }) },
-    integrationSetting: { findUnique: async () => ({ enabled: true }) },
-    user: {
-      findUnique: async () => ({ ...user }),
-      updateMany: async ({
-        where,
-        data,
-      }: {
-        where: { passwordHash: string };
-        data: { passwordHash: string };
-      }) => {
-        if (where.passwordHash !== user.passwordHash) return { count: 0 };
-        Object.assign(user, data);
-        return { count: 1 };
-      },
-    },
-    passwordReset: {
-      create: async ({ data }: { data: object }) => {
-        reset = { id: "reset", consumedAt: null, ...data };
-        return reset;
-      },
-      findUnique: async ({ where }: { where: { tokenHash: string } }) =>
-        reset?.tokenHash === where.tokenHash ? { ...reset } : null,
-      updateMany: async ({ data }: { data: object }) => {
-        if (!reset || reset.consumedAt) return { count: 0 };
-        Object.assign(reset, data);
-        return { count: 1 };
-      },
-    },
-    session: {
-      deleteMany: async () => {
-        revoked++;
-      },
-    },
-    auditLog: { create: async () => ({ id: "audit" }) },
-  };
+  const f = modelFixture({ User: [user], IntegrationSetting: [{ key: "email", enabled: true }] });
   const context = {
-    db: { ...tx, $transaction: async (work: (db: typeof tx) => Promise<unknown>) => work(tx) },
+    db: f.db,
     user: null,
     sessionToken: null,
     ipAddress: null,
     userAgent: null,
     integrationEnv: { webOrigin: "https://app.example.test", smtpUrl: "https://mail.example.test" },
-  } as unknown as Context;
+  } as Context;
   return {
     context,
     user,
     get row() {
-      return reset;
+      return f.tables.PasswordReset?.[0] ?? null;
     },
     get revoked() {
-      return revoked;
+      return f.operations.filter((op) => op.model === "Session" && op.method === "deleteMany")
+        .length;
     },
   };
 }

@@ -1,22 +1,6 @@
 import type { Database } from "@Alumni-Tracking-Ss/db";
-import type { PermissionKey } from "@Alumni-Tracking-Ss/db";
-
-export type AuthUser = {
-  id: string;
-  name: string;
-  email: string;
-  image: string | null;
-  status: "active" | "disabled";
-  needsProfileCompletion?: boolean;
-  needsPassword?: boolean;
-  mfaRequired?: boolean;
-  mfaEnrolled?: boolean;
-  mfaVerified?: boolean;
-  mfaFresh?: boolean;
-  mfaVersion?: string;
-  roles: string[];
-  permissions: PermissionKey[];
-};
+import type { AuthUser } from "@Alumni-Tracking-Ss/contracts/auth";
+export type { AuthUser } from "@Alumni-Tracking-Ss/contracts/auth";
 
 export type IntegrationEnv = {
   recaptchaSecretKey?: string;

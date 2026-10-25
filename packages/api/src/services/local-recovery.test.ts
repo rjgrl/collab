@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import type { Database } from "@Alumni-Tracking-Ss/db";
+import { modelFixture } from "./model-test-fixture";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
 import { recoverLocalAdministrator } from "./local-recovery";
 it("local operator recovery requires explicit confirmation, administrator status and the current password", async () => {
@@ -11,46 +11,39 @@ it("local operator recovery requires explicit confirmation, administrator status
     status: "active",
     userRoles: [{ role: { key: "super_admin" } }],
   };
-  const events: string[] = [];
-  const tx = {
-    user: { findUnique: async () => user },
-    mfaCredential: {
-      deleteMany: async () => {
-        events.push("credential");
-      },
-    },
-    session: {
-      deleteMany: async () => {
-        events.push("sessions");
-      },
-    },
-    auditLog: {
-      create: async () => {
-        events.push("audit");
-      },
-    },
-  };
-  const db = {
-    ...tx,
-    $transaction: async (work: (value: typeof tx) => Promise<unknown>) => work(tx),
-  } as unknown as Database;
+  const f = modelFixture({
+    User: [{ ...user, email: "test@example.test" }],
+    UserRole: [{ userId: "u", roleId: "r" }],
+    Role: [{ id: "r", key: "super_admin" }],
+  });
+  const db = f.db;
+  const events = () =>
+    f.operations.flatMap((op) =>
+      op.model === "MfaCredential" && op.method === "deleteMany"
+        ? ["credential"]
+        : op.model === "Session" && op.method === "deleteMany"
+          ? ["sessions"]
+          : op.model === "AuditLog" && op.method === "create"
+            ? ["audit"]
+            : [],
+    );
   await assert.rejects(
     () => recoverLocalAdministrator(db, "test@example.test", password, "no"),
     /cancelled/,
   );
-  assert.equal(events.length, 0);
+  assert.equal(events().length, 0);
   await assert.rejects(
     () => recoverLocalAdministrator(db, "test@example.test", "incorrect", "RESET MY AUTHENTICATOR"),
     /verification failed/,
   );
-  assert.equal(events.length, 0);
-  user.userRoles = [];
+  assert.equal(events().length, 0);
+  f.tables.UserRole = [];
   await assert.rejects(
     () => recoverLocalAdministrator(db, "test@example.test", password, "RESET MY AUTHENTICATOR"),
     /verification failed/,
   );
-  assert.equal(events.length, 0);
-  user.userRoles = [{ role: { key: "super_admin" } }];
+  assert.equal(events().length, 0);
+  f.tables.UserRole = [{ userId: "u", roleId: "r" }];
   await recoverLocalAdministrator(db, "test@example.test", password, "RESET MY AUTHENTICATOR");
-  assert.deepEqual(events, ["credential", "sessions", "audit"]);
+  assert.deepEqual(events(), ["credential", "sessions", "audit"]);
 });

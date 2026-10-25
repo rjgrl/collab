@@ -5,24 +5,24 @@ import {
   groupPermissions,
   groupState,
   togglePermissions,
-} from "@Alumni-Tracking-Ss/api/permission-groups";
-import type { PermissionItem } from "@Alumni-Tracking-Ss/api/permission-groups";
+} from "@Alumni-Tracking-Ss/contracts/permission-groups";
+import type { PermissionItem } from "@Alumni-Tracking-Ss/contracts/permission-groups";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/utils/api";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 const version = (role: { updatedAt: Date }) => new Date(role.updatedAt).toISOString();
 
 export function RolesPage() {
   const session = useSession();
-  const roles = useQuery(orpc.roles.list.queryOptions());
+  const roles = useQuery(api.roles.list.queryOptions());
   const catalogAllowed = can(session.data?.permissions, "permissions.read");
   const permissions = useQuery({
-    ...orpc.permissions.list.queryOptions(),
+    ...api.permissions.list.queryOptions(),
     enabled: catalogAllowed,
   });
   const [selected, setSelected] = useState<string | null>(null);

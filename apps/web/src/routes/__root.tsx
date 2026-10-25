@@ -5,12 +5,12 @@ import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { ThemeProvider } from "@/components/theme-provider";
-import { orpc } from "@/utils/orpc";
+import { api } from "@/utils/api";
 
 import "../index.css";
 
 export interface RouterAppContext {
-  orpc: typeof orpc;
+  api: typeof api;
   queryClient: QueryClient;
 }
 
@@ -46,7 +46,7 @@ function RootComponent() {
         storageKey="vite-ui-theme"
       >
         <Outlet />
-        <Toaster richColors />
+        <Toaster richColors expand />
       </ThemeProvider>
       {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-left" /> : null}
       {import.meta.env.DEV ? (

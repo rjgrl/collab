@@ -39,7 +39,7 @@ The whiteboard example (`14750` graduates, `10000` tracked, `5%`) is internally 
 
 `percentTracked = round((tracked / graduates) * 100, 2)`
 
-`IT` is treated as a **department code**. Seed data creates an Information Technology department.
+Departments are identified by name. Seed data creates an Information Technology department.
 
 ## Modular integrations
 

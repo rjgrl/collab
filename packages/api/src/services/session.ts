@@ -4,19 +4,23 @@ import { requiresMfa } from "./mfa-policy";
 import { assertPasswordSafe } from "./password-security";
 import { consumeAuthAttempt, boundedSetting } from "./throttle";
 import type { z } from "zod";
-import { signupSchema } from "../validation";
+import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
+import { formatDisplayName, isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { loadUserRoles, authorizationTransaction } from "./authorization";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import {
   createSessionToken,
   hashPassword,
   verifyPassword,
   isPermissionKey,
+  toEntity,
 } from "@Alumni-Tracking-Ss/db";
-import { ORPCError } from "@orpc/server";
+import { ApiError } from "../http-error";
 
 import type { AuthUser } from "../context";
 import { writeAudit } from "../audit";
 import { isDatabaseUnavailable } from "../errors";
+import { createRegistrationProfile } from "./registration";
 
 const SESSION_DAYS = 7;
 export const storedSessionToken = (token: string) =>
@@ -28,54 +32,43 @@ export function publicSignupEnabled() {
 }
 
 export async function loadAuthUser(db: Database, userId: string): Promise<AuthUser | null> {
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    include: {
-      mfaCredential: true,
-      userRoles: {
-        include: {
-          role: {
-            include: {
-              rolePermissions: {
-                include: { permission: true },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!user || user.status !== "active") {
-    return null;
-  }
-
-  const roles = user.userRoles.map((item) => item.role.key);
+  const row = await db.User.findById(userId).lean().exec();
+  if (!row || row.status !== "active") return null;
+  const user = toEntity(row);
+  const credential = await db.MfaCredential.findOne({ userId }).lean().exec();
+  const assigned = await loadUserRoles(db, userId);
+  const roles = assigned.map((role) => role.key);
+  const alumniAccount = isAlumniAccount({ roles });
   const permissions = [
     ...new Set(
-      user.userRoles.flatMap((item) =>
-        item.role.rolePermissions.map((rolePermission) => rolePermission.permission.key),
-      ),
+      assigned.flatMap((role) => role.rolePermissions.map(({ permission }) => permission.key)),
     ),
   ].filter(isPermissionKey);
-
   return {
     id: user.id,
-    name: user.name,
+    name: formatDisplayName({
+      name: user.name,
+      firstName: user.firstName ?? undefined,
+      middleName: user.middleName ?? undefined,
+      lastName: user.lastName ?? undefined,
+      suffix: user.suffix ?? undefined,
+    }),
     email: user.email,
-    image: user.image,
+    image: user.image ?? null,
+    firstName: user.firstName ?? undefined,
+    middleName: user.middleName ?? undefined,
+    lastName: user.lastName ?? undefined,
+    suffix: user.suffix ?? undefined,
+    alumniId: user.alumniId ?? null,
+    isAlumni: alumniAccount,
     status: user.status,
-    needsProfileCompletion: accountAccessPending(user),
-    needsPassword: user.passwordHash === null,
+    needsProfileCompletion: accountAccessPending(user) || (alumniAccount && !user.alumniId),
+    needsPassword: !user.passwordHash,
     roles,
     permissions,
-    mfaRequired: requiresMfa({
-      roles,
-      permissions,
-      mfaEnrolled: Boolean(user.mfaCredential?.secretCipher),
-    }),
-    mfaEnrolled: Boolean(user.mfaCredential?.secretCipher),
-    mfaVersion: user.mfaCredential?.version,
+    mfaRequired: requiresMfa({ roles, permissions }),
+    mfaEnrolled: Boolean(credential?.secretCipher),
+    mfaVersion: credential?.version,
     mfaVerified: false,
   };
 }
@@ -87,8 +80,10 @@ export async function loadAuthUserFromToken(db: Database, token: string | null) 
 
   let session;
   try {
-    session = await db.session.findUnique({ where: { token: storedSessionToken(token) } });
-    if (!session) session = await db.session.findUnique({ where: { token } });
+    const row = await db.Session.findOne({ token: { $in: [storedSessionToken(token), token] } })
+      .lean()
+      .exec();
+    session = row ? toEntity(row) : null;
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
       return null;
@@ -104,23 +99,27 @@ export async function loadAuthUserFromToken(db: Database, token: string | null) 
     (lastSeen && lastSeen.getTime() <= Date.now() - idleMs)
   ) {
     if (session) {
-      await db.session.delete({ where: { id: session.id } }).catch(() => undefined);
+      await db.Session.deleteOne({ _id: session.id })
+        .exec()
+        .catch(() => undefined);
     }
     return null;
   }
   if (session.token === token) {
-    const migrated = await db.session.updateMany({
-      where: { id: session.id, token },
-      data: { token: storedSessionToken(token) },
-    });
+    const migrated = await db.Session.updateOne(
+      { _id: session.id, token },
+      { $set: { token: storedSessionToken(token) } },
+    ).exec();
     if (
-      migrated.count !== 1 &&
-      !(await db.session.findUnique({ where: { token: storedSessionToken(token) } }))
+      migrated.modifiedCount !== 1 &&
+      !(await db.Session.findOne({ token: storedSessionToken(token) })
+        .lean()
+        .exec())
     )
       return null;
   }
   if (lastSeen && lastSeen.getTime() < Date.now() - 60_000)
-    await db.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
+    await db.Session.updateOne({ _id: session.id }, { $set: { lastSeenAt: new Date() } }).exec();
 
   const user = await loadAuthUser(db, session.userId);
   if (user)
@@ -143,16 +142,14 @@ export async function createSession(
 ) {
   const token = createSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db.session.create({
-    data: {
-      token: storedSessionToken(token),
-      userId,
-      expiresAt,
-      ipAddress: meta.ipAddress ?? undefined,
-      userAgent: meta.userAgent ?? undefined,
-      googleVerifiedAt: meta.googleVerifiedAt,
-      lastSeenAt: new Date(),
-    },
+  await db.Session.create({
+    token: storedSessionToken(token),
+    userId,
+    expiresAt,
+    ipAddress: meta.ipAddress ?? undefined,
+    userAgent: meta.userAgent ?? undefined,
+    googleVerifiedAt: meta.googleVerifiedAt,
+    lastSeenAt: new Date(),
   });
   return { token, expiresAt };
 }
@@ -163,7 +160,7 @@ export async function destroySession(db: Database, token: string | null) {
   }
 
   if (token.startsWith("sha256:")) return;
-  await db.session.deleteMany({ where: { token: { in: [storedSessionToken(token), token] } } });
+  await db.Session.deleteMany({ token: { $in: [storedSessionToken(token), token] } }).exec();
 }
 
 export async function authenticateWithPassword(
@@ -177,34 +174,35 @@ export async function authenticateWithPassword(
     boundedSetting(process.env.AUTH_ACCOUNT_LIMIT, 5, 100),
     15 * 60_000,
   );
-  const user = await db.user.findUnique({ where: { email: input.email.trim().toLowerCase() } });
+  const row = await db.User.findOne({ email: input.email.trim().toLowerCase() }).lean().exec();
+  const user = row ? toEntity(row) : null;
   const stored = user?.passwordHash ?? (await (dummyHash ??= hashPassword(createSessionToken())));
   const valid = await verifyPassword(input.password, stored);
   if (!valid || !user || !user.passwordHash) {
-    throw new ORPCError("UNAUTHORIZED", { message: "Invalid email or password." });
+    throw new ApiError("UNAUTHORIZED", { message: "Invalid email or password." });
   }
   if (!user.passwordHash.startsWith("scrypt$v1$")) {
-    await db.user.updateMany({
-      where: { id: user.id, passwordHash: user.passwordHash },
-      data: { passwordHash: await hashPassword(input.password) },
-    });
+    await db.User.updateOne(
+      { _id: user.id, passwordHash: user.passwordHash },
+      { $set: { passwordHash: await hashPassword(input.password) } },
+    ).exec();
   }
 
   if (user.status !== "active") {
-    throw new ORPCError("FORBIDDEN", { message: "This account is disabled." });
+    throw new ApiError("FORBIDDEN", { message: "This account is disabled." });
   }
 
-  const roleCount = await db.userRole.count({ where: { userId: user.id } });
+  const roleCount = await db.UserRole.countDocuments({ userId: user.id }).exec();
   if (roleCount === 0) {
-    throw new ORPCError("FORBIDDEN", { message: "No role is assigned to this account." });
+    throw new ApiError("FORBIDDEN", { message: "No role is assigned to this account." });
   }
-  await db.authThrottle.updateMany({
-    where: { key: attempt.key, count: { gt: 0 } },
-    data: { count: { increment: -1 } },
-  });
+  await db.AuthThrottle.updateOne(
+    { key: attempt.key, count: { $gt: 0 } },
+    { $inc: { count: -1 } },
+  ).exec();
 
   await writeAudit(db, {
-    actorId: user.id,
+    actor: user,
     action: "auth.login",
     entity: "user",
     entityId: user.id,
@@ -220,57 +218,49 @@ export async function registerUser(
   input: z.infer<typeof signupSchema> & { ipAddress?: string | null },
 ) {
   if (!publicSignupEnabled())
-    throw new ORPCError("FORBIDDEN", {
+    throw new ApiError("FORBIDDEN", {
       message: "Public registration is disabled. Contact an administrator for access.",
     });
-  const profile = signupSchema.parse(input);
+  const { ipAddress, ...raw } = input;
+  const profile = signupSchema.parse(raw);
   await assertPasswordSafe(profile.password);
   const email = profile.email.trim().toLowerCase();
-  const existing = await db.user.findUnique({ where: { email } });
-  if (existing) {
-    throw new ORPCError("CONFLICT", { message: "An account with that email already exists." });
-  }
-
-  const roleKey = "viewer";
-  const role = await db.role.findUnique({ where: { key: roleKey } });
-  if (!role) {
-    throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
-  }
-
-  const user = await db.user
-    .create({
-      data: {
-        name: profile.name,
-        verificationRequired: true,
-        phoneNumber: profile.phoneNumber,
-        gender: profile.gender,
-        facebookAccount: profile.facebookAccount,
-        email,
-        passwordHash: await hashPassword(input.password),
-        status: "active",
-        userRoles: {
-          create: { roleId: role.id },
-        },
-      },
-    })
-    .catch((error: unknown) => {
-      if (isDuplicateEmail(error))
-        throw new ORPCError("CONFLICT", {
-          message: "An account with that email already exists. Sign in instead.",
-        });
-      throw error;
+  const passwordHash = await hashPassword(profile.password);
+  return authorizationTransaction(db, async (tx) => {
+    if (await tx.User.findOne({ email }).lean().exec())
+      throw new ApiError("CONFLICT", { message: "An account with that email already exists." });
+    const role = await tx.Role.findOne({ key: "viewer" }).lean().exec();
+    if (!role) throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
+    const { firstName, middleName, lastName, suffix, phoneNumber, gender, facebookAccount } =
+      profile;
+    const alumni = await createRegistrationProfile(tx, { ...profile, email });
+    const created = await tx.User.create({
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+      name: formatDisplayName(profile),
+      verificationRequired: true,
+      phoneNumber,
+      gender,
+      facebookAccount,
+      email,
+      passwordHash,
+      status: "active",
+      alumniId: toEntity(alumni.toObject()).id,
     });
-
-  await writeAudit(db, {
-    actorId: user.id,
-    action: "auth.signup",
-    entity: "user",
-    entityId: user.id,
-    summary: `Registered account with role ${roleKey}`,
-    ipAddress: input.ipAddress,
+    const user = toEntity(created.toObject());
+    await tx.UserRole.create({ userId: user.id, roleId: role._id });
+    await writeAudit(tx, {
+      actor: user,
+      action: "auth.signup",
+      entity: "user",
+      entityId: user.id,
+      summary: `Registered Alumni account ${JSON.stringify(user.name)} (${user.email}); created linked student profile ${profile.studentNumber}`,
+      ipAddress,
+    });
+    return user;
   });
-
-  return user;
 }
 
 export async function upsertGoogleUser(
@@ -278,64 +268,70 @@ export async function upsertGoogleUser(
   input: { email: string; name: string; image?: string | null },
 ) {
   const email = input.email.trim().toLowerCase();
-  const existing = await db.user.findUnique({ where: { email } });
-  if (existing) {
-    if (existing.status !== "active") {
-      throw new ORPCError("FORBIDDEN", { message: "This account is disabled." });
-    }
+  const existingRow = await db.User.findOne({ email }).lean().exec();
+  if (existingRow) {
+    const existing = toEntity(existingRow);
+    if (existing.status !== "active")
+      throw new ApiError("FORBIDDEN", { message: "This account is disabled." });
     assertGoogleLinkAllowed(existing);
-    return db.user.update({
-      where: { id: existing.id },
-      data: {
-        name: input.name || existing.name,
-        image: input.image ?? existing.image,
-        emailVerified: true,
-        verificationRequired: existing.verificationRequired || existing.passwordHash === null,
-        needsProfileCompletion: existing.needsProfileCompletion || existing.passwordHash === null,
+    // Provider display names never overwrite account-confirmed structured or legacy names.
+    const updated = await db.User.findOneAndUpdate(
+      {
+        _id: existing.id,
+        status: "active",
+        passwordHash: existing.passwordHash,
+        emailVerified: existing.emailVerified,
       },
-    });
+      {
+        $set: {
+          image: input.image ?? existing.image,
+          emailVerified: true,
+          verificationRequired: existing.verificationRequired || !existing.passwordHash,
+          needsProfileCompletion: existing.needsProfileCompletion || !existing.passwordHash,
+        },
+      },
+      { returnDocument: "after" },
+    )
+      .lean()
+      .exec();
+    if (!updated) throw new ApiError("CONFLICT", { message: "Account changed. Sign in again." });
+    return toEntity(updated);
   }
-
   if (!publicSignupEnabled())
-    throw new ORPCError("FORBIDDEN", {
+    throw new ApiError("FORBIDDEN", {
       message: "Ask an administrator to create your account before using Google sign-in.",
     });
-
-  const roleKey = "viewer";
-  const role = await db.role.findUnique({ where: { key: roleKey } });
-  if (!role) {
-    throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
-  }
-
-  return db.user
-    .create({
-      data: {
+  try {
+    return await authorizationTransaction(db, async (tx) => {
+      const role = await tx.Role.findOne({ key: "viewer" }).lean().exec();
+      if (!role) throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
+      const created = await tx.User.create({
         name: input.name,
         email,
-        image: input.image ?? undefined,
+        image: input.image ?? null,
+        passwordHash: null,
         needsProfileCompletion: true,
         verificationRequired: true,
         emailVerified: true,
         status: "active",
-        userRoles: {
-          create: { roleId: role.id },
-        },
-      },
-    })
-    .catch(async (error: unknown) => {
-      if (isDuplicateEmail(error)) {
-        const winner = await db.user.findUnique({ where: { email } });
-        if (winner?.status === "active") {
-          assertGoogleLinkAllowed(winner);
-          return winner;
-        }
-      }
-      throw error;
+      });
+      const user = toEntity(created.toObject());
+      await tx.UserRole.create({ userId: user.id, roleId: role._id });
+      return user;
     });
+  } catch (error) {
+    if ((error instanceof ApiError && error.code === "CONFLICT") || isDuplicateEmail(error)) {
+      const row = await db.User.findOne({ email }).lean().exec();
+      if (row?.status === "active") {
+        assertGoogleLinkAllowed(row);
+        return toEntity(row);
+      }
+    }
+    throw error;
+  }
 }
-
 function isDuplicateEmail(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+  return typeof error === "object" && error !== null && "code" in error && error.code === 11000;
 }
 
 // Do not activate a password/phone chosen by someone who reserved another
@@ -346,7 +342,7 @@ function assertGoogleLinkAllowed(user: {
   passwordHash?: string | null;
 }) {
   if (user.verificationRequired && !user.emailVerified && user.passwordHash)
-    throw new ORPCError("FORBIDDEN", {
+    throw new ApiError("FORBIDDEN", {
       message:
         "Confirm the pending registration email and sign in with its password before linking Google.",
     });

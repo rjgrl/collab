@@ -16,29 +16,86 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import { TablePagination } from "@/components/table-pagination";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/utils/api";
+import { NameFields, emptyName } from "@/components/name-fields";
+import {
+  formatDisplayName,
+  isAdministrator,
+  isAlumniAccount,
+} from "@Alumni-Tracking-Ss/contracts/names";
+import { NativeSelect } from "@/components/native-select";
+import { AccountProfileFields } from "@/components/account-profile-fields";
+import { AcademicProfileFields, emptyAcademic } from "@/components/academic-profile-fields";
+import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
 
 export function UsersPage() {
   const session = useSession();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const users = useQuery(orpc.users.list.queryOptions({ input: { search, page, pageSize: 20 } }));
-  const roles = useQuery(orpc.roles.list.queryOptions());
+  const users = useQuery(api.users.list.queryOptions({ input: { search, page, pageSize: 20 } }));
+  const roles = useQuery(api.roles.list.queryOptions());
   const canWrite = can(session.data?.permissions, "users.write");
+  const canLink = Boolean(
+    session.data &&
+    isAdministrator(session.data) &&
+    canWrite &&
+    can(session.data.permissions, "alumni.write"),
+  );
+  const [linkTarget, setLinkTarget] = useState<{ id: string; name: string } | null>(null);
+  const [alumniSearch, setAlumniSearch] = useState("");
+  const [alumniId, setAlumniId] = useState("");
+  const candidates = useQuery({
+    ...api.alumni.list.queryOptions({ input: { search: alumniSearch, pageSize: 100 } }),
+    enabled: canLink && linkTarget !== null,
+  });
+  const link = useMutation({
+    mutationFn: () => {
+      if (!linkTarget) throw new Error("Choose an account.");
+      return client.users.linkAlumni({ id: linkTarget.id, alumniId });
+    },
+    onSuccess: async () => {
+      setLinkTarget(null);
+      setAlumniId("");
+      await queryClient.invalidateQueries();
+      toast.success("Alumni account linked");
+    },
+  });
   const [draft, setDraft] = useState({
-    name: "",
+    ...emptyName,
     email: "",
     password: "",
     roleIds: [] as string[],
   });
+  const [profile, setProfile] = useState({ phoneNumber: "", gender: "", facebookAccount: "" });
+  const [academic, setAcademic] = useState(emptyAcademic);
+  const alumniAccount = isAlumniAccount({
+    roles:
+      roles.data?.filter((role) => draft.roleIds.includes(role.id)).map((role) => role.key) ?? [],
+  });
 
   const create = useMutation({
-    mutationFn: () => client.users.create(draft),
+    mutationFn: () =>
+      client.users.create(
+        usersSchemas.create.input.parse({
+          ...draft,
+          ...(alumniAccount
+            ? {
+                alumniProfile: {
+                  ...profile,
+                  ...academic,
+                  graduationYear: academic.graduationYear
+                    ? Number(academic.graduationYear)
+                    : undefined,
+                },
+              }
+            : {}),
+        }),
+      ),
     onSuccess: async () => {
       toast.success("User created");
       setOpen(false);
-      setDraft({ name: "", email: "", password: "", roleIds: [] });
+      setDraft({ ...emptyName, email: "", password: "", roleIds: [] });
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -62,9 +119,19 @@ export function UsersPage() {
         actions={
           canWrite ? (
             <PrimaryButton
+              disabled={roles.isPending || roles.isError}
               onClick={() => {
                 create.reset();
-                setDraft({ name: "", email: "", password: "", roleIds: [] });
+                setDraft({
+                  ...emptyName,
+                  email: "",
+                  password: "",
+                  roleIds:
+                    roles.data?.filter((role) => role.key === "viewer").map((role) => role.id) ??
+                    [],
+                });
+                setProfile({ phoneNumber: "", gender: "", facebookAccount: "" });
+                setAcademic(emptyAcademic);
                 setOpen(true);
               }}
             >
@@ -73,6 +140,69 @@ export function UsersPage() {
           ) : null
         }
       />
+      {canLink && linkTarget ? (
+        <FormDialog
+          open
+          onOpenChange={(value) => {
+            if (!value) setLinkTarget(null);
+          }}
+          pending={link.isPending}
+          title="Link alumni account"
+          description={`Confirm which existing alumni record belongs to ${linkTarget.name}.`}
+          footer={
+            <PrimaryButton
+              form="link-alumni"
+              type="submit"
+              pending={link.isPending}
+              disabled={!alumniId}
+            >
+              Confirm account link
+            </PrimaryButton>
+          }
+        >
+          <form
+            id="link-alumni"
+            className="grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              link.mutate();
+            }}
+          >
+            <p className="text-sm text-muted-foreground">
+              Verify the person's identity and student number before linking. Matching names or
+              email addresses alone do not establish ownership.
+            </p>
+            <FormField id="link-search" label="Find alumni">
+              <Input
+                id="link-search"
+                value={alumniSearch}
+                onChange={(event) => {
+                  setAlumniSearch(event.target.value);
+                  setAlumniId("");
+                }}
+              />
+            </FormField>
+            <FormField id="link-record" label="Alumni record" required>
+              <NativeSelect
+                id="link-record"
+                required
+                value={alumniId}
+                onChange={(event) => setAlumniId(event.target.value)}
+              >
+                <option value="">Select a verified record</option>
+                {candidates.data?.map((record) => (
+                  <option key={record.id} value={record.id}>
+                    {record.studentNumber} · {formatDisplayName(record)}
+                  </option>
+                ))}
+              </NativeSelect>
+            </FormField>
+            {candidates.error || link.error ? (
+              <p role="alert">{candidates.error?.message ?? link.error?.message}</p>
+            ) : null}
+          </form>
+        </FormDialog>
+      ) : null}
       {canWrite && open ? (
         <FormDialog
           open
@@ -92,7 +222,7 @@ export function UsersPage() {
             </>
           }
           title="Add user"
-          description="Create an account and assign its roles."
+          description="New accounts default to Alumni. Alumni accounts and their registry profiles are created together."
         >
           <form
             id="create-user"
@@ -102,14 +232,11 @@ export function UsersPage() {
               create.mutate();
             }}
           >
-            <FormField id="name" label="Name" required>
-              <Input
-                id="name"
-                value={draft.name}
-                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                required
-              />
-            </FormField>
+            <NameFields
+              value={draft}
+              prefix="member"
+              onChange={(names) => setDraft({ ...draft, ...names })}
+            />
             <FormField id="email" label="Email" required>
               <Input
                 id="email"
@@ -135,6 +262,12 @@ export function UsersPage() {
             <p id="member-password-guidance" className="text-xs text-muted-foreground">
               Use 15–128 characters. Spaces and Unicode are welcome. Choose a unique passphrase.
             </p>
+            {alumniAccount ? (
+              <>
+                <AccountProfileFields value={profile} onChange={setProfile} />
+                <AcademicProfileFields value={academic} onChange={setAcademic} />
+              </>
+            ) : null}
             <div className="flex flex-col gap-2">
               <FieldsetLabel>Roles</FieldsetLabel>
               {roles.data?.map((role) => (
@@ -181,18 +314,35 @@ export function UsersPage() {
               <StatusBadge tone={user.status === "active" ? "active" : "disabled"} />
             </TableCell>
             <TableCell>
-              {can(session.data?.permissions, "users.delete") ? (
+              {canLink || can(session.data?.permissions, "users.delete") ? (
                 <RowActions>
-                  <QuietButton
-                    onClick={() =>
-                      toggleStatus.mutate({
-                        id: user.id,
-                        status: user.status === "active" ? "disabled" : "active",
-                      })
-                    }
-                  >
-                    {user.status === "active" ? "Disable" : "Enable"}
-                  </QuietButton>
+                  {canLink && !user.alumniId ? (
+                    <QuietButton
+                      onClick={() => {
+                        link.reset();
+                        setAlumniId("");
+                        setAlumniSearch("");
+                        setLinkTarget({ id: user.id, name: user.name });
+                      }}
+                    >
+                      Link alumni profile
+                    </QuietButton>
+                  ) : null}
+                  {user.alumniId ? (
+                    <span className="text-xs text-muted-foreground">Alumni linked</span>
+                  ) : null}
+                  {can(session.data?.permissions, "users.delete") ? (
+                    <QuietButton
+                      onClick={() =>
+                        toggleStatus.mutate({
+                          id: user.id,
+                          status: user.status === "active" ? "disabled" : "active",
+                        })
+                      }
+                    >
+                      {user.status === "active" ? "Disable" : "Enable"}
+                    </QuietButton>
+                  ) : null}
                 </RowActions>
               ) : null}
             </TableCell>

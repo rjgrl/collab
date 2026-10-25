@@ -14,7 +14,7 @@ export function mapFormPayload(payload: Record<string, unknown>): AlumniImportRo
     personalEmail: pick(source, ["personalemail", "email", "personal email"]),
     facebookAccount: pick(source, ["facebookaccount", "facebook", "facebook account"]),
     programCode: pick(source, ["programcode", "program_code", "program"]),
-    departmentCode: pick(source, ["departmentcode", "department_code", "department"]),
+    departmentName: pick(source, ["departmentname", "department_name", "department"]),
     isTracked: pick(source, ["istracked", "tracked", "is_tracked"]),
   });
 }

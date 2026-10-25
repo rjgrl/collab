@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { FormCard, FormField, PrimaryButton } from "@/components/page-header";
 import { PasswordGuidance } from "@/components/password-guidance";
-import { client, queryClient } from "@/utils/orpc";
+import { client, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/reset-password")({ component: ResetPassword });
 function ResetPassword() {

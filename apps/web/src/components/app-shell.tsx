@@ -23,9 +23,14 @@ import { toast } from "sonner";
 
 import { ModeToggle } from "@/components/mode-toggle";
 import { can, useSession } from "@/lib/session";
-import { queryClient } from "@/utils/orpc";
+import { queryClient } from "@/utils/api";
+import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
+import { LocalVerificationNotice } from "./local-verification-notice";
+import { NotificationsBell } from "./notifications-bell";
 
 const NAV = [
+  { to: "/my-profile", label: "My Profile", permission: null, icon: UserRound },
+  { to: "/statistics", label: "University statistics", permission: null, icon: LayoutDashboard },
   { to: "/dashboard", label: "Dashboard", permission: "dashboard.read", icon: LayoutDashboard },
   { to: "/departments", label: "Departments", permission: "departments.read", icon: Building2 },
   { to: "/programs", label: "Programs", permission: "programs.read", icon: GraduationCap },
@@ -47,7 +52,22 @@ export function AppShell() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const permissions = session.data?.permissions ?? [];
-  const items = NAV.filter((item) => item.permission === null || can(permissions, item.permission));
+  const roleLabel = session.data
+    ? isAdministrator(session.data)
+      ? "Administrator"
+      : session.data.roles.includes("staff")
+        ? "Staff"
+        : isAlumniAccount(session.data)
+          ? "Alumni"
+          : session.data.roles.join(", ") || "Account"
+    : "Account";
+  const alumniAccount = session.data ? isAlumniAccount(session.data) : false;
+  const items = NAV.filter((item) =>
+    alumniAccount
+      ? ["/my-profile", "/statistics", "/settings"].includes(item.to)
+      : !["/my-profile", "/statistics"].includes(item.to) &&
+        (item.permission === null || can(permissions, item.permission)),
+  );
 
   async function logout() {
     const response = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
@@ -63,7 +83,13 @@ export function AppShell() {
   return (
     <div className="flex min-h-svh bg-background">
       <aside className="hidden w-56 shrink-0 border-r bg-sidebar text-sidebar-foreground md:flex md:flex-col">
-        <div className="flex h-14 items-center px-4 text-sm font-medium">Alumni Tracking</div>
+        <div className="flex items-center gap-3 px-4 py-5">
+          <GraduationCap className="size-7" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold">Alumni Tracking</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">University registry</p>
+          </div>
+        </div>
         <nav className="flex flex-1 flex-col gap-0.5 p-2" aria-label="Main">
           {items.map((item) => {
             const Icon = item.icon;
@@ -109,10 +135,19 @@ export function AppShell() {
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <ModeToggle />
+            <NotificationsBell />
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-                <span className="max-w-[8.5rem] truncate sm:max-w-[14rem]">
-                  {session.data?.name ?? "Account"}
+              <DropdownMenuTrigger
+                render={<Button variant="outline" className="h-auto min-h-10 py-1" size="sm" />}
+              >
+                <span className="flex min-w-0 max-w-[8.5rem] flex-col items-start sm:max-w-[14rem]">
+                  <span className="w-full truncate">{session.data?.name ?? "Account"}</span>
+                  <span
+                    className="text-xs font-normal text-muted-foreground"
+                    data-testid="account-role"
+                  >
+                    {roleLabel}
+                  </span>
                 </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-48">
@@ -127,7 +162,8 @@ export function AppShell() {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">
+        <main className="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
+          <LocalVerificationNotice />
           <Outlet />
         </main>
       </div>

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { call } from "@orpc/server";
+import { modelFixture } from "./services/model-test-fixture";
 import type { Context } from "./context";
 import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
-import { assertRoleScope, publicUserSelect } from "./services/authorization";
-import { rolesRouter } from "./routers/rbac";
+import { assertRoleScope, publicUser } from "./services/authorization";
+import { rolesService } from "../../../apps/server/src/modules/roles/service";
 import { publicSignupEnabled, registerUser } from "./services/session";
 
 const actor = {
@@ -26,50 +26,52 @@ const role = {
   rolePermissions: [],
 };
 function fixture(count = 1, failure = false) {
-  const operations: string[] = [];
-  const tx = {
-    role: {
-      findUnique: async () => role,
-      findUniqueOrThrow: async () => ({ ...role, updatedAt: new Date("2026-01-02T00:00:00.000Z") }),
-      updateMany: async () => {
-        operations.push("claim");
-        return { count };
-      },
-    },
-    permission: { findMany: async () => [] },
-    rolePermission: {
-      deleteMany: async () => {
-        operations.push("replace");
-        if (failure) throw new Error("Write failed");
-      },
-    },
-    auditLog: {
-      create: async () => {
-        operations.push("audit");
-      },
-    },
-  };
+  const f = modelFixture({
+    Role: [{ ...role, updatedAt: count ? role.updatedAt : new Date("2026-01-03T00:00:00.000Z") }],
+  });
+  if (failure) f.failWrite("RolePermission", "deleteMany", new Error("Write failed"));
   const context = {
-    db: {
-      $transaction: async (work: (db: typeof tx) => Promise<unknown>) => {
-        operations.push("transaction");
-        return work(tx);
-      },
-    },
+    db: f.db,
     user: actor,
     sessionToken: "synthetic",
     ipAddress: null,
     userAgent: null,
     integrationEnv: {},
-  } as unknown as Context;
-  return { context, operations };
+  } as Context;
+  return {
+    context,
+    get operations() {
+      return f.operations.flatMap((op) => {
+        if (op.model === "Database" && op.method === "transaction") return ["transaction"];
+        if (op.model === "Role" && op.method === "updateOne") return ["claim"];
+        if (op.model === "RolePermission" && op.method === "deleteMany") return ["replace"];
+        if (op.model === "AuditLog" && op.method === "create") return ["audit"];
+        return [];
+      });
+    },
+  };
 }
 const update = (context: Context, expectedUpdatedAt = role.updatedAt.toISOString()) =>
-  call(rolesRouter.update, { id: role.id, expectedUpdatedAt, permissionIds: [] }, { context });
+  rolesService.update(context, { id: role.id, expectedUpdatedAt, permissionIds: [] });
 
-it("safe user projections never include password hashes", () => {
-  assert.equal("passwordHash" in publicUserSelect, false);
-  assert.equal(publicUserSelect.email, true);
+it("safe user projections never include password hashes", async () => {
+  const { db } = modelFixture({
+    User: [
+      {
+        id: "user",
+        name: "Test",
+        email: "test@example.test",
+        image: null,
+        status: "active",
+        passwordHash: "private-hash",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ],
+  });
+  const projected = await publicUser(db, "user");
+  assert.equal("passwordHash" in projected, false);
+  assert.equal(projected.email, "test@example.test");
 });
 
 it("production registration fails closed before database access unless explicitly enabled", async () => {
@@ -90,11 +92,16 @@ it("production registration fails closed before database access unless explicitl
     await assert.rejects(
       () =>
         registerUser(db, {
-          name: "Synthetic",
+          firstName: "Synthetic",
+          lastName: "Test",
+          middleName: "",
+          suffix: "",
           phoneNumber: "+639171234567",
           gender: "Female",
           email: "test@example.test",
           password: "SyntheticPassword123!",
+          studentNumber: "SYN-001",
+          programId: "111111111111111111111111",
         }),
       /Public registration is disabled/,
     );
@@ -126,22 +133,22 @@ it("rejects permission escalation and delegated system-role editing", () => {
   );
 });
 it("claims the expected role version before replacing permissions and auditing in a transaction", async () => {
-  const { context, operations } = fixture();
-  const result = await update(context);
+  const f = fixture();
+  const result = await update(f.context);
   assert.equal(result.id, role.id);
-  assert.deepEqual(operations, ["transaction", "claim", "replace", "audit"]);
+  assert.deepEqual(f.operations, ["transaction", "claim", "replace", "audit"]);
 });
 it("rejects stale saves before any permission assignments are deleted", async () => {
-  const { context, operations } = fixture(0);
+  const f = fixture(0);
   await assert.rejects(
-    () => update(context),
+    () => update(f.context),
     (error: unknown) =>
       typeof error === "object" && error !== null && "code" in error && error.code === "CONFLICT",
   );
-  assert.deepEqual(operations, ["transaction", "claim"]);
+  assert.deepEqual(f.operations, ["transaction", "claim"]);
 });
 it("propagates failed persistence without returning success or writing a success audit", async () => {
-  const { context, operations } = fixture(1, true);
-  await assert.rejects(() => update(context), /Write failed/);
-  assert.equal(operations.includes("audit"), false);
+  const f = fixture(1, true);
+  await assert.rejects(() => update(f.context), /Write failed/);
+  assert.equal(f.operations.includes("audit"), false);
 });

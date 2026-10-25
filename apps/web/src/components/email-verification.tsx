@@ -4,9 +4,9 @@ import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { FormField, PrimaryButton } from "@/components/page-header";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/utils/api";
 export function EmailVerification() {
-  const status = useQuery(orpc.auth.verificationStatus.queryOptions());
+  const status = useQuery(api.auth.verificationStatus.queryOptions());
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);

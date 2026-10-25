@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/utils/api";
 
 const INTEGRATION_NAMES: Record<string, string> = {
   recaptcha: "reCAPTCHA",
@@ -27,10 +27,10 @@ const INTEGRATION_NAMES: Record<string, string> = {
 
 export function IntegrationsPage() {
   const session = useSession();
-  const list = useQuery(orpc.integrations.list.queryOptions());
+  const list = useQuery(api.integrations.list.queryOptions());
   const canWrite = can(session.data?.permissions, "integrations.write");
   const [csv, setCsv] = useState(
-    "studentNumber,firstName,lastName,gender,departmentCode,programCode,personalEmail,isTracked\n",
+    "studentNumber,firstName,lastName,gender,departmentName,programCode,personalEmail,isTracked\n",
   );
   const [testEmail, setTestEmail] = useState("");
 

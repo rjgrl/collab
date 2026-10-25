@@ -1,5 +1,7 @@
 # System Function Requirements
 
+> Historical requirements snapshot. The 2026-10-23 rewrite supersedes the global Viewer/read-only access described below: Alumni now access only their explicitly linked My Profile and account settings. Staff/Alumni MFA is optional; Administrator MFA remains required. Use the [current overview](system/overview.md), [defense guide](DEFENSE_GUIDE.md) and [verification record](MIGRATION_VERIFICATION.md) for implemented behavior. The linked PDF retains the original snapshot.
+
 Alumni Tracking System, split by the three users of the system.
 
 Printable copy: [system-function-requirements.pdf](./system-function-requirements.pdf)
@@ -36,8 +38,8 @@ Functions the Staff / Coordinator can perform beyond read-only access. This user
 
 | Code     | Name                         | Description                                                                                                                                             |
 | -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ACAD-002 | Create department            | Creates a department with a code, name, and description.                                                                                                |
-| ACAD-003 | Update department            | Changes a department's code, name, or description.                                                                                                      |
+| ACAD-002 | Create department            | Creates a department with a name and description.                                                                                                |
+| ACAD-003 | Update department            | Changes a department's name or description.                                                                                                      |
 | ACAD-004 | Delete department            | Soft-deletes a department so it no longer appears in active lists.                                                                                      |
 | ACAD-006 | Create program               | Creates a program and attaches it to a department.                                                                                                      |
 | ACAD-007 | Update program               | Changes a program's details or moves it to another department.                                                                                          |
@@ -85,7 +87,7 @@ Functions a User / Alumni can perform. This is the role given to a new sign-up. 
 | ACAD-009 | View faculties           | Lists faculties and the departments they belong to.                                                                                                                                                                    |
 | ALUM-001 | Search alumni            | Lists alumni and filters by name or student number, department, program, graduation year, and tracked or untracked status.                                                                                             |
 | ALUM-002 | View alumni profile      | Opens one profile, including program and department, contact, employment history, tracking events, and evidence files.                                                                                                 |
-| ALUM-006 | Student details          | Reads student number, name, middle name, required gender (Male or Female), and graduation year on a profile.                                                                                                                              |
+| ALUM-006 | Student details          | Reads student number, name, middle name, required gender (Male or Female), and graduation year on a profile.                                                                                                           |
 | ALUM-007 | Contact info             | Reads mobile number, personal email, and Facebook account on a profile.                                                                                                                                                |
 | FILE-002 | View evidence            | Opens or downloads an evidence file.                                                                                                                                                                                   |
 | DASH-001 | Graduate statistics      | Sees total graduates, tracked count, untracked count, and tracked percentage. Percentage is tracked divided by graduates, rounded to two decimals.                                                                     |

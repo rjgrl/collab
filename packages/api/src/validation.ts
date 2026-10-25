@@ -1,167 +1,47 @@
 import { z } from "zod";
-import { newPasswordSchema } from "./password-policy";
-
-export const objectIdSchema = z.string().min(1);
-
-export const paginationSchema = z.object({
-  page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(1).max(100).default(20),
-  search: z.string().trim().optional(),
-});
-
-export const emailSchema = z.string().trim().max(254).email();
-
-export const optionalEmailSchema = z
-  .string()
-  .trim()
-  .email()
-  .optional()
-  .or(z.literal("").transform(() => undefined));
-
-export const mobileSchema = z
-  .string()
-  .trim()
-  .max(30)
-  .regex(/^[0-9+\-() ]+$/, "Enter a valid mobile number.")
-  .optional()
-  .or(z.literal("").transform(() => undefined));
-
-export const genderSchema = z.enum(["Male", "Female"], { error: "Select Male or Female." });
-
-export const facebookSchema = z
-  .string()
-  .trim()
-  .max(2048)
-  .url("Enter a full Facebook profile link.")
-  .refine((value) => {
-    try {
-      const url = new URL(value);
-      return (
-        ["http:", "https:"].includes(url.protocol) &&
-        !url.username &&
-        !url.password &&
-        (url.hostname === "facebook.com" ||
-          url.hostname.endsWith(".facebook.com") ||
-          url.hostname === "fb.com")
-      );
-    } catch {
-      return false;
-    }
-  }, "Enter a valid Facebook profile link.")
-  .optional()
-  .or(z.literal(""));
-
-export const codeSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(32)
-  .regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, dashes, or underscores.");
-
-export const loginSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(1).max(256),
-  recaptchaToken: z.string().optional(),
-  recaptchaFallback: z.boolean().optional(),
-});
-
-export const accountProfileSchema = z.object({
-  phoneNumber: z
-    .string()
-    .trim()
-    .max(30)
-    .transform((value) => value.replace(/[ ()-]/g, ""))
-    .pipe(z.string().regex(/^\+[1-9]\d{7,14}$/, "Use a country code, for example +639171234567.")),
-  gender: genderSchema,
-  facebookAccount: facebookSchema,
-});
-
-export const signupSchema = accountProfileSchema.extend({
-  name: z.string().trim().min(1).max(120),
-  email: emailSchema,
-  password: newPasswordSchema,
-  recaptchaToken: z.string().optional(),
-  recaptchaFallback: z.boolean().optional(),
-});
-
-export const departmentInputSchema = z.object({
-  code: codeSchema,
-  name: z.string().trim().min(1).max(160),
-  description: z.string().trim().max(2000).optional(),
-});
-
-export const programInputSchema = z.object({
-  code: codeSchema,
-  name: z.string().trim().min(1).max(160),
-  description: z.string().trim().max(2000).optional(),
-  departmentId: objectIdSchema,
-});
-
-export const alumniInputSchema = z.object({
-  studentNumber: z.string().trim().min(1).max(40),
-  firstName: z.string().trim().min(1).max(80),
-  lastName: z.string().trim().min(1).max(80),
-  middleName: z.string().trim().max(80).optional(),
-  gender: genderSchema,
-  graduationYear: z.number().int().min(1950).max(2100).optional(),
-  mobileNumber: mobileSchema,
-  personalEmail: optionalEmailSchema,
-  facebookAccount: facebookSchema,
-  programId: objectIdSchema,
-  employmentStatus: z.enum(["employed", "unemployed", "unknown"]).optional(),
-});
-
-export const employmentInputSchema = z.object({
-  alumniId: objectIdSchema,
-  employer: z.string().trim().min(1).max(160),
-  jobTitle: z.string().trim().max(160).optional(),
-  industry: z.string().trim().max(160).optional(),
-  location: z.string().trim().max(160).optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
-  isCurrent: z.boolean().default(false),
-  status: z.enum(["employed", "unemployed", "unknown"]).default("employed"),
-  notes: z.string().trim().max(2000).optional(),
-});
-
-export const trackingInputSchema = z.object({
-  alumniId: objectIdSchema,
-  isTracked: z.boolean(),
-  notes: z.string().trim().max(2000).optional(),
-  source: z.string().trim().max(40).optional(),
-});
-
-export const userInputSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  email: emailSchema,
-  password: newPasswordSchema.optional(),
-  status: z.enum(["active", "disabled"]).optional(),
-  roleIds: z.array(objectIdSchema).default([]),
-});
-
-export const roleInputSchema = z.object({
-  key: codeSchema,
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(400).optional(),
-  permissionIds: z.array(objectIdSchema).default([]),
-});
+import { genderSchema, facebookSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
+export { objectIdSchema, paginationSchema } from "@Alumni-Tracking-Ss/contracts/common";
+export {
+  loginSchema,
+  signupSchema,
+  accountProfileSchema,
+  emailSchema,
+} from "@Alumni-Tracking-Ss/contracts/auth";
+export {
+  alumniInputSchema,
+  employmentInputSchema,
+  trackingInputSchema,
+  genderSchema,
+  facebookSchema,
+  mobileSchema,
+} from "@Alumni-Tracking-Ss/contracts/alumni";
+export { departmentInputSchema, programInputSchema } from "@Alumni-Tracking-Ss/contracts/academic";
 
 export const alumniImportRowSchema = z.object({
   studentNumber: z.string().trim().min(1),
   firstName: z.string().trim().min(1),
   lastName: z.string().trim().min(1),
   middleName: z.string().trim().optional(),
+  suffix: z.string().trim().max(40).optional(),
   gender: genderSchema,
   graduationYear: z.coerce.number().int().optional(),
   mobileNumber: z.string().trim().optional(),
   personalEmail: z.string().trim().email().optional().or(z.literal("")),
   facebookAccount: facebookSchema,
   programCode: z.string().trim().min(1),
-  departmentCode: z.string().trim().min(1),
+  departmentName: z.string().trim().min(1),
   isTracked: z
-    .union([z.boolean(), z.string()])
+    .union([
+      z.boolean(),
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .pipe(z.enum(["true", "false", "1", "0", "yes", "no", ""])),
+    ])
     .optional()
     .transform((value) => {
+      if (value === undefined || value === "") return undefined;
       if (value === true || value === "true" || value === "1" || value === "yes") {
         return true;
       }

@@ -6,47 +6,47 @@ This release has local build, test, and browser checks; it has not been deployed
 
 ## Hosting layout
 
-Use one Node service and the built static web application behind one HTTPS origin, with a private persistent upload directory and a MongoDB replica set. This fits the existing session cookies, proxy paths, and local-storage fallback without adding provider-specific infrastructure. A managed MongoDB replica set or an operator-maintained replica set works; a standalone MongoDB server does not support the transactions used by Prisma. Keep one application instance until shared file storage and distributed rate limiting are provisioned.
+Use one Node service and the built static web application behind one HTTPS origin, with a private persistent upload directory and a MongoDB replica set. This fits the existing session cookies, proxy paths, and local-storage fallback without adding provider-specific infrastructure. A managed MongoDB replica set or an operator-maintained replica set works; a standalone MongoDB server does not support the transactions used by Mongoose. Keep one application instance until shared file storage and distributed rate limiting are provisioned.
 
-Build on the deployment OS so the generated Prisma native engine matches that platform. Node 26.10.0 and pnpm 12.5.1 were used for the recorded checks. Dependencies require Node 22 or later; verify a different runtime before adopting it.
+The Mongoose application requires no generated Prisma client or native query engine. Node 26.10.0 and pnpm 12.5.1 were used for the recorded checks. Supported Node ranges are 22.18+, 24.11+, or 26+; verify a different runtime before adopting it.
 
 ## Environment inventory
 
 Server values belong in the service secret manager or protected `apps/server/.env`. Web values belong in the build environment or `apps/web/.env`; `VITE_SERVER_URL` is public. Bootstrap values belong in protected `packages/db/.env` or the seed process environment. Never commit filled-in environment files.
 
-| Variable                                   | Purpose                                                                  | Required                                | Safe format                                       | Configure at                                                 |
-| ------------------------------------------ | ------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------ |
-| `NODE_ENV`                                 | Runtime mode and secure cookies                                          | Yes for production                      | `production`                                      | Server and web build                                         |
-| `ALLOW_PUBLIC_SIGNUP`                      | Permit unprovisioned production accounts to receive global Viewer access | No; disabled by default in production   | `false`                                           | Server; enable only after institutional access-policy review |
-| `DATABASE_URL`                             | Named MongoDB database and restricted credentials                        | Yes                                     | `mongodb+srv://.../alumni_tracking`               | Server secret; imported by DB tools                          |
-| `CORS_ORIGIN`                              | Exact browser origin allowed to mutate data                              | Yes                                     | `https://alumni.example.org`                      | Server                                                       |
-| `APP_URL`                                  | Public API URL and OAuth callback base                                   | Yes                                     | `https://alumni.example.org`                      | Server                                                       |
-| `VITE_SERVER_URL`                          | Browser RPC base URL                                                     | Yes                                     | `https://alumni.example.org`                      | Web build                                                    |
-| `PORT`                                     | Node listening port                                                      | No; default 3000                        | `3000`                                            | Server process                                               |
-| `API_PROXY_TARGET`                         | Development Vite proxy destination                                       | Development only                        | `http://localhost:3000`                           | Web dev process                                              |
-| `UPLOAD_DIR`                               | Private persistent local file directory                                  | Set explicitly in production            | `/srv/collab-private/uploads`                     | Server                                                       |
-| `RECAPTCHA_SITE_KEY`                       | Google reCAPTCHA v2 public widget key                                    | If reCAPTCHA enabled in production      | Provider-issued site key                          | Server; returned publicly by auth config                     |
-| `RECAPTCHA_SECRET_KEY`                     | Server verification key                                                  | If reCAPTCHA enabled in production      | Secret value                                      | Server secret                                                |
-| `GOOGLE_CLIENT_ID`                         | Google OAuth client                                                      | For Google sign-in                      | Provider client ID                                | Server                                                       |
-| `GOOGLE_CLIENT_SECRET`                     | OAuth client secret                                                      | For Google sign-in                      | Secret value                                      | Server secret                                                |
-| `GOOGLE_SERVICE_ACCOUNT_JSON`              | Service account JSON with private key                                    | For Drive or Sheets                     | Single JSON string                                | Server secret                                                |
-| `GOOGLE_DRIVE_FOLDER_ID`                   | Private evidence folder                                                  | For Drive uploads                       | Provider folder ID                                | Server                                                       |
-| `GOOGLE_SHEETS_SPREADSHEET_ID`             | Import/export spreadsheet                                                | For Sheets                              | Provider spreadsheet ID                           | Server                                                       |
-| `GOOGLE_FORMS_WEBHOOK_SECRET`              | Shared webhook authentication value                                      | For Forms in production                 | Random secret                                     | Server secret and sender configuration                       |
-| `SMTP_URL`                                 | HTTPS JSON mail gateway, despite the legacy name                         | For email                               | `https://mail-gateway.example.org/send`           | Server secret if URL contains credentials                    |
-| `SMTP_FROM`                                | Mail gateway sender address                                              | Optional; set for real delivery         | `alumni@example.org`                              | Server                                                       |
-| `IMGBB_API_KEY`                            | Public profile-photo hosting                                             | For imgBB photos                        | Secret value                                      | Server secret                                                |
-| `IMAGE_HOST_PROVIDER`                      | Photo provider preference                                                | Optional                                | `local`, `imgbb`, or `google_drive`               | Server                                                       |
-| `SESSION_SECRET`                           | HMAC key for expiring contact-verification codes                         | At least 32 characters for verification | Privately generated random value                  | Server secret store; not the opaque session token itself     |
-| `MFA_ENCRYPTION_KEY`                       | AES-256-GCM authenticator encryption key                                 | Required in production                  | 64 hex characters, independent random 32-byte key | Separate protected secret/recovery backup                    |
-| `PASSWORD_BREACH_CHECK`                    | Offline dictionary plus optional k-anonymity breach screening            | Optional, default local                 | `local` or explicit `hibp` opt-in                 | Server; outages fail screening closed when opted in          |
-| `AUTH_IP_STORE`                            | Authentication IP counter storage                                        | MongoDB by production default           | `mongodb` or `memory`                             | Keep MongoDB for multi-instance budget sharing               |
-| `AUTH_IP_LIMIT` / `AUTH_IP_WINDOW_SECONDS` | Auth IP budget                                                           | Defaults 30 / 900                       | Validated positive integers                       | Server; retain a trusted edge/proxy policy                   |
-| `AUTH_ACCOUNT_LIMIT`                       | Shared login attempt budget per normalized account                       | Default 5 / 15 minutes                  | 1�100                                             | Server; successful login reservations are refunded           |
-| `SESSION_IDLE_MINUTES`                     | Idle expiry with roughly one-minute activity-write coalescing            | Default 30                              | 1�1440                                            | Server; seven-day absolute expiry remains                    |
-| `SEED_ADMIN_EMAIL`                         | Bootstrap administrator identity                                         | For seed                                | Privately supplied email                          | Seed process / protected DB env                              |
-| `SEED_ADMIN_PASSWORD`                      | Bootstrap password, at least 12 characters                               | For seed                                | Privately generated password                      | Seed secret                                                  |
-| `SEED_DEMO_DATA`                           | Adds synthetic academic/alumni samples                                   | No; default `false`                     | `false`                                           | Seed process; `true` rejected in production                  |
+| Variable                                   | Purpose                                                                        | Required                                | Safe format                                       | Configure at                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------ |
+| `NODE_ENV`                                 | Runtime mode and secure cookies                                                | Yes for production                      | `production`                                      | Server and web build                                         |
+| `ALLOW_PUBLIC_SIGNUP`                      | Permit unprovisioned production accounts to receive Alumni self-service access | No; disabled by default in production   | `false`                                           | Server; enable only after institutional access-policy review |
+| `DATABASE_URL`                             | Named MongoDB database and restricted credentials                              | Yes                                     | `mongodb+srv://.../alumni_tracking`               | Server secret; imported by DB tools                          |
+| `CORS_ORIGIN`                              | Exact browser origin allowed to mutate data                                    | Yes                                     | `https://alumni.example.org`                      | Server                                                       |
+| `APP_URL`                                  | Public API URL and OAuth callback base                                         | Yes                                     | `https://alumni.example.org`                      | Server                                                       |
+| `VITE_SERVER_URL`                          | Browser REST API base URL                                                      | Yes                                     | `https://alumni.example.org`                      | Web build                                                    |
+| `PORT`                                     | Node listening port                                                            | No; default 3000                        | `3000`                                            | Server process                                               |
+| `API_PROXY_TARGET`                         | Development Vite proxy destination                                             | Development only                        | `http://localhost:3000`                           | Web dev process                                              |
+| `UPLOAD_DIR`                               | Private persistent local file directory                                        | Set explicitly in production            | `/srv/collab-private/uploads`                     | Server                                                       |
+| `RECAPTCHA_SITE_KEY`                       | Google reCAPTCHA v2 public widget key                                          | If reCAPTCHA enabled in production      | Provider-issued site key                          | Server; returned publicly by auth config                     |
+| `RECAPTCHA_SECRET_KEY`                     | Server verification key                                                        | If reCAPTCHA enabled in production      | Secret value                                      | Server secret                                                |
+| `GOOGLE_CLIENT_ID`                         | Google OAuth client                                                            | For Google sign-in                      | Provider client ID                                | Server                                                       |
+| `GOOGLE_CLIENT_SECRET`                     | OAuth client secret                                                            | For Google sign-in                      | Secret value                                      | Server secret                                                |
+| `GOOGLE_SERVICE_ACCOUNT_JSON`              | Service account JSON with private key                                          | For Drive or Sheets                     | Single JSON string                                | Server secret                                                |
+| `GOOGLE_DRIVE_FOLDER_ID`                   | Private evidence folder                                                        | For Drive uploads                       | Provider folder ID                                | Server                                                       |
+| `GOOGLE_SHEETS_SPREADSHEET_ID`             | Import/export spreadsheet                                                      | For Sheets                              | Provider spreadsheet ID                           | Server                                                       |
+| `GOOGLE_FORMS_WEBHOOK_SECRET`              | Shared webhook authentication value                                            | For Forms in production                 | Random secret                                     | Server secret and sender configuration                       |
+| `SMTP_URL`                                 | HTTPS JSON mail gateway, despite the legacy name                               | For email                               | `https://mail-gateway.example.org/send`           | Server secret if URL contains credentials                    |
+| `SMTP_FROM`                                | Mail gateway sender address                                                    | Optional; set for real delivery         | `alumni@example.org`                              | Server                                                       |
+| `IMGBB_API_KEY`                            | Public profile-photo hosting                                                   | For imgBB photos                        | Secret value                                      | Server secret                                                |
+| `IMAGE_HOST_PROVIDER`                      | Photo provider preference                                                      | Optional                                | `local`, `imgbb`, or `google_drive`               | Server                                                       |
+| `SESSION_SECRET`                           | HMAC key for expiring contact-verification codes                               | At least 32 characters for verification | Privately generated random value                  | Server secret store; not the opaque session token itself     |
+| `MFA_ENCRYPTION_KEY`                       | AES-256-GCM authenticator encryption key                                       | Required in production                  | 64 hex characters, independent random 32-byte key | Separate protected secret/recovery backup                    |
+| `PASSWORD_BREACH_CHECK`                    | Offline dictionary plus optional k-anonymity breach screening                  | Optional, default local                 | `local` or explicit `hibp` opt-in                 | Server; outages fail screening closed when opted in          |
+| `AUTH_IP_STORE`                            | Authentication IP counter storage                                              | MongoDB by production default           | `mongodb` or `memory`                             | Keep MongoDB for multi-instance budget sharing               |
+| `AUTH_IP_LIMIT` / `AUTH_IP_WINDOW_SECONDS` | Auth IP budget                                                                 | Defaults 30 / 900                       | Validated positive integers                       | Server; retain a trusted edge/proxy policy                   |
+| `AUTH_ACCOUNT_LIMIT`                       | Shared login attempt budget per normalized account                             | Default 5 / 15 minutes                  | 1�100                                             | Server; successful login reservations are refunded           |
+| `SESSION_IDLE_MINUTES`                     | Idle expiry with roughly one-minute activity-write coalescing                  | Default 30                              | 1�1440                                            | Server; seven-day absolute expiry remains                    |
+| `SEED_ADMIN_EMAIL`                         | Bootstrap administrator identity                                               | For seed                                | Privately supplied email                          | Seed process / protected DB env                              |
+| `SEED_ADMIN_PASSWORD`                      | Bootstrap password, at least 12 characters                                     | For seed                                | Privately generated password                      | Seed secret                                                  |
+| `SEED_DEMO_DATA`                           | Adds synthetic academic/alumni samples                                         | No; default `false`                     | `false`                                           | Seed process; `true` rejected in production                  |
 
 `SMTP_URL` does not implement SMTP transport: `smtp://` URLs are rejected. The gateway receives JSON containing `from`, `to`, `subject`, and `text`. Configure access control at that gateway. Unconfigured mail fails explicitly; message contents are not logged.
 
@@ -60,12 +60,11 @@ Server values belong in the service secret manager or protected `apps/server/.en
    npm install --global pnpm@12.5.1
    pnpm install --frozen-lockfile
    pnpm env:generate
-   pnpm db:generate
-   pnpm --filter @Alumni-Tracking-Ss/db exec prisma validate
+   pnpm db:migrate --dry-run
    ```
 
-4. Back up any existing database and private upload directory before applying schema/index changes. Review the schema diff on a staging clone. For a new approved database only, run `pnpm db:push`. Do not use `--accept-data-loss` or `--force-reset`. Earlier verification changes add User verification fields, Session Google proof and VerificationChallenge. The authentication continuation adds MfaCredential, AuthThrottle, PasswordReset and Session activity/MFA proof fields. Check the starting schema and new unique indexes. Valid legacy sessions migrate to token digests on use; password hashes upgrade only after successful password login. Old binaries do not understand new hash/token formats, so rollback requires an explicit compatibility plan. Prisma Migrate is not supported for this MongoDB project.
-5. Initialize permissions, system roles, integration settings, and the privately configured administrator with `pnpm db:seed`. Existing users are not overwritten; an existing bootstrap email is not automatically elevated. Editable role permission assignments are preserved; missing protected Super Admin permissions are restored. No demo records are added unless explicitly enabled in development. Review and rotate any account that was initialized by the previous public demo credentials; changing seed code does not change existing passwords.
+4. Back up the database and private uploads. Read [the cutover runbook](migrations/MONGOOSE_REST.md) and inspect the dry-run report on a staging clone. Review every existing index, duplicate preflight and conflict. Obtain target-specific authorization before `pnpm db:migrate --apply`. This adds absent collections/indexes only, without dropping, resetting, rewriting names, auto-linking accounts or reseeding. Confirm `User_alumniId_key` and FormsReceipt uniqueness before enabling dependent traffic. Run `pnpm db:verify-transactions` against the approved isolated replica set; the synthetic write rolls back. Preserve password/session formats and encryption keys for rollback compatibility.
+5. Preserve existing production accounts and roles. Repository seeding refuses production; provisioning a new production administrator requires a separately reviewed institutional procedure. `pnpm db:seed` is for development/bootstrap rehearsal only, never an existing production database. Remove bootstrap secrets from steady-state service configuration.
 6. Run isolated checks before pointing the service at real data:
 
    ```sh
@@ -73,16 +72,16 @@ Server values belong in the service secret manager or protected `apps/server/.en
    pnpm lint
    pnpm test
    pnpm check:secrets
-   pnpm audit
+   pnpm audit --audit-level=moderate
    pnpm exec playwright install chromium
    pnpm test:browser
    pnpm build
    pnpm check:production-build
    ```
 
-   On a fresh clone, generate route types with a web build before `check-types`: `pnpm --filter web build`. Browser tests use ports 3100 and 3101 and a synthetic database adapter; they do not verify real MongoDB rollback or durability. Follow `docs/test-report.md` for the remaining staging checks.
+   On a fresh clone, generate route types with a web build before `check-types`: `pnpm --filter web build`. Browser tests use ports 3100 and 3101 and a fresh isolated real MongoDB namespace; they exercise the actual MongoDB models and transactions; provider delivery and production operations remain separate checks. See [migration verification](MIGRATION_VERIFICATION.md) for measured results and remaining staging checks.
 
-7. Build and install on the same OS/runtime as the service. The server build copies generated Prisma query engines into `apps/server/dist`. Keep the workspace production dependencies available at runtime; the web output is `apps/web/dist` and the API entry is `apps/server/dist/index.mjs`.
+7. Build and install on the same OS/runtime as the service. The server build bundles the workspace code and uses installed Express/Mongoose dependencies; obsolete generated query engines are excluded. Keep the workspace production dependencies available at runtime; the web output is `apps/web/dist` and the API entry is `apps/server/dist/index.mjs`.
 8. Create `UPLOAD_DIR` owned only by the application account, outside static roots. Mount it persistently and encrypt backups. Private evidence defaults to local storage if Drive is unavailable. Set disk quotas and capacity alerts. imgBB is for intentionally public profile photos; never put private employment evidence there. Drive uploads stay private and are downloaded through the authorized API.
 
 ## HTTPS and process configuration
@@ -93,9 +92,6 @@ An example Caddy route layout, requiring operator installation/configuration of 
 
 ```caddyfile
 alumni.example.org {
-    handle /rpc* {
-        reverse_proxy 127.0.0.1:3000
-    }
     handle /api/* {
         reverse_proxy 127.0.0.1:3000
     }
@@ -110,7 +106,7 @@ alumni.example.org {
 }
 ```
 
-When deployment is separately authorized, validate proxy configuration and HTTPS. Use the same origin for `CORS_ORIGIN`, `APP_URL`, and `VITE_SERVER_URL`; this keeps raw auth/file URLs and session cookies coherent. Restrict direct API network access to the proxy. Set a proxy request limit consistent with the API's 10 MB file limit plus multipart overhead. Configure gateway-level abuse limits: account counters and production-default IP counters are shared in MongoDB, but use the socket peer address, so clients behind one proxy still share a budget unless a trusted edge applies limits separately. Development IP counters default to process memory. The application intentionally does not trust arbitrary forwarded IP headers.
+When deployment is separately authorized, validate proxy configuration and HTTPS. Use the same origin for `CORS_ORIGIN`, `APP_URL`, and `VITE_SERVER_URL`; this keeps raw auth/file URLs and session cookies coherent. Restrict direct API network access to the proxy. Set a proxy request limit consistent with the API's 10 MB file limit plus multipart overhead. Configure gateway-level abuse limits: account counters and production-default IP counters are shared in MongoDB, and accept forwarded client addresses only from an explicitly trusted exact proxy IP with one overwritten X-Forwarded-For address. Otherwise clients behind one proxy share its socket budget. Development IP counters default to process memory. The application intentionally does not trust arbitrary forwarded IP headers.
 
 Administrators require the local TOTP factor even after Google sign-in. Review [account security operations](operations/ACCOUNT_SECURITY.md) for enrollment, key backup, recovery, cookie transition, password policy and cleanup requirements. The local recovery CLI refuses production; do not treat it as the production break-glass process. Real backup/restore and credential/key rotation require operator approval and rehearsal.
 
@@ -119,7 +115,7 @@ Set a site-specific Content Security Policy at the static host after testing Goo
 ## Optional integrations
 
 - In Settings > Integrations, enable only configured services. A configured status means variables exist; it does not verify provider access.
-- Google sign-in: register the exact `{APP_URL}/api/auth/google/callback` redirect URL and allowed origins. Verify state-cookie rejection, verified email handling, disabled accounts, and successful sign-in in staging. Existing email accounts can be linked through verified Google email.
+- Google sign-in: register the exact `{APP_URL}/api/auth/google/callback` redirect URL and allowed origins. Verify state-cookie rejection, verified email handling, disabled accounts, and successful sign-in in staging. Verified Google email can link an existing account only after its password registration email was confirmed; pending unconfirmed password reservations remain blocked.
 - reCAPTCHA: use a v2 checkbox site/secret key pair registered for the deployed hostname. The browser renders the provider widget and the server verifies its token. The local checkbox is development-only; production rejects that fallback. If reCAPTCHA is enabled without keys, sign-in fails until keys are configured or an administrator disables the integration.
 - Drive: enable Drive API, share only the private evidence folder with the service account, and verify upload plus authenticated download. Do not make the folder public. Local fallback requires persistent space even when Drive is configured.
 - Sheets: enable Sheets API and share only the designated sheet with the service account. Verify import and RAW-value export. Existing reads are limited to A1:Z1000; schedule larger imports manually until pagination is implemented.
@@ -129,22 +125,37 @@ Set a site-specific Content Security Policy at the static host after testing Goo
 
 ## Release smoke tests and recovery
 
-1. Confirm `/health/live` returns 200 and `/health/ready` returns 200 only when MongoDB is reachable. A 503 readiness response must keep the service out of rotation.
-2. Sign in using the privately initialized administrator. Confirm public signup is disabled in production by default. If explicitly permitted by policy, new accounts receive global Viewer access, never administrator access. New Google users must also be pre-provisioned unless public signup is enabled. Confirm Settings navigation, profile update, password change, and other-session revocation.
+1. Confirm `/health/live` returns 200 and `/health/ready` returns 200 only with a writable MongoDB primary and enabled/configured mandatory contact-verification providers. A 503 readiness response must keep the service out of rotation.
+2. Sign in using the privately initialized administrator. Confirm public signup is disabled in production by default. If explicitly permitted by policy, new accounts receive Alumni self-service access, never administrator access. New Google users must also be pre-provisioned unless public signup is enabled. Confirm Settings navigation, profile update, password change, and other-session revocation.
 3. Exercise role masters, mixed states, individual permissions, save/reload, concurrent browser saves, and simulated failures against an isolated staging replica set. Verify protected administrator records cannot be disabled, stripped of roles, or have their role permissions cleared through the API.
 4. Use a low-privilege staging account to verify forbidden API responses independently of hidden navigation. Verify anonymous/disabled users cannot upload, preview, or download evidence. Verify evidence URLs and storage keys are absent from alumni API responses.
 5. Upload allowed synthetic files, reject spoofed and oversized files, then verify an authorized download. Signature checking is not malware scanning. Institution-specific malware scanning, storage quotas, and retention/purge jobs require operational decisions and are not implemented by this release.
 6. Confirm desktop/mobile layouts and keyboard access. Automated axe checks cover Settings role and integration pages; arrange screen-reader and broader workflow checks before declaring full WCAG conformance.
 7. Schedule database snapshots and upload-volume backups with encryption and restricted access. Restore both into a separate environment and verify role assignments, evidence references, and downloads. Record restore time, recovery point, and recovery time objectives.
 8. Monitor readiness, 5xx/403/429 rates, disk growth, database latency, audit-log growth, and external-provider failures. Never log tokens, passwords, private keys, file contents, or full provider responses.
-9. For application rollback, redeploy the previous built commit together with its lockfile and generated Prisma engine. Revoke sessions if reverting authentication changes. This release has no schema-field migration; do not restore an old database over new user data as a routine rollback. If data restoration is necessary, stop writes, take a final backup, obtain operational approval, then restore matched database and upload snapshots.
+9. For application rollback, redeploy the previous built commit together with its matching lockfile and dependencies. This migration does not mass-revoke sessions. Its structured-name and ownership fields are additive; do not restore an old database over new user data as a routine rollback. If data restoration is necessary, stop writes, take a final backup, obtain operational approval, then restore matched database and upload snapshots.
 10. Remove bootstrap password variables from the steady-state service environment after initialization. Review account/role changes and dependency advisories regularly. Run the recorded gates on every dependency or permission change.
 
-## Release blockers
+## Remaining operational verification
 
-- Real MongoDB transaction, concurrent-save, bootstrap, and backup-restore checks are unverified. Supply an isolated replica set and test credentials; do not reuse production data.
-- No deployment host, domain, proxy, persistent volume, monitoring, or restore drill has been verified.
-- External-provider flows require owner-supplied credentials and staging verification. Keep unverified integrations disabled.
-- Forms replay handling, malware/retention policy, large-list pagination, and multi-instance storage/rate limiting remain explicit limitations. Review these against the institution's deployment requirements before enabling the corresponding workloads.
+- Real local MongoDB transactions, unique links, concurrent updates and Forms replay/rollback were verified with synthetic namespaces. Production topology, failover and restoration remain unverified.
+- Deployment host, domain, proxy, persistent volume, monitoring and restore drills require operator verification.
+- External-provider OAuth, mail, Drive, Sheets and Forms sender behavior require credentials and staging acceptance. SMS delivery is unimplemented; strict accounts remain restricted and production readiness returns 503 until the provider adapter is completed and accepted. Keep unverified integrations disabled.
+- Malware scanning, retention/purge policy and multi-instance shared file storage require institutional decisions. Pagination is implemented; deep-offset performance and real capacity remain unverified.
+- Hosted Windows/Linux CI and a physical second-device rehearsal have not been run for this rewrite.
 
-The application is not declared production-ready on the basis of compilation or synthetic tests.
+Local checks do not establish production readiness.
+
+## Mongoose and REST cutover
+
+Read [the migration runbook](migrations/MONGOOSE_REST.md) before applying any changes. Existing collection names, ObjectIds, references, timestamps and indexes are retained. Automatic index creation is disabled at server startup. First inspect the target using the DB package's `db:migrate --dry-run`, back up the database and private uploads, review conflicts, and obtain operator authorization before `--apply`. Apply adds only absent collections/indexes; it never drops or replaces an existing index, rewrites names, links accounts, resets or reseeds an existing database. The partial unique `User.alumniId` index and FormsReceipt uniqueness must be present before enabling corresponding traffic. Run `db:verify-transactions` against the approved isolated environment before cutover.
+
+Repository seeding now explicitly refuses `NODE_ENV=production`; provisioning a new production administrator requires a separately reviewed institutional process. The migration preserves existing administrators and passwords. Development bootstrap commands must not be used to alter an existing production database.
+
+Only `/api` REST endpoints are served. Retired `/rpc` and `/api-reference` endpoints return 404. Serve static SPA fallback routes including `/my-profile`; preserve Origin/Referer and cookie headers. Staff and Alumni are exempt from mandatory MFA in every environment; Administrator roles retain the strongest policy even when combined with other roles.
+
+## Verification enablement gate
+
+Production must leave `LOCAL_REQUIRE_EMAIL_VERIFICATION` and `LOCAL_REQUIRE_PHONE_VERIFICATION` true or absent; false is rejected at startup. LOCAL_DISABLE_MFA must be false/absent in production; a local testing pause is rejected. Verify a real SMS adapter, enabled HTTPS email gateway and actual receipt/code-expiry behavior in isolated staging. Readiness intentionally stays 503 while these mandatory capabilities are incomplete; do not weaken it to deploy. Review grandfathered `verificationRequired=false` accounts and old Staff integration grants with an explicit institutional migration plan rather than silently changing their access.
+
+Use [current completion evidence](COMPLETION_VERIFICATION.md), not historical Done labels or prior audit counts, for this working revision. No provider activation, production schema update or deployment was performed.

@@ -1,25 +1,25 @@
-import { genderSchema } from "@Alumni-Tracking-Ss/api/validation";
+import { useProgramOptions } from "@/lib/academic-options";
+import { genderSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { NameFields, emptyName } from "@/components/name-fields";
 import { NativeSelect } from "@/components/native-select";
 import { FormField, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, queryClient } from "@/utils/api";
 
 export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const session = useSession();
-  const programs = useQuery(orpc.programs.list.queryOptions({ input: {} }));
+  const programs = useProgramOptions();
   const [form, setForm] = useState({
     studentNumber: "",
-    firstName: "",
-    lastName: "",
-    middleName: "",
+    ...emptyName,
     gender: "",
     graduationYear: "",
     mobileNumber: "",
@@ -86,7 +86,7 @@ export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
             <option value="">Select program</option>
             {programs.data?.map((program) => (
               <option key={program.id} value={program.id}>
-                {program.department.code} / {program.code} — {program.name}
+                {program.department.name} / {program.code} — {program.name}
               </option>
             ))}
           </NativeSelect>
@@ -99,29 +99,11 @@ export function AlumniCreateDialog({ onClose }: { onClose: () => void }) {
             required
           />
         </FormField>
-        <FormField id="firstName" label="First name" required>
-          <Input
-            id="firstName"
-            value={form.firstName}
-            onChange={(event) => setForm({ ...form, firstName: event.target.value })}
-            required
-          />
-        </FormField>
-        <FormField id="lastName" label="Last name" required>
-          <Input
-            id="lastName"
-            value={form.lastName}
-            onChange={(event) => setForm({ ...form, lastName: event.target.value })}
-            required
-          />
-        </FormField>
-        <FormField id="middleName" label="Middle name">
-          <Input
-            id="middleName"
-            value={form.middleName}
-            onChange={(event) => setForm({ ...form, middleName: event.target.value })}
-          />
-        </FormField>
+        <NameFields
+          value={form}
+          prefix="alumni-create"
+          onChange={(names) => setForm({ ...form, ...names })}
+        />
         <FormField id="gender" label="Gender" required>
           <NativeSelect
             id="gender"

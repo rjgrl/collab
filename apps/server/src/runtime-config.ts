@@ -1,6 +1,8 @@
 import { isIP } from "node:net";
 import path from "node:path";
 import { boundedSetting } from "@Alumni-Tracking-Ss/api/services/throttle";
+import { localMfaDisabled } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
+import { contactVerificationPolicy } from "@Alumni-Tracking-Ss/api/services/contact-policy";
 
 export const normalizeIp = (value: string) =>
   value.startsWith("::ffff:") && isIP(value.slice(7)) === 4 ? value.slice(7) : value;
@@ -35,14 +37,24 @@ export function validateRuntimeConfig(
   },
   settings: NodeJS.ProcessEnv = process.env,
 ) {
+  contactVerificationPolicy({
+    ...settings,
+    NODE_ENV: input.nodeEnv,
+    DATABASE_URL: input.databaseUrl,
+  });
   const trustedProxyIps = trustedProxyAddresses(settings.TRUSTED_PROXY_IPS);
   boundedSetting(settings.AUTH_IP_LIMIT, 30, 1000);
   boundedSetting(settings.AUTH_IP_WINDOW_SECONDS, 900, 86400);
   boundedSetting(settings.AUTH_ACCOUNT_LIMIT, 5, 100);
   boundedSetting(settings.SESSION_IDLE_MINUTES, 30, 1440);
+  if (
+    settings.LOCAL_DISABLE_MFA === "true" &&
+    !localMfaDisabled({ ...settings, NODE_ENV: input.nodeEnv, DATABASE_URL: input.databaseUrl })
+  )
+    throw Error(
+      "LOCAL_DISABLE_MFA is development-only and requires managed loopback MongoDB. Remove it before production.",
+    );
   if (input.nodeEnv !== "production") return { trustedProxyIps };
-  if (settings.LOCAL_DISABLE_MFA === "true")
-    throw Error("LOCAL_DISABLE_MFA is development-only. Remove it before starting production.");
   for (const value of [input.origin, input.appUrl]) {
     let url: URL;
     try {

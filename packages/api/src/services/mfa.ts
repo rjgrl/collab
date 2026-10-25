@@ -1,20 +1,21 @@
+import { toEntity } from "@Alumni-Tracking-Ss/db";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { generateSecret, generateURI, verify } from "otplib";
-import { ORPCError } from "@orpc/server";
+import { ApiError } from "../http-error";
 import { verifyPassword } from "@Alumni-Tracking-Ss/db";
 import { rotateSession } from "./session-rotation";
 import type { Context } from "../context";
 import { writeAudit } from "../audit";
 import { authorizationTransaction } from "./authorization";
 import { consumeAuthAttempt } from "./throttle";
-import { localMfaDisabled, requiresMfa } from "./mfa-policy";
+import { requiresMfa, localMfaDisabled, privilegedAccount } from "./mfa-policy";
 export { privilegedAccount } from "./mfa-policy";
 
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 function encryptionKey(context: Context) {
   const key = context.integrationEnv.mfaEncryptionKey;
   if (!key || !/^[a-f0-9]{64}$/i.test(key))
-    throw new ORPCError("SERVICE_UNAVAILABLE", {
+    throw new ApiError("SERVICE_UNAVAILABLE", {
       message: "Authenticator security is not configured. Contact an administrator.",
     });
   return Buffer.from(key, "hex");
@@ -39,13 +40,16 @@ function decrypt(context: Context, envelope: string) {
   );
 }
 const failed = () =>
-  new ORPCError("BAD_REQUEST", { message: "The code is invalid, expired or already used." });
+  new ApiError("BAD_REQUEST", { message: "The code is invalid, expired or already used." });
 export async function mfaStatus(context: Context) {
-  const row = await context.db.mfaCredential.findUnique({ where: { userId: context.user!.id } });
+  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   return {
     enrolled: Boolean(row?.secretCipher),
     required: requiresMfa({ ...context.user!, mfaEnrolled: Boolean(row?.secretCipher) }),
-    enforcementDisabled: localMfaDisabled(),
+    enforcementDisabled: privilegedAccount(context.user!) && localMfaDisabled(),
     verified: Boolean(context.user?.mfaVerified),
     fresh: Boolean(context.user?.mfaFresh),
     configured: /^[a-f0-9]{64}$/i.test(context.integrationEnv.mfaEncryptionKey ?? ""),
@@ -54,22 +58,29 @@ export async function mfaStatus(context: Context) {
 export async function beginMfa(context: Context, password: string) {
   encryptionKey(context);
   await consumeAuthAttempt(context.db, "mfa-enroll", context.user!.id);
-  const user = await context.db.user.findUniqueOrThrow({ where: { id: context.user!.id } });
+  const user = await context.db.User.findOne({ _id: context.user!.id })
+    .lean()
+    .orFail(() => new ApiError("UNAUTHORIZED"))
+    .exec()
+    .then((row) => toEntity(row));
   if (!user.passwordHash || !(await verifyPassword(password, user.passwordHash)))
-    throw new ORPCError("FORBIDDEN", {
+    throw new ApiError("FORBIDDEN", {
       message: "Re-enter your current password to set up an authenticator.",
     });
-  const existing = await context.db.mfaCredential.findUnique({ where: { userId: user.id } });
+  const existing = await context.db.MfaCredential.findOne({ userId: user.id })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   if (
     existing?.secretCipher &&
     (!context.user!.mfaVerified ||
       !context.user!.mfaFresh ||
       context.user!.mfaVersion !== existing.version)
   )
-    throw new ORPCError("FORBIDDEN", {
+    throw new ApiError("FORBIDDEN", {
       message: "Verify with your authenticator or a recovery code before replacing it.",
     });
-  if (!context.sessionToken) throw new ORPCError("UNAUTHORIZED");
+  if (!context.sessionToken) throw new ApiError("UNAUTHORIZED");
   const secret = generateSecret();
   const data = {
     pendingCipher: encryptMfaSecret(context, secret),
@@ -77,16 +88,13 @@ export async function beginMfa(context: Context, password: string) {
     pendingUntil: new Date(Date.now() + 10 * 60_000),
   };
   if (existing) {
-    const claimed = await context.db.mfaCredential.updateMany({
-      where: { id: existing.id, version: existing.version },
-      data,
-    });
-    if (claimed.count !== 1)
-      throw new ORPCError("CONFLICT", { message: "Authenticator settings changed. Try again." });
-  } else
-    await context.db.mfaCredential.create({
-      data: { userId: user.id, recoveryHashes: [], ...data },
-    });
+    const claimed = await context.db.MfaCredential.updateOne(
+      { _id: existing.id, version: existing.version },
+      { $set: data },
+    ).exec();
+    if (claimed.modifiedCount !== 1)
+      throw new ApiError("CONFLICT", { message: "Authenticator settings changed. Try again." });
+  } else await context.db.MfaCredential.create({ userId: user.id, recoveryHashes: [], ...data });
   return {
     secret,
     uri: generateURI({ issuer: "Alumni Tracking", label: user.email, secret }),
@@ -95,7 +103,10 @@ export async function beginMfa(context: Context, password: string) {
 }
 export async function confirmMfa(context: Context, code: string) {
   await consumeAuthAttempt(context.db, "mfa-code", context.user!.id);
-  const row = await context.db.mfaCredential.findUnique({ where: { userId: context.user!.id } });
+  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   if (
     !row?.pendingCipher ||
     !row.pendingUntil ||
@@ -112,27 +123,29 @@ export async function confirmMfa(context: Context, code: string) {
   const recoveryCodes = Array.from({ length: 10 }, () => randomBytes(16).toString("hex"));
   const version = randomUUID();
   const rotated = await authorizationTransaction(context.db, async (tx) => {
-    const claimed = await tx.mfaCredential.updateMany({
-      where: {
-        id: row.id,
+    const claimed = await tx.MfaCredential.updateOne(
+      {
+        _id: row.id,
         pendingCipher: row.pendingCipher,
         pendingSession: row.pendingSession,
-        pendingUntil: { gt: new Date() },
+        pendingUntil: { $gt: new Date() },
       },
-      data: {
-        secretCipher: row.pendingCipher,
-        version,
-        lastStep: result.timeStep,
-        recoveryHashes: recoveryCodes.map(digest),
-        pendingCipher: null,
-        pendingSession: null,
-        pendingUntil: null,
+      {
+        $set: {
+          secretCipher: row.pendingCipher,
+          version: version,
+          lastStep: result.timeStep,
+          recoveryHashes: recoveryCodes.map(digest),
+          pendingCipher: null,
+          pendingSession: null,
+          pendingUntil: null,
+        },
       },
-    });
-    if (claimed.count !== 1) throw failed();
+    ).exec();
+    if (claimed.modifiedCount !== 1) throw failed();
     const session = await rotateSession(tx, context, { version, verifiedAt: new Date() }, true);
     await writeAudit(tx, {
-      actorId: context.user!.id,
+      actor: context.user,
       action: "auth.mfa.enrolled",
       entity: "user",
       entityId: context.user!.id,
@@ -150,10 +163,16 @@ export async function confirmMfa(context: Context, code: string) {
 }
 export async function verifyMfa(context: Context, code: string) {
   await consumeAuthAttempt(context.db, "mfa-code", context.user!.id);
-  const row = await context.db.mfaCredential.findUnique({ where: { userId: context.user!.id } });
-  const session = await context.db.session.findUnique({
-    where: { token: context.sessionStorageToken ?? context.sessionToken ?? "" },
-  });
+  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
+  const session = await context.db.Session.findOne({
+    token: context.sessionStorageToken ?? context.sessionToken ?? "",
+  })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   if (
     !row?.secretCipher ||
     !session ||
@@ -161,7 +180,7 @@ export async function verifyMfa(context: Context, code: string) {
     session.expiresAt <= new Date() ||
     session.createdAt.getTime() < Date.now() - 10 * 60_000
   )
-    throw new ORPCError("FORBIDDEN", {
+    throw new ApiError("FORBIDDEN", {
       message: "Sign in again before verifying your authenticator.",
     });
   const recovery = /^[a-f0-9]{32}$/i.test(code);
@@ -179,19 +198,19 @@ export async function verifyMfa(context: Context, code: string) {
   if (recovery ? !row.recoveryHashes.includes(codeHash) : !result?.valid || !("timeStep" in result))
     throw failed();
   const rotated = await authorizationTransaction(context.db, async (tx) => {
-    const claimed = await tx.mfaCredential.updateMany({
-      where: {
-        id: row.id,
+    const claimed = await tx.MfaCredential.updateOne(
+      {
+        _id: row.id,
         version: row.version,
-        ...(recovery
-          ? { recoveryHashes: { equals: row.recoveryHashes } }
-          : { lastStep: row.lastStep }),
+        ...(recovery ? { recoveryHashes: row.recoveryHashes } : { lastStep: row.lastStep }),
       },
-      data: recovery
-        ? { recoveryHashes: row.recoveryHashes.filter((hash) => hash !== codeHash) }
-        : { lastStep: usedStep ?? row.lastStep },
-    });
-    if (claimed.count !== 1) throw failed();
+      {
+        $set: recovery
+          ? { recoveryHashes: row.recoveryHashes.filter((hash) => hash !== codeHash) }
+          : { lastStep: usedStep ?? row.lastStep },
+      },
+    ).exec();
+    if (claimed.modifiedCount !== 1) throw failed();
     const session = await rotateSession(
       tx,
       context,
@@ -199,7 +218,7 @@ export async function verifyMfa(context: Context, code: string) {
       false,
     );
     await writeAudit(tx, {
-      actorId: context.user!.id,
+      actor: context.user,
       action: recovery ? "auth.mfa.recovery" : "auth.mfa.verified",
       entity: "user",
       entityId: context.user!.id,

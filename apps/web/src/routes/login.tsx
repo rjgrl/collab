@@ -4,7 +4,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
@@ -13,12 +12,15 @@ import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { AccountProfileFields } from "@/components/account-profile-fields";
+import { NameFields, emptyName } from "@/components/name-fields";
+import { AcademicProfileFields, emptyAcademic } from "@/components/academic-profile-fields";
+import { LocalVerificationNotice } from "@/components/local-verification-notice";
 import { PasswordGuidance } from "@/components/password-guidance";
 import { CheckboxRow } from "@/components/checkbox-row";
 import { Recaptcha } from "@/components/recaptcha";
 import { FormField, PrimaryButton } from "@/components/page-header";
-import { postJson } from "@/lib/session";
-import { orpc, queryClient } from "@/utils/orpc";
+import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
+import { client, api, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { error?: "google" } =>
@@ -29,10 +31,11 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const config = useQuery(orpc.auth.config.queryOptions());
+  const config = useQuery(api.auth.config.queryOptions());
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [profile, setProfile] = useState({ phoneNumber: "", gender: "", facebookAccount: "" });
-  const [name, setName] = useState("");
+  const [names, setNames] = useState(emptyName);
+  const [academic, setAcademic] = useState(emptyAcademic);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fallbackChecked, setFallbackChecked] = useState(false);
@@ -53,15 +56,24 @@ function LoginPage() {
     setPending(true);
     setFormError(null);
     try {
-      await postJson(mode === "login" ? "/api/auth/login" : "/api/auth/signup", {
-        name,
-        ...(mode === "signup" ? profile : {}),
+      const credentials = {
         email,
         password,
         recaptchaToken,
         recaptchaFallback: needsCheckbox ? fallbackChecked : true,
-      });
-      await queryClient.invalidateQueries();
+      };
+      if (mode === "signup")
+        await client.auth.signup(
+          signupSchema.parse({
+            ...credentials,
+            ...profile,
+            ...names,
+            ...academic,
+            graduationYear: academic.graduationYear ? Number(academic.graduationYear) : undefined,
+          }),
+        );
+      else await client.auth.login(credentials);
+      queryClient.clear();
       toast.success(mode === "login" ? "Signed in" : "Account created");
       await navigate({ to: "/dashboard" });
     } catch (error) {
@@ -76,25 +88,18 @@ function LoginPage() {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md">
+      <Card className={mode === "signup" ? "w-full max-w-2xl" : "w-full max-w-md"}>
         <CardHeader>
-          <CardTitle>Alumni Tracking System</CardTitle>
+          <h1 className="text-2xl font-semibold tracking-tight">Alumni Tracking System</h1>
           <CardDescription>
             Sign in to manage academic structure, alumni profiles, and graduate tracking.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
+            <LocalVerificationNotice />
             {mode === "signup" ? (
-              <FormField id="name" label="Name" required>
-                <Input
-                  id="name"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                />
-              </FormField>
+              <NameFields value={names} onChange={setNames} prefix="signup" />
             ) : null}
             <FormField id="email" label="Email" required>
               <Input
@@ -108,6 +113,9 @@ function LoginPage() {
             </FormField>
             {mode === "signup" ? (
               <AccountProfileFields value={profile} onChange={setProfile} />
+            ) : null}
+            {mode === "signup" ? (
+              <AcademicProfileFields value={academic} onChange={setAcademic} />
             ) : null}
             <FormField id="password" label="Password" required>
               <Input

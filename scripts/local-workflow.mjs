@@ -5,11 +5,15 @@ import { projectRoot, runTsx, runWorkspace } from "./local-tools.mjs";
 
 async function main() {
   const command = process.argv[2];
-  if (!["dev", "dev:server", "db:push", "db:seed", "db:local"].includes(command))
+  if (
+    !["dev", "dev:server", "db:migrate", "db:verify-transactions", "db:seed", "db:local"].includes(
+      command,
+    )
+  )
     throw new Error("Unsupported local workflow command.");
-  if (!existsSync(path.join(projectRoot, "packages/db/prisma/generated/client.ts")))
+  if (!existsSync(path.join(projectRoot, "packages/db/node_modules/mongoose/package.json")))
     throw new Error(
-      "Prisma client is missing. Run pnpm setup:local for local testing, or pnpm db:generate for a custom environment.",
+      "Mongoose is missing. Run pnpm install --frozen-lockfile and pnpm setup:local.",
     );
   const { effective } = await readLocalConfig(projectRoot);
   if (command === "db:local" && effective.NODE_ENV === "production")

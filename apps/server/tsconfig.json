@@ -8,7 +8,8 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
-  }
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*.ts", "tsdown.config.ts"],
+  "exclude": ["node_modules", "dist"]
 }

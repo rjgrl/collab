@@ -1,5 +1,5 @@
 import { prepareLocalEnv } from "./local-env.mjs";
-import { projectRoot, runTool, runTsx, runWorkspace } from "./local-tools.mjs";
+import { projectRoot, runTool, runTsx } from "./local-tools.mjs";
 import { checkToolchain } from "./development.mjs";
 
 async function main() {
@@ -23,7 +23,6 @@ async function main() {
   );
   for (const directory of ["apps/web", "apps/server", "packages/db"])
     await runTool("varlock", "varlock", ["codegen", "--path", directory], { env });
-  await runWorkspace(["--filter", "@Alumni-Tracking-Ss/db", "db:generate"], { env });
   await runTsx("local-mongo.ts", { env });
   await runTsx("initialize-local-db.ts", { env });
   await runTsx("verify-local-setup.ts", { env });

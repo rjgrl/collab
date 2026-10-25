@@ -1,5 +1,6 @@
+import { toEntity } from "@Alumni-Tracking-Ss/db";
 import { randomBytes } from "node:crypto";
-import { ORPCError } from "@orpc/server";
+import { ApiError } from "../http-error";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
 import { digest } from "./mfa";
@@ -12,7 +13,10 @@ import { writeAudit } from "../audit";
 
 export async function requestPasswordReset(context: Context, email: string) {
   await consumeAuthAttempt(context.db, "password-reset-request", email, 3);
-  const user = await context.db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  const user = await context.db.User.findOne({ email: email.trim().toLowerCase() })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   if (
     user?.status === "active" &&
     user.emailVerified &&
@@ -22,14 +26,12 @@ export async function requestPasswordReset(context: Context, email: string) {
     (await isIntegrationEnabled(context.db, "email"))
   ) {
     const token = randomBytes(32).toString("hex");
-    await context.db.passwordReset.create({
-      data: {
-        tokenHash: digest(token),
-        userId: user.id,
-        passwordVersion: digest(user.passwordHash),
-        expiresAt: new Date(Date.now() + 15 * 60_000),
-        consumedAt: null,
-      },
+    await context.db.PasswordReset.create({
+      tokenHash: digest(token),
+      userId: user.id,
+      passwordVersion: digest(user.passwordHash),
+      expiresAt: new Date(Date.now() + 15 * 60_000),
+      consumedAt: null,
     });
     const url = new URL("/reset-password", context.integrationEnv.webOrigin);
     url.hash = new URLSearchParams({ token }).toString();
@@ -52,13 +54,19 @@ export async function requestPasswordReset(context: Context, email: string) {
 export async function resetPassword(context: Context, token: string, password: string) {
   const tokenHash = digest(token);
   await consumeAuthAttempt(context.db, "password-reset-token", tokenHash);
-  const row = await context.db.passwordReset.findUnique({ where: { tokenHash } });
+  const row = await context.db.PasswordReset.findOne({ tokenHash })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   const invalid = () =>
-    new ORPCError("BAD_REQUEST", {
+    new ApiError("BAD_REQUEST", {
       message: "This reset link is invalid, expired or already used. Request a new link.",
     });
   if (!row || row.consumedAt || row.expiresAt <= new Date()) throw invalid();
-  const user = await context.db.user.findUnique({ where: { id: row.userId } });
+  const user = await context.db.User.findOne({ _id: row.userId })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   if (
     !user?.passwordHash ||
     user.status !== "active" ||
@@ -69,28 +77,28 @@ export async function resetPassword(context: Context, token: string, password: s
   await assertPasswordSafe(password);
   const passwordHash = await hashPassword(password);
   await authorizationTransaction(context.db, async (tx) => {
-    const used = await tx.passwordReset.updateMany({
-      where: {
-        id: row.id,
-        OR: [{ consumedAt: null }, { consumedAt: { isSet: false } }],
-        expiresAt: { gt: new Date() },
+    const used = await tx.PasswordReset.updateOne(
+      {
+        _id: row.id,
+        $or: [{ consumedAt: null }, { consumedAt: { $exists: false } }],
+        expiresAt: { $gt: new Date() },
       },
-      data: { consumedAt: new Date() },
-    });
-    if (used.count !== 1) throw invalid();
-    const updated = await tx.user.updateMany({
-      where: {
-        id: user.id,
+      { $set: { consumedAt: new Date() } },
+    ).exec();
+    if (used.modifiedCount !== 1) throw invalid();
+    const updated = await tx.User.updateOne(
+      {
+        _id: user.id,
         passwordHash: user.passwordHash,
         status: "active",
         emailVerified: true,
       },
-      data: { passwordHash },
-    });
-    if (updated.count !== 1) throw invalid();
-    await tx.session.deleteMany({ where: { userId: user.id } });
+      { $set: { passwordHash: passwordHash } },
+    ).exec();
+    if (updated.modifiedCount !== 1) throw invalid();
+    await tx.Session.deleteMany({ userId: user.id }).exec();
     await writeAudit(tx, {
-      actorId: user.id,
+      actor: user,
       action: "auth.password.reset",
       entity: "user",
       entityId: user.id,

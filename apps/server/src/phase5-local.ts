@@ -4,11 +4,12 @@ import { once } from "node:events";
 import { mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { serve } from "@hono/node-server";
 import { generate } from "otplib";
-import { createPrismaClient, hashPassword } from "../../../packages/db/src/index";
+import { createDatabase, hashPassword } from "../../../packages/db/src/index";
 import { createApp } from "./app";
-import { projectRoot, runTool } from "../../../scripts/local-tools.mjs";
+import { acceptanceRequest } from "./local-rest";
+import { migrateDatabase } from "../../../packages/db/src/migration";
+import { projectRoot } from "../../../scripts/local-tools.mjs";
 import { isManagedLocalDatabase } from "../../../scripts/local-env.mjs";
 if (process.env.NODE_ENV === "production") throw Error("Local synthetic checks only");
 process.env.NODE_ENV = "test";
@@ -18,24 +19,10 @@ process.env.AUTH_IP_LIMIT = "1000";
 const database = `collab_phase5_${randomBytes(6).toString("hex")}`;
 const url = `mongodb://127.0.0.1:27018/${database}?replicaSet=rs0`;
 assert.ok(isManagedLocalDatabase(url));
-await runTool(
-  "prisma",
-  "prisma",
-  [
-    "db",
-    "push",
-    "--skip-generate",
-    "--schema",
-    path.join(projectRoot, "packages/db/prisma/schema"),
-  ],
-  {
-    cwd: path.join(projectRoot, "packages/db"),
-    toolRoot: path.join(projectRoot, "packages/db"),
-    env: { ...process.env, DATABASE_URL: url },
-  },
-);
-const db = createPrismaClient({ DATABASE_URL: url });
-const servers: ReturnType<typeof serve>[] = [];
+const db = createDatabase({ DATABASE_URL: url });
+await db.ready();
+assert.deepEqual((await migrateDatabase(db, "apply")).conflicts, []);
+const servers: ReturnType<ReturnType<typeof createApp>["listen"]>[] = [];
 const origin = "https://app.example.test";
 const integrationEnv = {
   mfaEncryptionKey: "58".repeat(32),
@@ -47,7 +34,7 @@ async function listen(production = false, trustedProxyIps: readonly string[] = [
     config: { nodeEnv: production ? "production" : "test", origin, trustedProxyIps },
     integrationEnv,
   });
-  const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 0 });
+  const server = app.listen(0, "127.0.0.1");
   servers.push(server);
   if (!server.listening) await once(server, "listening");
   const a = server.address();
@@ -57,18 +44,18 @@ async function listen(production = false, trustedProxyIps: readonly string[] = [
 const checks: { test: string; status: number }[] = [];
 const metrics: unknown[] = [];
 try {
-  await db.integrationSetting.createMany({
-    data: [
-      { key: "recaptcha", enabled: false },
-      { key: "google_forms", enabled: true },
-    ],
+  await db.IntegrationSetting.insertMany([
+    { key: "recaptcha", enabled: false },
+    { key: "google_forms", enabled: true },
+  ]);
+  const department = await db.Department.create({ name: "Synthetic" });
+  const program = await db.Program.create({
+    code: "P5",
+    name: "Synthetic",
+    departmentId: department.id,
   });
-  const department = await db.department.create({ data: { code: "P5", name: "Synthetic" } });
-  const program = await db.program.create({
-    data: { code: "P5", name: "Synthetic", departmentId: department.id },
-  });
-  await db.alumni.createMany({
-    data: Array.from({ length: 1000 }, (_, i) => ({
+  await db.Alumni.insertMany(
+    Array.from({ length: 1000 }, (_, i) => ({
       studentNumber: `P5-${i}`,
       firstName: "Synthetic",
       lastName: `Person${String(i).padStart(4, "0")}`,
@@ -76,32 +63,21 @@ try {
       programId: program.id,
       isTracked: i % 2 === 0,
     })),
-  });
+  );
   const password = "Synthetic production-like passphrase 919!";
   const keys = ["alumni.read", "dashboard.read", "reports.export", "files.read"];
-  const user = await db.user.create({
-    data: {
-      name: "Synthetic Phase5",
-      email: "phase5@example.test",
-      emailVerified: true,
-      passwordHash: await hashPassword(password),
-      userRoles: {
-        create: {
-          role: {
-            create: {
-              key: "super_admin",
-              name: "Synthetic",
-              rolePermissions: {
-                create: keys.map((key) => ({
-                  permission: { create: { key, name: key, module: "synthetic" } },
-                })),
-              },
-            },
-          },
-        },
-      },
-    },
+  const role = await db.Role.create({ key: "super_admin", name: "Synthetic" });
+  for (const key of keys) {
+    const permission = await db.Permission.create({ key, name: key, module: "synthetic" });
+    await db.RolePermission.create({ roleId: role._id, permissionId: permission._id });
+  }
+  const user = await db.User.create({
+    name: "Synthetic Phase5",
+    email: "phase5@example.test",
+    emailVerified: true,
+    passwordHash: await hashPassword(password),
   });
+  await db.UserRole.create({ userId: user._id, roleId: role._id });
   const base = await listen();
   process.env.AUTH_IP_LIMIT = "2";
   const trusted = await listen(true, ["127.0.0.1"]),
@@ -161,10 +137,7 @@ try {
   assert.match(cookie, /SameSite=Lax/);
   assert.ok(!/Domain=/i.test(cookie));
   const cookieToken = cookie.match(/__Host-ats_session=([^;]+)/)![1]!;
-  assert.equal(
-    (await db.session.findFirstOrThrow({ where: { userId: user.id } })).ipAddress,
-    "198.51.100.9",
-  );
+  assert.equal((await db.Session.findOne({ userId: user.id }).orFail()).ipAddress, "198.51.100.9");
   metrics.push({
     workflow: "password login (cold, strong scrypt)",
     requests: 1,
@@ -175,21 +148,16 @@ try {
     status: 200,
   });
   let token = cookieToken;
-  async function rpc(route: string, input: unknown = {}) {
-    const r = await fetch(base + "/rpc/" + route, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ json: input }),
-      signal: AbortSignal.timeout(15000),
-    });
-    return { status: r.status, body: ((await r.json()) as { json: unknown }).json };
+  async function rest(route: string, input: unknown = {}) {
+    const result = await acceptanceRequest(base, route, input, token);
+    return { status: result.response.status, body: result.body };
   }
-  assert.equal((await rpc("alumni/list")).status, 403);
-  const setup = await rpc("auth/beginMfa", { password });
+  assert.equal((await rest("alumni/list")).status, 403);
+  const setup = await rest("auth/beginMfa", { password });
   assert.equal(setup.status, 200);
   const secret = (setup.body as { secret: string }).secret;
   const mfaStart = performance.now();
-  const confirmation = await rpc("auth/confirmMfa", { code: await generate({ secret }) });
+  const confirmation = await rest("auth/confirmMfa", { code: await generate({ secret }) });
   assert.equal(confirmation.status, 200);
   token = (confirmation.body as { sessionToken: string }).sessionToken;
   metrics.push({
@@ -197,10 +165,10 @@ try {
     requests: 1,
     durationMs: performance.now() - mfaStart,
   });
-  // Representative direct query-plan experiment, not a claim about Prisma's
+  // Representative direct query-plan experiment, not a claim about Mongoose's
   // complete relation-lookup aggregate pipeline or a production index change.
   async function explain() {
-    const result = await db.$runCommandRaw({
+    const result = await db.connection.db!.command({
       explain: {
         find: "Alumni",
         filter: { isTracked: true },
@@ -212,7 +180,7 @@ try {
     return result.executionStats;
   }
   const before = await explain();
-  await db.$runCommandRaw({
+  await db.connection.db!.command({
     createIndexes: "Alumni",
     indexes: [
       { key: { isTracked: 1, lastName: 1, firstName: 1, _id: 1 }, name: "phase5_candidate_list" },
@@ -223,10 +191,10 @@ try {
     before,
     after,
     scope:
-      "candidate index only in disposable DB; direct representative query, not exact Prisma pipeline",
+      "candidate index only in disposable DB; direct representative query, not full application query shape",
   };
   async function measure(workflow: string, route: string, input: unknown) {
-    await rpc(route, input);
+    await rest(route, input);
     const cpu = process.cpuUsage(),
       rssStart = process.memoryUsage().rss,
       start = performance.now();
@@ -237,7 +205,7 @@ try {
       Array.from({ length: 4 }, async () => {
         while (next++ < 40) {
           const t = performance.now();
-          const r = await rpc(route, input);
+          const r = await rest(route, input);
           if (r.status !== 200) errors++;
           times.push(performance.now() - t);
         }
@@ -283,7 +251,7 @@ try {
         firstName: "Synthetic",
         lastName: `Person${String(i).padStart(4, "0")}`,
         gender: "Female",
-        departmentCode: "P5",
+        departmentName: "Synthetic",
         programCode: "P5",
       }),
     });
@@ -297,37 +265,46 @@ try {
     elapsedMs: performance.now() - formsStart,
     errors: 0,
   });
-  await db.integrationSetting.update({ where: { key: "google_forms" }, data: { enabled: false } });
+  await db.IntegrationSetting.findOneAndUpdate(
+    { key: "google_forms" },
+    { $set: { enabled: false } },
+    { returnDocument: "after" },
+  );
   // Explicit bounded export boundary check after the 1000-row measurements.
   for (let batch = 0; batch < 9; batch++)
-    await db.alumni.createMany({
-      data: Array.from({ length: 1000 }, (_, i) => ({
+    await db.Alumni.insertMany(
+      Array.from({ length: 1000 }, (_, i) => ({
         studentNumber: `P5-LIMIT-${batch}-${i}`,
         firstName: "Boundary",
         lastName: "Synthetic",
         programId: program.id,
       })),
-    });
-  const atLimit = await rpc("reports/alumniCsv", {});
+    );
+  const atLimit = await rest("reports/alumniCsv", {});
   assert.equal(atLimit.status, 200);
   assert.equal((atLimit.body as { count: number }).count, 10000);
-  await db.alumni.create({
-    data: {
-      studentNumber: "P5-OVER-LIMIT",
-      firstName: "Boundary",
-      lastName: "Synthetic",
-      programId: program.id,
-    },
+  await db.Alumni.create({
+    studentNumber: "P5-OVER-LIMIT",
+    firstName: "Boundary",
+    lastName: "Synthetic",
+    programId: program.id,
   });
-  assert.equal((await rpc("reports/alumniCsv", {})).status, 400);
+  assert.equal((await rest("reports/alumniCsv", {})).status, 400);
   checks.push({ test: "CSV exactly 10000 allowed; 10001 rejected over TCP", status: 400 });
-  await db.$disconnect();
-  assert.equal((await rpc("auth/me")).status, 200);
-  checks.push({ test: "own Prisma client reconnects after disconnect", status: 200 });
+  await db.disconnect();
+  const disconnected = await fetch(base + "/health/ready");
+  assert.equal(disconnected.status, 503);
+  await disconnected.text();
+  await db.connection.openUri(url, { autoIndex: false, autoCreate: false });
+  assert.equal((await rest("auth/me")).status, 200);
+  checks.push({
+    test: "closed Mongoose connection denies readiness; explicit reconnect restores operation",
+    status: 200,
+  });
   const readiness = await fetch(base + "/health/ready");
   assert.equal(readiness.status, 200);
   await readiness.text();
-  const serverStatus = await db.$runCommandRaw({ serverStatus: 1 });
+  const serverStatus = await db.connection.db!.command({ serverStatus: 1 });
   const result = {
     date: new Date().toISOString(),
     database,
@@ -362,5 +339,5 @@ try {
   console.log(JSON.stringify(result, null, 2));
 } finally {
   await Promise.all(servers.map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
-  await db.$disconnect();
+  await db.disconnect();
 }

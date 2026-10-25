@@ -13,7 +13,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.getByRole("button", { name: /Test Staff/ }).click();
 });
 
-test("group and individual controls save through oRPC and survive reload", async ({ page }) => {
+test("group and individual controls save through REST and survive reload", async ({ page }) => {
   const master = page.getByRole("switch", { name: "Enable all evidence and files permissions" });
   await master.check();
   await expect(page.getByRole("switch", { name: /^Upload evidence/ })).toBeChecked();
@@ -113,8 +113,8 @@ test("creation dialogs contain forms, trap focus and return focus to the add but
 }) => {
   await page.getByRole("button", { name: "Close dialog" }).click();
   for (const [path, title, field] of [
-    ["/settings/users", "Add user", "Name"],
-    ["/departments", "Add department", "Code"],
+    ["/settings/users", "Add user", "First name"],
+    ["/departments", "Add department", "Name"],
     ["/programs", "Add program", "Code"],
     ["/alumni", "Add alumni", "Student number"],
   ] as const) {
@@ -152,11 +152,11 @@ test("creation dialogs contain forms, trap focus and return focus to the add but
     await expect(add).toBeFocused();
   }
   await page.goto("/faculties");
-  await expect(page).toHaveURL(/\/departments$/);
-  await expect(page.getByRole("link", { name: "Faculties", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Faculty", exact: true })).toHaveCount(0);
+  expect((await page.request.get("/api/faculty")).status()).toBe(404);
 });
 
-test("account controls fit a desktop viewport and role dialogs scroll internally", async ({
+test("account controls remain reachable and role dialogs scroll internally", async ({
   page,
 }, testInfo) => {
   const dialog = page.getByRole("dialog");
@@ -169,14 +169,23 @@ test("account controls fit a desktop viewport and role dialogs scroll internally
   await expect(save).toBeInViewport();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.goto("/settings");
-  await expect(page.getByLabel("Full name")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "First name", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Toggle theme", exact: true })).toHaveCount(1);
   if (testInfo.project.name === "desktop") {
+    await page
+      .getByRole("button", { name: "Save personal details", exact: true })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      page.getByRole("button", { name: "Save personal details", exact: true }),
+    ).toBeInViewport();
+    await page
+      .getByRole("button", { name: "Change password", exact: true })
+      .scrollIntoViewIfNeeded();
     await expect(
       page.getByRole("button", { name: "Change password", exact: true }),
     ).toBeInViewport();
     expect(
-      await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight),
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
   }
   await page.screenshot({ path: testInfo.outputPath("account.png"), fullPage: true });

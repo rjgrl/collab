@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { can, useSession } from "@/lib/session";
 
 export const Route = createFileRoute("/_app/settings")({ component: SettingsLayout });
@@ -17,7 +18,10 @@ function SettingsLayout() {
       <nav aria-label="Settings" className="flex flex-wrap gap-2 border-b pb-3">
         {sections
           .filter(
-            (item) => item.permission === null || can(session.data?.permissions, item.permission),
+            (item) =>
+              (item.to !== "/settings/integrations" ||
+                (session.data && isAdministrator(session.data))) &&
+              (item.permission === null || can(session.data?.permissions, item.permission)),
           )
           .map((item) => (
             <Link

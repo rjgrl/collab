@@ -84,3 +84,6 @@ uploads
 .tools/
 test-results/
 playwright-report/
+
+# Local visual inspection state
+.taste-skill/

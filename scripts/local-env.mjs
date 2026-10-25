@@ -97,6 +97,10 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     );
   await fillMissingEnv(path.join(root, "apps/server/.env"), {
     NODE_ENV: "development",
+    LOCAL_DISABLE_MFA: "true",
+    ALLOW_PUBLIC_SIGNUP: "true",
+    LOCAL_REQUIRE_EMAIL_VERIFICATION: "false",
+    LOCAL_REQUIRE_PHONE_VERIFICATION: "false",
     CORS_ORIGIN: "http://localhost:3001",
     APP_URL: "http://localhost:3000",
     DATABASE_URL: databaseUrl,

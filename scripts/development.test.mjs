@@ -3,6 +3,11 @@ import { it } from "node:test";
 import { checkToolchain, requireSetupConsent } from "./development.mjs";
 it("fails early for incompatible Node or package manager without guessing versions", () => {
   assert.throws(() => checkToolchain({ node: "20.19.0" }), /Node.js/);
+  for (const node of ["22.15.0", "23.1.0", "24.10.0", "25.1.0"]) {
+    assert.throws(() => checkToolchain({ node }), /Node.js/);
+  }
+  checkToolchain({ node: "22.18.0" });
+  checkToolchain({ node: "24.11.0" });
   assert.throws(() => checkToolchain({ node: "26.10.0", agent: "pnpm/10.0.0 npm/?" }), /12.5.1/);
   checkToolchain({ node: "26.10.0", agent: "pnpm/12.5.1 npm/? node/v26.10.0" });
 });

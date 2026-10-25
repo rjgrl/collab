@@ -1,3 +1,4 @@
+import { TablePagination } from "@/components/table-pagination";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -9,21 +10,24 @@ import { toast } from "sonner";
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
 import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/_app/departments")({
   component: DepartmentsPage,
 });
 
-type Draft = { id?: string; code: string; name: string; description: string };
+type Draft = { id?: string; name: string; description: string };
 
-const emptyDraft: Draft = { code: "", name: "", description: "" };
+const emptyDraft: Draft = { name: "", description: "" };
 
 function DepartmentsPage() {
   const session = useSession();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const list = useQuery(orpc.departments.list.queryOptions({ input: { search } }));
+  const list = useQuery(
+    api.departments.list.queryOptions({ input: { search, page, pageSize: 20 } }),
+  );
   const canWrite = can(session.data?.permissions, "departments.write");
   const canDelete = can(session.data?.permissions, "departments.delete");
 
@@ -32,13 +36,11 @@ function DepartmentsPage() {
       if (value.id) {
         return client.departments.update({
           id: value.id,
-          code: value.code,
           name: value.name,
           description: value.description,
         });
       }
       return client.departments.create({
-        code: value.code,
         name: value.name,
         description: value.description,
       });
@@ -98,14 +100,6 @@ function DepartmentsPage() {
               save.mutate(draft);
             }}
           >
-            <FormField id="code" label="Code" required>
-              <Input
-                id="code"
-                value={draft.code}
-                onChange={(event) => setDraft({ ...draft, code: event.target.value })}
-                required
-              />
-            </FormField>
             <FormField id="name" label="Name" required>
               <Input
                 id="name"
@@ -127,9 +121,12 @@ function DepartmentsPage() {
         </FormDialog>
       ) : null}
       <DataTable
-        headers={["Code", "Name", "Programs", "Actions"]}
+        headers={["Name", "Programs", "Actions"]}
         search={search}
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         searchPlaceholder="Search departments"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
@@ -138,7 +135,6 @@ function DepartmentsPage() {
       >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
-            <TableCell>{row.code}</TableCell>
             <TableCell>{row.name}</TableCell>
             <TableCell>{row._count.programs}</TableCell>
             <TableCell>
@@ -148,7 +144,6 @@ function DepartmentsPage() {
                     onClick={() =>
                       setDraft({
                         id: row.id,
-                        code: row.code,
                         name: row.name,
                         description: row.description,
                       })
@@ -174,6 +169,12 @@ function DepartmentsPage() {
           </TableRow>
         ))}
       </DataTable>
+      <TablePagination
+        page={page}
+        onPage={setPage}
+        hasNext={list.data?.length === 20}
+        pending={list.isFetching}
+      />
     </PageShell>
   );
 }

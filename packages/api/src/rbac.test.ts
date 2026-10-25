@@ -3,26 +3,35 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { ORPCError, call } from "@orpc/server";
+import { ApiError } from "./http-error";
+import { modelFixture } from "./services/model-test-fixture";
 
 import type { AuthUser, Context } from "./context";
 import { PERMISSION_KEYS, ROLE_PRESETS } from "@Alumni-Tracking-Ss/db";
 
-import { alumniRouter } from "./routers/alumni";
-import { usersRouter, rolesRouter, authRouter, permissionsRouter } from "./routers/rbac";
-import { dashboardRouter, auditRouter, filesRouter, reportsRouter } from "./routers/dashboard";
+import {
+  alumniService as alumniRouter,
+  filesService as filesRouter,
+} from "../../../apps/server/src/modules/alumni/service";
+import { usersService as usersRouter } from "../../../apps/server/src/modules/users/service";
+import {
+  rolesService as rolesRouter,
+  permissionsService as permissionsRouter,
+} from "../../../apps/server/src/modules/roles/service";
+import { authService as authRouter } from "../../../apps/server/src/modules/auth/service";
+import {
+  dashboardService as dashboardRouter,
+  reportsService as reportsRouter,
+} from "../../../apps/server/src/modules/reports/service";
+import { auditService as auditRouter } from "../../../apps/server/src/modules/audit/service";
 
 const ROOT = join(import.meta.dirname, "..");
 
-type AnyProcedure = Parameters<typeof call>[0];
-
-/**
- * oRPC's generic `Context` is invariant in its internal symbol, so a router's
- * decorated procedure is not structurally assignable to `Parameters<typeof call>[0]`.
- * The cast is confined to this one helper.
- */
 function invoke(procedure: unknown, input: unknown, context: Context) {
-  return call(procedure as AnyProcedure, input as never, { context } as never);
+  return (procedure as (context: Context, input: unknown) => Promise<unknown>)(
+    context,
+    input ?? {},
+  );
 }
 
 /**
@@ -43,28 +52,44 @@ function forbiddenDb() {
 
 /** A database stub that records calls and returns canned results. */
 function stubDb(rows: Record<string, unknown> = {}) {
-  const reads: { model: string; method: string; args: unknown }[] = [];
-  const db = new Proxy({} as Record<string, unknown>, {
-    get(_target, modelName) {
-      if (modelName === "$transaction")
-        return async (work: (tx: Context["db"]) => Promise<unknown>) =>
-          work(db as unknown as Context["db"]);
-      const model = String(modelName);
-      return new Proxy(
-        {},
-        {
-          get(_inner, methodName) {
-            const method = String(methodName);
-            return async (args?: unknown) => {
-              reads.push({ model, method, args });
-              return rows[model] ?? [];
-            };
-          },
-        },
-      );
-    },
-  });
-  return { db: db as unknown as Context["db"], reads };
+  const deptId = "0000000000000000000000d1",
+    programId = "0000000000000000000000b1",
+    alumniId = "0000000000000000000000a1";
+  const tables: Record<string, Record<string, unknown>[]> = {
+    Department: [{ id: deptId, _id: deptId, name: "IT", deletedAt: null }],
+    Program: [
+      { id: programId, _id: programId, departmentId: deptId, code: "BSIT", deletedAt: null },
+    ],
+    Alumni: [{ id: alumniId, _id: alumniId, programId, deletedAt: null }],
+  };
+  for (const [key, value] of Object.entries(rows)) {
+    const name = key[0]!.toUpperCase() + key.slice(1);
+    const list = Array.isArray(value) ? value : [value];
+    if (name === "Alumni") {
+      tables.Alumni = list.length
+        ? list.map((row) => ({ ...tables.Alumni![0], ...row }))
+        : tables.Alumni!;
+    } else tables[name] = list;
+  }
+  if (tables.User)
+    for (const user of tables.User) {
+      for (const { role } of (user.userRoles ?? []) as { role: Record<string, unknown> }[]) {
+        (tables.Role ??= []).push(role);
+        (tables.UserRole ??= []).push({ userId: user.id, roleId: role.id });
+      }
+    }
+  if (tables.Role)
+    for (const role of tables.Role) {
+      for (const { permission } of (role.rolePermissions ?? []) as {
+        permission: Record<string, unknown>;
+      }[]) {
+        if (!(tables.Permission ??= []).some((item) => item.id === permission.id))
+          tables.Permission.push(permission);
+        (tables.RolePermission ??= []).push({ roleId: role.id, permissionId: permission.id });
+      }
+    }
+  const f = modelFixture(tables);
+  return { db: f.db, reads: f.operations };
 }
 
 function makeUser(permissions: string[], overrides: Partial<AuthUser> = {}): AuthUser {
@@ -102,7 +127,7 @@ async function expectCode(
   await assert.rejects(
     () => invoke(procedure, input, makeContext(user, db)),
     (error: unknown) => {
-      assert.ok(error instanceof ORPCError, `expected ORPCError, got ${String(error)}`);
+      assert.ok(error instanceof ApiError, `expected ApiError, got ${String(error)}`);
       assert.equal(error.code, code);
       return true;
     },
@@ -114,7 +139,7 @@ const expectDenied = (procedure: unknown, user: AuthUser | null, input?: unknown
 
 const NEW_ALUMNI = {
   gender: "Female",
-  programId: "p1",
+  programId: "0000000000000000000000b1",
   studentNumber: "2020-0001",
   firstName: "Juan",
   lastName: "Dela Cruz",
@@ -125,7 +150,7 @@ describe("RBAC: authentication gate", () => {
     await expectCode("UNAUTHORIZED", alumniRouter.list, null);
     await expectCode("UNAUTHORIZED", alumniRouter.create, null, NEW_ALUMNI);
     await expectCode("UNAUTHORIZED", alumniRouter.addTracking, null, {
-      alumniId: "a1",
+      alumniId: "0000000000000000000000a1",
       isTracked: true,
     });
     await expectCode("UNAUTHORIZED", rolesRouter.list, null);
@@ -142,45 +167,70 @@ describe("RBAC: authentication gate", () => {
 
 describe("RBAC: alumni permission granularity", () => {
   it("keeps evidence metadata empty without file-read permission", async () => {
-    const { db } = stubDb({ alumni: { id: "a1", evidenceFiles: [{ id: "private" }] } });
+    const { db } = stubDb({
+      alumni: { id: "0000000000000000000000a1", evidenceFiles: [{ id: "private" }] },
+    });
     const result = await invoke(
       alumniRouter.get,
-      { id: "a1" },
+      { id: "0000000000000000000000a1" },
       makeContext(makeUser(["alumni.read"]), db),
     );
     assert.deepEqual((result as { evidenceFiles: unknown[] }).evidenceFiles, []);
   });
-  it("a read-only viewer can list and read but cannot mutate", async () => {
+  it("a custom read-only management role can list and read but cannot mutate", async () => {
     const { db, reads } = stubDb({ alumni: [] });
-    const viewer = makeUser([...ROLE_PRESETS.viewer.permissions]);
+    const viewer = makeUser(["alumni.read"], { roles: ["read_only_management"] });
 
     await invoke(alumniRouter.list, {}, makeContext(viewer, db));
-    await invoke(alumniRouter.get, { id: "a1" }, makeContext(viewer, db));
+    await invoke(alumniRouter.get, { id: "0000000000000000000000a1" }, makeContext(viewer, db));
 
     await expectDenied(alumniRouter.create, viewer, NEW_ALUMNI);
-    await expectDenied(alumniRouter.update, viewer, { ...NEW_ALUMNI, id: "a1" });
-    await expectDenied(alumniRouter.delete, viewer, { id: "a1" });
-    await expectDenied(alumniRouter.addTracking, viewer, { alumniId: "a1", isTracked: true });
-    assert.equal(reads.length, 2, "only the two allowed reads should reach the database");
+    await expectDenied(alumniRouter.update, viewer, {
+      ...NEW_ALUMNI,
+      id: "0000000000000000000000a1",
+    });
+    await expectDenied(alumniRouter.delete, viewer, { id: "0000000000000000000000a1" });
+    await expectDenied(alumniRouter.addTracking, viewer, {
+      alumniId: "0000000000000000000000a1",
+      isTracked: true,
+    });
+    assert.equal(
+      reads.some((read) =>
+        ["create", "updateOne", "deleteMany", "deleteOne"].includes(read.method),
+      ),
+      false,
+      "denied mutations never reach persistence",
+    );
   });
 
   it("separates alumni.write from alumni.delete", async () => {
     const editor = makeUser(["alumni.read", "alumni.write"]);
     const { db } = stubDb({ alumni: {}, auditLog: {} });
 
-    await invoke(alumniRouter.update, { ...NEW_ALUMNI, id: "a1" }, makeContext(editor, db));
-    await expectDenied(alumniRouter.delete, editor, { id: "a1" });
+    await invoke(
+      alumniRouter.update,
+      {
+        studentNumber: NEW_ALUMNI.studentNumber,
+        programId: NEW_ALUMNI.programId,
+        id: "0000000000000000000000a1",
+      },
+      makeContext(editor, db),
+    );
+    await expectDenied(alumniRouter.delete, editor, { id: "0000000000000000000000a1" });
   });
 
   it("separates tracking.write from alumni.write", async () => {
     const editor = makeUser(["alumni.read", "alumni.write"]);
-    await expectDenied(alumniRouter.addTracking, editor, { alumniId: "a1", isTracked: true });
+    await expectDenied(alumniRouter.addTracking, editor, {
+      alumniId: "0000000000000000000000a1",
+      isTracked: true,
+    });
 
     const tracker = makeUser(["alumni.read", "tracking.write"]);
     const { db } = stubDb({ trackingEvent: {}, alumni: {}, auditLog: {} });
     await invoke(
       alumniRouter.addTracking,
-      { alumniId: "a1", isTracked: true },
+      { alumniId: "0000000000000000000000a1", isTracked: true },
       makeContext(tracker, db),
     );
   });
@@ -229,7 +279,9 @@ describe("RBAC: coverage of the permission catalog", () => {
           continue;
         }
         const source = readFileSync(full, "utf8");
-        for (const match of source.matchAll(/requirePermission\("([^"]+)"\)/g)) {
+        for (const match of source.matchAll(
+          /(?:requireAccess|management|requireAdministrator)\([^,]+,\s*"([^"]+)"\)/g,
+        )) {
           const key = match[1];
           if (!key) {
             continue;
@@ -239,6 +291,7 @@ describe("RBAC: coverage of the permission catalog", () => {
       }
     };
     walk(join(ROOT, "src"));
+    walk(join(ROOT, "../../apps/server/src/modules"));
     return found;
   }
 
@@ -251,7 +304,7 @@ describe("RBAC: coverage of the permission catalog", () => {
   it("every permission key actually grants something", () => {
     const enforced = collectRequiredPermissions();
     // files.read / files.write are enforced in apps/server raw HTTP routes
-    // (multipart upload and binary download), not in oRPC procedures.
+    // (multipart upload and binary download), not in feature services.
     const enforcedElsewhere = new Set(["files.read", "files.write"]);
     const dead = PERMISSION_KEYS.filter((key) => !enforced.has(key) && !enforcedElsewhere.has(key));
     assert.deepEqual(dead, [], `permissions that grant no access anywhere: ${dead.join(", ")}`);
@@ -272,6 +325,10 @@ describe("RBAC: role presets", () => {
     }
     assert.equal((permissions as readonly string[]).includes("audit.read"), false);
     assert.equal((permissions as readonly string[]).includes("permissions.read"), false);
+    assert.equal(
+      permissions.some((key) => key.startsWith("integrations.")),
+      false,
+    );
   });
 
   it("viewer is strictly read-only", () => {
@@ -289,18 +346,24 @@ describe("RBAC: effective permission resolution", () => {
   type Role = { key: string; rolePermissions: { permission: { key: string } }[] };
 
   function userDb(roles: Role[]) {
-    return {
-      user: {
-        findUnique: async () => ({
-          id: "u1",
-          name: "n",
-          email: "e",
-          image: null,
-          status: "active",
-          userRoles: roles.map((role) => ({ role })),
-        }),
-      },
-    } as unknown as Context["db"];
+    const tables: Record<string, Record<string, unknown>[]> = {
+      User: [{ id: "u1", name: "n", email: "e", image: null, status: "active" }],
+      Role: [],
+      UserRole: [],
+      RolePermission: [],
+      Permission: [],
+    };
+    roles.forEach((role, index) => {
+      const id = "r" + index;
+      tables.Role!.push({ ...role, id });
+      tables.UserRole!.push({ userId: "u1", roleId: id });
+      role.rolePermissions.forEach(({ permission }, p) => {
+        const permissionId = id + "p" + p;
+        tables.Permission!.push({ ...permission, id: permissionId });
+        tables.RolePermission!.push({ roleId: id, permissionId });
+      });
+    });
+    return modelFixture(tables).db;
   }
 
   it("unions permissions across multiple roles and de-duplicates", async () => {
@@ -436,8 +499,6 @@ describe("RBAC: protected administration", () => {
 });
 
 it("hides retired faculty permissions and routes without deleting legacy records", async () => {
-  const { appRouter } = await import("./routers/index");
-  assert.equal("faculties" in appRouter, false);
   const legacy = { id: "old", key: "faculties.read" };
   const active = { id: "current", key: "alumni.read" };
   const { db } = stubDb({
@@ -449,5 +510,8 @@ it("hides retired faculty permissions and routes without deleting legacy records
   const roles = (await invoke(rolesRouter.list, undefined, context)) as {
     rolePermissions: { permission: { key: string } }[];
   }[];
-  assert.deepEqual(roles[0]?.rolePermissions, [{ permission: active }]);
+  assert.deepEqual(
+    roles[0]?.rolePermissions.map(({ permission }) => permission.key),
+    [active.key],
+  );
 });

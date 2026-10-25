@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { call } from "@orpc/server";
 import type { Context } from "../context";
-import { alumniRouter } from "../routers/alumni";
-import { usersRouter } from "../routers/rbac";
-import { dashboardRouter, reportsRouter } from "../routers/dashboard";
+import { alumniService } from "../../../../apps/server/src/modules/alumni/service";
+import { usersService } from "../../../../apps/server/src/modules/users/service";
+import {
+  dashboardService,
+  reportsService,
+} from "../../../../apps/server/src/modules/reports/service";
+import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
 function context(db: object) {
   return {
     db,
     user: {
-      id: "u",
+      id: "111111111111111111111111",
       name: "Admin",
       email: "test@example.test",
       image: null,
@@ -24,80 +27,103 @@ function context(db: object) {
     integrationEnv: {},
   } as unknown as Context;
 }
+function query<T>(value: T, capture: Record<string, unknown> = {}) {
+  return Object.assign(Promise.resolve(value), {
+    sort(order: unknown) {
+      capture.sort = order;
+      return this;
+    },
+    skip(n: number) {
+      capture.skip = n;
+      return this;
+    },
+    limit(n: number) {
+      capture.limit = n;
+      return this;
+    },
+    select() {
+      return this;
+    },
+    lean() {
+      return this;
+    },
+    exec: async () => value,
+  });
+}
+const d1 = "222222222222222222222222",
+  d2 = "333333333333333333333333",
+  p1 = "444444444444444444444444";
 it("bounds alumni/member pages and uses stable ordering without changing array responses", async () => {
-  const calls: Record<string, unknown>[] = [];
+  const alumni: Record<string, unknown> = {},
+    user: Record<string, unknown> = {};
   const db = {
-    alumni: {
-      findMany: async (args: Record<string, unknown>) => {
-        calls.push(args);
-        return [];
-      },
-    },
-    user: {
-      findMany: async (args: Record<string, unknown>) => {
-        calls.push(args);
-        return [];
-      },
-    },
+    Department: { find: () => query([]) },
+    Program: { find: () => query([]) },
+    Alumni: { find: () => query([], alumni) },
+    User: { find: () => query([], user) },
   };
-  assert.deepEqual(
-    await call(alumniRouter.list, { page: 3, pageSize: 10 }, { context: context(db) }),
-    [],
-  );
-  assert.equal(calls[0]?.skip, 20);
-  assert.equal(calls[0]?.take, 10);
-  assert.ok(JSON.stringify(calls[0]?.orderBy).includes('"id"'));
-  await call(usersRouter.list, undefined, { context: context(db) });
-  assert.equal(calls[1]?.take, 20);
-  await assert.rejects(() => call(alumniRouter.list, { pageSize: 101 }, { context: context(db) }));
+  assert.deepEqual(await alumniService.list(context(db), { page: 3, pageSize: 10 }), []);
+  assert.equal(alumni.skip, 20);
+  assert.equal(alumni.limit, 10);
+  assert.ok(JSON.stringify(alumni.sort).includes('"_id"'));
+  await usersService.list(context(db), usersSchemas.list.input.parse({}));
+  assert.equal(user.limit, 20);
+  await assert.rejects(() => alumniService.list(context(db), { pageSize: 101 }));
 });
 it("uses one grouped count query instead of counts per department", async () => {
   let counts = 0,
     grouped = 0;
-  const result = await call(dashboardRouter.summary, undefined, {
-    context: context({
-      alumni: {
-        count: async () => {
-          counts++;
-          return counts === 1 ? 5 : 3;
-        },
-        groupBy: async () => {
-          grouped++;
-          return [
-            { programId: "p1", isTracked: true, _count: { _all: 3 } },
-            { programId: "p1", isTracked: false, _count: { _all: 2 } },
-          ];
-        },
+  const db = {
+    Alumni: {
+      countDocuments: async () => {
+        counts++;
+        return 0;
       },
-      department: {
-        findMany: async () => [
-          { id: "d1", name: "One", code: "ONE", programs: [{ id: "p1" }] },
-          { id: "d2", name: "Two", code: "TWO", programs: [] },
-        ],
+      aggregate: async () => {
+        grouped++;
+        return [
+          { _id: { programId: p1, isTracked: true }, count: 3, registered: 2 },
+          { _id: { programId: p1, isTracked: false }, count: 2 },
+        ];
       },
-    }),
-  });
-  assert.equal(counts, 2);
+    },
+    Department: {
+      find: () =>
+        query([
+          { _id: d1, name: "One", code: "ONE" },
+          { _id: d2, name: "Two", code: "TWO" },
+        ]),
+    },
+    Program: { find: () => query([{ _id: p1, departmentId: d1 }]) },
+  };
+  const result = await dashboardService.summary(context(db));
+  assert.equal(counts, 0);
   assert.equal(grouped, 1);
+  assert.equal(result.graduates, 5);
+  assert.equal(result.tracked, 3);
+  assert.equal(result.registered, 2);
   assert.equal(result.byDepartment[0]?.graduates, 5);
   assert.equal(result.byDepartment[0]?.percentTracked, 60);
   assert.equal(result.byDepartment[1]?.graduates, 0);
 });
 it("rejects oversized exports instead of silently returning partial data", async () => {
-  let take = 0;
+  const calls: Record<string, unknown> = {};
   await assert.rejects(
     () =>
-      call(reportsRouter.alumniCsv, undefined, {
-        context: context({
-          alumni: {
-            findMany: async (args: { take: number }) => {
-              take = args.take;
-              return Array.from({ length: 10001 }, () => ({}));
-            },
+      reportsService.alumniCsv(
+        context({
+          Department: { find: () => query([]) },
+          Program: { find: () => query([]) },
+          Alumni: {
+            find: () =>
+              query(
+                Array.from({ length: 10001 }, () => ({})),
+                calls,
+              ),
           },
         }),
-      }),
+      ),
     /exceeds 10,000/,
   );
-  assert.equal(take, 10001);
+  assert.equal(calls.limit, 10001);
 });

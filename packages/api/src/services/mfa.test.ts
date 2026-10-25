@@ -1,18 +1,22 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { generate } from "otplib";
-import { call } from "@orpc/server";
+import { requireAccess } from "../access";
+import { modelFixture } from "./model-test-fixture";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
-import { dashboardRouter } from "../routers/dashboard";
 import { beginMfa, confirmMfa, verifyMfa, privilegedAccount, digest } from "./mfa";
 import { consumeAuthAttempt } from "./throttle";
 
 const password = "A private testing passphrase 82!";
 async function fixture() {
-  let row: Record<string, unknown> | null = null;
-  const counts = new Map<string, number>();
+  const user = {
+    id: "user",
+    email: "admin@example.test",
+    passwordHash: await hashPassword(password),
+  };
   const session = {
+    id: "session",
     token: "synthetic-session",
     userId: "user",
     createdAt: new Date(),
@@ -20,75 +24,9 @@ async function fixture() {
     mfaVersion: "",
     mfaVerifiedAt: null as Date | null,
   };
-  const user = {
-    id: "user",
-    email: "admin@example.test",
-    passwordHash: await hashPassword(password),
-  };
-  const matches = (record: Record<string, unknown>, where: Record<string, unknown>) =>
-    Object.entries(where).every(([key, value]) => {
-      const actual = record[key];
-      if (value && typeof value === "object" && !(value instanceof Date)) {
-        if ("gt" in value) return Number(actual) > Number(value.gt);
-        if ("equals" in value) return JSON.stringify(actual) === JSON.stringify(value.equals);
-      }
-      return actual === value;
-    });
-  const tx = {
-    user: { findUniqueOrThrow: async () => user },
-    authThrottle: {
-      upsert: async ({ where }: { where: { key: string } }) => {
-        const count = (counts.get(where.key) ?? 0) + 1;
-        counts.set(where.key, count);
-        return { count };
-      },
-    },
-    mfaCredential: {
-      findUnique: async () => (row ? structuredClone(row) : null),
-      create: async ({ data }: { data: object }) => {
-        if (row) throw new Error("Duplicate");
-        row = { id: "mfa", version: "", lastStep: -1, ...data };
-        return row;
-      },
-      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: object }) => {
-        if (!row || !matches(row, where)) return { count: 0 };
-        Object.assign(row, data);
-        return { count: 1 };
-      },
-    },
-    session: {
-      create: async ({ data }: { data: object }) => {
-        Object.assign(session, data);
-        return session;
-      },
-      findUnique: async () => ({ ...session }),
-      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: object }) => {
-        if (!matches(session, where)) return { count: 0 };
-        Object.assign(session, data);
-        return { count: 1 };
-      },
-      deleteMany: async () => ({ count: 0 }),
-    },
-    auditLog: { create: async () => ({ id: "audit" }) },
-  };
-  let fail = false;
+  const f = modelFixture({ User: [user], Session: [session] });
   const context = {
-    db: {
-      ...tx,
-      $transaction: async (work: (value: typeof tx) => Promise<unknown>) => {
-        const before = structuredClone(row);
-        const beforeSession = { ...session };
-        try {
-          const result = await work(tx);
-          if (fail) throw new Error("Synthetic write failure");
-          return result;
-        } catch (error) {
-          row = before;
-          Object.assign(session, beforeSession);
-          throw error;
-        }
-      },
-    },
+    db: f.db,
     user: {
       id: "user",
       name: "Admin",
@@ -102,20 +40,20 @@ async function fixture() {
     ipAddress: null,
     userAgent: null,
     integrationEnv: { mfaEncryptionKey: "23".repeat(32) },
-  } as unknown as Context;
+  } as Context;
   context.onSessionRotation = (value) => {
     context.sessionToken = value.token;
     context.sessionStorageToken = "sha256:" + digest(value.token);
   };
   return {
     context,
-    session,
+    get session() {
+      return f.tables.Session![0]!;
+    },
     get row() {
-      return row;
+      return f.tables.MfaCredential?.[0] ?? null;
     },
-    setFail: () => {
-      fail = true;
-    },
+    setFail: () => f.failTransaction(new Error("Synthetic write failure")),
   };
 }
 async function enrolled() {
@@ -125,6 +63,9 @@ async function enrolled() {
   const result = await confirmMfa(f.context, code);
   return {
     ...f,
+    get session() {
+      return f.session;
+    },
     get row() {
       return f.row;
     },
@@ -133,18 +74,13 @@ async function enrolled() {
     ...result,
   };
 }
-it("blocks administrator access until MFA and treats delegated administration as privileged", async () => {
+it("blocks Administrator roles until MFA while delegated Staff permissions do not impose MFA", async () => {
   const f = await fixture();
-  await assert.rejects(
-    () => call(dashboardRouter.summary, undefined, { context: f.context }),
-    /Verify your authenticator/,
-  );
-  assert.equal(privilegedAccount({ roles: [], permissions: ["users.write"] }), true);
+  assert.throws(() => requireAccess(f.context, "dashboard.read"), /Verify your authenticator/);
+  assert.equal(privilegedAccount({ roles: ["staff"], permissions: ["users.write"] }), false);
+  assert.equal(privilegedAccount({ roles: ["staff", "admin"], permissions: [] }), true);
   f.context.user!.mfaVerified = true;
-  await assert.rejects(
-    () => call(dashboardRouter.summary, undefined, { context: f.context }),
-    /count/,
-  ); // Passed the gate and reached the intentionally absent dashboard adapter.
+  assert.equal(requireAccess(f.context, "dashboard.read").id, "user");
 });
 it("requires a configured key and current password before enrollment", async () => {
   const f = await fixture();

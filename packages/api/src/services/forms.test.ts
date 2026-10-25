@@ -10,12 +10,12 @@ const payload = {
   firstName: "Synthetic",
   lastName: "Test",
   gender: "Female",
-  departmentCode: "TEST",
+  departmentName: "TEST",
   programCode: "TEST",
 };
 it("defaults Forms off without changing other integration defaults", async () => {
   const db = {
-    integrationSetting: { findUnique: async () => null, findMany: async () => [] },
+    IntegrationSetting: { findOne: () => query(null), find: () => query([]) },
   } as unknown as Database;
   assert.equal(await isIntegrationEnabled(db, "google_forms"), false);
   assert.equal(await isIntegrationEnabled(db, "google_auth"), true);
@@ -39,8 +39,8 @@ it("replays a matching durable receipt without reapplying the import", async () 
     .update(JSON.stringify({ ...mapFormPayload(payload), isTracked: true }))
     .digest("hex");
   const db = {
-    formsReceipt: {
-      findUnique: async () => ({ payloadHash, importJobId: "123456789012345678901234" }),
+    FormsReceipt: {
+      findOne: () => query({ payloadHash, importJobId: "123456789012345678901234" }),
     },
   } as unknown as Database;
   const result = await acceptFormsSubmission(db, "synthetic-response-001", payload);
@@ -50,8 +50,8 @@ it("replays a matching durable receipt without reapplying the import", async () 
 it("returns a durable receipt on a retry and rejects changed business data", async () => {
   let receipt: { payloadHash: string; importJobId: string } | null = null;
   const db = {
-    formsReceipt: { findUnique: async () => receipt },
-    $transaction: async () => {
+    FormsReceipt: { findOne: () => query(receipt) },
+    transaction: async () => {
       throw Error("Must not mutate an existing receipt");
     },
   } as unknown as Database;
@@ -65,10 +65,10 @@ it("returns a durable receipt on a retry and rejects changed business data", asy
 it("bounds unresolved transaction conflicts and returns a safe retry error", async () => {
   let attempts = 0;
   const db = {
-    formsReceipt: { findUnique: async () => null },
-    $transaction: async () => {
+    FormsReceipt: { findOne: () => query(null) },
+    transaction: async () => {
       attempts++;
-      throw { code: "P2034" };
+      throw { code: 112 };
     },
   } as unknown as Database;
   await assert.rejects(
@@ -77,3 +77,12 @@ it("bounds unresolved transaction conflicts and returns a safe retry error", asy
   );
   assert.equal(attempts, 3);
 });
+
+function query<T>(value: T) {
+  return Object.assign(Promise.resolve(value), {
+    lean() {
+      return this;
+    },
+    exec: async () => value,
+  });
+}

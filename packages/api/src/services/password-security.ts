@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { dictionary } from "@zxcvbn-ts/language-common";
-import { ORPCError } from "@orpc/server";
+import { ApiError } from "../http-error";
 import { newPasswordSchema } from "../password-policy";
 const common = new Set(dictionary["passwords-common"].map((value) => value.toLowerCase()));
 export async function assertPasswordSafe(password: string) {
   newPasswordSchema.parse(password);
   if (common.has(password.normalize("NFC").toLowerCase()))
-    throw new ORPCError("BAD_REQUEST", {
+    throw new ApiError("BAD_REQUEST", {
       message: "This password is commonly used or compromised. Choose a unique passphrase.",
     });
   // Explicit opt-in only. Five SHA-1 prefix characters, never plaintext/full hash.
@@ -19,12 +19,12 @@ export async function assertPasswordSafe(password: string) {
       signal: AbortSignal.timeout(5000),
     });
   } catch {
-    throw new ORPCError("SERVICE_UNAVAILABLE", {
+    throw new ApiError("SERVICE_UNAVAILABLE", {
       message: "Password screening is temporarily unavailable. Try again later.",
     });
   }
   if (!response.ok)
-    throw new ORPCError("SERVICE_UNAVAILABLE", {
+    throw new ApiError("SERVICE_UNAVAILABLE", {
       message: "Password screening is temporarily unavailable. Try again later.",
     });
   if (
@@ -33,7 +33,7 @@ export async function assertPasswordSafe(password: string) {
       return suffix === hash.slice(5) && Number(count) > 0;
     })
   )
-    throw new ORPCError("BAD_REQUEST", {
+    throw new ApiError("BAD_REQUEST", {
       message: "This password appeared in a breach. Choose a unique passphrase.",
     });
 }

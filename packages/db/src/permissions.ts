@@ -172,22 +172,17 @@ export const ROLE_PRESETS = {
       (key) =>
         !key.startsWith("users.") &&
         !key.startsWith("roles.") &&
+        !key.startsWith("integrations.") &&
         key !== "permissions.read" &&
         key !== "audit.read",
     ),
   },
   viewer: {
     key: "viewer",
-    name: "Viewer",
-    description: "Read-only access to academic structure, alumni, dashboard, and reports.",
-    permissions: [
-      "departments.read",
-      "programs.read",
-      "alumni.read",
-      "files.read",
-      "dashboard.read",
-      "reports.read",
-    ] satisfies PermissionKey[],
+    name: "Alumni",
+    description:
+      "Own explicitly linked profile, employment, evidence and privacy-safe aggregate statistics.",
+    permissions: ["files.read"] satisfies PermissionKey[],
   },
 } as const;
 

@@ -7,7 +7,7 @@ import net from "node:net";
 import path from "node:path";
 import { chromium, expect } from "@playwright/test";
 import { generate } from "otplib";
-import { createPrismaClient } from "../packages/db/src/index";
+import { createDatabase } from "../packages/db/src/index";
 import { projectRoot, runTsx } from "./local-tools.mjs";
 import { readLocalConfig } from "./local-env.mjs";
 
@@ -21,7 +21,8 @@ assert.ok(effective.DATABASE_URL);
 assert.ok(effective.SEED_ADMIN_EMAIL);
 assert.ok(effective.SEED_ADMIN_PASSWORD);
 assert.match(new URL(effective.DATABASE_URL).pathname, /^\/collab_dev_[a-f0-9]{12}$/);
-const db = createPrismaClient({ DATABASE_URL: effective.DATABASE_URL });
+const db = createDatabase({ DATABASE_URL: effective.DATABASE_URL });
+await db.ready();
 const processes: ReturnType<typeof spawn>[] = [];
 async function free(port: number) {
   const server = net.createServer();
@@ -30,18 +31,18 @@ async function free(port: number) {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }
 async function snapshot() {
-  const names = await db.$runCommandRaw({ listCollections: 1, nameOnly: true });
+  const names = await db.connection.db!.command({ listCollections: 1, nameOnly: true });
   const all: Record<string, unknown> = {};
   for (const { name } of (names.cursor as { firstBatch: { name: string }[] }).firstBatch.sort(
     (a, b) => a.name.localeCompare(b.name),
   )) {
-    const rows = await db.$runCommandRaw({
+    const rows = await db.connection.db!.command({
       find: name,
       sort: { _id: 1 },
       limit: 500,
       singleBatch: true,
     });
-    const indexes = await db.$runCommandRaw({ listIndexes: name });
+    const indexes = await db.connection.db!.command({ listIndexes: name });
     assert.ok(
       (rows.cursor as { firstBatch: unknown[] }).firstBatch.length < 500,
       "synthetic snapshot bound exceeded",
@@ -82,7 +83,7 @@ if (stateMode) {
       );
     console.log("PASS full-rerun " + stateMode.slice(2));
   } finally {
-    await db.$disconnect();
+    await db.disconnect();
   }
   process.exit(0);
 }
@@ -98,8 +99,8 @@ async function waitReady(url: string) {
   throw Error("Owned application did not become ready.");
 }
 try {
-  assert.equal(await db.alumni.count(), 3);
-  assert.equal(await db.user.count(), 1);
+  assert.equal(await db.Alumni.countDocuments(), 3);
+  assert.equal(await db.User.countDocuments(), 1);
   const before = await snapshot();
   const privateFiles = [
     "apps/server/.env",
@@ -115,8 +116,7 @@ try {
     ),
   );
   const env = { ...process.env, ...effective, NODE_ENV: "development" };
-  // Existing database rerun excludes client generation to avoid concurrently
-  // replacing this process's loaded Windows engine; exercise the exact DB steps.
+  // Exercise the exact DB steps against this isolated checkout.
   await runTsx("initialize-local-db.ts", { env });
   await runTsx("verify-local-setup.ts", { env });
   assert.equal(await snapshot(), before, "repeat setup must preserve documents and indexes");
@@ -167,9 +167,9 @@ try {
     if (await captcha.count()) await captcha.first().check();
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL("**/security");
-    const denied = await page.request.post("http://127.0.0.1:3201/rpc/dashboard/summary", {
+    const denied = await page.request.post("http://127.0.0.1:3201/api/dashboard/summary", {
       headers: { Origin: "http://127.0.0.1:3201" },
-      data: { json: {} },
+      data: {},
     });
     assert.equal(denied.status(), 403);
     await page.locator("#mfa-password").fill(effective.SEED_ADMIN_PASSWORD);
@@ -209,5 +209,5 @@ try {
         });
       else child.kill("SIGTERM");
     }
-  await db.$disconnect();
+  await db.disconnect();
 }

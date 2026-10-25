@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { it } from "node:test";
-import { call } from "@orpc/server";
+import { requireAccess } from "./access";
+import { authSchemas } from "@Alumni-Tracking-Ss/contracts/auth";
+import { modelFixture } from "./services/model-test-fixture";
 import type { Context } from "./context";
-import { dashboardRouter } from "./routers/dashboard";
-import { authRouter } from "./routers/rbac";
 import {
   accountAccessPending,
   confirmVerification,
@@ -28,6 +28,8 @@ it("lets an existing password account confirm its email without adding phone res
   assert.equal(f.user.emailVerified, true);
   assert.equal(f.user.verificationRequired, false);
   assert.equal(f.user.phoneVerified, false);
+  assert.match(String(f.audits[0]?.summary), /Confirmed email ownership for "member@example.test"/);
+  assert.equal(String(f.audits[0]?.summary).includes(code), false);
 });
 function fixture() {
   const user = {
@@ -63,89 +65,13 @@ function fixture() {
     consumedAt: null as Date | null,
     updatedAt: new Date(),
   };
-  const tx = {
-    auditLog: { create: async () => ({ id: "audit" }) },
-    user: {
-      findUniqueOrThrow: async () => user,
-      updateMany: async ({
-        where,
-        data,
-      }: {
-        where: { email?: string; phoneNumber?: string; OR?: unknown };
-        data: Record<string, unknown>;
-      }) => {
-        if (
-          (where.email && where.email !== user.email) ||
-          (where.phoneNumber && where.phoneNumber !== user.phoneNumber) ||
-          (where.OR && user.passwordHash !== null)
-        )
-          return { count: 0 };
-        Object.assign(user, data);
-        return { count: 1 };
-      },
-    },
-    session: {
-      findUnique: async () => ({ ...session }),
-      create: async ({ data }: { data: object }) => {
-        Object.assign(session, data);
-        return session;
-      },
-      updateMany: async ({
-        where,
-      }: {
-        where: { token: string; googleVerifiedAt: { gt: Date } };
-      }) => {
-        if (
-          where.token !== session.token ||
-          !session.googleVerifiedAt ||
-          session.googleVerifiedAt <= where.googleVerifiedAt.gt
-        )
-          return { count: 0 };
-        session.googleVerifiedAt = null;
-        return { count: 1 };
-      },
-      deleteMany: async () => ({ count: 0 }),
-    },
-    verificationChallenge: {
-      findUnique: async () => ({ ...row }),
-      upsert: async () => ({ ...row }),
-      updateMany: async ({
-        where,
-        data,
-      }: {
-        where: { nonce?: string; consumedAt?: null; attempts?: { lt?: number; lte?: number } };
-        data: Record<string, unknown>;
-      }) => {
-        if (
-          (where.nonce && where.nonce !== row.nonce) ||
-          (where.consumedAt === null && row.consumedAt) ||
-          (where.attempts?.lt !== undefined && row.attempts >= where.attempts.lt)
-        )
-          return { count: 0 };
-        const attempts = data.attempts;
-        if (attempts && typeof attempts === "object" && "increment" in attempts)
-          row.attempts += Number(attempts.increment);
-        else if (typeof attempts === "number") row.attempts = attempts;
-        Object.assign(row, { ...data, attempts: row.attempts });
-        return { count: 1 };
-      },
-    },
-    integrationSetting: { findUnique: async () => ({ enabled: true }) },
-  };
-  const db = {
-    ...tx,
-    $transaction: async (work: (transaction: typeof tx) => Promise<unknown>) => {
-      const before = structuredClone({ user, session, row });
-      try {
-        return await work(tx);
-      } catch (error) {
-        Object.assign(user, before.user);
-        Object.assign(session, before.session);
-        Object.assign(row, before.row);
-        throw error;
-      }
-    },
-  };
+  const f = modelFixture({
+    User: [user],
+    Session: [session],
+    VerificationChallenge: [row],
+    IntegrationSetting: [{ key: "email", enabled: true }],
+  });
+  const db = f.db;
   const context = {
     db,
     user: { id: user.id, status: "active" },
@@ -156,7 +82,17 @@ function fixture() {
     context.sessionToken = value.token;
     context.sessionStorageToken = storedSessionToken(value.token);
   };
-  return { context, user, session, row };
+  return {
+    context,
+    user,
+    get audits() {
+      return f.tables.AuditLog ?? [];
+    },
+    get session() {
+      return f.tables.Session![0]!;
+    },
+    row,
+  };
 }
 
 it("restricts new unverified accounts and passwordless accounts while preserving existing password accounts", () => {
@@ -179,6 +115,7 @@ it("restricts new unverified accounts and passwordless accounts while preserving
     true,
   );
   assert.equal(accountAccessPending({ passwordHash: null }), true);
+  assert.equal(accountAccessPending({}), true);
   assert.equal(accountAccessPending({ passwordHash: "legacy-hash" }), false);
   assert.equal(
     accountAccessPending({
@@ -215,7 +152,7 @@ it("cannot create a password using another session or overwrite an existing pass
     () => createGooglePassword(f.context, "SyntheticPassword123!"),
     /Verify with Google again/,
   );
-  f.context.sessionToken = f.session.token;
+  f.context.sessionToken = String(f.session.token);
   f.user.passwordHash = "existing-hash";
   await assert.rejects(
     () => createGooglePassword(f.context, "SyntheticPassword123!"),
@@ -225,14 +162,12 @@ it("cannot create a password using another session or overwrite an existing pass
   assert.ok(f.session.googleVerifiedAt);
 });
 it("rejects mismatched password confirmation at the API boundary", async () => {
-  await assert.rejects(
-    () =>
-      call(
-        authRouter.createGooglePassword,
-        { password: "SyntheticPassword123!", confirmation: "DifferentPassword123!" },
-        { context: fixture().context },
-      ),
-    /validation/i,
+  assert.equal(
+    authSchemas.createGooglePassword.input.safeParse({
+      password: "SyntheticPassword123!",
+      confirmation: "DifferentPassword123!",
+    }).success,
+    false,
   );
 });
 it("email codes are consumed once and never verify a phone", async () => {
@@ -297,8 +232,5 @@ it("pending accounts cannot bypass verification by calling a protected API direc
     needsProfileCompletion: true,
     permissions: ["dashboard.read"],
   };
-  await assert.rejects(
-    () => call(dashboardRouter.summary, undefined, { context: f.context }),
-    /Complete account verification/,
-  );
+  assert.throws(() => requireAccess(f.context, "dashboard.read"), /Complete account verification/);
 });

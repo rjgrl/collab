@@ -1,17 +1,19 @@
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 export function TablePagination({
+  label = "Table pagination",
   page,
   onPage,
   hasNext,
   pending,
 }: {
+  label?: string;
   page: number;
   onPage: (page: number) => void;
   hasNext: boolean;
   pending: boolean;
 }) {
   return (
-    <nav aria-label="Table pagination" className="flex items-center justify-end gap-3 text-sm">
+    <nav aria-label={label} className="flex items-center justify-end gap-3 text-sm">
       <Button variant="outline" disabled={pending || page <= 1} onClick={() => onPage(page - 1)}>
         Previous page
       </Button>

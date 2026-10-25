@@ -43,7 +43,7 @@ test("expired Google verification cannot create a password or enter the app", as
     "href",
     "/api/auth/google",
   );
-  expect((await page.request.get("/api/files/synthetic-private-file")).status()).toBe(401);
+  expect((await page.request.get("/api/files/synthetic-private-file")).status()).toBe(403);
 });
 
 test("email confirmation is enforced and SMS remains disconnected until a provider is wired", async ({

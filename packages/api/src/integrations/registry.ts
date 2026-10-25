@@ -1,5 +1,5 @@
 import type { Database } from "@Alumni-Tracking-Ss/db";
-import { ORPCError } from "@orpc/server";
+import { ApiError } from "../http-error";
 
 import type { IntegrationEnv } from "../context";
 
@@ -27,7 +27,7 @@ export async function listIntegrations(
   db: Database,
   env: IntegrationEnv,
 ): Promise<IntegrationStatus[]> {
-  const rows = await db.integrationSetting.findMany();
+  const rows = await db.IntegrationSetting.find({}).lean().exec();
   const enabledByKey = new Map(rows.map((row) => [row.key, row.enabled]));
 
   return INTEGRATION_KEYS.map((key) => {
@@ -94,11 +94,11 @@ function summarize(key: IntegrationKey, mode: IntegrationStatus["mode"]) {
 }
 
 export async function isIntegrationEnabled(db: Database, key: IntegrationKey) {
-  const row = await db.integrationSetting.findUnique({ where: { key } });
+  const row = await db.IntegrationSetting.findOne({ key }).lean().exec();
   return row?.enabled ?? key !== "google_forms";
 }
 
 export async function requireIntegration(db: Database, key: IntegrationKey) {
   if (!(await isIntegrationEnabled(db, key)))
-    throw new ORPCError("FORBIDDEN", { message: "This integration is disabled." });
+    throw new ApiError("FORBIDDEN", { message: "This integration is disabled." });
 }

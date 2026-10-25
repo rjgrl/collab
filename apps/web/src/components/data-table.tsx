@@ -6,6 +6,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { EmptyState } from "@/components/page-header";
 
 export function DataTable({
+  label = "Scrollable records table",
   headers,
   children,
   search,
@@ -17,6 +18,7 @@ export function DataTable({
   emptyDescription = "Try a different search or add a new record.",
   isEmpty,
 }: {
+  label?: string;
   headers: string[];
   children: ReactNode;
   search?: string;
@@ -48,14 +50,24 @@ export function DataTable({
           {toolbar}
         </div>
       ) : null}
-      <div className="overflow-x-auto ring-1 ring-foreground/10">
+      <div
+        role="region"
+        aria-label={label}
+        tabIndex={0}
+        className="overflow-x-auto border border-border focus-visible:outline-2 focus-visible:outline-ring"
+      >
         <table className="w-full min-w-[32rem] text-left text-sm md:min-w-0">
-          <thead className="bg-muted/40 text-xs text-muted-foreground">
+          <thead className="text-xs text-muted-foreground">
             <tr>
               {headers.map((header) => (
                 <th
                   key={header}
-                  className={header === "Actions" ? "px-3 py-2.5 text-right font-medium" : "px-3 py-2.5 font-medium"}
+                  className={
+                    header === "Actions" ||
+                    /^(Graduates|Tracked|Untracked|% tracked|Count|Users|Programs)$/.test(header)
+                      ? "px-3 py-2.5 text-right font-medium"
+                      : "px-3 py-2.5 font-medium"
+                  }
                 >
                   {header}
                 </th>

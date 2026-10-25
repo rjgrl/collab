@@ -1,12 +1,12 @@
 # Account security: local operation and release review
 
-User-authorized local testing exception: set `LOCAL_DISABLE_MFA=true` in the private server environment with `NODE_ENV=development` and restart the API. This pauses login/enrollment enforcement for all local accounts while preserving stored factors/recovery codes. It does not mark sessions MFA-verified or allow replacement of an existing factor without its normal proof. Permissions, password and account-verification requirements remain enforced. Remove the flag or set false and restart to resume MFA. Production startup rejects an enabled flag; normal/test environments enforce MFA by default. Do not place this flag in staging/production templates.
+Local functionality testing uses `LOCAL_REQUIRE_EMAIL_VERIFICATION=false` and `LOCAL_REQUIRE_PHONE_VERIFICATION=false` in the private server environment. Both default to `true`; exemptions are accepted only with `NODE_ENV=development` or `test` and a named loopback MongoDB database on port 27018, replica set rs0. Restart the API and refresh after changes. Contacts remain unverified, and no verification codes are fabricated. Set both to `true` (or remove them) and restart to restore strict gates for verification-required accounts. For local testing, set `LOCAL_DISABLE_MFA=true`: Administrator enrollment/challenge is paused only in managed loopback development. Setup supplies this local default; set it false/remove it and restart to restore normal Admin MFA. Production rejects true. Existing factors/recovery codes are preserved and sessions are not falsely marked MFA-verified. Staff and Alumni never have mandatory MFA.
 
-Updated 2026-10-19. Local implementation and synthetic tests only; no deployment or live messages were sent.
+Updated 2026-10-23. Local unit, real MongoDB and browser verification; no deployment or live messages were sent.
 
 ## Update a development machine
 
-Stop the dev server before regenerating Prisma on Windows, then run:
+Stop this checkout's development processes before installing dependencies, then run:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -14,13 +14,13 @@ pnpm setup:local
 pnpm dev
 ```
 
-Setup preserves existing accounts/data and fills missing private `SESSION_SECRET` and `MFA_ENCRYPTION_KEY` values with independent random values. It applies additive collections/indexes for `MfaCredential`, `AuthThrottle`, `PasswordReset` and Session proof/activity fields. Do not run data-loss/reset flags. An existing nonempty invalid key is preserved for operator correction. Back up valuable data before schema changes.
+Setup preserves existing accounts/data and fills missing private `SESSION_SECRET` and `MFA_ENCRYPTION_KEY` values with independent random values. For a new empty local database it applies additive collections/indexes and seeds development access. Populated databases are verified without writes; reviewed changes require backup and explicit `--update-existing`. Do not run data-loss/reset flags. An existing nonempty invalid key is preserved for operator correction. Back up valuable data before schema changes.
 
-The native engine was locked during this audit. Generation was verified in an isolated folder, copying client sources while retaining the same-version engine; schema application and real transactions were tested in randomly named disposable databases. The working application database was not modified. Normal setup after stopping dev is the supported team workflow.
+Mongoose models run directly without a generated client or native query engine. Index migration, transaction rollback and browser fixtures were verified in randomly named synthetic namespaces; the working application database was not modified. See the [migration runbook](../migrations/MONGOOSE_REST.md) and [verification report](../MIGRATION_VERIFICATION.md).
 
 ## Authenticator enrollment and recovery
 
-Super Admin and accounts with user, role, permission or integration administration require MFA before any permission-protected API or private file access. Other accounts can enroll voluntarily through Settings → Account → Manage authenticator. Google does not waive the local second factor.
+Accounts with `super_admin` or `admin` roles normally require MFA before protected API or private-file access. Explicit `LOCAL_DISABLE_MFA=true` pauses this only in development on managed loopback rs0/27018; production and remote targets cannot use it. The strongest role wins for mixed-role accounts. Staff and Alumni have no mandatory enrollment/challenge, even with saved credentials or broad legacy permissions. Other accounts can enroll voluntarily through Settings → Account → Manage authenticator. Google does not waive the local second factor.
 
 After primary sign-in, `/security` guides unenrolled administrators through current-password reauthentication and a manual authenticator setup key or `otpauth://` app link. Codes use standard six-digit TOTP, 30-second periods and a bounded ±30-second clock tolerance. Pending setup lasts ten minutes and is bound to its initiating session. Confirmation enables MFA and displays ten random 128-bit recovery codes once; store them privately outside the browser. The server stores only SHA-256 recovery digests and an AES-256-GCM encrypted authenticator secret bound to the account ID.
 
@@ -54,15 +54,15 @@ Production uses a Secure, HttpOnly, host-only `__Host-ats_session` cookie with P
 
 `AuthThrottle` MongoDB counters are atomic and shared across processes. Password login defaults to five failed/in-flight attempts per normalized account per fifteen-minute fixed window, including unknown accounts. Successful logins refund their reservation; failure limits expire rather than permanently locking an account. MFA and reset have separate account/token budgets. IP limits default to thirty requests per fifteen minutes across all auth aliases. Production defaults to MongoDB IP counters; development defaults to memory. `AUTH_IP_STORE`, `AUTH_IP_LIMIT` (1–1000), `AUTH_IP_WINDOW_SECONDS` (1–86400), and `AUTH_ACCOUNT_LIMIT` (1–100) are validated. Fixed windows allow boundary bursts. Behind a proxy the socket peer may group users; do not trust arbitrary forwarded headers. Configure a trusted edge before opening access.
 
-Expired throttle/reset/session records need an approved cleanup/TTL policy. Expiration is enforced in code even before physical cleanup; indexes on throttle/reset expiry support maintenance. This release does not silently delete existing audit or user records. Confirm TTL/index behavior after Prisma schema pushes.
+Expired throttle/reset/session records need an approved cleanup/TTL policy. Expiration is enforced in code even before physical cleanup; indexes on throttle/reset expiry support maintenance. This release does not silently delete existing audit or user records. Confirm TTL/index behavior after reviewed additive index migration.
 
 ## Performance and operations
 
-Alumni/member list responses remain arrays and now accept `page` (default 1) and `pageSize` (default 20, max 100), with stable ID tie-breaks. Both UIs offer previous/next and reset the page when filters change. Without a total-count contract, a full last page can offer one empty next page; Previous remains available. API consumers must page through results rather than assume one response contains all records. CSV and Sheets exports reject over 10,000 rows explicitly; CSV supports department/tracking filters. Dashboard department statistics use one grouped query instead of two counts per department. Deep offset cost and real capacity remain unverified.
+Alumni/member list responses remain arrays and now accept `page` (default 1) and `pageSize` (default 20, max 100), with stable ID tie-breaks. Both UIs offer previous/next and reset the page when filters change. Without a total-count contract, a full last page can offer one empty next page; Previous remains available. API consumers must page through results rather than assume one response contains all records. CSV and Sheets exports reject over 10,000 rows explicitly; CSV and Sheets use the same department/tracking filters as dashboard/report totals. Dashboard department statistics use one grouped query instead of two counts per department. Deep offset cost and real capacity remain unverified.
 
-Every response has a server-generated request ID. Production or `HTTP_LOGGING=true` logs only request ID, method, status and duration; no URL/query, payload, cookies, email, OTP or authorization header is logged by that middleware. Readiness requires MongoDB to report a writable primary. Shutdown drains HTTP requests before disconnecting Prisma, with a ten-second forced-close deadline.
+Every response has a server-generated request ID. Production or `HTTP_LOGGING=true` logs only request ID, method, status and duration; no URL/query, payload, cookies, email, OTP or authorization header is logged by that middleware. Readiness requires MongoDB to report a writable primary. Production also requires enabled/configured verification providers; SMS is currently unimplemented, so production readiness stays 503. This deliberate deployment blocker must be resolved before release. Shutdown drains HTTP requests before disconnecting Mongoose, with a ten-second forced-close deadline.
 
-The pinned, read-only GitHub Actions quality workflow covers synthetic tests/build/browser/advisory gates. It has not run remotely and does not certify Linux, DB durability or real providers. Forms replay/idempotency, backup/restore rehearsal, monitoring alerts, CSP/TLS/host controls, privacy decisions and production recovery remain release gates.
+The pinned, read-only GitHub Actions quality workflow covers synthetic tests/build/browser/advisory gates. It has not run remotely and does not certify Linux, DB durability or real providers. Live Forms sender retry behavior, backup/restore rehearsal, monitoring alerts, CSP/TLS/host controls, privacy decisions and production recovery remain release gates.
 
 ## Reproduce security checks
 
@@ -79,3 +79,11 @@ pnpm check:production-build
 ```
 
 `test:security-db` creates a new random `collab_security_*` database on managed loopback rs0, applies the schema without reset or client generation, and rolls back synthetic account/MFA/reset records. It checks shared counters across independent clients. Small test databases/indexes and throttle test buckets remain as controlled artifacts; it never drops a database or touches the application database. Review any eventual cleanup explicitly. It is not a backup/restore or failover test.
+
+## Contact verification and profile completion
+
+`LOCAL_REQUIRE_EMAIL_VERIFICATION` and `LOCAL_REQUIRE_PHONE_VERIFICATION` independently default to true. Local setup supplies false only for managed development/testing; a request body or browser setting cannot change policy. No flag updates `emailVerified`, `phoneVerified`, email/phone timestamps, password state, or academic completion. Strict mode rechecks stored unverified states on subsequent requests. Existing grandfathered accounts with `verificationRequired=false` retain their historical access; do not silently backfill live identities. New public registrations and newly Admin-created accounts require verification. Admin-created accounts also complete their contact/name form at first access.
+
+Google confirms email ownership only. New Google users must explicitly confirm structured names, student number and program to create their Alumni profile, then create a password using a recent Google proof. Local contact exemptions waive delivery gates, never the academic/name or password steps. Imported-profile claims need Admin identity review; matching email/name/student number cannot grant ownership. A conflicting student number rolls the entire signup transaction back.
+
+To return to strict mode: configure enabled email delivery and a real SMS adapter; test actual receipt, code expiry/resend/rate limits and account-change behavior in isolated staging; set both local flags true/remove them; restart and check an unverified account is restricted. Production rejects either false flag at startup. Readiness is configuration evidence, not proof that a provider delivered a message. No real SMS adapter is supplied in this implementation, so this release is for local functionality verification until that integration is completed.

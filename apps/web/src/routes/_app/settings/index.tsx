@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { toast } from "sonner";
@@ -13,21 +13,38 @@ import {
 import { useSession } from "@/lib/session";
 import { PasswordGuidance } from "@/components/password-guidance";
 import { EmailVerification } from "@/components/email-verification";
-import { client, queryClient } from "@/utils/orpc";
+import { NameFields, nameDraft, type NameDraft } from "@/components/name-fields";
+import { AccountProfileFields, type AccountProfile } from "@/components/account-profile-fields";
+import { updateProfileSchema } from "@Alumni-Tracking-Ss/contracts/auth";
+import { api, client, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/_app/settings/")({ component: AccountSettings });
 
 function AccountSettings() {
   const session = useSession();
-  const [name, setName] = useState<string | null>(null);
+  const verification = useQuery(api.auth.verificationStatus.queryOptions());
+  const [names, setNames] = useState<NameDraft | null>(null);
+  const [contact, setContact] = useState<AccountProfile | null>(null);
+  const currentContact = contact ?? {
+    phoneNumber: verification.data?.phoneNumber ?? "",
+    gender: verification.data?.gender ?? "",
+    facebookAccount: verification.data?.facebookAccount ?? "",
+  };
   const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const profile = useMutation({
-    mutationFn: () => client.auth.updateProfile({ name: name ?? session.data?.name ?? "" }),
+    mutationFn: () =>
+      client.auth.updateProfile(
+        updateProfileSchema.parse({
+          ...(names ?? nameDraft(session.data)),
+          ...currentContact,
+        }),
+      ),
     onSuccess: async () => {
       toast.success("Account updated");
       await queryClient.invalidateQueries();
-      setName(null);
+      setNames(null);
+      setContact(null);
     },
     onError: (error) => toast.error(error.message),
   });
@@ -43,35 +60,48 @@ function AccountSettings() {
   return (
     <PageShell>
       <PageHeader title="Account settings" description="Manage your account and password." />
-      <Link className="underline" to="/security">
-        Manage authenticator and recovery codes
-      </Link>
+      {session.data?.mfaRequired || session.data?.mfaEnrolled ? (
+        <Link className="underline" to="/security">
+          Manage authenticator and recovery codes
+        </Link>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Authenticator verification is optional for this account.
+        </p>
+      )}
       <div className="grid items-start gap-4 md:grid-cols-2">
-        <FormCard title="Profile" description={session.data?.email}>
+        <FormCard title="Personal details" description={session.data?.email}>
           <form
-            className="flex flex-col gap-3"
+            className="grid gap-3 sm:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
               profile.mutate();
             }}
           >
-            <FormField id="account-name" label="Full name" required>
-              <Input
-                id="account-name"
-                autoComplete="name"
-                required
-                maxLength={120}
-                value={name ?? session.data?.name ?? ""}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </FormField>
+            {!session.data?.firstName || !session.data.lastName ? (
+              <p className="text-sm text-muted-foreground">
+                Current display name: {session.data?.name}. Confirm the separate name fields below
+                when you are ready.
+              </p>
+            ) : null}
+            <NameFields
+              value={names ?? nameDraft(session.data)}
+              onChange={setNames}
+              prefix="account"
+            />
+            <AccountProfileFields value={currentContact} onChange={setContact} />
+            <p className="text-sm text-muted-foreground sm:col-span-2">
+              Changing your phone number clears its verification. Confirm the new number when
+              required.
+            </p>
+            {verification.isError ? <p role="alert">{verification.error.message}</p> : null}
             {profile.isError ? <p role="alert">{profile.error.message}</p> : null}
             <PrimaryButton
               type="submit"
               pending={profile.isPending}
-              disabled={name === null || name === session.data?.name}
+              disabled={!verification.data || (names === null && contact === null)}
             >
-              Save profile
+              Save personal details
             </PrimaryButton>
           </form>
           <EmailVerification />

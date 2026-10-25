@@ -7,9 +7,9 @@ export function checkToolchain({
   agent = process.env.npm_config_user_agent,
 } = {}) {
   const [major, minor] = node.split(".").map(Number);
-  if (major < 22 || (major === 22 && minor < 15))
+  if (!((major === 22 && minor >= 18) || (major === 24 && minor >= 11) || major >= 26))
     throw Error(
-      "Node.js 22.15+ is required; use the tested .node-version (26.10.0). Restart your terminal after switching Node.",
+      "Node.js 22.18+, 24.11+, or 26+ is required; use the tested .node-version (26.10.0). Restart your terminal after switching Node.",
     );
   const expected = JSON.parse(
     readFileSync(path.join(projectRoot, "package.json"), "utf8"),

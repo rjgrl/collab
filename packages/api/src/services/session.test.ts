@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import type { Database } from "@Alumni-Tracking-Ss/db";
+import { modelFixture } from "./model-test-fixture";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
 import {
   createSession,
@@ -10,24 +10,22 @@ import {
   authenticateWithPassword,
 } from "./session";
 it("refunds successful login attempts while failed passwords exhaust the account budget", async () => {
-  let count = 0;
   const password = "A private login testing passphrase 7878";
-  const user = { id: "u", status: "active", passwordHash: await hashPassword(password) };
-  const db = {
-    authThrottle: {
-      upsert: async () => ({ count: ++count }),
-      updateMany: async () => {
-        count--;
-        return { count: 1 };
+  const fixture = modelFixture({
+    User: [
+      {
+        id: "u",
+        email: "test@example.test",
+        status: "active",
+        passwordHash: await hashPassword(password),
       },
-    },
-    user: { findUnique: async () => user },
-    userRole: { count: async () => 1 },
-    auditLog: { create: async () => ({ id: "audit" }) },
-  } as unknown as Database;
+    ],
+    UserRole: [{ userId: "u", roleId: "r" }],
+  });
+  const db = fixture.db;
   for (let i = 0; i < 6; i++)
     await authenticateWithPassword(db, { email: "test@example.test", password });
-  assert.equal(count, 0);
+  assert.equal(fixture.tables.AuthThrottle?.[0]?.count, 0);
   for (let i = 0; i < 5; i++)
     await assert.rejects(
       () => authenticateWithPassword(db, { email: "test@example.test", password: "incorrect" }),
@@ -39,47 +37,25 @@ it("refunds successful login attempts while failed passwords exhaust the account
   );
 });
 function fixture() {
-  let row: Record<string, unknown> | null = null;
-  const db = {
-    session: {
-      create: async ({ data }: { data: object }) => {
-        row = { id: "s", createdAt: new Date(), ...data };
-        return row;
-      },
-      findUnique: async ({ where }: { where: { token: string } }) =>
-        row?.token === where.token ? { ...row } : null,
-      updateMany: async ({ where, data }: { where: { token?: string }; data: object }) => {
-        if (!row || (where.token && row.token !== where.token)) return { count: 0 };
-        Object.assign(row, data);
-        return { count: 1 };
-      },
-      delete: async () => {
-        row = null;
-      },
-      deleteMany: async () => {
-        row = null;
-      },
-    },
-    user: {
-      findUnique: async () => ({
+  const f = modelFixture({
+    User: [
+      {
         id: "u",
         name: "Test",
         email: "test@example.test",
         image: null,
         status: "active",
         passwordHash: "synthetic",
-        userRoles: [],
-        mfaCredential: null,
-      }),
-    },
-  } as unknown as Database;
+      },
+    ],
+  });
   return {
-    db,
+    db: f.db,
     get row() {
-      return row;
+      return f.tables.Session?.[0] ?? null;
     },
     setRow: (value: Record<string, unknown>) => {
-      row = value;
+      f.tables.Session = [value];
     },
   };
 }

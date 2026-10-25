@@ -1,33 +1,17 @@
+import type { Request, Response } from "express";
 import type { Context as ApiContext, IntegrationEnv } from "@Alumni-Tracking-Ss/api/context";
-import { loadAuthUserFromToken } from "@Alumni-Tracking-Ss/api/server-utils";
-import type { Context as HonoContext } from "hono";
-import { getCookie, setCookie } from "hono/cookie";
-
+import {
+  loadAuthUserFromToken,
+  storedSessionToken,
+} from "@Alumni-Tracking-Ss/api/services/session";
 import type { Database } from "@Alumni-Tracking-Ss/db";
-import { storedSessionToken } from "@Alumni-Tracking-Ss/api/services/session";
-import { getConnInfo } from "@hono/node-server/conninfo";
 import { resolveClientAddress } from "./runtime-config";
 
 export const SESSION_COOKIE = "ats_session";
-export function readPeerAddress(c: HonoContext, trustedProxyIps: readonly string[] = []) {
-  try {
-    return resolveClientAddress(
-      getConnInfo(c).remote.address ?? null,
-      c.req.header("x-forwarded-for"),
-      trustedProxyIps,
-    );
-  } catch {
-    return null;
-  }
+export function readPeerAddress(request: Request, trustedProxyIps: readonly string[] = []) {
+  const forwarded = request.get("x-forwarded-for");
+  return resolveClientAddress(request.socket.remoteAddress ?? null, forwarded, trustedProxyIps);
 }
-
-export type CreateContextOptions = {
-  context: HonoContext;
-  db: Database;
-  integrationEnv: IntegrationEnv;
-  secureCookies?: boolean;
-  trustedProxyIps?: readonly string[];
-};
 
 function envString(key: string) {
   const value = process.env[key];
@@ -56,43 +40,59 @@ export function readIntegrationEnv(): IntegrationEnv {
   };
 }
 
-export function readSessionToken(c: HonoContext) {
-  const header = c.req.header("authorization");
-  if (header?.startsWith("Bearer ")) {
-    return header.slice("Bearer ".length).trim();
-  }
-  return getCookie(c, "__Host-ats_session") ?? getCookie(c, SESSION_COOKIE) ?? null;
+export function readSessionToken(request: Request) {
+  const header = request.get("authorization");
+  if (header?.startsWith("Bearer ")) return header.slice(7).trim() || null;
+  const cookies: unknown = request.cookies;
+  if (!cookies || typeof cookies !== "object") return null;
+  const value =
+    "__Host-ats_session" in cookies && typeof cookies["__Host-ats_session"] === "string"
+      ? cookies["__Host-ats_session"]
+      : "ats_session" in cookies
+        ? cookies.ats_session
+        : null;
+  return typeof value === "string" ? value : null;
 }
 
-export async function createContext(options: CreateContextOptions): Promise<ApiContext> {
-  const { db } = options;
-  const token = readSessionToken(options.context);
-  const user = await loadAuthUserFromToken(db, token);
+export function sessionCookieOptions(secureCookies: boolean, expiresAt: Date) {
+  return {
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax" as const,
+    secure: secureCookies,
+    expires: expiresAt,
+  };
+}
 
+export async function createContext(options: {
+  request: Request;
+  response: Response;
+  db: Database;
+  integrationEnv: IntegrationEnv;
+  secureCookies?: boolean;
+  trustedProxyIps?: readonly string[];
+  sessionLoader?: typeof loadAuthUserFromToken;
+}): Promise<ApiContext> {
+  const { request, response, db } = options;
+  const token = readSessionToken(request);
+  const user = await (options.sessionLoader ?? loadAuthUserFromToken)(db, token);
   return {
     db,
     sessionToken: token,
     sessionStorageToken: token ? storedSessionToken(token) : null,
-    onSessionRotation: options.context.req.header("authorization")?.startsWith("Bearer ")
+    onSessionRotation: request.get("authorization")?.startsWith("Bearer ")
       ? undefined
-      : (session) =>
-          setCookie(
-            options.context,
+      : (session) => {
+          response.cookie(
             options.secureCookies ? "__Host-ats_session" : SESSION_COOKIE,
             session.token,
-            {
-              httpOnly: true,
-              path: "/",
-              sameSite: "Lax",
-              secure: Boolean(options.secureCookies),
-              expires: session.expiresAt,
-            },
-          ),
+            sessionCookieOptions(Boolean(options.secureCookies), session.expiresAt),
+          );
+        },
     user,
-    ipAddress: readPeerAddress(options.context, options.trustedProxyIps),
-    userAgent: options.context.req.header("user-agent") ?? null,
+    ipAddress: readPeerAddress(request, options.trustedProxyIps),
+    userAgent: request.get("user-agent") ?? null,
     integrationEnv: options.integrationEnv,
   };
 }
-
-export type Context = Awaited<ReturnType<typeof createContext>>;
+export type Context = ApiContext;

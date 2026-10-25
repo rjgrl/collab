@@ -34,8 +34,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: git diff --check
-      - run: pnpm db:generate
-      - run: pnpm --filter @Alumni-Tracking-Ss/db exec prisma validate
       - run: pnpm --filter web build
       - run: pnpm check-types
       - run: pnpm test:browser-types
@@ -44,6 +42,7 @@ jobs:
       - run: pnpm check:secrets
       - run: pnpm audit --audit-level=moderate
       - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:completion-db
       - run: pnpm test:browser
       - run: pnpm build
       - run: pnpm check:production-build

@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { Writable } from "node:stream";
-import { createPrismaClient } from "../packages/db/src/index";
+import { createDatabase } from "../packages/db/src/index";
 import { recoverLocalAdministrator } from "../packages/api/src/services/local-recovery";
 import { readLocalConfig, isManagedLocalDatabase } from "./local-env.mjs";
 import { projectRoot } from "./local-tools.mjs";
@@ -25,7 +25,7 @@ async function main() {
     },
   });
   const prompt = createInterface({ input: process.stdin, output, terminal: true });
-  const db = createPrismaClient({ DATABASE_URL: effective.DATABASE_URL! });
+  const db = createDatabase({ DATABASE_URL: effective.DATABASE_URL! });
   try {
     const email = (await prompt.question("Local Super Admin email: ")).trim().toLowerCase();
     process.stdout.write("Current account password (hidden): ");
@@ -43,7 +43,7 @@ async function main() {
   } finally {
     muted = false;
     prompt.close();
-    await db.$disconnect();
+    await db.disconnect();
   }
 }
 main().catch((error) => {

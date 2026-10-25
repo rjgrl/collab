@@ -7,8 +7,9 @@ import { toast } from "sonner";
 import { NativeSelect } from "@/components/native-select";
 import { FilterBar, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { QuietButton } from "@/components/data-table";
+import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { can, useSession } from "@/lib/session";
-import { client, orpc } from "@/utils/orpc";
+import { client, api } from "@/utils/api";
 
 export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
@@ -16,9 +17,13 @@ export const Route = createFileRoute("/_app/reports")({
 
 function ReportsPage() {
   const session = useSession();
-  const summary = useQuery(orpc.reports.summary.queryOptions());
   const [departmentId, setDepartmentId] = useState("");
   const [tracked, setTracked] = useState<"all" | "tracked" | "untracked">("all");
+  const summary = useQuery(
+    api.reports.summary.queryOptions({
+      input: { departmentId: departmentId || undefined, tracked },
+    }),
+  );
 
   const exportCsv = useMutation({
     mutationFn: () =>
@@ -40,7 +45,8 @@ function ReportsPage() {
   });
 
   const exportSheets = useMutation({
-    mutationFn: () => client.integrations.exportSheets(),
+    mutationFn: () =>
+      client.integrations.exportSheets({ departmentId: departmentId || undefined, tracked }),
     onSuccess: (result) => toast.success(`Wrote ${result.count} rows to Google Sheets`),
     onError: (error) => toast.error(error.message),
   });
@@ -75,7 +81,7 @@ function ReportsPage() {
               <option value="">All departments</option>
               {summary.data?.departments.map((department) => (
                 <option key={department.id} value={department.id}>
-                  {department.code}
+                  {department.name}
                 </option>
               ))}
             </NativeSelect>
@@ -99,9 +105,14 @@ function ReportsPage() {
               >
                 Download CSV
               </PrimaryButton>
-              <QuietButton onClick={() => exportSheets.mutate()} disabled={exportSheets.isPending}>
-                {exportSheets.isPending ? "Exporting..." : "Export to Google Sheets"}
-              </QuietButton>
+              {session.data && isAdministrator(session.data) ? (
+                <QuietButton
+                  onClick={() => exportSheets.mutate()}
+                  disabled={exportSheets.isPending}
+                >
+                  {exportSheets.isPending ? "Exporting..." : "Export to Google Sheets"}
+                </QuietButton>
+              ) : null}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">You can view totals but cannot export.</p>

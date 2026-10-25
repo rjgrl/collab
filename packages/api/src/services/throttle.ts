@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ORPCError } from "@orpc/server";
+import { ApiError } from "../http-error";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 
 export function boundedSetting(value: string | undefined, fallback: number, max: number) {
@@ -24,21 +24,23 @@ export async function consumeAuthAttempt(
   const key = `${scope}:${createHash("sha256").update(identity.trim().toLowerCase()).digest("hex")}:${window}`;
   const expiresAt = new Date((window + 1) * windowMs);
   const claim = () =>
-    db.authThrottle.upsert({
-      where: { key },
-      update: { count: { increment: 1 } },
-      create: { key, count: 1, expiresAt },
-    });
+    db.AuthThrottle.findOneAndUpdate(
+      { key },
+      { $inc: { count: 1 }, $setOnInsert: { key, expiresAt } },
+      { upsert: true, returnDocument: "after" },
+    )
+      .lean()
+      .exec();
   let bucket;
   try {
     bucket = await claim();
   } catch (error) {
-    if (typeof error === "object" && error && "code" in error && error.code === "P2002")
+    if (typeof error === "object" && error && "code" in error && error.code === 11000)
       bucket = await claim();
     else throw error;
   }
-  if (bucket.count > limit)
-    throw new ORPCError("TOO_MANY_REQUESTS", {
+  if (!bucket || bucket.count > limit)
+    throw new ApiError("TOO_MANY_REQUESTS", {
       message: "Too many attempts. Please wait before trying again.",
       data: { retryAfterSeconds: Math.max(1, Math.ceil((expiresAt.getTime() - now) / 1000)) },
     });

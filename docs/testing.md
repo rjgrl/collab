@@ -27,7 +27,7 @@ Covered:
 | Tracking     | Mark tracked                       | Dashboard tracked count increases            |
 | Files        | Upload pdf/png under 10 MB         | File listed; unauthorized users cannot fetch |
 | Files        | Upload exe or oversized file       | Rejected                                     |
-| Dashboard    | IT grouping                        | Department code IT has its own counts        |
+| Dashboard    | IT grouping                        | Department names identify each set of counts        |
 | Reports      | CSV export                         | File downloads from live data                |
 | Integrations | CSV import invalid row             | Row reported, not inserted                   |
 | reCAPTCHA    | Unconfigured secret                | Local checkbox required                      |

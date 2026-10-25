@@ -1,18 +1,24 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@Alumni-Tracking-Ss/ui/components/card";
 import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { DataTable, TableCell, TableRow } from "@/components/data-table";
 import { PageHeader, PageShell } from "@/components/page-header";
-import { orpc } from "@/utils/orpc";
+import { api } from "@/utils/api";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  const summary = useQuery(orpc.dashboard.summary.queryOptions({ input: {} }));
+  const summary = useQuery(api.dashboard.summary.queryOptions({ input: {} }));
   const data = summary.data;
 
   return (
@@ -27,18 +33,32 @@ function DashboardPage() {
         <StatCard label="Untracked" value={data?.untracked} loading={summary.isPending} />
         <StatCard
           label="% tracked"
-          value={data ? `${data.percentTracked}%` : undefined}
+          value={data ? `${data.percentTracked.toFixed(2)}%` : undefined}
           loading={summary.isPending}
         />
       </div>
+      <p className="text-sm text-muted-foreground">
+        Registered alumni accounts: {data?.registered ?? "?"}. Graduate totals count profiles,
+        including unregistered graduates.
+      </p>
+      {summary.error ? (
+        <p role="alert">
+          Could not load dashboard.{" "}
+          <button className="underline" onClick={() => void summary.refetch()}>
+            Retry
+          </button>
+        </p>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>By department</CardTitle>
-          <CardDescription>IT is a department code. Percentage uses tracked ÷ graduates.</CardDescription>
+          <CardDescription>
+            Percentage uses tracked ÷ graduates.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
-            headers={["Code", "Department", "Graduates", "Tracked", "% tracked"]}
+            headers={["Department", "Graduates", "Tracked", "% tracked"]}
             loading={summary.isPending}
             isEmpty={data?.byDepartment.length === 0}
             emptyTitle="No departments found"
@@ -46,17 +66,23 @@ function DashboardPage() {
           >
             {data?.byDepartment.map((row) => (
               <TableRow key={row.id}>
-                <TableCell>{row.code}</TableCell>
                 <TableCell>{row.name}</TableCell>
-                <TableCell>{row.graduates}</TableCell>
-                <TableCell>{row.tracked}</TableCell>
-                <TableCell>{row.percentTracked}%</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.graduates.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.tracked.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.percentTracked.toFixed(2)}%
+                </TableCell>
               </TableRow>
             ))}
           </DataTable>
           {data ? (
             <p className="mt-4 text-xs text-muted-foreground">
-              {data.formula}. {data.conflictNote}
+              Tracked percentage is tracked graduates divided by all eligible graduates, multiplied
+              by 100.
             </p>
           ) : null}
         </CardContent>
@@ -78,7 +104,9 @@ function StatCard({
     <Card>
       <CardHeader>
         <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-2xl">{loading ? <Skeleton className="h-8 w-16" /> : (value ?? "—")}</CardTitle>
+        <CardTitle className="text-2xl">
+          {loading ? <Skeleton className="h-8 w-16" /> : (value ?? "—")}
+        </CardTitle>
       </CardHeader>
     </Card>
   );

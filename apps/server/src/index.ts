@@ -1,4 +1,3 @@
-import { serve } from "@hono/node-server";
 import { Server as HttpServer } from "node:http";
 import { createApp } from "./app";
 import { readIntegrationEnv } from "./context";
@@ -25,14 +24,12 @@ const app = createApp({
   },
   integrationEnv,
 });
-const server = serve(
-  {
-    fetch: app.fetch,
-    hostname: process.env.HOST?.trim() || "127.0.0.1",
-    port: Number(process.env.PORT) || 3000,
-  },
-  (info) => {
-    console.log("Server listening on port " + info.port);
+await db.ready();
+const server = app.listen(
+  Number(process.env.PORT) || 3000,
+  process.env.HOST?.trim() || "127.0.0.1",
+  () => {
+    console.log("Server listening on port " + (Number(process.env.PORT) || 3000));
   },
 );
 let stopping = false;
@@ -50,7 +47,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
         new Promise<void>((resolve, reject) =>
           server.close((error) => (error ? reject(error) : resolve())),
         ),
-      () => db.$disconnect(),
+      () => db.disconnect(),
       () => {
         if ("closeAllConnections" in server && typeof server.closeAllConnections === "function")
           server.closeAllConnections();

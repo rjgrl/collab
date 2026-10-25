@@ -7,6 +7,9 @@
   ],
   "type": "module",
   "scripts": {
+    "accounts:local": "tsx scripts/provision-test-accounts.ts",
+    "dev:accounts": "tsx scripts/provision-test-accounts.ts --start",
+    "test:completion-db": "tsx apps/server/src/completion-local.ts",
     "dev": "node scripts/local-workflow.mjs dev",
     "build": "vp run -r build",
     "check-types": "vp run -r check-types && tsc --project scripts/tsconfig.json",
@@ -17,14 +20,11 @@
     "hooks:setup": "vp config",
     "dev:web": "vp run --filter web dev",
     "dev:server": "node scripts/local-workflow.mjs dev:server",
-    "db:push": "node scripts/local-workflow.mjs db:push",
     "db:local": "node scripts/local-workflow.mjs db:local",
     "setup:local": "node scripts/setup-local.mjs",
     "setup:dev": "node scripts/setup-local.mjs",
     "doctor": "node scripts/doctor.mjs",
     "test:clone-local": "node scripts/rehearse-clone.mjs",
-    "db:studio": "vp run --filter @Alumni-Tracking-Ss/db db:studio",
-    "db:generate": "vp run --filter @Alumni-Tracking-Ss/db db:generate",
     "db:seed": "node scripts/local-workflow.mjs db:seed",
     "test": "node scripts/test-local.mjs",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
@@ -38,7 +38,11 @@
     "test:recovery-local": "tsx scripts/rehearse-recovery.ts",
     "test:staging-local": "tsx apps/server/src/phase5-local.ts",
     "test:browser-types": "tsc --project scripts/tsconfig.browser.json",
-    "check:server-build": "node scripts/check-server-build.mjs"
+    "check:server-build": "node scripts/check-server-build.mjs",
+    "db:migrate": "node scripts/local-workflow.mjs db:migrate",
+    "db:verify-transactions": "node scripts/local-workflow.mjs db:verify-transactions",
+    "test:mongoose-db": "tsx scripts/mongoose-db-check.ts",
+    "test:roles-local": "tsx scripts/check-local-roles.ts"
   },
   "dependencies": {
     "zod": "catalog:"
@@ -46,18 +50,18 @@
   "devDependencies": {
     "@Alumni-Tracking-Ss/config": "workspace:*",
     "@axe-core/playwright": "^4.14.0",
-    "@orpc/server": "catalog:",
     "@playwright/test": "^1.64.1",
     "@types/node": "catalog:",
+    "mongodb-memory-server-core": "11.3.0",
     "otplib": "13.5.0",
     "rolldown": "1.2.7",
     "tsx": "^4.23.13",
     "typescript": "catalog:",
     "varlock": "catalog:",
-    "vite-plus": "0.3.1"
+    "vite-plus": "1.3.0"
   },
   "engines": {
-    "node": ">=22.15.0",
+    "node": "^22.18.0 || ^24.11.0 || >=26.0.0",
     "pnpm": "12.5.1"
   },
   "packageManager": "pnpm@12.5.1"

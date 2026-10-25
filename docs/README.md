@@ -1,12 +1,14 @@
 # System Documentation
 
+Current implementation: [feature matrix](FEATURE_MATRIX.md), [completion evidence](COMPLETION_VERIFICATION.md), [defense guide](DEFENSE_GUIDE.md), and [policy decision](decisions/0001-account-profile-policy.md). Historical inventories and dated audits below are source context, not proof of the current runtime.
+
 ## System Overview
 
 The Alumni Tracking System is specified as a modular system for managing academic structure, alumni profiles, graduate tracking statistics, and access control.
 
 The provided system guide defines three major areas:
 
-1. **MODULES** — Roles, Users, and Permissions grouped as **RBAC (Rule Based Access Control)**; Departments, Program, Faculties, and Alumni Profile (Student Details, Contact Info, Employment, Tracking); plus two explicit attachment rules: faculties can be added to a department, and alumni attach to a program that attaches to a department.
+1. **MODULES** — Roles, Users, and Permissions grouped as **RBAC (Role-Based Access Control)**; Departments, Program, Faculties, and Alumni Profile (Student Details, Contact Info, Employment, Tracking); plus two explicit attachment rules: faculties can be added to a department, and alumni attach to a program that attaches to a department.
 2. **DASHBOARD** — Display of number of graduates, including a tracked count and a tracked percentage. An example is shown for IT: 14750 graduates, 10000 tracked, 5% tracked.
 3. **INTEGRATION** — Seven integrations grouped as **Modular**: reCAPTCHA, G. Auth, G. Drive (uploading of evidence), Email, Image BB / G. Drive, G. Forms, and G. Sheets.
 

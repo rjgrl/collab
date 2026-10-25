@@ -1,4 +1,4 @@
-import { PASSWORD_GUIDANCE } from "@Alumni-Tracking-Ss/api/password-policy";
+import { PASSWORD_GUIDANCE } from "@Alumni-Tracking-Ss/contracts/password-policy";
 export function PasswordGuidance({ id, value }: { id: string; value: string }) {
   const length = Array.from(value.normalize("NFC")).length;
   return (

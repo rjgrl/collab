@@ -3,14 +3,15 @@ import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { serve } from "@hono/node-server";
 import { generate } from "otplib";
 import { createApp } from "./app";
-import { createPrismaClient, hashPassword } from "../../../packages/db/src/index";
+import { acceptanceRequest } from "./local-rest";
+import { migrateDatabase } from "../../../packages/db/src/migration";
+import { createDatabase, hashPassword } from "../../../packages/db/src/index";
 import type { Database } from "../../../packages/db/src/index";
 import { PERMISSIONS, ROLE_PRESETS } from "../../../packages/db/src/permissions";
 import { createSession } from "../../../packages/api/src/services/session";
-import { projectRoot, runTool } from "../../../scripts/local-tools.mjs";
+import { projectRoot } from "../../../scripts/local-tools.mjs";
 import { isManagedLocalDatabase } from "../../../scripts/local-env.mjs";
 if (process.env.NODE_ENV === "production") throw Error("Local tests only");
 process.env.NODE_ENV = "test";
@@ -18,48 +19,31 @@ process.env.PASSWORD_BREACH_CHECK = "local";
 const name = `collab_forms_${randomBytes(6).toString("hex")}`;
 const url = `mongodb://127.0.0.1:27018/${name}?replicaSet=rs0`;
 assert.ok(isManagedLocalDatabase(url));
-await runTool(
-  "prisma",
-  "prisma",
-  [
-    "db",
-    "push",
-    "--skip-generate",
-    "--schema",
-    path.join(projectRoot, "packages/db/prisma/schema"),
-  ],
-  {
-    cwd: path.join(projectRoot, "packages/db"),
-    toolRoot: path.join(projectRoot, "packages/db"),
-    env: { ...process.env, DATABASE_URL: url },
-  },
-);
-const db = createPrismaClient({ DATABASE_URL: url });
-const peer = createPrismaClient({ DATABASE_URL: url });
+const db = createDatabase({ DATABASE_URL: url });
+await db.ready();
+assert.deepEqual((await migrateDatabase(db, "apply")).conflicts, []);
+const peer = createDatabase({ DATABASE_URL: url });
 const secret = "synthetic-forms-secret-only";
-const faultDb = {
-  ...db,
-  $transaction: async (work: Parameters<Database["$transaction"]>[0]) =>
-    db.$transaction(async (tx) => {
-      // Inject a failure after the alumni/tracking writes but before job completion.
-      const faulty = {
-        ...tx,
-        importJob: {
-          ...tx.importJob,
-          create: async () => {
-            throw Error("SYNTHETIC_PRIVATE_DATABASE_FAILURE");
-          },
-        },
+const failingImportJob = new Proxy(db.ImportJob, {
+  get(target, key, receiver) {
+    if (key === "create")
+      return async () => {
+        throw new Error("SYNTHETIC_PRIVATE_DATABASE_FAILURE");
       };
-      return (work as (tx: unknown) => Promise<unknown>)(faulty);
-    }),
-} as unknown as Database;
-const servers: ReturnType<typeof serve>[] = [];
+    return Reflect.get(target, key, receiver) as unknown;
+  },
+});
+const faultDb: Database = {
+  ...db,
+  transaction: <T>(work: (tx: Database) => Promise<T>): Promise<T> =>
+    db.transaction((tx) => work({ ...tx, ImportJob: failingImportJob })),
+};
+const servers: ReturnType<ReturnType<typeof createApp>["listen"]>[] = [];
 const config = { nodeEnv: "test", origin: "http://localhost:3001" };
 const integrationEnv = { googleFormsWebhookSecret: secret, mfaEncryptionKey: "47".repeat(32) };
 async function listen(database: Database, env = integrationEnv) {
   const app = createApp({ db: database, config, integrationEnv: env });
-  const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 0 });
+  const server = app.listen(0, "127.0.0.1");
   servers.push(server);
   if (!server.listening) await once(server, "listening");
   const address = server.address();
@@ -73,7 +57,7 @@ const payload = {
   firstName: "Synthetic",
   lastName: "Forms",
   gender: "Female",
-  departmentCode: "TEST",
+  departmentName: "Synthetic",
   programCode: "TEST",
 };
 async function submit(
@@ -111,30 +95,30 @@ async function expected(
   return r;
 }
 try {
-  await db.integrationSetting.create({ data: { key: "google_forms", enabled: false } });
+  await db.IntegrationSetting.create({ key: "google_forms", enabled: false });
   const base = await listen(db),
     second = await listen(peer),
     fault = await listen(faultDb);
   await expected("disabled integration", base, "synthetic-response-001", 403);
   // Enable only this newly created disposable database, never application settings.
-  await db.integrationSetting.update({ where: { key: "google_forms" }, data: { enabled: true } });
+  await db.IntegrationSetting.findOneAndUpdate(
+    { key: "google_forms" },
+    { $set: { enabled: true } },
+    { returnDocument: "after" },
+  );
   await expected("wrong shared secret", base, "synthetic-response-001", 401, payload, "wrong");
   const unconfigured = await listen(db, { ...integrationEnv, googleFormsWebhookSecret: "" });
   await expected("unconfigured secret", unconfigured, "synthetic-response-001", 401);
   await expected("missing key", base, undefined, 400);
   await expected("invalid payload", base, "synthetic-invalid-001", 400, { ...payload, gender: "" });
   await expected("domain error rollback", base, "synthetic-domain-001", 400);
-  assert.equal(await db.formsReceipt.count(), 0);
-  assert.equal(await db.importJob.count(), 0);
-  assert.equal(await db.alumni.count(), 0);
-  const department = await db.department.create({ data: { code: "TEST", name: "Synthetic" } });
-  await db.program.create({
-    data: { code: "TEST", name: "Synthetic", departmentId: department.id },
-  });
+  assert.equal(await db.FormsReceipt.countDocuments({}), 0);
+  assert.equal(await db.ImportJob.countDocuments({}), 0);
+  assert.equal(await db.Alumni.countDocuments({}), 0);
+  const department = await db.Department.create({ name: "Synthetic" });
+  await db.Program.create({ code: "TEST", name: "Synthetic", departmentId: department.id });
   const first = await expected("first commit", base, "synthetic-response-001", 200);
-  const saved = await db.alumni.findUniqueOrThrow({
-    where: { studentNumber: payload.studentNumber },
-  });
+  const saved = await db.Alumni.findOne({ studentNumber: payload.studentNumber }).orFail();
   const retry = await expected(
     "serial duplicate another instance",
     second,
@@ -144,7 +128,7 @@ try {
   assert.equal(retry.body.replayed, true);
   assert.equal(retry.body.importJobId, first.body.importJobId);
   assert.equal(
-    (await db.alumni.findUniqueOrThrow({ where: { id: saved.id } })).lastTrackedAt?.getTime(),
+    (await db.Alumni.findOne({ _id: saved.id }).orFail()).lastTrackedAt?.getTime(),
     saved.lastTrackedAt?.getTime(),
   );
   await expected("changed payload reuses key", base, "synthetic-response-001", 409, {
@@ -166,10 +150,10 @@ try {
   assert.ok(settled.every((r) => r.status === 200));
   assert.equal(new Set(settled.map((r) => r.body.importJobId)).size, 1);
   checks.push({ test: "8 concurrent deliveries / same committed job", status: 200 });
-  assert.equal(await db.alumni.count(), 2);
-  assert.equal(await db.trackingEvent.count(), 2);
-  assert.equal(await db.formsReceipt.count(), 2);
-  assert.equal(await db.importJob.count(), 2);
+  assert.equal(await db.Alumni.countDocuments({}), 2);
+  assert.equal(await db.TrackingEvent.countDocuments({}), 2);
+  assert.equal(await db.FormsReceipt.countDocuments({}), 2);
+  assert.equal(await db.ImportJob.countDocuments({}), 2);
   const failedPayload = { ...payload, studentNumber: "FORM-FAULT" };
   const failed = await expected(
     "injected partial failure",
@@ -179,13 +163,10 @@ try {
     failedPayload,
   );
   assert.ok(!JSON.stringify(failed.body).includes("SYNTHETIC_PRIVATE"));
-  assert.equal(
-    await db.alumni.findUnique({ where: { studentNumber: failedPayload.studentNumber } }),
-    null,
-  );
-  assert.equal(await db.formsReceipt.count(), 2);
-  assert.equal(await db.importJob.count(), 2);
-  assert.equal(await db.trackingEvent.count(), 2);
+  assert.equal(await db.Alumni.findOne({ studentNumber: failedPayload.studentNumber }), null);
+  assert.equal(await db.FormsReceipt.countDocuments({}), 2);
+  assert.equal(await db.ImportJob.countDocuments({}), 2);
+  assert.equal(await db.TrackingEvent.countDocuments({}), 2);
   await expected(
     "same key retries after rollback",
     second,
@@ -203,15 +184,17 @@ try {
     if (result.status === 503)
       assert.equal((await submit(base, `synthetic-distinct-00${i + 1}`, sameStudent)).status, 200);
     else assert.equal(result.status, 200);
-  assert.equal(await db.alumni.count(), 4);
-  assert.equal(await db.trackingEvent.count(), 4);
-  assert.equal(await db.formsReceipt.count(), 5);
-  assert.equal(await db.importJob.count(), 5);
+  assert.equal(await db.Alumni.countDocuments({}), 4);
+  assert.equal(await db.TrackingEvent.countDocuments({}), 4);
+  assert.equal(await db.FormsReceipt.countDocuments({}), 5);
+  assert.equal(await db.ImportJob.countDocuments({}), 5);
   checks.push({ test: "distinct response IDs same student: one alumni record", status: 200 });
-  const archived = await db.alumni.findUniqueOrThrow({
-    where: { studentNumber: sameStudent.studentNumber },
-  });
-  await db.alumni.update({ where: { id: archived.id }, data: { deletedAt: new Date() } });
+  const archived = await db.Alumni.findOne({ studentNumber: sameStudent.studentNumber }).orFail();
+  await db.Alumni.findOneAndUpdate(
+    { _id: archived.id },
+    { $set: { deletedAt: new Date() } },
+    { returnDocument: "after" },
+  );
   await expected(
     "archived alumni cannot be changed",
     base,
@@ -219,7 +202,7 @@ try {
     400,
     sameStudent,
   );
-  assert.equal(await db.formsReceipt.count(), 5);
+  assert.equal(await db.FormsReceipt.countDocuments({}), 5);
   await expected("new response updates existing profile", base, "synthetic-update-001", 200, {
     ...payload,
     firstName: "Newer synthetic",
@@ -230,62 +213,46 @@ try {
     "synthetic-response-001",
     200,
   );
-  assert.equal(
-    (await db.alumni.findUniqueOrThrow({ where: { id: saved.id } })).firstName,
-    "Newer synthetic",
-  );
-  assert.equal(await db.formsReceipt.count(), 6);
-  assert.equal(await db.importJob.count(), 6);
-  const receipt = await db.formsReceipt.findFirstOrThrow();
+  assert.equal((await db.Alumni.findOne({ _id: saved.id }).orFail()).firstName, "Newer synthetic");
+  assert.equal(await db.FormsReceipt.countDocuments({}), 6);
+  assert.equal(await db.ImportJob.countDocuments({}), 6);
+  const receipt = await db.FormsReceipt.findOne({}).orFail();
   assert.ok(!JSON.stringify(receipt).includes("Synthetic"));
   // Seed the exact default presets. No private/live role assignments are read.
-  const perms = await Promise.all(PERMISSIONS.map((p) => db.permission.create({ data: p })));
+  const perms = await Promise.all(PERMISSIONS.map((p) => db.Permission.create(p)));
   const password = "Synthetic role verification passphrase 872!";
   const passwordHash = await hashPassword(password);
-  async function rpc(route: string, token: string, input: unknown = {}) {
-    const r = await fetch(base + "/rpc/" + route, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ json: input }),
-    });
-    return { status: r.status, body: ((await r.json()) as { json: Record<string, unknown> }).json };
+  async function rest(route: string, token: string, input: unknown = {}) {
+    const result = await acceptanceRequest(base, route, input, token);
+    return { status: result.response.status, body: result.body as Record<string, unknown> };
   }
   const users: Record<string, { id: string; token: string }> = {};
   for (const preset of Object.values(ROLE_PRESETS)) {
-    const user = await db.user.create({
-      data: {
-        name: preset.name,
-        email: `${preset.key}@example.test`,
-        passwordHash,
-        emailVerified: true,
-        userRoles: {
-          create: {
-            role: {
-              create: {
-                key: preset.key,
-                name: preset.name,
-                rolePermissions: {
-                  create: perms
-                    .filter((p) => (preset.permissions as readonly string[]).includes(p.key))
-                    .map((p) => ({ permissionId: p.id })),
-                },
-              },
-            },
-          },
-        },
-      },
+    const role = await db.Role.create({ key: preset.key, name: preset.name });
+    for (const permission of perms.filter((permission) =>
+      (preset.permissions as readonly string[]).includes(permission.key),
+    ))
+      await db.RolePermission.create({ roleId: role._id, permissionId: permission._id });
+    const user = await db.User.create({
+      name: preset.name,
+      email: `${preset.key}@example.test`,
+      passwordHash,
+      emailVerified: true,
     });
+    await db.UserRole.create({ userId: user._id, roleId: role._id });
     let token = (await createSession(db, user.id, {})).token;
-    if (preset.key !== "viewer") {
-      assert.equal((await rpc("alumni/list", token)).status, 403);
-      const setup = await rpc("auth/beginMfa", token, { password });
+    if (preset.key === "super_admin") {
+      assert.equal((await rest("alumni/list", token)).status, 403);
+      const setup = await rest("auth/beginMfa", token, { password });
       assert.equal(setup.status, 200);
-      const confirmation = await rpc("auth/confirmMfa", token, {
+      const confirmation = await rest("auth/confirmMfa", token, {
         code: await generate({ secret: String(setup.body.secret) }),
       });
       assert.equal(confirmation.status, 200);
       token = String(confirmation.body.sessionToken);
     }
+    if (preset.key === "staff")
+      assert.equal((await rest("alumni/list", token)).status, 200, "Staff does not require MFA");
     users[preset.key] = { id: user.id, token };
   }
   for (const [role, route, status] of [
@@ -295,28 +262,64 @@ try {
     ["staff", "reports/alumniCsv", 200],
     ["super_admin", "users/list", 200],
   ] as const) {
-    assert.equal((await rpc(route, users[role]!.token)).status, status);
+    assert.equal((await rest(route, users[role]!.token)).status, status);
     checks.push({ test: `${role}: ${route}`, status });
   }
-  const globalRead = await rpc("alumni/get", users.viewer!.token, { id: saved.id });
-  assert.equal(globalRead.status, 200);
-  checks.push({ test: "viewer global alumni read is current permission policy", status: 200 });
-  assert.equal((await rpc("alumni/delete", users.viewer!.token, { id: saved.id })).status, 403);
+  const globalRead = await rest("alumni/get", users.viewer!.token, { id: saved.id });
+  assert.equal(globalRead.status, 403);
+  checks.push({ test: "Alumni cannot read the global directory", status: 403 });
+  const unlinked = await acceptanceRequest(
+    base,
+    "/api/me/profile",
+    {},
+    users.viewer!.token,
+    {},
+    "GET",
+  );
+  assert.equal(unlinked.response.status, 409);
+  await db.User.updateOne({ _id: users.viewer!.id }, { $set: { alumniId: saved._id } });
+  assert.equal(
+    (await acceptanceRequest(base, "/api/me/profile", {}, users.viewer!.token, {}, "GET")).response
+      .status,
+    200,
+  );
+  checks.push({
+    test: "Alumni requires explicit link and then reads its own profile",
+    status: 200,
+  });
+  assert.equal((await rest("alumni/delete", users.viewer!.token, { id: saved.id })).status, 403);
   assert.equal(
     (
-      await rpc("auth/updateProfile", users.viewer!.token, {
-        name: "Own synthetic profile",
+      await rest("auth/updateProfile", users.viewer!.token, {
+        firstName: "Own",
+        lastName: "Synthetic",
         userId: users.super_admin!.id,
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await rest("auth/updateProfile", users.viewer!.token, {
+        firstName: "Own",
+        lastName: "Synthetic",
       })
     ).status,
     200,
   );
   assert.equal(
-    (await db.user.findUniqueOrThrow({ where: { id: users.super_admin!.id } })).name,
+    (await db.User.findOne({ _id: users.super_admin!.id }).orFail()).name,
     "Super Admin",
   );
-  checks.push({ test: "profile userId manipulation changes only the caller", status: 200 });
-  await db.integrationSetting.update({ where: { key: "google_forms" }, data: { enabled: false } });
+  checks.push({
+    test: "profile userId manipulation rejected; explicit own names update succeeds",
+    status: 200,
+  });
+  await db.IntegrationSetting.findOneAndUpdate(
+    { key: "google_forms" },
+    { $set: { enabled: false } },
+    { returnDocument: "after" },
+  );
   await expected("disabled even on known replay", base, "synthetic-response-001", 403);
   const result = {
     date: new Date().toISOString(),
@@ -324,16 +327,16 @@ try {
     checks,
     concurrentStatuses: concurrent.map((x) => x.status),
     counts: {
-      alumni: await db.alumni.count(),
-      tracking: await db.trackingEvent.count(),
-      receipts: await db.formsReceipt.count(),
-      jobs: await db.importJob.count(),
+      alumni: await db.Alumni.countDocuments({}),
+      tracking: await db.TrackingEvent.countDocuments({}),
+      receipts: await db.FormsReceipt.countDocuments({}),
+      jobs: await db.ImportJob.countDocuments({}),
     },
     formsEnabledAtEnd: false,
     limits: [
       "only synthetic loopback data",
       "same-key atomic DB effects, no provider exactly-once claim",
-      "custom roles use union of explicit permissions; institution scope unchanged",
+      "custom roles use union of explicit permissions; Alumni directory denied; explicit ownership link required",
     ],
   };
   await mkdir(path.join(projectRoot, ".tools"), { recursive: true });
@@ -344,6 +347,6 @@ try {
   console.log(JSON.stringify(result, null, 2));
 } finally {
   await Promise.all(servers.map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
-  await db.$disconnect();
-  await peer.$disconnect();
+  await db.disconnect();
+  await peer.disconnect();
 }

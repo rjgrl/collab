@@ -1,51 +1,36 @@
-import { randomUUID } from "node:crypto";
-import { createPrismaClient, verifyPassword } from "../packages/db/src/index";
+import { createDatabase, verifyPassword } from "../packages/db/src/index";
+import { verifyTransactionSupport } from "../packages/db/src/transactions";
 import { isManagedLocalDatabase } from "./local-env.mjs";
-
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url || !isManagedLocalDatabase(url) || process.env.NODE_ENV === "production")
-    throw new Error("Local setup verification requires a managed development database.");
-  const db = createPrismaClient({ DATABASE_URL: url });
+    throw new Error("Local verification requires a managed development database.");
+  const db = createDatabase({ DATABASE_URL: url });
   try {
-    const user = await db.user.findUnique({
-      where: { email: process.env.SEED_ADMIN_EMAIL! },
-      include: { userRoles: { include: { role: true } } },
-    });
+    const user = await db.User.findOne({ email: process.env.SEED_ADMIN_EMAIL }).lean();
+    const role = await db.Role.findOne({ key: "super_admin" }).lean();
     if (
       !user?.passwordHash ||
       user.status !== "active" ||
-      !user.userRoles.some(({ role }) => role.key === "super_admin")
+      !role ||
+      !(await db.UserRole.exists({ userId: user._id, roleId: role._id }))
     )
       throw new Error(
-        "The configured bootstrap account is not an active administrator. No account was elevated or reset. Correct the private bootstrap configuration.",
+        "The configured bootstrap account is not an active administrator. No account was elevated or reset. Correct private bootstrap configuration.",
       );
-    const initialPasswordMatches = await verifyPassword(
-      process.env.SEED_ADMIN_PASSWORD!,
-      user.passwordHash,
-    );
+    const password = process.env.SEED_ADMIN_PASSWORD;
+    if (!password) throw new Error("Configure the private bootstrap password for verification.");
+    const initialPasswordMatches = await verifyPassword(password, user.passwordHash);
     if (!initialPasswordMatches)
       console.warn(
-        "The existing administrator's password has changed. Use its current password; setup did not reset it. The initial-login file may be out of date.",
+        "Existing administrator password differs from the initial login note; setup did not reset it. Use the current password.",
       );
-    const probe = "local-setup-" + randomUUID();
-    try {
-      await db.$transaction(async (tx) => {
-        await tx.auditLog.create({ data: { action: "local.setup.probe", entity: probe } });
-        throw new Error(probe);
-      });
-    } catch (error) {
-      if (!(error instanceof Error) || error.message !== probe) throw error;
-    }
-    if (await db.auditLog.count({ where: { entity: probe } }))
-      throw new Error("Local transaction rollback verification failed.");
+    await verifyTransactionSupport(db);
     console.log(
-      initialPasswordMatches
-        ? "Verified administrator login and real MongoDB transaction rollback."
-        : "Verified active administrator and real MongoDB transaction rollback; existing password preserved.",
+      "Verified active administrator and real MongoDB nested transaction rollback; existing password preserved.",
     );
   } finally {
-    await db.$disconnect();
+    await db.disconnect();
   }
 }
 main().catch((error: unknown) => {

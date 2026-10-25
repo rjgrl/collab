@@ -4,19 +4,18 @@ import { useState } from "react";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { FormCard, FormField, PageShell, PrimaryButton } from "@/components/page-header";
-import { client, orpc, queryClient } from "@/utils/orpc";
-import { postJson } from "@/lib/session";
+import { client, api, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/security")({
   beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.fetchQuery(context.orpc.auth.me.queryOptions());
+    const user = await context.queryClient.fetchQuery(context.api.auth.me.queryOptions());
     if (!user) throw redirect({ to: "/login" });
     if (user.needsProfileCompletion) throw redirect({ to: "/complete-profile" });
   },
   component: SecurityPage,
 });
 function SecurityPage() {
-  const status = useQuery(orpc.auth.mfaStatus.queryOptions());
+  const status = useQuery(api.auth.mfaStatus.queryOptions());
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -41,13 +40,13 @@ function SecurityPage() {
       <div className="mx-auto w-full max-w-lg py-8">
         <FormCard
           title="Authenticator security"
-          description="Administrative access requires a second factor. Keep recovery codes somewhere private, outside this browser."
+          description="Manage your authenticator. Keep recovery codes somewhere private, outside this browser."
         >
           {error || status.isError ? <p role="alert">{error || status.error?.message}</p> : null}
           {status.data?.enforcementDisabled ? (
             <p role="status">
-              Authenticator checks are paused for local testing. Existing enrollment is preserved.{" "}
-              <Link to="/dashboard" className="underline">
+              Authenticator requirements are paused for local testing.{" "}
+              <Link className="underline" to="/dashboard">
                 Continue to application
               </Link>
             </p>
@@ -203,7 +202,7 @@ function SecurityPage() {
             variant="outline"
             onClick={() =>
               void run(async () => {
-                await postJson("/api/auth/logout", {});
+                await client.auth.logout();
                 queryClient.clear();
                 await navigate({ to: "/login" });
               })

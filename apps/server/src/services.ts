@@ -1,5 +1,5 @@
-import { createPrismaClient } from "@Alumni-Tracking-Ss/db";
+import { createDatabase } from "@Alumni-Tracking-Ss/db";
 
 import { ENV } from "./env.server";
 
-export const db = createPrismaClient(ENV);
+export const db = createDatabase(ENV);

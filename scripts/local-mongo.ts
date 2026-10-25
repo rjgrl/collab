@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPrismaClient } from "../packages/db/src/index";
+import { createDatabase } from "../packages/db/src/index";
 
 // Development only: a separate persistent, loopback-only single-node replica set.
 const root = fileURLToPath(new URL("../.tools/mongodb-rs0/", import.meta.url));
@@ -100,20 +100,23 @@ async function main() {
     owned = true;
     console.log("Starting project-local MongoDB on 127.0.0.1:27018...");
   }
-  const db = createPrismaClient({
+  for (let attempt = 0; attempt < 60 && !(await listening()); attempt++)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  const db = createDatabase({
     DATABASE_URL:
       "mongodb://127.0.0.1:27018/admin?directConnection=true&serverSelectionTimeoutMS=1000&connectTimeoutMS=1000",
   });
   try {
+    await db.ready();
     for (let attempt = 0; attempt < 60; attempt++) {
-      const hello = await db.$runCommandRaw({ hello: 1 }).catch(() => null);
+      const hello = await db.connection.db!.command({ hello: 1 }).catch(() => null);
       if (hello) {
         if (hello.setName && hello.setName !== "rs0")
           throw new Error(
             "Port 27018 belongs to a different replica set. No configuration was changed.",
           );
         if (hello.isWritablePrimary === true && hello.setName === "rs0") {
-          console.log("MongoDB rs0 is PRIMARY. Ready for pnpm db:push.");
+          console.log("MongoDB rs0 is PRIMARY. Ready for local setup.");
           console.log(
             owned
               ? "Project data directory: " + dataDir
@@ -126,14 +129,14 @@ async function main() {
             throw new Error(
               "An unmanaged MongoDB instance occupies port 27018. Refusing to initialize it.",
             );
-          const options = await db.$runCommandRaw({ getCmdLineOpts: 1 });
+          const options = await db.connection.db!.command({ getCmdLineOpts: 1 });
           const actualPath = (options.parsed as { storage?: { dbPath?: string } } | undefined)
             ?.storage?.dbPath;
           if (!actualPath || path.relative(dataDir, path.resolve(actualPath)) !== "")
             throw new Error(
               "The MongoDB process on port 27018 is using another data directory. Refusing to initialize it.",
             );
-          await db.$runCommandRaw({
+          await db.connection.db!.command({
             replSetInitiate: { _id: "rs0", members: [{ _id: 0, host: "localhost:27018" }] },
           });
         }
@@ -142,7 +145,7 @@ async function main() {
     }
     throw new Error("Local MongoDB did not become PRIMARY. Inspect .tools/mongodb-rs0/mongod.log.");
   } finally {
-    await db.$disconnect();
+    await db.disconnect();
   }
 }
 

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const files = execFileSync(
   "git",
@@ -7,7 +7,7 @@ const files = execFileSync(
   { encoding: "utf8" },
 )
   .split("\0")
-  .filter(Boolean);
+  .filter((file) => file && existsSync(file));
 const findings = [];
 for (const file of new Set(files)) {
   if (/(^|\/)\.env($|\.)/.test(file) && !/\.env\.(schema|example)$|\.example$/.test(file))

@@ -22,6 +22,11 @@ test("legacy accounts can confirm a recovery email without losing app access", a
   await page.goto("/settings");
   await page.getByRole("button", { name: "Verify recovery email", exact: true }).click();
   await page.getByRole("button", { name: "Send email code", exact: true }).click();
+  await expect
+    .poll(
+      async () => (await (await request.get("http://127.0.0.1:3100/__test/code")).json()).emailCode,
+    )
+    .toMatch(/^[0-9]{6}$/);
   const { emailCode } = await (await request.get("http://127.0.0.1:3100/__test/code")).json();
   await page.locator("#recovery-email-code").fill(emailCode);
   await page.getByRole("button", { name: "Confirm recovery email", exact: true }).click();
@@ -31,13 +36,12 @@ test("legacy accounts can confirm a recovery email without losing app access", a
 });
 test("admin enrollment, backend gate, logout and single-use recovery work", async ({ page }) => {
   await login(page);
-  const denial = await page.request.post("/rpc/dashboard/summary", {
+  const denial = await page.request.get("/api/dashboard", {
     headers: { Origin: "http://127.0.0.1:3101" },
-    data: { json: {} },
   });
   expect(denial.status()).toBe(403);
   expect(await denial.text()).toContain("authenticator");
-  expect((await page.request.get("/api/files/synthetic")).status()).toBe(401);
+  expect((await page.request.get("/api/files/synthetic")).status()).toBe(403);
   await expect(page.locator('[data-sonner-toast][data-visible="true"]').first()).toHaveCSS(
     "opacity",
     "1",

@@ -1,111 +1,62 @@
+import path from "node:path";
 // Isolated browser-test server. Never imported by the production entrypoint.
-import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import type { Database } from "@Alumni-Tracking-Ss/db";
-import { hashPassword, PERMISSIONS } from "@Alumni-Tracking-Ss/db";
+import express from "express";
+import { randomBytes } from "node:crypto";
+import { generateSecret } from "otplib";
+import { createDatabase, hashPassword, PERMISSIONS, ROLE_PRESETS } from "@Alumni-Tracking-Ss/db";
+import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
+import { encryptMfaSecret } from "@Alumni-Tracking-Ss/api/services/mfa";
+import type { Context, IntegrationEnv } from "@Alumni-Tracking-Ss/api/context";
 import { createApp } from "./app";
 
 if (process.env.NODE_ENV !== "test") throw new Error("Browser fixtures require NODE_ENV=test.");
 process.env.PASSWORD_BREACH_CHECK = "local";
-const permissions = PERMISSIONS.map((item, i) => ({ ...item, id: String(i + 1) }));
-const initialDate = "2026-01-01T00:00:00.000Z";
-const role = {
-  id: "staff",
-  key: "staff",
-  name: "Test Staff",
-  description: "Synthetic role",
-  isSystem: false,
-  updatedAt: new Date(initialDate),
-  rolePermissions: [] as { permissionId: string; permission: (typeof permissions)[number] }[],
-  _count: { userRoles: 0 },
-};
-const adminRole = {
-  ...role,
-  id: "admin",
-  key: "super_admin",
-  name: "Test Admin",
-  isSystem: true,
-  rolePermissions: permissions.map((permission) => ({ permissionId: permission.id, permission })),
-  _count: { userRoles: 1 },
-};
-const passwordHash = await hashPassword("BrowserTest123!");
-type MfaRow = Awaited<ReturnType<Database["mfaCredential"]["findUniqueOrThrow"]>>;
-let credential: MfaRow | null = null;
-const throttleCounts = new Map<string, number>();
-const user = {
-  get mfaCredential() {
-    return credential;
-  },
-  id: "test-user",
-  name: "Test Administrator",
-  email: "admin@example.test",
-  image: null,
-  status: "active",
-  passwordHash: passwordHash as string | null,
-  emailVerified: true,
-  phoneVerified: false,
-  verificationRequired: false,
-  phoneNumber: "",
-  gender: "",
-  facebookAccount: "",
-  needsProfileCompletion: false,
-  userRoles: [{ role: adminRole }],
-};
-type TestSession = {
-  createdAt: Date;
-  mfaVersion?: string | null;
-  mfaVerifiedAt?: Date | null;
-  id: string;
-  token: string;
-  userId: string;
-  expiresAt: Date;
-  googleVerifiedAt?: Date | null;
-};
-const sessions = new Map<string, TestSession>();
-const integrationSettings = new Map<string, boolean>([
-  ["recaptcha", false],
-  ["google_auth", false],
-]);
-
-type Challenge = Awaited<ReturnType<Database["verificationChallenge"]["findUniqueOrThrow"]>>;
-const challenges = new Map<string, Challenge>();
-type ResetRow = Awaited<ReturnType<Database["passwordReset"]["findUniqueOrThrow"]>>;
-const resets = new Map<string, ResetRow>();
-let resetLink = "";
-let emailCode = "";
-function matches(record: object, where: Record<string, unknown>): boolean {
-  return Object.entries(where).every(([key, condition]) => {
-    if (key === "OR")
-      return (condition as Record<string, unknown>[]).some((item) => matches(record, item));
-    const value = (record as Record<string, unknown>)[key];
-    if (condition && typeof condition === "object" && !(condition instanceof Date)) {
-      return Object.entries(condition).every(([op, expected]) => {
-        const actual = value instanceof Date ? value.getTime() : value;
-        const test = expected instanceof Date ? expected.getTime() : expected;
-        if (op === "gt") return actual != null && Number(actual) > Number(test);
-        if (op === "lt") return actual != null && Number(actual) < Number(test);
-        if (op === "lte") return actual != null && Number(actual) <= Number(test);
-        if (op === "not") return value !== expected;
-        if (op === "isSet") return (value !== undefined) === expected;
-        if (op === "equals") return JSON.stringify(value) === JSON.stringify(expected);
-        if (op === "in") return (expected as unknown[]).includes(value);
-        return false;
-      });
-    }
-    return value instanceof Date && condition instanceof Date
-      ? value.getTime() === condition.getTime()
-      : value === condition;
+let stopTestReplicaSet: (() => Promise<void>) | undefined;
+if (process.env.CI === "true") {
+  const { MongoMemoryReplSet } = await import("mongodb-memory-server-core");
+  const replicaSet = await MongoMemoryReplSet.create({
+    binary: { version: "9.0.0" },
+    replSet: { count: 1, name: "rs0", storageEngine: "wiredTiger" },
+    instanceOpts: [{ port: 27018 }],
   });
+  stopTestReplicaSet = async () => {
+    await replicaSet.stop();
+  };
 }
-function apply(record: object, data: Record<string, unknown>) {
-  for (const [key, value] of Object.entries(data)) {
-    const target = record as Record<string, unknown>;
-    target[key] =
-      value && typeof value === "object" && "increment" in value
-        ? Number(target[key]) + Number(value.increment)
-        : value;
-  }
-}
+const databaseName = `collab_browser_${randomBytes(8).toString("hex")}`;
+process.env.DATABASE_URL = `mongodb://127.0.0.1:27018/${databaseName}?replicaSet=rs0`;
+const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });
+await db.ready();
+const migration = await migrateDatabase(db, "apply");
+if (migration.conflicts.length) throw new Error("Browser scratch database index setup failed.");
+const ids = {
+  admin: "000000000000000000000001",
+  staff: "000000000000000000000002",
+  alumni: "000000000000000000000003",
+  adminRole: "000000000000000000000101",
+  staffRole: "000000000000000000000102",
+  viewerRole: "000000000000000000000103",
+  department: "000000000000000000000301",
+  program: "000000000000000000000302",
+  alumniProfile: "000000000000000000000201",
+  otherProfile: "000000000000000000000202",
+};
+const initialDate = new Date("2026-01-01T00:00:00.000Z");
+const password = "BrowserTest123!";
+const passwordHash = await hashPassword(password);
+let resetLink = "",
+  emailCode = "",
+  failNext = false;
+const verificationEnv: IntegrationEnv = {
+  uploadDir: path.resolve(".tools/browser-uploads", databaseName),
+  googleClientId: "synthetic-browser-client",
+  googleClientSecret: "synthetic-browser-secret",
+  appUrl: "http://127.0.0.1:3100",
+  smtpUrl: "https://mail.example.test",
+  verificationSecret: "synthetic-test-only-verification-key-1234567890",
+  mfaEncryptionKey: "12".repeat(32),
+  webOrigin: "http://127.0.0.1:3101",
+};
 const nativeFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   if (String(input) === "https://mail.example.test") {
@@ -116,361 +67,400 @@ globalThis.fetch = async (input, init) => {
   }
   return nativeFetch(input, init);
 };
-
-const createdRoles: (typeof role)[] = [];
-let failNext = false;
-const transaction = {
-  passwordReset: {
-    create: async ({ data }: { data: Omit<ResetRow, "id" | "consumedAt"> }) => {
-      const row = { id: data.tokenHash, consumedAt: null, ...data };
-      resets.set(data.tokenHash, row);
-      return row;
-    },
-    findUnique: async ({ where }: { where: { tokenHash: string } }) =>
-      resets.get(where.tokenHash) ?? null,
-    updateMany: async ({
-      where,
-      data,
-    }: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-    }) => {
-      let count = 0;
-      for (const row of resets.values())
-        if (matches(row, where)) {
-          apply(row, data);
-          count++;
-        }
-      return { count };
-    },
-  },
-  authThrottle: {
-    updateMany: async ({ where }: { where: { key: string } }) => {
-      throttleCounts.set(where.key, Math.max(0, (throttleCounts.get(where.key) ?? 0) - 1));
-      return { count: 1 };
-    },
-    upsert: async ({ where }: { where: { key: string } }) => {
-      const count = (throttleCounts.get(where.key) ?? 0) + 1;
-      throttleCounts.set(where.key, count);
-      return { count };
-    },
-  },
-  mfaCredential: {
-    findUnique: async () => (credential ? structuredClone(credential) : null),
-    create: async ({ data }: { data: Partial<MfaRow> }) => {
-      credential = {
-        id: "mfa",
-        userId: user.id,
-        version: "",
-        lastStep: -1,
-        recoveryHashes: [],
-        secretCipher: null,
-        pendingCipher: null,
-        pendingSession: null,
-        pendingUntil: null,
-        updatedAt: new Date(),
-        ...data,
-      };
-      return credential;
-    },
-    updateMany: async ({
-      where,
-      data,
-    }: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-    }) => {
-      if (!credential || !matches(credential, where)) return { count: 0 };
-      apply(credential, data);
-      return { count: 1 };
-    },
-  },
-  alumni: { count: async () => 0, findMany: async () => [], groupBy: async () => [] },
-  program: { findMany: async () => [] },
-  department: { findMany: async () => [] },
-  role: {
-    findMany: async () => [adminRole, role, ...createdRoles],
-    create: async ({
-      data,
-    }: {
-      data: {
-        key: string;
-        name: string;
-        description?: string;
-        rolePermissions: { create: { permissionId: string }[] };
-      };
-    }) => {
-      const created = {
-        ...role,
-        id: `role-${createdRoles.length}`,
-        key: data.key,
-        name: data.name,
-        description: data.description ?? "",
-        updatedAt: new Date(),
-        rolePermissions: data.rolePermissions.create.map(({ permissionId }) => ({
-          permissionId,
-          permission: permissions.find((item) => item.id === permissionId)!,
-        })),
-      };
-      createdRoles.push(created);
-      return created;
-    },
-    findUnique: async () => role,
-    findUniqueOrThrow: async () => role,
-    updateMany: async ({
-      where,
-      data,
-    }: {
-      where: { updatedAt: Date };
-      data: { updatedAt: Date };
-    }) => {
-      if (role.updatedAt.getTime() !== where.updatedAt.getTime()) return { count: 0 };
-      role.updatedAt = data.updatedAt;
-      return { count: 1 };
-    },
-  },
-  permission: {
-    findMany: async (args?: { where?: { id: { in: string[] } } }) =>
-      args?.where ? permissions.filter((p) => args.where!.id.in.includes(p.id)) : permissions,
-  },
-  rolePermission: {
-    deleteMany: async () => {
-      role.rolePermissions = [];
-    },
-    createMany: async ({ data }: { data: { permissionId: string }[] }) => {
-      role.rolePermissions = data.map((row) => ({
-        permissionId: row.permissionId,
-        permission: permissions.find((p) => p.id === row.permissionId)!,
-      }));
-    },
-  },
-  verificationChallenge: {
-    findUnique: async ({ where }: { where: { userId_kind: { userId: string; kind: string } } }) =>
-      challenges.get(where.userId_kind.kind) ?? null,
-    upsert: async ({
-      create,
-    }: {
-      create: Omit<Challenge, "id" | "updatedAt" | "attempts" | "codeHash" | "providerSid">;
-    }) => {
-      if (!challenges.has(create.kind))
-        challenges.set(create.kind, {
-          ...create,
-          id: create.kind,
-          updatedAt: new Date(),
-          attempts: 0,
-          codeHash: null,
-          providerSid: null,
-        });
-      return structuredClone(challenges.get(create.kind)!);
-    },
-    updateMany: async ({
-      where,
-      data,
-    }: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-    }) => {
-      const row = challenges.get(String(where.id));
-      if (!row || !matches(row, where)) return { count: 0 };
-      apply(row, data);
-      return { count: 1 };
-    },
-  },
-  user: {
-    findUniqueOrThrow: async () => user,
-    updateMany: async ({
-      where,
-      data,
-    }: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-    }) => {
-      if (!matches(user, where)) return { count: 0 };
-      apply(user, data);
-      return { count: 1 };
-    },
-    findUnique: async () => user,
-    findMany: async () => [user],
-    update: async ({ data }: { data: Record<string, unknown> }) => Object.assign(user, data),
-  },
-  userRole: { count: async () => 1 },
-  session: {
-    findUnique: async ({ where }: { where: { token: string } }) =>
-      sessions.get(where.token) ?? null,
-    create: async ({ data }: { data: { token: string; userId: string; expiresAt: Date } }) => {
-      const session = { ...data, id: data.token, createdAt: new Date() };
-      sessions.set(data.token, session);
-      return session;
-    },
-    updateMany: async ({
-      where,
-      data,
-    }: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-    }) => {
-      let count = 0;
-      for (const row of sessions.values())
-        if (matches(row, where)) {
-          apply(row, data);
-          count++;
-        }
-      return { count };
-    },
-    deleteMany: async ({ where }: { where?: Record<string, unknown> } = {}) => {
-      for (const [token, row] of sessions)
-        if (!where || matches(row, where)) sessions.delete(token);
-    },
-  },
-  auditLog: { create: async () => ({ id: "audit" }) },
-  integrationSetting: {
-    findUnique: async ({ where }: { where: { key: string } }) => ({
-      enabled: integrationSettings.get(where.key) ?? true,
-    }),
-    findMany: async () => [...integrationSettings].map(([key, enabled]) => ({ key, enabled })),
-    upsert: async ({ where, update }: { where: { key: string }; update: { enabled: boolean } }) => {
-      integrationSettings.set(where.key, update.enabled);
-      return { id: where.key, key: where.key, ...update };
-    },
-  },
-};
-const db = {
-  ...transaction,
-  $runCommandRaw: async () => ({ ok: 1 }),
-  $transaction: async (work: (tx: typeof transaction) => Promise<unknown>) => {
-    const before = { ...role, rolePermissions: [...role.rolePermissions] };
-    const { mfaCredential: _credential, ...beforeUser } = user;
-    const beforeMfa = structuredClone(credential);
-    const beforeSessions = structuredClone(sessions);
-    const beforeChallenges = structuredClone(challenges);
-    try {
-      const result = await work(transaction);
-      if (failNext) {
-        failNext = false;
-        throw new Error("Synthetic database failure");
-      }
-      return result;
-    } catch (error) {
-      Object.assign(role, before);
-      Object.assign(user, beforeUser);
-      credential = beforeMfa;
-      sessions.clear();
-      for (const [key, row] of beforeSessions) sessions.set(key, row);
-      challenges.clear();
-      for (const [key, row] of beforeChallenges) challenges.set(key, row);
-      throw error;
-    }
-  },
-} as unknown as Database;
-const verificationEnv = {
-  googleClientId: "synthetic-browser-client",
-  googleClientSecret: "synthetic-browser-secret",
-  appUrl: "http://127.0.0.1:3100",
-  smtpUrl: "https://mail.example.test",
-  verificationSecret: "synthetic-test-only-verification-key-1234567890",
-  mfaEncryptionKey: "12".repeat(32),
-  webOrigin: "http://127.0.0.1:3101",
-  smsProvider: undefined as
-    | {
-        sendCode: (phone: string) => Promise<string>;
-        checkCode: (sid: string, phone: string, code: string) => Promise<boolean>;
-      }
-    | undefined,
-};
-const createTestApplication = () =>
-  createApp({
+function createTestApplication() {
+  return createApp({
     db,
     config: { nodeEnv: "test", origin: "http://127.0.0.1:3101" },
     integrationEnv: verificationEnv,
   });
-let testApplication = createTestApplication();
-const app = new Hono();
-app.post("/__test/reset", (c) => {
-  credential = null;
-  resets.clear();
+}
+async function reset() {
+  // Only the random namespace created above is eligible for fixture resets.
+  if (db.connection.name !== databaseName || !/^collab_browser_[a-f0-9]{16}$/.test(databaseName))
+    throw new Error("Refusing to reset a non-fixture database.");
+  for (const collection of Object.values(db.connection.collections))
+    await collection.deleteMany({});
+  process.env.NODE_ENV = "test";
+  process.env.LOCAL_DISABLE_MFA = "false";
+  process.env.LOCAL_REQUIRE_EMAIL_VERIFICATION = "true";
+  process.env.LOCAL_REQUIRE_PHONE_VERIFICATION = "true";
+  emailCode = "";
   resetLink = "";
-  throttleCounts.clear();
-  Object.assign(user, {
+  failNext = false;
+  verificationEnv.smsProvider = undefined;
+  const permissions = PERMISSIONS.map((permission, index) => ({
+    ...permission,
+    _id: (0x1000 + index).toString(16).padStart(24, "0"),
+  }));
+  await db.Permission.insertMany(permissions);
+  await db.Role.insertMany([
+    {
+      _id: ids.adminRole,
+      key: "super_admin",
+      name: "Test Admin",
+      description: "Synthetic administrator",
+      isSystem: true,
+      updatedAt: initialDate,
+    },
+    {
+      _id: ids.staffRole,
+      key: "staff",
+      name: "Test Staff",
+      description: "Synthetic role",
+      isSystem: false,
+      updatedAt: initialDate,
+    },
+    {
+      _id: ids.viewerRole,
+      key: "viewer",
+      name: "Test Alumni",
+      description: "Synthetic Alumni",
+      isSystem: false,
+      updatedAt: initialDate,
+    },
+  ]);
+  await db.RolePermission.insertMany(
+    permissions.map((permission) => ({ roleId: ids.adminRole, permissionId: permission._id })),
+  );
+  await db.User.create({
+    _id: ids.admin,
+    firstName: "Test",
+    middleName: "",
+    lastName: "Administrator",
+    suffix: "",
+    name: "Test Administrator",
+    email: "admin@example.test",
+    image: null,
+    status: "active",
     passwordHash,
-    needsProfileCompletion: false,
-    verificationRequired: false,
-    phoneVerified: false,
     emailVerified: true,
+    phoneVerified: false,
+    verificationRequired: false,
     phoneNumber: "",
     gender: "",
     facebookAccount: "",
+    needsProfileCompletion: false,
   });
-  challenges.clear();
-  sessions.clear();
-  emailCode = "";
-  verificationEnv.smsProvider = undefined;
-  createdRoles.length = 0;
-  role.rolePermissions = [];
-  role.updatedAt = new Date(initialDate);
-  failNext = false;
-  integrationSettings.clear();
-  integrationSettings.set("recaptcha", false);
-  integrationSettings.set("google_auth", false);
+  await db.UserRole.create({ userId: ids.admin, roleId: ids.adminRole });
+  await db.Department.create({ _id: ids.department, name: "Synthetic IT" });
+  await db.Program.create({
+    _id: ids.program,
+    code: "TEST_BSIT",
+    name: "Synthetic BSIT",
+    departmentId: ids.department,
+  });
+  await db.IntegrationSetting.insertMany([
+    { key: "recaptcha", enabled: false },
+    { key: "google_auth", enabled: false },
+    { key: "email", enabled: true },
+    { key: "google_drive", enabled: true },
+    { key: "image_host", enabled: true },
+    { key: "google_sheets", enabled: true },
+    { key: "google_forms", enabled: false },
+  ]);
+}
+await reset();
+let testApplication = createTestApplication();
+const app = express();
+app.use("/__test", express.json({ limit: "16kb" }));
+app.post("/__test/reset", async (_request, response) => {
+  await reset();
   testApplication = createTestApplication();
-  return c.json({ ok: true });
+  response.json({ ok: true });
 });
-app.post("/__test/google", (c) => {
-  integrationSettings.set("google_auth", true);
-  return c.json({ ok: true });
+app.post("/__test/local-mfa-policy", (request, response) => {
+  const enabled = request.body?.enabled === true;
+  process.env.NODE_ENV = enabled ? "development" : "test";
+  process.env.LOCAL_DISABLE_MFA = enabled ? "true" : "false";
+  response.json({ ok: true });
 });
-app.post("/__test/incomplete", (c) => {
-  user.needsProfileCompletion = true;
-  return c.json({ ok: true });
+app.post("/__test/local-contact-policy", (request, response) => {
+  const enabled = request.body?.enabled === true;
+  process.env.LOCAL_REQUIRE_EMAIL_VERIFICATION = enabled ? "false" : "true";
+  process.env.LOCAL_REQUIRE_PHONE_VERIFICATION = enabled ? "false" : "true";
+  response.json({ ok: true });
 });
-app.get("/__test/code", (c) => c.json({ emailCode }));
-app.get("/__test/reset-link", (c) => c.json({ resetLink }));
-app.post("/__test/legacy-unverified-email", (c) => {
-  user.emailVerified = false;
-  user.verificationRequired = false;
-  return c.json({ ok: true });
+app.post("/__test/google", async (_request, response) => {
+  await db.IntegrationSetting.updateOne({ key: "google_auth" }, { $set: { enabled: true } }).exec();
+  response.json({ ok: true });
 });
-app.post("/__test/unverified", (c) => {
-  Object.assign(user, {
-    verificationRequired: true,
-    emailVerified: false,
-    phoneVerified: false,
-    phoneNumber: "+639171234567",
-    gender: "Female",
-  });
-  return c.json({ ok: true });
+app.post("/__test/incomplete", async (_request, response) => {
+  await db.User.updateOne({ _id: ids.admin }, { $set: { needsProfileCompletion: true } }).exec();
+  response.json({ ok: true });
 });
-app.post("/__test/password-required", (c) => {
-  Object.assign(user, {
-    passwordHash: null,
-    verificationRequired: true,
-    emailVerified: true,
-    phoneVerified: true,
-    phoneNumber: "+639171234567",
-    gender: "Female",
-  });
-  for (const session of sessions.values()) session.googleVerifiedAt = new Date();
-  return c.json({ ok: true });
+app.get("/__test/code", (_request, response) => {
+  response.json({ emailCode });
 });
-app.post("/__test/stale-google", (c) => {
-  for (const session of sessions.values())
-    session.googleVerifiedAt = new Date(Date.now() - 600_000);
-  return c.json({ ok: true });
+app.get("/__test/reset-link", (_request, response) => {
+  response.json({ resetLink });
 });
-app.post("/__test/connect-sms", (c) => {
+app.post("/__test/legacy-unverified-email", async (_request, response) => {
+  await db.User.updateOne(
+    { _id: ids.admin },
+    { $set: { emailVerified: false, verificationRequired: false } },
+  ).exec();
+  response.json({ ok: true });
+});
+app.post("/__test/unverified", async (_request, response) => {
+  await db.User.updateOne(
+    { _id: ids.admin },
+    {
+      $set: {
+        verificationRequired: true,
+        emailVerified: false,
+        phoneVerified: false,
+        phoneNumber: "+639171234567",
+        gender: "Female",
+      },
+    },
+  ).exec();
+  response.json({ ok: true });
+});
+app.post("/__test/password-required", async (_request, response) => {
+  await db.User.updateOne(
+    { _id: ids.admin },
+    {
+      $set: {
+        passwordHash: null,
+        verificationRequired: true,
+        emailVerified: true,
+        phoneVerified: true,
+        phoneNumber: "+639171234567",
+        gender: "Female",
+      },
+    },
+  ).exec();
+  await db.Session.updateMany(
+    { userId: ids.admin },
+    { $set: { googleVerifiedAt: new Date() } },
+  ).exec();
+  response.json({ ok: true });
+});
+app.post("/__test/stale-google", async (_request, response) => {
+  await db.Session.updateMany(
+    { userId: ids.admin },
+    { $set: { googleVerifiedAt: new Date(Date.now() - 600_000) } },
+  ).exec();
+  response.json({ ok: true });
+});
+app.post("/__test/connect-sms", (_request, response) => {
   verificationEnv.smsProvider = {
     sendCode: async () => "synthetic-sms",
-    checkCode: async (sid, phone, code) =>
-      sid === "synthetic-sms" && phone === user.phoneNumber && code === "654321",
+    checkCode: async (sid, phone, code) => {
+      const user = await db.User.findById(ids.admin).lean().exec();
+      return sid === "synthetic-sms" && phone === user?.phoneNumber && code === "654321";
+    },
   };
-  return c.json({ ok: true });
+  response.json({ ok: true });
 });
-app.post("/__test/fail", (c) => {
+app.post("/__test/fail", (_request, response) => {
   failNext = true;
-  return c.json({ ok: true });
+  response.json({ ok: true });
 });
-app.post("/__test/concurrent", (c) => {
-  role.updatedAt = new Date(Date.now() + 60_000);
-  return c.json({ ok: true });
+app.post("/__test/concurrent", async (_request, response) => {
+  await db.Role.updateOne(
+    { _id: ids.staffRole },
+    { $set: { updatedAt: new Date(Date.now() + 60_000) } },
+    { timestamps: false },
+  ).exec();
+  response.json({ ok: true });
 });
-app.all("*", (c) => testApplication.fetch(c.req.raw));
-serve({ fetch: app.fetch, port: 3100, hostname: "127.0.0.1" });
+
+async function grantRole(roleId: string, keys: readonly string[]) {
+  const permissions = await db.Permission.find({ key: { $in: keys } })
+    .lean()
+    .exec();
+  for (const permission of permissions)
+    await db.RolePermission.updateOne(
+      { roleId, permissionId: permission._id },
+      { $setOnInsert: { roleId, permissionId: permission._id } },
+      { upsert: true },
+    ).exec();
+}
+async function historicalEnrollment(userId: string) {
+  const secretCipher = encryptMfaSecret(
+    { user: { id: userId }, integrationEnv: verificationEnv } as Context,
+    generateSecret(),
+  );
+  await db.MfaCredential.updateOne(
+    { userId },
+    {
+      $setOnInsert: {
+        userId,
+        version: "historic-browser-enrollment",
+        secretCipher,
+        recoveryHashes: [],
+        lastStep: -1,
+      },
+    },
+    { upsert: true },
+  ).exec();
+}
+async function ensureAcademicFixtures() {
+  await db.Department.updateOne(
+    { _id: ids.department },
+    { $setOnInsert: { name: "Synthetic IT" } },
+    { upsert: true },
+  ).exec();
+  await db.Program.updateOne(
+    { _id: ids.program },
+    { $setOnInsert: { code: "TEST_BSIT", name: "Synthetic BSIT", departmentId: ids.department } },
+    { upsert: true },
+  ).exec();
+  for (const [id, studentNumber, firstName] of [
+    [ids.alumniProfile, "SYNTHETIC-OWN", "Test"],
+    [ids.otherProfile, "SYNTHETIC-OTHER", "Unrelated"],
+  ]) {
+    await db.Alumni.updateOne(
+      { _id: id },
+      {
+        $setOnInsert: {
+          studentNumber,
+          firstName,
+          middleName: "",
+          lastName: "Alumni",
+          suffix: "",
+          gender: "Female",
+          programId: ids.program,
+          isTracked: true,
+          employmentStatus: "unknown",
+        },
+      },
+      { upsert: true },
+    ).exec();
+  }
+}
+app.post("/__test/staff", async (request, response) => {
+  await ensureAcademicFixtures();
+  await grantRole(
+    ids.staffRole,
+    request.body?.legacyIntegrations === true
+      ? [...ROLE_PRESETS.staff.permissions, "integrations.read", "integrations.write"]
+      : ROLE_PRESETS.staff.permissions,
+  );
+  await db.User.updateOne(
+    { _id: ids.staff },
+    {
+      $setOnInsert: {
+        firstName: "Test",
+        middleName: "",
+        lastName: "Staff",
+        suffix: "",
+        name: "Test Staff",
+        email: "staff@example.test",
+        passwordHash,
+        status: "active",
+        emailVerified: true,
+        phoneVerified: true,
+      },
+    },
+    { upsert: true },
+  ).exec();
+  await db.UserRole.updateOne(
+    { userId: ids.staff, roleId: ids.staffRole },
+    { $setOnInsert: { userId: ids.staff, roleId: ids.staffRole } },
+    { upsert: true },
+  ).exec();
+  await historicalEnrollment(ids.staff);
+  response.json({
+    email: "staff@example.test",
+    password,
+    id: ids.staff,
+    alumniId: ids.alumniProfile,
+  });
+});
+app.post("/__test/alumni", async (request, response) => {
+  await ensureAcademicFixtures();
+  await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);
+  await db.User.updateOne(
+    { _id: ids.alumni },
+    {
+      $setOnInsert: {
+        firstName: "Test",
+        middleName: "",
+        lastName: "Alumni",
+        suffix: "",
+        name: "Test Alumni",
+        email: "alumni@example.test",
+        passwordHash,
+        status: "active",
+        emailVerified: true,
+        phoneVerified: true,
+        alumniId: ids.alumniProfile,
+      },
+    },
+    { upsert: true },
+  ).exec();
+  await db.UserRole.updateOne(
+    { userId: ids.alumni, roleId: ids.viewerRole },
+    { $setOnInsert: { userId: ids.alumni, roleId: ids.viewerRole } },
+    { upsert: true },
+  ).exec();
+  await historicalEnrollment(ids.alumni);
+  if (request.body?.unlinked === true)
+    await db.User.updateOne(
+      { _id: ids.alumni },
+      { $set: { alumniId: null, needsProfileCompletion: false } },
+    ).exec();
+  response.json({
+    email: "alumni@example.test",
+    password,
+    id: ids.alumni,
+    alumniId: ids.alumniProfile,
+    otherAlumniId: ids.otherProfile,
+  });
+});
+app.post("/__test/other-alumni", async (_request, response) => {
+  await ensureAcademicFixtures();
+  await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);
+  const id = "000000000000000000000004";
+  await db.User.updateOne(
+    { _id: id },
+    {
+      $setOnInsert: {
+        firstName: "Second",
+        middleName: "",
+        lastName: "Graduate",
+        suffix: "",
+        name: "Second Graduate",
+        email: "other.alumni@example.test",
+        passwordHash,
+        status: "active",
+        emailVerified: true,
+        phoneVerified: true,
+        alumniId: ids.otherProfile,
+      },
+    },
+    { upsert: true },
+  ).exec();
+  await db.UserRole.updateOne(
+    { userId: id, roleId: ids.viewerRole },
+    { $setOnInsert: { userId: id, roleId: ids.viewerRole } },
+    { upsert: true },
+  ).exec();
+  await db.Alumni.updateOne(
+    { _id: ids.otherProfile },
+    { $set: { firstName: "Second", lastName: "Graduate" } },
+  ).exec();
+  response.json({ email: "other.alumni@example.test", password, id, alumniId: ids.otherProfile });
+});
+// Only this test server can inject a single roles-save failure.
+app.patch("/api/roles/:id", (_request, response, next) => {
+  if (!failNext) return next();
+  failNext = false;
+  response.status(500).json({ error: "Synthetic database failure", code: "INTERNAL_SERVER_ERROR" });
+});
+app.use((request, response, next) => {
+  testApplication(request, response, next);
+});
+const server = app.listen(3100, "127.0.0.1");
+function shutdown() {
+  server.close(() => {
+    void db
+      .disconnect()
+      .then(() => stopTestReplicaSet?.())
+      .finally(() => process.exit(0));
+  });
+}
+process.once("SIGINT", shutdown);
+process.once("SIGTERM", shutdown);

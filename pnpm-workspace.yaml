@@ -6,15 +6,11 @@ packages:
 overrides:
   seroval: ^1.6.3
   tinypool: ^2.1.2
-  "@prisma/config>deepmerge-ts": ^8.0.0
   source-map-js: ^1.2.2
   "shadcn>@modelcontextprotocol/sdk": ^1.31.0
-  vite: "npm:@voidzero-dev/vite-plus-core@0.3.1"
+  vite: "npm:@voidzero-dev/vite-plus-core@1.3.0"
 allowBuilds:
   esbuild: true
-  "@prisma/client": true
-  "@prisma/engines": true
-  prisma: true
   bufferutil: true
   utf-8-validate: true
 catalog:
@@ -22,15 +18,11 @@ catalog:
   typescript: ^6.0.3
   "@types/node": ^26.4.1
   varlock: 1.18.0
-  "@orpc/server": ^1.15.0
-  "@orpc/openapi": ^1.15.0
-  "@orpc/zod": ^1.15.0
   lucide-react: ^1.41.0
   next-themes: ^0.4.6
   react: ^19.2.8
   react-dom: ^19.2.8
   sonner: ^2.0.8
-  "@orpc/client": ^1.15.0
   "@types/react": ^19.2.18
   "@types/react-dom": ^19.2.7
   tailwindcss: ^4.3.3

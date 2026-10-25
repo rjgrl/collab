@@ -4,10 +4,11 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, readFile, writeFile, chmod, stat, readdir } from "node:fs/promises";
 import path from "node:path";
-import { createPrismaClient } from "../packages/db/src/index";
+import { createDatabase, toEntity } from "../packages/db/src/index";
+import { migrateDatabase } from "../packages/db/src/migration";
 import { readPrivateFile } from "../packages/api/src/integrations/files";
 import { acceptFormsSubmission } from "../packages/api/src/services/forms";
-import { projectRoot, runTool } from "./local-tools.mjs";
+import { projectRoot } from "./local-tools.mjs";
 import { isManagedLocalDatabase } from "./local-env.mjs";
 
 if (process.env.NODE_ENV === "production") throw Error("Local rehearsal only");
@@ -52,24 +53,12 @@ assert.equal(
   restoreVersion.split("\n")[0]?.replace("mongorestore", "mongodump"),
   version.split("\n")[0],
 );
-await runTool(
-  "prisma",
-  "prisma",
-  [
-    "db",
-    "push",
-    "--skip-generate",
-    "--schema",
-    path.join(projectRoot, "packages/db/prisma/schema"),
-  ],
-  {
-    cwd: path.join(projectRoot, "packages/db"),
-    toolRoot: path.join(projectRoot, "packages/db"),
-    env: { ...process.env, NODE_ENV: "test", DATABASE_URL: localUrl(sourceName) },
-  },
-);
-const source = createPrismaClient({ DATABASE_URL: localUrl(sourceName) });
-const target = createPrismaClient({ DATABASE_URL: localUrl(targetName) });
+const source = createDatabase({ DATABASE_URL: localUrl(sourceName) });
+const target = createDatabase({ DATABASE_URL: localUrl(targetName) });
+await source.ready();
+await target.ready();
+const sourceSchema = await migrateDatabase(source, "apply");
+assert.deepEqual(sourceSchema.conflicts, []);
 const canonical = (value: unknown): string =>
   JSON.stringify(value, (_key, item: unknown) =>
     item && typeof item === "object" && !Array.isArray(item)
@@ -77,14 +66,17 @@ const canonical = (value: unknown): string =>
       : item,
   );
 async function snapshot(db: typeof source) {
-  const listing = await db.$runCommandRaw({ listCollections: 1, nameOnly: true });
+  const listing = await db.connection.db!.command({ listCollections: 1, nameOnly: true });
   const collections = (listing.cursor as { firstBatch: { name: string }[] }).firstBatch
     .map((x) => x.name)
     .sort();
   const result: Record<string, { documents: unknown[]; indexes: unknown[] }> = {};
   for (const name of collections) {
-    const documents = await db.$runCommandRaw({ find: name, filter: {}, batchSize: 100 });
-    const indexes = await db.$runCommandRaw({ listIndexes: name, cursor: { batchSize: 100 } });
+    const documents = await db.connection.db!.command({ find: name, filter: {}, batchSize: 100 });
+    const indexes = await db.connection.db!.command({
+      listIndexes: name,
+      cursor: { batchSize: 100 },
+    });
     assert.ok(
       (documents.cursor as { firstBatch: unknown[] }).firstBatch.length < 100,
       "Synthetic snapshot batch bound exceeded",
@@ -137,43 +129,38 @@ async function archive(args: string[], input?: Buffer) {
 }
 try {
   assert.deepEqual(await snapshot(target), {});
-  const department = await source.department.create({
-    data: { code: "DR", name: "Synthetic department" },
+  const department = await source.Department.create({ name: "Synthetic department" });
+  const program = await source.Program.create({
+    code: "DR",
+    name: "Synthetic program",
+    departmentId: department.id,
   });
-  const program = await source.program.create({
-    data: { code: "DR", name: "Synthetic program", departmentId: department.id },
+  const alumni = await source.Alumni.create({
+    studentNumber: "DR-001",
+    isTracked: true, // The fixture below records a matching initial tracked event.
+    firstName: "Synthetic",
+    lastName: "Recovery",
+    programId: program.id,
+    gender: "Female",
   });
-  const alumni = await source.alumni.create({
-    data: {
-      studentNumber: "DR-001",
-      firstName: "Synthetic",
-      lastName: "Recovery",
-      programId: program.id,
-      gender: "Female",
-    },
-  });
-  await source.employment.create({ data: { alumniId: alumni.id, employer: "Synthetic employer" } });
-  const event = await source.trackingEvent.create({
-    data: { alumniId: alumni.id, isTracked: true },
-  });
+  await source.Employment.create({ alumniId: alumni.id, employer: "Synthetic employer" });
+  const event = await source.TrackingEvent.create({ alumniId: alumni.id, isTracked: true });
   const contents = Buffer.from("studentNumber,result\nDR-001,synthetic recovery file\n");
-  await source.evidenceFile.create({
-    data: {
-      alumniId: alumni.id,
-      trackingEventId: event.id,
-      provider: "local",
-      storageKey: "evidence.csv",
-      originalName: "evidence.csv",
-      mimeType: "text/csv",
-      sizeBytes: contents.length,
-    },
+  await source.EvidenceFile.create({
+    alumniId: alumni.id,
+    trackingEventId: event.id,
+    provider: "local",
+    storageKey: "evidence.csv",
+    originalName: "evidence.csv",
+    mimeType: "text/csv",
+    sizeBytes: contents.length,
   });
   const formPayload = {
     studentNumber: "DR-001",
     firstName: "Synthetic",
     lastName: "Recovery",
     gender: "Female",
-    departmentCode: "DR",
+    departmentName: "Synthetic department",
     programCode: "DR",
   };
   await acceptFormsSubmission(source, "recovery-form-response-001", formPayload);
@@ -192,7 +179,9 @@ try {
   const runtimeNames = [
     "package.json",
     "pnpm-lock.yaml",
-    "packages/db/prisma/schema/schema.prisma",
+    "packages/db/src/models.ts",
+    "packages/db/src/migration.ts",
+    "packages/db/src/serialization.ts",
   ];
   async function collect(relative: string): Promise<void> {
     for (const entry of await readdir(path.join(projectRoot, relative), { withFileTypes: true })) {
@@ -235,13 +224,11 @@ try {
     mode: 0o600,
   });
   // One post-backup write demonstrates the recovery point boundary explicitly.
-  await source.alumni.create({
-    data: {
-      studentNumber: "DR-AFTER",
-      firstName: "After",
-      lastName: "Backup",
-      programId: program.id,
-    },
+  await source.Alumni.create({
+    studentNumber: "DR-AFTER",
+    firstName: "After",
+    lastName: "Backup",
+    programId: program.id,
   });
   const recoveryStart = performance.now();
   const saved = await readFile(path.join(root, "backup", "snapshot.aesgcm"));
@@ -308,43 +295,38 @@ try {
     true,
   );
   assert.equal(canonical(await snapshot(target)), canonical(before));
-  const restored = await target.alumni.findUniqueOrThrow({
-    where: { id: alumni.id },
-    include: {
-      program: { include: { department: true } },
-      employments: true,
-      trackingEvents: true,
-      evidenceFiles: true,
-    },
-  });
-  assert.equal(restored.program.department.id, department.id);
-  assert.equal(restored.employments.length, 1);
-  assert.equal(restored.trackingEvents.length, 1);
-  assert.equal(restored.evidenceFiles[0]!.trackingEventId, event.id);
+  const restored = await target.Alumni.findById(alumni._id).lean().orFail();
+  const restoredProgram = await target.Program.findById(restored.programId).lean().orFail();
+  assert.equal(restoredProgram.departmentId.toHexString(), department._id.toHexString());
+  assert.equal(await target.Employment.countDocuments({ alumniId: alumni._id }), 1);
+  assert.equal(await target.TrackingEvent.countDocuments({ alumniId: alumni._id }), 1);
+  const evidence = await target.EvidenceFile.findOne({ alumniId: alumni._id }).lean().orFail();
+  assert.equal(evidence.trackingEventId?.toHexString(), event._id.toHexString());
   assert.deepEqual(
-    await readPrivateFile({ uploadDir: restoredFiles }, restored.evidenceFiles[0]!),
+    await readPrivateFile(
+      { uploadDir: restoredFiles },
+      { ...toEntity(evidence), url: evidence.url ?? null },
+    ),
     contents,
   );
-  assert.equal(await target.alumni.count(), 1);
-  assert.equal(await source.alumni.count(), 2);
+  assert.equal(await target.Alumni.countDocuments(), 1);
+  assert.equal(await source.Alumni.countDocuments(), 2);
   await assert.rejects(
     () =>
-      target.alumni.create({
-        data: {
-          studentNumber: "DR-001",
-          firstName: "Duplicate",
-          lastName: "Test",
-          programId: program.id,
-        },
+      target.Alumni.create({
+        studentNumber: "DR-001",
+        firstName: "Duplicate",
+        lastName: "Test",
+        programId: program.id,
       }),
-    /Unique constraint/,
+    /E11000|duplicate key/i,
   );
   const result = {
     date: new Date().toISOString(),
     sourceName,
     targetName,
     toolsVersion: version.split("\n")[0],
-    serverVersion: (await source.$runCommandRaw({ buildInfo: 1 })).version,
+    serverVersion: (await source.connection.db!.command({ buildInfo: 1 })).version,
     backupMs,
     recoveryMs: performance.now() - recoveryStart,
     recoveryPoint,
@@ -374,6 +356,6 @@ try {
   });
   console.log(JSON.stringify(result, null, 2));
 } finally {
-  await source.$disconnect();
-  await target.$disconnect();
+  await source.disconnect();
+  await target.disconnect();
 }
