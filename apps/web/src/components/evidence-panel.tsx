@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { client, queryClient, uploadProfileFile } from "@/utils/api";
 import { ENV } from "../env";
 import { FormCard, FormField, PrimaryButton } from "./page-header";
-import { NativeSelect } from "./native-select";
+import { FormSelect } from "./form-select";
 import { FileCheck2, ImagePlus } from "lucide-react";
 
 export function EvidencePanel({
@@ -179,34 +179,31 @@ export function EvidencePanel({
         >
           {!fixedKind ? (
             <FormField id={`${fieldId}-kind`} label="File purpose">
-              <NativeSelect
+              <FormSelect
                 id={`${fieldId}-kind`}
                 value={kind}
-                onChange={(e) => {
-                  if (e.target.value === "image" || e.target.value === "evidence")
-                    setKind(e.target.value);
+                onValueChange={(selected) => {
+                  if (selected === "image" || selected === "evidence") setKind(selected);
                 }}
-              >
-                <option value="evidence">Private employment evidence</option>
-                <option value="image">Profile photo</option>
-              </NativeSelect>
+                items={[
+                  { value: "evidence", label: "Private employment evidence" },
+                  { value: "image", label: "Profile photo" },
+                ]}
+              />
             </FormField>
           ) : null}
           {kind === "evidence" ? (
             <div className={fixedKind ? "sm:col-span-2" : undefined}>
               <FormField id={`${fieldId}-employment`} label="Related employment (optional)">
-                <NativeSelect
+                <FormSelect
                   id={`${fieldId}-employment`}
                   value={employmentId}
-                  onChange={(e) => setEmploymentId(e.target.value)}
-                >
-                  <option value="">General profile evidence</option>
-                  {jobs.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.employer}
-                    </option>
-                  ))}
-                </NativeSelect>
+                  onValueChange={(selected) => setEmploymentId(selected)}
+                  items={[
+                    { value: "", label: "General profile evidence" },
+                    ...jobs.map((j) => ({ value: j.id, label: j.employer })),
+                  ]}
+                />
               </FormField>
             </div>
           ) : null}

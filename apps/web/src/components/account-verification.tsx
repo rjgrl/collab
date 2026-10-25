@@ -74,9 +74,7 @@ export function AccountVerification() {
           ...(data?.academicNeeded
             ? {
                 ...academic,
-                graduationYear: academic.graduationYear
-                  ? Number(academic.graduationYear)
-                  : undefined,
+                graduationYear: Number(academic.graduationYear),
               }
             : {}),
         }),

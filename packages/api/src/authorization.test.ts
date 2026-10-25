@@ -101,6 +101,7 @@ it("production registration fails closed before database access unless explicitl
           email: "test@example.test",
           password: "SyntheticPassword123!",
           studentNumber: "SYN-001",
+          graduationYear: 2024,
           programId: "111111111111111111111111",
         }),
       /Public registration is disabled/,

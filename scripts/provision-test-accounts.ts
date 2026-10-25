@@ -149,6 +149,7 @@ if (process.argv[2] === "--start") {
       phoneNumber: "+639171234567",
       gender: "Female",
       studentNumber: "SYNTHETIC-LOCAL-001",
+      graduationYear: 2024,
       programId: String(program._id),
     });
     assert.ok(graduate.alumniId);

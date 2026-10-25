@@ -70,7 +70,7 @@ function LoginPage() {
             ...profile,
             ...names,
             ...academic,
-            graduationYear: academic.graduationYear ? Number(academic.graduationYear) : undefined,
+            graduationYear: Number(academic.graduationYear),
           }),
         );
       else await client.auth.login(credentials);

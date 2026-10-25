@@ -64,6 +64,7 @@ try {
     phoneNumber: "+639171234567",
     gender: "Female",
     studentNumber: "SYN-001",
+    graduationYear: 2024,
     programId: String(program._id),
     recaptchaFallback: true,
   };
@@ -278,6 +279,7 @@ try {
     phoneNumber: "+639171234568",
     gender: "Female",
     studentNumber: "GOOGLE-001",
+    graduationYear: 2024,
     programId: String(program._id),
   };
   assert.equal(

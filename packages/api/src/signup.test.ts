@@ -17,12 +17,15 @@ const input = {
   facebookAccount: "https://facebook.com/test.member",
   studentNumber: "SYN-001",
   programId: "111111111111111111111111",
+  graduationYear: 2024,
 };
 function fixture(existing: Record<string, unknown> | null = null, collide = false) {
   const f = modelFixture({
     User: existing ? [{ email: "new@example.test", ...existing }] : [],
     Role: [{ id: "viewer", _id: "viewer", key: "viewer" }],
-    Program: [{ id: input.programId, _id: input.programId, departmentId: "222222222222222222222222" }],
+    Program: [
+      { id: input.programId, _id: input.programId, departmentId: "222222222222222222222222" },
+    ],
     Department: [{ id: "222222222222222222222222", _id: "222222222222222222222222" }],
   });
   const db = new Proxy(f.db, {
@@ -78,6 +81,21 @@ it("stores signup contact fields with a normalized unique email and hashed passw
   assert.equal(f.tables.UserRole?.[0]?.roleId, "viewer");
   assert.equal(f.tables.User?.[0]?.alumniId, f.tables.Alumni?.[0]?.id);
   assert.equal(f.tables.Alumni?.[0]?.studentNumber, "SYN-001");
+  assert.equal(f.tables.Alumni?.[0]?.graduationYear, 2024);
+});
+it("rejects missing or invalid graduation years before signup persistence", async () => {
+  const { graduationYear: _year, ...withoutYear } = input;
+  for (const data of [
+    withoutYear,
+    ...["", null, 2024.5, 1949, 2101].map((graduationYear) => ({ ...input, graduationYear })),
+  ]) {
+    const f = fixture();
+    await assert.rejects(() => registerUser(f.db, data as typeof input));
+    assert.deepEqual(f.lookups, []);
+    assert.deepEqual(f.writes, []);
+    assert.equal(f.tables.Alumni?.length ?? 0, 0);
+    assert.equal(f.audits(), 0);
+  }
 });
 it("rejects existing emails before creating an account", async () => {
   const f = fixture({ id: "existing" });

@@ -3,7 +3,11 @@ import { toEntity } from "@Alumni-Tracking-Ss/db";
 import { alumniImportRowSchema } from "../validation";
 import type { AlumniImportRow } from "../validation";
 import { structuredNameSchema } from "@Alumni-Tracking-Ss/contracts/names";
-import { mobileSchema, facebookSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
+import {
+  mobileSchema,
+  facebookSchema,
+  graduationYearSchema,
+} from "@Alumni-Tracking-Ss/contracts/alumni";
 import { writeAudit, describeAuditChanges } from "../audit";
 export class ImportRowError extends Error {}
 export async function importAlumniRows(
@@ -48,12 +52,10 @@ export async function upsertImportedAlumni(
   const namesValid = structuredNameSchema.safeParse(row);
   if (!namesValid.success)
     throw new ImportRowError(namesValid.error.issues.map((issue) => issue.message).join("; "));
-  if (
-    !mobileSchema.safeParse(row.mobileNumber).success ||
-    !facebookSchema.safeParse(row.facebookAccount).success
-  )
+  const mobile = mobileSchema.safeParse(row.mobileNumber);
+  if (!mobile.success || !facebookSchema.safeParse(row.facebookAccount).success)
     throw new ImportRowError("Invalid imported contact details.");
-  if (row.graduationYear !== undefined && (row.graduationYear < 1950 || row.graduationYear > 2100))
+  if (!graduationYearSchema.safeParse(row.graduationYear).success)
     throw new ImportRowError("Graduation year must be between 1950 and 2100.");
   const departments = await db.Department.find({
     deletedAt: null,
@@ -99,7 +101,7 @@ export async function upsertImportedAlumni(
     ...names,
     gender: linked ? (linked.gender ?? existing?.gender) : row.gender,
     graduationYear: row.graduationYear,
-    mobileNumber: linked ? (linked.phoneNumber ?? existing?.mobileNumber) : row.mobileNumber,
+    mobileNumber: linked ? (linked.phoneNumber ?? existing?.mobileNumber) : mobile.data,
     personalEmail: linked
       ? (linked.email ?? existing?.personalEmail)
       : row.personalEmail || undefined,

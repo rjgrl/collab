@@ -2,12 +2,20 @@ import { z } from "zod";
 import { idInputSchema, objectIdSchema, paginationSchema, okSchema, dateSchema } from "./common";
 import { structuredNameSchema } from "./names";
 import { programOutputSchema } from "./academic";
+import { normalizePhoneNumber, phoneNumberSchema } from "./phone";
 export const genderSchema = z.enum(["Male", "Female"]);
+export const graduationYearSchema = z.number().int().min(1950).max(2100);
 export const mobileSchema = z
-  .string()
-  .trim()
-  .max(30)
-  .regex(/^[0-9+() -]*$/)
+  .union([
+    phoneNumberSchema,
+    z
+      .string()
+      .trim()
+      .max(64)
+      .regex(/^[0-9\s().\-\u2010-\u2015]*$/)
+      .transform(normalizePhoneNumber)
+      .pipe(z.string().regex(/^\d{0,30}$/)),
+  ])
   .optional();
 export const facebookSchema = z
   .string()
@@ -34,7 +42,7 @@ export const alumniInputSchema = structuredNameSchema
   .extend({
     studentNumber: z.string().trim().min(1).max(40),
     gender: genderSchema,
-    graduationYear: z.number().int().min(1950).max(2100).optional(),
+    graduationYear: graduationYearSchema,
     mobileNumber: mobileSchema,
     personalEmail: z.string().trim().max(254).email().optional().or(z.literal("")),
     facebookAccount: facebookSchema,

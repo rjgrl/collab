@@ -1,5 +1,5 @@
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
-import { NativeSelect } from "@/components/native-select";
+import { FormSelect } from "@/components/form-select";
 import { FormField } from "@/components/page-header";
 import { PhoneInput } from "./phone-input";
 
@@ -33,16 +33,17 @@ export function AccountProfileFields({
         </p>
       </div>
       <FormField id="account-gender" label="Gender" required>
-        <NativeSelect
+        <FormSelect
           id="account-gender"
           required
           value={value.gender}
-          onChange={(event) => onChange({ ...value, gender: event.target.value })}
-        >
-          <option value="">Select gender</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-        </NativeSelect>
+          onValueChange={(selected) => onChange({ ...value, gender: selected })}
+          items={[
+            { value: "", label: "Select gender" },
+            { value: "Male", label: "Male" },
+            { value: "Female", label: "Female" },
+          ]}
+        />
       </FormField>
       <FormField id="facebook-profile" label="Facebook profile link (optional)">
         <Input

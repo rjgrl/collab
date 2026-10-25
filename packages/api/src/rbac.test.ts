@@ -141,6 +141,7 @@ const NEW_ALUMNI = {
   gender: "Female",
   programId: "0000000000000000000000b1",
   studentNumber: "2020-0001",
+  graduationYear: 2024,
   firstName: "Juan",
   lastName: "Dela Cruz",
 };
@@ -166,6 +167,23 @@ describe("RBAC: authentication gate", () => {
 });
 
 describe("RBAC: alumni permission granularity", () => {
+  it("rejects missing or invalid graduation years on academic edits before persistence", async () => {
+    const editor = makeUser(["alumni.read", "alumni.write"]);
+    const academic = {
+      id: "0000000000000000000000a1",
+      studentNumber: NEW_ALUMNI.studentNumber,
+      programId: NEW_ALUMNI.programId,
+    };
+    for (const input of [
+      academic,
+      ...["", null, 2024.5, 1949, 2101].map((graduationYear) => ({ ...academic, graduationYear })),
+    ]) {
+      await assert.rejects(
+        () => invoke(alumniRouter.update, input, makeContext(editor)),
+        /graduationYear/,
+      );
+    }
+  });
   it("keeps evidence metadata empty without file-read permission", async () => {
     const { db } = stubDb({
       alumni: { id: "0000000000000000000000a1", evidenceFiles: [{ id: "private" }] },
@@ -212,6 +230,7 @@ describe("RBAC: alumni permission granularity", () => {
       {
         studentNumber: NEW_ALUMNI.studentNumber,
         programId: NEW_ALUMNI.programId,
+        graduationYear: NEW_ALUMNI.graduationYear,
         id: "0000000000000000000000a1",
       },
       makeContext(editor, db),

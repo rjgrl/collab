@@ -9,7 +9,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { NativeSelect } from "@/components/native-select";
+import { FormSelect } from "@/components/form-select";
 import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/utils/api";
@@ -106,19 +106,19 @@ function ProgramsPage() {
             }}
           >
             <FormField id="department" label="Department" required>
-              <NativeSelect
+              <FormSelect
                 id="department"
                 value={draft.departmentId}
-                onChange={(event) => setDraft({ ...draft, departmentId: event.target.value })}
+                onValueChange={(selected) => setDraft({ ...draft, departmentId: selected })}
                 required
-              >
-                <option value="">Select department</option>
-                {departments.data?.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
-              </NativeSelect>
+                items={[
+                  { value: "", label: "Select department" },
+                  ...(departments.data?.map((department) => ({
+                    value: department.id,
+                    label: department.name,
+                  })) ?? []),
+                ]}
+              />
             </FormField>
             <FormField id="code" label="Code" required>
               <Input

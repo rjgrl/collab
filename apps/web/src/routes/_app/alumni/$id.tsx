@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { QuietButton } from "@/components/data-table";
 import Loader from "@/components/loader";
-import { NativeSelect } from "@/components/native-select";
+import { FormSelect } from "@/components/form-select";
 import {
   FormActions,
   FormField,
@@ -57,7 +57,7 @@ function AlumniDetailPage() {
       client.alumni.update({
         id,
         ...form,
-        graduationYear: form.graduationYear ? Number(form.graduationYear) : undefined,
+        graduationYear: Number(form.graduationYear),
       }),
     onSuccess: async () => {
       toast.success("Alumni profile saved");
@@ -131,18 +131,19 @@ function AlumniDetailPage() {
             }}
           >
             <FormField id="programId" label="Program">
-              <NativeSelect
+              <FormSelect
                 id="programId"
                 value={form.programId}
-                onChange={(event) => setForm({ ...form, programId: event.target.value })}
+                onValueChange={(selected) => setForm({ ...form, programId: selected })}
                 disabled={!canWrite}
-              >
-                {programs.data?.map((program) => (
-                  <option key={program.id} value={program.id}>
-                    {program.department.name} / {program.code} — {program.name}
-                  </option>
-                ))}
-              </NativeSelect>
+
+                items={
+                  programs.data?.map((program) => ({
+                    value: program.id,
+                    label: `${program.department.name} / ${program.code} — ${program.name}`,
+                  })) ?? []
+                }
+              />
             </FormField>
             <FormField id="studentNumber" label="Student number">
               <Input
@@ -155,10 +156,13 @@ function AlumniDetailPage() {
             <FormField id="employmentStatus" label="Employment status (derived from job history)">
               <Input id="employmentStatus" value={record.employmentStatus} readOnly />
             </FormField>
-            <FormField id="graduationYear" label="Graduation year">
+            <FormField id="graduationYear" label="Graduation year" required>
               <Input
                 id="graduationYear"
                 type="number"
+                required
+                min={1950}
+                max={2100}
                 value={form.graduationYear}
                 onChange={(event) => setForm({ ...form, graduationYear: event.target.value })}
                 disabled={!canWrite}

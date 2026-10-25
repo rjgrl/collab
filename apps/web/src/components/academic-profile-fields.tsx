@@ -3,7 +3,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { api } from "@/utils/api";
 import { collectOptionPages } from "@/utils/pagination";
 import { FormField } from "./page-header";
-import { NativeSelect } from "./native-select";
+import { FormSelect } from "./form-select";
 
 export const emptyAcademic = { studentNumber: "", programId: "", graduationYear: "" };
 export function AcademicProfileFields({
@@ -35,29 +35,32 @@ export function AcademicProfileFields({
         />
       </FormField>
       <FormField id="registration-program" label="Degree program" required>
-        <NativeSelect
+        <FormSelect
           id="registration-program"
           value={value.programId}
           disabled={programs.isPending || programs.isError}
           required
-          onChange={(e) => onChange({ ...value, programId: e.target.value })}
-        >
-          <option value="">
-            {programs.isPending ? "Loading programs…" : "Select degree program"}
-          </option>
-          {programs.data?.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.department.name} / {p.code} — {p.name}
-            </option>
-          ))}
-        </NativeSelect>
+          onValueChange={(selected) => onChange({ ...value, programId: selected })}
+
+          items={[
+            {
+              value: "",
+              label: programs.isPending ? "Loading programs…" : "Select degree program",
+            },
+            ...(programs.data?.map((p) => ({
+              value: p.id,
+              label: `${p.department.name} / ${p.code} — ${p.name}`,
+            })) ?? []),
+          ]}
+        />
       </FormField>
-      <FormField id="registration-year" label="Graduation year (optional)">
+      <FormField id="registration-year" label="Graduation year" required>
         <Input
           id="registration-year"
           type="number"
           min={1950}
           max={2100}
+          required
           value={value.graduationYear}
           onChange={(e) => onChange({ ...value, graduationYear: e.target.value })}
         />
@@ -76,8 +79,8 @@ export function AcademicProfileFields({
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        If your student number already has an alumni record, ask an administrator to review and link
-        it. Registration never claims a record automatically.
+        If your student number already has an alumni record, ask the university to review it.
+        Registration never claims a record automatically.
       </p>
     </fieldset>
   );

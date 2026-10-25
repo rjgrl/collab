@@ -18,6 +18,7 @@ describe("alumni fields", () => {
     firstName: "Ana",
     lastName: "Cruz",
     programId: "000000000000000000000301",
+    graduationYear: 2024,
   };
   it("requires Male or Female on creation and editing", () => {
     for (const gender of [undefined, "", "Other", "male"]) {
@@ -115,6 +116,7 @@ describe("google form mapping", () => {
       Gender: "Male",
       Program: "BSIT",
       Department: "IT",
+      "Graduation Year": "2024",
       Tracked: "yes",
       Email: "kai.lim@example.com",
     });
@@ -122,6 +124,7 @@ describe("google form mapping", () => {
     assert.equal(row.studentNumber, "2021-0099");
     assert.equal(row.programCode, "BSIT");
     assert.equal(row.departmentName, "IT");
+    assert.equal(row.graduationYear, 2024);
     assert.equal(row.isTracked, true);
     assert.equal(row.personalEmail, "kai.lim@example.com");
   });

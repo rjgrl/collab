@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { genderSchema, facebookSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
+import {
+  genderSchema,
+  facebookSchema,
+  graduationYearSchema,
+  mobileSchema,
+} from "@Alumni-Tracking-Ss/contracts/alumni";
 export { objectIdSchema, paginationSchema } from "@Alumni-Tracking-Ss/contracts/common";
 export {
   loginSchema,
@@ -24,8 +29,8 @@ export const alumniImportRowSchema = z.object({
   middleName: z.string().trim().optional(),
   suffix: z.string().trim().max(40).optional(),
   gender: genderSchema,
-  graduationYear: z.coerce.number().int().optional(),
-  mobileNumber: z.string().trim().optional(),
+  graduationYear: z.coerce.number().pipe(graduationYearSchema),
+  mobileNumber: mobileSchema,
   personalEmail: z.string().trim().email().optional().or(z.literal("")),
   facebookAccount: facebookSchema,
   programCode: z.string().trim().min(1),

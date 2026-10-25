@@ -170,7 +170,11 @@ Current measured checks and remaining operational limits are recorded in [migrat
 
 `viewer` remains the internal legacy role key; the interface labels it **Alumni**. Public registration creates the account and linked Alumni profile atomically after collecting student number and a valid degree program. Alumni sign in to **My Profile** and access only their explicitly linked record. Historical broad grants do not give Alumni directory or management access.
 
+Graduation year is required for registration, academic saves and imports (1950–2100). Existing records with unknown years remain readable until corrected. Form dropdowns use the shared themed controls; suffix suggestions still allow custom text.
+
 **Settings > Account** is the single place for personal details: structured name, profile photo, email, country-selectable phone, gender and Facebook contact. Photo controls sit inside Personal details for every role. The header and Alumni My Profile show the account photo. Photos use authenticated private delivery; replacing/removing one archives its metadata and does not delete historical evidence.
+
+Phone numbers are cleaned on blur and validated on submission/API input using country numbering metadata. Redundant trunk zeros after international calling codes are removed where applicable; significant zeros, including Italian numbers, are preserved. Stored international numbers contain only `+` and digits.
 
 Changing email requires the current password and a code delivered to the new address, even when local signup verification is relaxed. The old address remains active until confirmation succeeds. Confirmation verifies the new address, synchronizes the linked Alumni contact, invalidates password-reset links and signs out other sessions while preserving the current session's MFA proof. Live email changes need the enabled HTTPS mail gateway described above.
 

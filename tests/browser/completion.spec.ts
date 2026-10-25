@@ -1,3 +1,4 @@
+import { selectOption } from "./select-helper";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
@@ -76,11 +77,13 @@ test("legacy Alumni accounts complete missing academic details before entering t
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL("**/complete-profile");
   await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234569");
-  await page.getByRole("combobox", { name: "Gender", exact: true }).selectOption("Male");
+  await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Male");
   await page.getByRole("textbox", { name: "Student number", exact: true }).fill("LEGACY-NEW-001");
-  await page
-    .getByRole("combobox", { name: "Degree program", exact: true })
-    .selectOption("000000000000000000000302");
+  await selectOption(
+    page.getByRole("combobox", { name: "Degree program", exact: true }),
+    "000000000000000000000302",
+  );
+  await page.getByRole("spinbutton", { name: "Graduation year", exact: true }).fill("2020");
   await page.getByRole("button", { name: "Save contact details", exact: true }).click();
   await page.waitForURL("**/my-profile");
   expect((await (await page.request.get("/api/me/profile")).json()).studentNumber).toBe(
@@ -105,12 +108,14 @@ test("local Alumni registration persists academic identity, employment and owned
     .getByRole("textbox", { name: "Email", exact: true })
     .fill("registered.alumni@example.test");
   await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234567");
-  await page.getByRole("combobox", { name: "Gender", exact: true }).selectOption("Female");
+  await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
   await page.getByRole("textbox", { name: "Student number", exact: true }).fill("REGISTERED-001");
-  await page
-    .getByRole("combobox", { name: "Degree program", exact: true })
-    .selectOption("000000000000000000000302");
+  await selectOption(
+    page.getByRole("combobox", { name: "Degree program", exact: true }),
+    "000000000000000000000302",
+  );
   await page.locator("#password").fill("A synthetic university password 123!");
+  await page.getByRole("spinbutton", { name: "Graduation year", exact: true }).fill("2024");
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await page.waitForURL("**/my-profile");
   await expect(page.getByTestId("account-role")).toHaveText("Alumni");
@@ -140,9 +145,9 @@ test("local Alumni registration persists academic identity, employment and owned
   await page.getByRole("button", { name: "Save employment", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByText("Research fellow", { exact: true })).toBeVisible();
-  await page
-    .getByLabel("Related employment (optional)")
-    .selectOption({ label: "Synthetic University" });
+  await selectOption(page.getByLabel("Related employment (optional)"), {
+    label: "Synthetic University",
+  });
   await page
     .getByLabel("Choose evidence file")
     .setInputFiles({ name: "Employment proof.png", mimeType: "image/png", buffer: png });

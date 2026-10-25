@@ -253,6 +253,7 @@ try {
         gender: "Female",
         departmentName: "Synthetic",
         programCode: "P5",
+        graduationYear: 2024,
       }),
     });
     formStatuses.push(response.status);

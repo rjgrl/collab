@@ -66,6 +66,7 @@ it("legacy manual Alumni create/link HTTP endpoints reject all management actors
         firstName: "Manual",
         lastName: "Alumni",
         studentNumber: "MANUAL",
+        graduationYear: 2024,
         gender: "Female",
         programId,
       });

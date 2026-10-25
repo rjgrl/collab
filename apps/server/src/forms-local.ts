@@ -54,6 +54,7 @@ const endpoint = "/api/integrations/google-forms/webhook";
 const checks: { test: string; status: number }[] = [];
 const payload = {
   studentNumber: "FORM-1",
+  graduationYear: 2024,
   firstName: "Synthetic",
   lastName: "Forms",
   gender: "Female",

@@ -50,6 +50,7 @@ const row = alumniImportRowSchema.parse({
   gender: "Female",
   departmentName: "IT",
   programCode: "BSIT",
+  graduationYear: 2024,
   isTracked: true,
 });
 function fixture(existing: object | null = null) {
@@ -118,6 +119,33 @@ it("batch importer uses an independent transaction for each valid row and report
   assert.equal(f.transactions(), 1);
   assert.equal(f.events.length, 1);
   assert.equal(f.audits.length, 1);
+});
+
+it("stores normalized imported international numbers and preserves significant Italian zeros", async () => {
+  for (const [mobileNumber, expected] of [
+    ["+63 (0)917 123-4567", "+639171234567"],
+    ["+44 (0)20 7946 0192", "+442079460192"],
+    ["+39 02 1234 5678", "+390212345678"],
+  ] as const) {
+    const f = fixture();
+    await upsertImportedAlumni(f.db, { ...row, mobileNumber }, false);
+    assert.equal(f.changes[0]?.mobileNumber, expected);
+  }
+});
+it("rejects missing or invalid graduation years before import transactions or writes", async () => {
+  const f = fixture();
+  const { graduationYear: _year, ...withoutYear } = row;
+  const invalidRows = [
+    withoutYear,
+    ...["", " ", null, 2024.5, 1949, 2101].map((graduationYear) => ({ ...row, graduationYear })),
+  ];
+  const result = await importAlumniRows(f.db, invalidRows);
+  assert.equal(result.successCount, 0);
+  assert.equal(result.errorCount, invalidRows.length);
+  assert.equal(f.transactions(), 0);
+  assert.deepEqual(f.changes, []);
+  assert.deepEqual(f.events, []);
+  assert.deepEqual(f.audits, []);
 });
 it("archived imported alumni cannot be resurrected by batch or webhook paths", async () => {
   const f = fixture({ _id: alumniId, deletedAt: new Date() });

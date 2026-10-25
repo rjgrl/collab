@@ -157,6 +157,7 @@ try {
   });
   const formPayload = {
     studentNumber: "DR-001",
+    graduationYear: 2024,
     firstName: "Synthetic",
     lastName: "Recovery",
     gender: "Female",

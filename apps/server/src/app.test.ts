@@ -343,6 +343,7 @@ it("does not disclose database diagnostics through malformed or failed Forms req
     "{",
     JSON.stringify({
       studentNumber: "TEST-1",
+      graduationYear: 2024,
       firstName: "Test",
       lastName: "Member",
       gender: "Female",

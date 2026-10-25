@@ -6,7 +6,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { NativeSelect } from "@/components/native-select";
+import { FormSelect } from "@/components/form-select";
 import { FilterBar, PageHeader, PageShell } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { can, useSession } from "@/lib/session";
@@ -75,35 +75,36 @@ function AlumniPage() {
         searchPlaceholder="Search name, student number, or email"
         toolbar={
           <FilterBar>
-            <NativeSelect
+            <FormSelect
               className="w-full sm:w-auto sm:min-w-40"
               value={departmentId}
-              onChange={(event) => {
-                setDepartmentId(event.target.value);
+              onValueChange={(selected) => {
+                setDepartmentId(selected);
                 setPage(1);
               }}
               aria-label="Department"
-            >
-              <option value="">All departments</option>
-              {departments.data?.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </NativeSelect>
-            <NativeSelect
+              items={[
+                { value: "", label: "All departments" },
+                ...(departments.data?.map((department) => ({
+                  value: department.id,
+                  label: department.name,
+                })) ?? []),
+              ]}
+            />
+            <FormSelect
               className="w-full sm:w-auto sm:min-w-36"
               value={tracked}
-              onChange={(event) => {
-                setTracked(event.target.value as typeof tracked);
+              onValueChange={(selected) => {
+                setTracked(selected as typeof tracked);
                 setPage(1);
               }}
               aria-label="Tracking"
-            >
-              <option value="all">All tracking</option>
-              <option value="tracked">Tracked</option>
-              <option value="untracked">Untracked</option>
-            </NativeSelect>
+              items={[
+                { value: "all", label: "All tracking" },
+                { value: "tracked", label: "Tracked" },
+                { value: "untracked", label: "Untracked" },
+              ]}
+            />
           </FilterBar>
         }
         loading={list.isPending}

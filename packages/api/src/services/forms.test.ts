@@ -12,6 +12,7 @@ const payload = {
   gender: "Female",
   departmentName: "TEST",
   programCode: "TEST",
+  graduationYear: 2024,
 };
 it("defaults Forms off without changing other integration defaults", async () => {
   const db = {

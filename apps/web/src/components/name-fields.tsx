@@ -1,4 +1,5 @@
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
+import { Autocomplete } from "@Alumni-Tracking-Ss/ui/components/autocomplete";
 import { FormField } from "@/components/page-header";
 
 export type NameDraft = { firstName: string; middleName: string; lastName: string; suffix: string };
@@ -55,20 +56,15 @@ export function NameFields({
         />
       </FormField>
       <FormField id={`${prefix}-suffix`} label="Name extension / suffix (optional)">
-        <Input
+        <Autocomplete
           id={`${prefix}-suffix`}
           autoComplete="honorific-suffix"
-          list={`${prefix}-suffix-options`}
           value={value.suffix}
+          items={["Jr.", "Sr.", "II", "III", "IV", "V"]}
           maxLength={30}
           aria-describedby={`${prefix}-suffix-hint`}
-          onChange={(event) => onChange({ ...value, suffix: event.target.value })}
+          onValueChange={(suffix) => onChange({ ...value, suffix })}
         />
-        <datalist id={`${prefix}-suffix-options`}>
-          {["Jr.", "Sr.", "II", "III", "IV", "V"].map((suffix) => (
-            <option key={suffix} value={suffix} />
-          ))}
-        </datalist>
         <p id={`${prefix}-suffix-hint`} className="text-xs text-muted-foreground">
           Choose a suggestion or enter your suffix. Leave blank if none.
         </p>

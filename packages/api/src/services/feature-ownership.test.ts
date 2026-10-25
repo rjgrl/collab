@@ -177,6 +177,7 @@ it("retired manual Alumni create/link APIs deny every management role and preser
       () =>
         alumniService.create(c, {
           studentNumber: "NEW",
+          graduationYear: 2024,
           firstName: "New",
           lastName: "Record",
           gender: "Female",

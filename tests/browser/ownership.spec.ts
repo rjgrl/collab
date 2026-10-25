@@ -1,3 +1,4 @@
+import { selectOption } from "./select-helper";
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
@@ -33,7 +34,7 @@ test("Alumni with historical MFA enrollment edit personal details only in Settin
     .getByRole("combobox", { name: "Name extension / suffix (optional)", exact: true })
     .fill("de la Casa");
   await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234567");
-  await page.getByRole("combobox", { name: "Gender", exact: true }).selectOption("Female");
+  await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
   const saved = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/auth/profile") && response.request().method() === "PATCH",

@@ -1,20 +1,16 @@
 import { z } from "zod";
 import { objectIdSchema, okSchema, paginationSchema } from "./common";
 import { structuredNameSchema } from "./names";
+import { phoneNumberSchema } from "./phone";
 
 import { newPasswordSchema } from "./password-policy";
 export { newPasswordSchema } from "./password-policy";
 export const emailSchema = z.string().trim().max(254).email();
-import { facebookSchema } from "./alumni";
+import { facebookSchema, graduationYearSchema } from "./alumni";
 export { facebookSchema } from "./alumni";
 export const accountProfileSchema = structuredNameSchema
   .extend({
-    phoneNumber: z
-      .string()
-      .trim()
-      .max(30)
-      .transform((value) => value.replace(/[ ()-]/g, ""))
-      .pipe(z.string().regex(/^\+[1-9]\d{7,14}$/, "Use a phone number with its country code.")),
+    phoneNumber: phoneNumberSchema,
     gender: z.enum(["Male", "Female"]),
     facebookAccount: facebookSchema,
   })
@@ -29,7 +25,7 @@ export const loginSchema = z
 export const academicProfileSchema = z.object({
   studentNumber: z.string().trim().min(1).max(40),
   programId: objectIdSchema,
-  graduationYear: z.number().int().min(1950).max(2100).optional(),
+  graduationYear: graduationYearSchema,
 });
 export const completionProfileSchema = accountProfileSchema
   .extend(academicProfileSchema.partial().shape)
