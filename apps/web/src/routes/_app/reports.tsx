@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
+import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -61,19 +62,45 @@ function ReportsPage() {
         <CardHeader>
           <CardTitle>Current totals</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm">
-          Graduates {summary.data?.graduates ?? "—"} · Tracked {summary.data?.tracked ?? "—"} ·{" "}
-          {summary.data?.percentTracked ?? "—"}% tracked
+        <CardContent>
+          <dl className="grid gap-4 sm:grid-cols-3 sm:divide-x">
+            {(
+              [
+                ["Graduates", summary.data?.graduates.toLocaleString()],
+                ["Tracked", summary.data?.tracked.toLocaleString()],
+                [
+                  "% tracked",
+                  summary.data ? `${summary.data.percentTracked.toFixed(2)}%` : undefined,
+                ],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label} className="min-w-0 sm:px-5 sm:first:pl-0">
+                <dt className="text-sm text-muted-foreground">{label}</dt>
+                <dd className="mt-2 text-2xl font-medium tabular-nums">
+                  {summary.isPending ? <Skeleton className="h-8 w-20" /> : (value ?? "—")}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {summary.isError ? (
+            <p
+              role="alert"
+              className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
+            >
+              Could not load report totals.
+              <QuietButton onClick={() => void summary.refetch()}>Retry</QuietButton>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <CardTitle>Export alumni</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-5">
           <FilterBar>
             <NativeSelect
-              className="w-auto min-w-36"
+              className="w-full sm:w-auto sm:min-w-44"
               value={departmentId}
               onChange={(event) => setDepartmentId(event.target.value)}
               aria-label="Department"
@@ -86,7 +113,7 @@ function ReportsPage() {
               ))}
             </NativeSelect>
             <NativeSelect
-              className="w-auto min-w-36"
+              className="w-full sm:w-auto sm:min-w-44"
               value={tracked}
               onChange={(event) => setTracked(event.target.value as typeof tracked)}
               aria-label="Tracking"

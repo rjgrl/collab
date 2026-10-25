@@ -120,6 +120,12 @@ function DepartmentsPage() {
           </form>
         </FormDialog>
       ) : null}
+      {list.isError ? (
+        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+          {list.error.message}
+          <QuietButton onClick={() => void list.refetch()}>Retry</QuietButton>
+        </p>
+      ) : null}
       <DataTable
         headers={["Name", "Programs", "Actions"]}
         search={search}
@@ -135,8 +141,12 @@ function DepartmentsPage() {
       >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
-            <TableCell>{row.name}</TableCell>
-            <TableCell>{row._count.programs}</TableCell>
+            <TableCell>
+              <span className="font-medium">{row.name}</span>
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {row._count.programs.toLocaleString()}
+            </TableCell>
             <TableCell>
               <RowActions>
                 {canWrite ? (

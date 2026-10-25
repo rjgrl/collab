@@ -94,6 +94,15 @@ function AlumniDetailPage() {
     return (
       <PageShell>
         <PageHeader title="Alumni profile" description="This alumni record could not be found." />
+        {alumni.isError ? (
+          <p
+            role="alert"
+            className="flex flex-wrap items-center gap-2 rounded-lg border p-4 text-sm"
+          >
+            {alumni.error.message}
+            <QuietButton onClick={() => void alumni.refetch()}>Retry</QuietButton>
+          </p>
+        ) : null}
       </PageShell>
     );
   }
@@ -173,27 +182,47 @@ function AlumniDetailPage() {
           <CardTitle>Tracking</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="text-muted-foreground">Current status</span>
             <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
           </div>
           {record.trackingEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tracking events found.</p>
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              No tracking events found.
+            </p>
           ) : (
-            <ul className="flex flex-col gap-2 text-sm">
+            <ul className="divide-y text-sm">
               {record.trackingEvents.map((event) => (
-                <li key={event.id}>
-                  {event.recordedAt
-                    ? new Date(event.recordedAt).toLocaleString()
-                    : "Date not recorded"}{" "}
-                  · {event.isTracked ? "Tracked" : "Untracked"} · {event.source}
-                  {event.notes ? ` · ${event.notes}` : ""}
+                <li
+                  key={event.id}
+                  className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:gap-5"
+                >
+                  <div className="shrink-0 text-xs leading-6 text-muted-foreground sm:w-44">
+                    {event.recordedAt ? (
+                      <time dateTime={new Date(event.recordedAt).toISOString()}>
+                        {new Date(event.recordedAt).toLocaleString()}
+                      </time>
+                    ) : (
+                      "Date not recorded"
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {event.isTracked ? "Tracked" : "Untracked"}{" "}
+                      <span className="font-normal text-muted-foreground">· {event.source}</span>
+                    </p>
+                    {event.notes ? (
+                      <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">
+                        {event.notes}
+                      </p>
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
           )}
           {canTrack ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3 border-t pt-4">
               <Textarea
                 value={trackingNotes}
                 onChange={(event) => setTrackingNotes(event.target.value)}
@@ -211,14 +240,25 @@ function AlumniDetailPage() {
         </CardContent>
       </Card>
 
-      <EvidencePanel
-        files={record.evidenceFiles}
-        jobs={record.employments}
-        alumniId={id}
-        photoUrl={record.photoUrl}
-        canUpload={canUpload}
-        canDelete={can(session.data?.permissions, "files.delete")}
-      />
+      <div className="grid items-start gap-6 xl:grid-cols-2">
+        <EvidencePanel
+          kind="image"
+          files={record.evidenceFiles}
+          jobs={record.employments}
+          alumniId={id}
+          photoUrl={record.photoUrl}
+          canUpload={canUpload}
+          canDelete={can(session.data?.permissions, "files.delete")}
+        />
+        <EvidencePanel
+          kind="evidence"
+          files={record.evidenceFiles}
+          jobs={record.employments}
+          alumniId={id}
+          canUpload={canUpload}
+          canDelete={can(session.data?.permissions, "files.delete")}
+        />
+      </div>
     </PageShell>
   );
 }

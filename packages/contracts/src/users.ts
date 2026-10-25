@@ -1,11 +1,6 @@
 import { z } from "zod";
 import { dateSchema, objectIdSchema, paginationSchema } from "./common";
-import {
-  emailSchema,
-  newPasswordSchema,
-  accountProfileSchema,
-  academicProfileSchema,
-} from "./auth";
+import { emailSchema, newPasswordSchema } from "./auth";
 import { structuredNameSchema } from "./names";
 import { idsSchema } from "./roles";
 export const publicUserSchema = z.object({
@@ -36,11 +31,6 @@ export const usersSchemas = {
         email: emailSchema,
         password: newPasswordSchema,
         roleIds: idsSchema.min(1).optional(),
-        alumniProfile: accountProfileSchema
-          .omit({ firstName: true, middleName: true, lastName: true, suffix: true })
-          .extend(academicProfileSchema.shape)
-          .strict()
-          .optional(),
       })
       .strict(),
     output: publicUserSchema,

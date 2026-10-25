@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { evidenceOutputSchema, employmentOutputSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
@@ -9,12 +9,14 @@ import { client, queryClient, uploadProfileFile } from "@/utils/api";
 import { ENV } from "../env";
 import { FormCard, FormField, PrimaryButton } from "./page-header";
 import { NativeSelect } from "./native-select";
+import { FileCheck2, ImagePlus } from "lucide-react";
 
 export function EvidencePanel({
   files,
   jobs,
   alumniId,
   photoUrl,
+  kind: fixedKind,
   canUpload = true,
   canDelete = true,
 }: {
@@ -22,11 +24,15 @@ export function EvidencePanel({
   jobs: z.infer<typeof employmentOutputSchema>[];
   alumniId?: string;
   photoUrl?: string | null;
+  kind?: "image" | "evidence";
   canUpload?: boolean;
   canDelete?: boolean;
 }) {
+  const fieldId = useId();
   const [file, setFile] = useState<File>();
-  const [kind, setKind] = useState<"image" | "evidence">("evidence");
+  const [selectedKind, setKind] = useState<"image" | "evidence">("evidence");
+  const kind = fixedKind ?? selectedKind;
+  const visibleFiles = fixedKind ? files.filter((item) => item.kind === fixedKind) : files;
   const [employmentId, setEmploymentId] = useState("");
   const [progress, setProgress] = useState(0);
   const [inputKey, setInputKey] = useState(0);
@@ -62,19 +68,31 @@ export function EvidencePanel({
   });
   return (
     <FormCard
-      title="Photo and evidence"
-      description="Keep your profile photo separate from confidential employment evidence. Files remain protected by account access."
+      title={
+        fixedKind === "image"
+          ? "Profile photo"
+          : fixedKind === "evidence"
+            ? "Supporting evidence"
+            : "Photo and evidence"
+      }
+      description={
+        fixedKind === "image"
+          ? "Profile photo associated with this Alumni record. Supporting documents are listed separately."
+          : fixedKind === "evidence"
+            ? "Share documents for Staff review. Uploading evidence does not automatically mark you as tracked."
+            : "Keep your profile photo separate from confidential employment evidence. Files remain protected by account access."
+      }
     >
-      {photoUrl ? (
+      {photoUrl && fixedKind !== "evidence" ? (
         <img
           className="mb-4 size-24 rounded-md border object-cover"
           src={photoSource ?? undefined}
           alt="Alumni profile"
         />
       ) : null}
-      {files.length ? (
+      {visibleFiles.length ? (
         <ul className="mb-5 divide-y">
-          {files.map((item) => (
+          {visibleFiles.map((item) => (
             <li
               id={`evidence-${item.id}`}
               key={item.id}
@@ -122,8 +140,34 @@ export function EvidencePanel({
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="mb-4 text-sm text-muted-foreground">No photo or evidence uploaded.</p>
+      ) : photoUrl && fixedKind === "image" ? null : (
+        <div className="mb-5 flex items-start gap-3 rounded-lg border border-dashed bg-muted/20 p-4">
+          {fixedKind === "image" ? (
+            <ImagePlus
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+            />
+          ) : (
+            <FileCheck2
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+            />
+          )}
+          <div>
+            <p className="text-sm font-medium">
+              {fixedKind === "image"
+                ? "No profile photo uploaded"
+                : fixedKind === "evidence"
+                  ? "No evidence uploaded yet"
+                  : "No photo or evidence uploaded."}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {fixedKind === "image"
+                ? "Choose a JPEG, PNG or WebP image below."
+                : "Add employment documents to support your university record."}
+            </p>
+          </div>
+        </div>
       )}
       {canUpload ? (
         <form
@@ -133,44 +177,48 @@ export function EvidencePanel({
             upload.mutate();
           }}
         >
-          <FormField id="upload-kind" label="File purpose">
-            <NativeSelect
-              id="upload-kind"
-              value={kind}
-              onChange={(e) => {
-                if (e.target.value === "image" || e.target.value === "evidence")
-                  setKind(e.target.value);
-              }}
-            >
-              <option value="evidence">Private employment evidence</option>
-              <option value="image">Profile photo</option>
-            </NativeSelect>
-          </FormField>
-          {kind === "evidence" ? (
-            <FormField id="upload-employment" label="Related employment (optional)">
+          {!fixedKind ? (
+            <FormField id={`${fieldId}-kind`} label="File purpose">
               <NativeSelect
-                id="upload-employment"
-                value={employmentId}
-                onChange={(e) => setEmploymentId(e.target.value)}
+                id={`${fieldId}-kind`}
+                value={kind}
+                onChange={(e) => {
+                  if (e.target.value === "image" || e.target.value === "evidence")
+                    setKind(e.target.value);
+                }}
               >
-                <option value="">General profile evidence</option>
-                {jobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.employer}
-                  </option>
-                ))}
+                <option value="evidence">Private employment evidence</option>
+                <option value="image">Profile photo</option>
               </NativeSelect>
             </FormField>
           ) : null}
+          {kind === "evidence" ? (
+            <div className={fixedKind ? "sm:col-span-2" : undefined}>
+              <FormField id={`${fieldId}-employment`} label="Related employment (optional)">
+                <NativeSelect
+                  id={`${fieldId}-employment`}
+                  value={employmentId}
+                  onChange={(e) => setEmploymentId(e.target.value)}
+                >
+                  <option value="">General profile evidence</option>
+                  {jobs.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.employer}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </FormField>
+            </div>
+          ) : null}
           <div className="sm:col-span-2">
             <FormField
-              id="profile-file"
+              id={`${fieldId}-file`}
               label={kind === "image" ? "Choose profile photo" : "Choose evidence file"}
               required
             >
               <Input
                 key={inputKey}
-                id="profile-file"
+                id={`${fieldId}-file`}
                 type="file"
                 accept={
                   kind === "image"
@@ -182,17 +230,17 @@ export function EvidencePanel({
               />
             </FormField>
             <p className="mt-2 text-xs text-muted-foreground">
-              JPEG, PNG, WebP or PDF evidence; image formats for photos. Maximum 10 MB. File
-              contents are checked by the server.
+              {kind === "image" ? "JPEG, PNG or WebP image." : "JPEG, PNG, WebP or PDF evidence."}{" "}
+              Maximum 10 MB. File contents are checked by the server.
             </p>
           </div>
           {upload.isPending ? (
             <div className="sm:col-span-2">
-              <label htmlFor="upload-progress" className="text-sm">
+              <label htmlFor={`${fieldId}-progress`} className="text-sm">
                 Uploading {progress}%{progress === 100 ? " — saving file…" : ""}
               </label>
               <progress
-                id="upload-progress"
+                id={`${fieldId}-progress`}
                 className="mt-2 h-2 w-full"
                 value={progress}
                 max={100}
@@ -211,7 +259,7 @@ export function EvidencePanel({
           ) : null}
           <div className="sm:col-span-2">
             <PrimaryButton type="submit" pending={upload.isPending} pendingLabel="Uploading">
-              Upload file
+              {fixedKind === "image" ? "Upload photo" : "Upload file"}
             </PrimaryButton>
           </div>
         </form>
@@ -221,7 +269,7 @@ export function EvidencePanel({
           {remove.error.message}
         </p>
       ) : null}
-      {!canUpload && !files.length ? (
+      {!canUpload && !visibleFiles.length ? (
         <Button variant="ghost" disabled>
           Uploads require file permission
         </Button>

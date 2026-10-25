@@ -1,6 +1,5 @@
 import { useDepartmentOptions } from "@/lib/academic-options";
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
-import { AlumniCreateDialog } from "@/components/alumni-create-dialog";
 import { TablePagination } from "@/components/table-pagination";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
@@ -8,7 +7,7 @@ import { useState } from "react";
 
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
 import { NativeSelect } from "@/components/native-select";
-import { FilterBar, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { FilterBar, PageHeader, PageShell } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { can, useSession } from "@/lib/session";
 import { toast } from "sonner";
@@ -20,7 +19,6 @@ export const Route = createFileRoute("/_app/alumni/")({
 
 function AlumniPage() {
   const session = useSession();
-  const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pendingPage, setPendingPage] = useState(1);
@@ -57,16 +55,10 @@ function AlumniPage() {
     <PageShell>
       <PageHeader
         title="Alumni"
-        description="Student details, contact info, employment, tracking, and program attachment."
-        actions={
-          can(session.data?.permissions, "alumni.write") ? (
-            <PrimaryButton onClick={() => setCreating(true)}>Add alumni</PrimaryButton>
-          ) : null
-        }
+        description="Alumni self-register to create their account and profile. Manage registered profiles, employment, and tracking here."
       />
-      {creating ? <AlumniCreateDialog onClose={() => setCreating(false)} /> : null}
       {list.isError ? (
-        <p role="alert">
+        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
           {list.error.message}{" "}
           <QuietButton onClick={() => void list.refetch()}>Retry alumni</QuietButton>
         </p>
@@ -84,7 +76,7 @@ function AlumniPage() {
         toolbar={
           <FilterBar>
             <NativeSelect
-              className="w-auto min-w-36"
+              className="w-full sm:w-auto sm:min-w-40"
               value={departmentId}
               onChange={(event) => {
                 setDepartmentId(event.target.value);
@@ -100,7 +92,7 @@ function AlumniPage() {
               ))}
             </NativeSelect>
             <NativeSelect
-              className="w-auto min-w-36"
+              className="w-full sm:w-auto sm:min-w-36"
               value={tracked}
               onChange={(event) => {
                 setTracked(event.target.value as typeof tracked);
@@ -117,22 +109,27 @@ function AlumniPage() {
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
         emptyTitle="No alumni found"
-        emptyDescription="Add an alumni profile and attach it to a program."
+        emptyDescription="Alumni profiles appear after self-registration or an approved import."
       >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
-            <TableCell>{row.studentNumber}</TableCell>
             <TableCell>
-              <div>{formatDisplayName(row)}</div>
-              <div className="text-xs text-muted-foreground">
+              <span className="whitespace-nowrap tabular-nums">{row.studentNumber}</span>
+            </TableCell>
+            <TableCell>
+              <div className="min-w-36 font-medium">{formatDisplayName(row)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
                 {row.isRegistered ? "Registered account" : "Profile only"}
               </div>
             </TableCell>
             <TableCell>
-              {row.program.department.name} / {row.program.code}
+              <div className="font-medium">{row.program.code}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {row.program.department.name}
+              </div>
             </TableCell>
             <TableCell>
-              <div className="flex flex-col text-xs text-muted-foreground">
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                 <span>{row.mobileNumber || "—"}</span>
                 <span>{row.personalEmail || "—"}</span>
               </div>
@@ -176,18 +173,20 @@ function AlumniPage() {
         hasNext={list.data?.length === 20}
         pending={list.isFetching}
       />
-      <section className="mt-8 space-y-3" aria-labelledby="pending-alumni-heading">
-        <h2 id="pending-alumni-heading" className="text-lg font-semibold">
+      <section className="space-y-4 border-t pt-6" aria-labelledby="pending-alumni-heading">
+        <h2 id="pending-alumni-heading" className="text-base font-semibold">
           Accounts awaiting profile completion
         </h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
           These Alumni accounts still need student and program details. They appear here until their
-          owners complete their profile or an administrator links an existing record in Members.
-          They are not included in graduate statistics yet. Department and tracking filters apply to
-          completed profiles above.
+          owners complete their profile through their own account. They are not included in graduate
+          statistics yet. Department and tracking filters apply to completed profiles above.
         </p>
         {pendingAccounts.isError ? (
-          <p role="alert">
+          <p
+            role="alert"
+            className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
+          >
             {pendingAccounts.error.message}{" "}
             <QuietButton onClick={() => void pendingAccounts.refetch()}>Retry accounts</QuietButton>
           </p>
@@ -202,9 +201,15 @@ function AlumniPage() {
         >
           {pendingAccounts.data?.map((account) => (
             <TableRow key={account.id}>
-              <TableCell>{account.name}</TableCell>
+              <TableCell>
+                <span className="font-medium">{account.name}</span>
+              </TableCell>
               <TableCell>{account.email}</TableCell>
-              <TableCell>Awaiting profile completion</TableCell>
+              <TableCell>
+                <span className="inline-flex whitespace-nowrap rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                  Awaiting profile completion
+                </span>
+              </TableCell>
             </TableRow>
           ))}
         </DataTable>

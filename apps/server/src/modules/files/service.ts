@@ -117,15 +117,29 @@ export async function uploadEvidence(
       url: stored.url,
       createdById: user.id,
     });
-    if (input.kind === "image")
+    if (input.kind === "image") {
+      const image = stored.provider === "imgbb" ? stored.url : `/api/files/${evidence._id}`;
+      const owner = await db.User.findOne({ alumniId: input.alumniId }).lean();
+      if (owner) {
+        await db.User.updateOne({ _id: owner._id }, { $set: { image } });
+        const previousId = owner.image?.match(
+          /^\/api\/account-photos\/[a-f\d]{24}\/([a-f\d]{24})$/i,
+        )?.[1];
+        if (previousId)
+          await db.AccountPhoto.updateOne(
+            { _id: previousId, userId: owner._id, deletedAt: null },
+            { $set: { deletedAt: new Date() } },
+          );
+      }
       await db.Alumni.updateOne(
         { _id: input.alumniId, deletedAt: null },
         {
           $set: {
-            photoUrl: stored.provider === "imgbb" ? stored.url : `/api/files/${evidence._id}`,
+            photoUrl: image,
           },
         },
       );
+    }
     await writeAudit(db, {
       actor: user,
       action: "files.upload",

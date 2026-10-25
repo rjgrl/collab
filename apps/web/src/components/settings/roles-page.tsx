@@ -129,20 +129,22 @@ export function RolesPage() {
       ) : null}
       {roles.isPending ? <p role="status">Loading roles...</p> : null}
       {roles.isError ? (
-        <div role="alert">
+        <div role="alert" className="rounded-lg border p-4 text-sm">
           Unable to load roles. <button onClick={() => void roles.refetch()}>Retry</button>
         </div>
       ) : null}
       {roles.data?.length === 0 ? (
-        <p>No roles found. Initialize the role catalog before assigning access.</p>
+        <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+          No roles found. Initialize the role catalog before assigning access.
+        </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Roles">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Roles">
         {roles.data?.map((role) => (
           <button
             key={role.id}
             type="button"
             aria-pressed={selected === role.id}
-            className="rounded-lg border p-4 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-primary"
+            className="min-w-0 rounded-xl border bg-card p-5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-foreground/40 aria-pressed:bg-muted"
             onClick={() => {
               if (!dirty || window.confirm("Discard unsaved permission changes?")) {
                 setSelected(role.id);
@@ -151,7 +153,7 @@ export function RolesPage() {
             }}
           >
             <span className="block font-medium">{role.name}</span>
-            <span className="mt-1 block text-sm text-muted-foreground">
+            <span className="mt-2 block text-sm tabular-nums text-muted-foreground">
               {role._count.userRoles} members | {role.rolePermissions.length} permissions
               {role.key === "super_admin" ? " | Protected" : ""}
             </span>
@@ -164,7 +166,7 @@ export function RolesPage() {
         </p>
       ) : null}
       {permissions.isError ? (
-        <div role="alert">
+        <div role="alert" className="rounded-lg border p-4 text-sm">
           Unable to load the permission catalog.{" "}
           <button onClick={() => void permissions.refetch()}>Retry</button>
         </div>
@@ -275,7 +277,7 @@ function RoleEditor({
       }
     >
       <div className="flex flex-col gap-5">
-        <p role="status" aria-live="polite" className="text-sm">
+        <p role="status" aria-live="polite" className="rounded-lg bg-muted px-3 py-2 text-sm">
           {dirty ? "Unsaved changes" : "No unsaved changes"}
         </p>
         {stale ? (
@@ -331,9 +333,9 @@ function PermissionControls({
             .map((permission) => permission.id);
           const state = groupState(applicable, ids);
           return (
-            <fieldset key={group.key} className="rounded-lg border p-3">
+            <fieldset key={group.key} className="rounded-xl border p-4">
               <legend className="px-1 text-sm font-medium">{group.label}</legend>
-              <label className="mb-2 flex min-h-10 items-center gap-3 text-sm">
+              <label className="mb-3 flex min-h-10 items-center gap-3 border-b pb-3 text-sm">
                 <Switch
                   checked={state.checked}
                   disabled={locked || !applicable.length}
@@ -351,7 +353,7 @@ function PermissionControls({
                   </span>
                 </span>
               </label>
-              <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
+              <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
                 {group.items.filter(matches).map((permission) => (
                   <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
                     <Switch

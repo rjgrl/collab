@@ -9,6 +9,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 
 import { AccountProfileFields } from "@/components/account-profile-fields";
@@ -87,10 +88,16 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
+    <main className="flex min-h-svh items-center justify-center bg-muted/40 px-4 py-8 sm:py-12">
       <Card className={mode === "signup" ? "w-full max-w-2xl" : "w-full max-w-md"}>
-        <CardHeader>
-          <h1 className="text-2xl font-semibold tracking-tight">Alumni Tracking System</h1>
+        <CardHeader className="gap-2">
+          <p className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <GraduationCap className="size-5 shrink-0 text-primary" aria-hidden="true" />
+            Alumni Tracking System
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {mode === "login" ? "Sign in" : "Create an account"}
+          </h1>
           <CardDescription>
             Sign in to manage academic structure, alumni profiles, and graduate tracking.
           </CardDescription>
@@ -99,7 +106,10 @@ function LoginPage() {
           <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
             <LocalVerificationNotice />
             {mode === "signup" ? (
-              <NameFields value={names} onChange={setNames} prefix="signup" />
+              <fieldset className="grid gap-4 sm:grid-cols-2">
+                <legend className="mb-3 text-sm font-semibold">Personal details</legend>
+                <NameFields value={names} onChange={setNames} prefix="signup" />
+              </fieldset>
             ) : null}
             <FormField id="email" label="Email" required>
               <Input
@@ -112,7 +122,10 @@ function LoginPage() {
               />
             </FormField>
             {mode === "signup" ? (
-              <AccountProfileFields value={profile} onChange={setProfile} />
+              <fieldset className="grid gap-4 sm:grid-cols-2">
+                <legend className="mb-3 text-sm font-semibold">Contact details</legend>
+                <AccountProfileFields value={profile} onChange={setProfile} />
+              </fieldset>
             ) : null}
             {mode === "signup" ? (
               <AcademicProfileFields value={academic} onChange={setAcademic} />
@@ -134,7 +147,10 @@ function LoginPage() {
               <PasswordGuidance id="signup-password-guidance" value={password} />
             ) : null}
             {mode === "login" ? (
-              <Link className="text-sm underline" to="/reset-password">
+              <Link
+                className="self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
+                to="/reset-password"
+              >
                 Forgot password?
               </Link>
             ) : null}
@@ -163,7 +179,10 @@ function LoginPage() {
               {mode === "login" ? "Sign in" : "Create account"}
             </PrimaryButton>
             {formError ? (
-              <p className="text-sm text-destructive" role="alert">
+              <p
+                className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+                role="alert"
+              >
                 {formError}
               </p>
             ) : null}
@@ -186,7 +205,7 @@ function LoginPage() {
             {config.data?.signupEnabled ? (
               <button
                 type="button"
-                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                className="min-h-10 rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline"
                 onClick={() => {
                   setFormError(null);
                   setMode(mode === "login" ? "signup" : "login");
@@ -198,6 +217,6 @@ function LoginPage() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

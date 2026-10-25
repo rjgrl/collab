@@ -24,6 +24,8 @@ import {
   startVerification,
   confirmVerification,
   createGooglePassword,
+  requestEmailChange,
+  confirmEmailChange,
 } from "@Alumni-Tracking-Ss/api/services/verification";
 import {
   authenticateWithPassword,
@@ -179,6 +181,14 @@ export const authService = {
   async createGooglePassword(context: Context, input: AuthInput<"createGooglePassword">) {
     requireUser(context);
     return createGooglePassword(context, input.password);
+  },
+  async requestEmailChange(context: Context, input: AuthInput<"requestEmailChange">) {
+    const parsed = authSchemas.requestEmailChange.input.parse(input);
+    return requestEmailChange(context, parsed.email, parsed.currentPassword);
+  },
+  async confirmEmailChange(context: Context, input: AuthInput<"confirmEmailChange">) {
+    const parsed = authSchemas.confirmEmailChange.input.parse(input);
+    return confirmEmailChange(context, parsed.email, parsed.currentPassword, parsed.code);
   },
   async completeProfile(context: Context, input: AuthInput<"completeProfile">) {
     const actor = requireUser(context);

@@ -398,24 +398,34 @@ try {
     adminContext,
     usersSchemas.create.input.parse({
       firstName: "Managed",
-      lastName: "Graduate",
+      lastName: "Staff",
       email: "managed@example.test",
-      password: "Synthetic managed alumni passphrase 123!",
-      alumniProfile: {
-        studentNumber: "MANAGED-001",
-        programId: String(program._id),
-        phoneNumber: "+639171234569",
-        gender: "Male",
-        graduationYear: 2025,
-      },
+      password: "Synthetic managed staff passphrase 123!",
     }),
   );
-  assert.equal(member.userRoles[0]?.role.name, "Alumni");
-  assert.ok(member.alumniId);
-  const managedList = await request(app).get("/api/alumni?search=MANAGED-001").set(staffHeaders);
+  assert.equal(member.userRoles[0]?.role.key, "staff");
+  assert.equal(member.alumniId, null);
+  const managedList = await request(app)
+    .get("/api/alumni?search=managed@example.test")
+    .set(staffHeaders);
   assert.equal(managedList.status, 200);
-  assert.equal(managedList.body[0]?.id, member.alumniId);
-  assert.equal(managedList.body[0]?.isRegistered, true);
+  assert.deepEqual(managedList.body, []);
+  const viewer = await db.Role.findOne({ key: "viewer" }).lean().orFail();
+  await assert.rejects(
+    () =>
+      usersService.create(
+        adminContext,
+        usersSchemas.create.input.parse({
+          firstName: "Rejected",
+          lastName: "Alumni",
+          email: "rejected@example.test",
+          password: "Synthetic rejected alumni passphrase 123!",
+          roleIds: [String(viewer._id)],
+        }),
+      ),
+    /only have Staff or Super Admin/,
+  );
+  assert.equal(await db.User.countDocuments({ email: "rejected@example.test" }), 0);
   const pendingGoogle = await upsertGoogleUser(db, {
     email: "pending@example.test",
     name: "Pending Graduate",
@@ -471,7 +481,7 @@ try {
   const completedList = await request(app).get("/api/alumni?search=PENDING-001").set(staffHeaders);
   assert.equal(completedList.body[0]?.isRegistered, true);
   console.log(
-    "PASS registration/races, managed Alumni creation/default/labels, pending account visibility/privacy/completion, contact policy, jobs/files/ownership, retired Faculty routes, reports and statistics.",
+    "PASS registration/races, managed Staff creation/default and Alumni creation denial, pending account visibility/privacy/completion, contact policy, jobs/files/ownership, retired Faculty routes, reports and statistics.",
   );
 } finally {
   await db.disconnect();

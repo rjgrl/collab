@@ -31,6 +31,7 @@ import { formsWebhookController } from "./modules/integrations/webhook.controlle
 import { auditRoutes } from "./modules/audit/routes";
 import { notificationsRoutes } from "./modules/notifications/routes";
 import { filesRoutes, ownFilesRoutes } from "./modules/files/routes";
+import { accountPhotoRoutes, ownPhotoRoutes } from "./modules/account-photos/routes";
 import { employmentController } from "./modules/alumni/employment.controller";
 import { aggregateController } from "./modules/reports/aggregate.controller";
 import { smsConfigured } from "@Alumni-Tracking-Ss/api/integrations/sms";
@@ -248,6 +249,8 @@ export function createApp({ db, config, integrationEnv, sessionLoader }: AppOpti
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/files", filesRoutes);
   app.use("/api/me/files", ownFilesRoutes);
+  app.use("/api/me/photo", ownPhotoRoutes);
+  app.use("/api/account-photos", accountPhotoRoutes);
   app.use((_request, _response) => {
     throw new ApiError("NOT_FOUND", { message: "Endpoint not found." });
   });

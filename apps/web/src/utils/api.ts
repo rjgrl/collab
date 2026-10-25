@@ -142,13 +142,22 @@ export const client = {
     completeProfile: endpoint(authSchemas.completeProfile, "PATCH", "/api/auth/profile-completion"),
     updateProfile: endpoint(authSchemas.updateProfile, "PATCH", "/api/auth/profile"),
     changePassword: endpoint(authSchemas.changePassword, "PATCH", "/api/auth/password"),
+    requestEmailChange: endpoint(
+      authSchemas.requestEmailChange,
+      "POST",
+      "/api/auth/email-change-challenges",
+    ),
+    confirmEmailChange: endpoint(
+      authSchemas.confirmEmailChange,
+      "POST",
+      "/api/auth/email-change-confirmations",
+    ),
   },
   users: {
     list: endpoint(usersSchemas.list, "GET", "/api/users"),
     create: endpoint(usersSchemas.create, "POST", "/api/users"),
     update: endpoint(usersSchemas.update, "PATCH", "/api/users/:id"),
     setStatus: endpoint(usersSchemas.setStatus, "PATCH", "/api/users/:id/status"),
-    linkAlumni: endpoint(alumniSchemas.linkAlumni, "POST", "/api/users/:id/alumni-link"),
   },
   roles: {
     list: endpoint(rolesSchemas.list, "GET", "/api/roles"),
@@ -175,7 +184,6 @@ export const client = {
     pendingAccounts: endpoint(alumniSchemas.pendingAccounts, "GET", "/api/alumni/pending-accounts"),
     list: endpoint(alumniSchemas.list, "GET", "/api/alumni"),
     get: endpoint(alumniSchemas.get, "GET", "/api/alumni/:id"),
-    create: endpoint(alumniSchemas.create, "POST", "/api/alumni"),
     update: endpoint(alumniSchemas.update, "PATCH", "/api/alumni/:id"),
     delete: endpoint(alumniSchemas.delete, "DELETE", "/api/alumni/:id"),
     addEmployment: endpoint(

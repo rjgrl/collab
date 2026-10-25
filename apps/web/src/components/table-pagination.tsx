@@ -13,7 +13,7 @@ export function TablePagination({
   pending: boolean;
 }) {
   return (
-    <nav aria-label={label} className="flex items-center justify-end gap-3 text-sm">
+    <nav aria-label={label} className="flex flex-wrap items-center justify-end gap-3 text-sm">
       <Button variant="outline" disabled={pending || page <= 1} onClick={() => onPage(page - 1)}>
         Previous page
       </Button>

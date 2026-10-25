@@ -85,5 +85,15 @@ export function authController(secureCookies: boolean) {
     completeProfile: controller(authSchemas.completeProfile, authService.completeProfile, "body"),
     updateProfile: controller(authSchemas.updateProfile, authService.updateProfile, "body"),
     changePassword: controller(authSchemas.changePassword, authService.changePassword, "body"),
+    requestEmailChange: controller(
+      authSchemas.requestEmailChange,
+      authService.requestEmailChange,
+      "body",
+    ),
+    confirmEmailChange: controller(
+      authSchemas.confirmEmailChange,
+      authService.confirmEmailChange,
+      "body",
+    ),
   };
 }

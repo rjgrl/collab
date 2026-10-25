@@ -5,6 +5,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { FormField, PrimaryButton } from "@/components/page-header";
 import { client, api, queryClient } from "@/utils/api";
+import { StatusBadge } from "./status-badge";
 export function EmailVerification() {
   const status = useQuery(api.auth.verificationStatus.queryOptions());
   const [open, setOpen] = useState(false);
@@ -35,22 +36,36 @@ export function EmailVerification() {
   });
   const error = send.error?.message || confirm.error?.message || status.error?.message;
   return (
-    <div className="mt-3 text-sm">
-      {status.data?.emailVerified ? (
-        <p>Recovery email confirmed</p>
-      ) : (
-        <Button
-          variant="outline"
-          disabled={!status.data}
-          onClick={() => {
-            send.reset();
-            confirm.reset();
-            setCode("");
-            setOpen(true);
-          }}
-        >
-          Verify recovery email
+    <div className="inline-flex flex-wrap items-center gap-2 text-xs">
+      {status.isPending ? (
+        <span role="status">Checking email…</span>
+      ) : status.isError ? (
+        <Button type="button" variant="link" size="xs" onClick={() => void status.refetch()}>
+          Retry email status
         </Button>
+      ) : status.data?.emailVerified ? (
+        <span role="status" aria-label="Email verification">
+          <StatusBadge tone="verified" />
+        </span>
+      ) : (
+        <>
+          <StatusBadge tone="unverified" />
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            aria-label="Verify recovery email"
+            disabled={!status.data}
+            onClick={() => {
+              send.reset();
+              confirm.reset();
+              setCode("");
+              setOpen(true);
+            }}
+          >
+            Verify
+          </Button>
+        </>
       )}
       {open ? (
         <FormDialog
@@ -61,14 +76,16 @@ export function EmailVerification() {
           description={`Confirm ${status.data?.email ?? "your account email"} to enable password recovery. Your existing account access is preserved.`}
         >
           <form
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               confirm.mutate();
             }}
           >
             {!status.data?.canSendEmail ? (
-              <p role="status">Email delivery is not configured. Contact an administrator.</p>
+              <p className="rounded-lg border bg-muted/50 px-3 py-3 text-sm" role="status">
+                Email delivery is not configured. Contact an administrator.
+              </p>
             ) : (
               <Button
                 type="button"
@@ -95,7 +112,14 @@ export function EmailVerification() {
                 onChange={(event) => setCode(event.target.value)}
               />
             </FormField>
-            {error ? <p role="alert">{error}</p> : null}
+            {error ? (
+              <p
+                className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
             <PrimaryButton
               type="submit"
               pending={confirm.isPending}

@@ -1,15 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlumniCreateDialog } from "@/components/alumni-create-dialog";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_app/alumni/new")({ component: NewAlumniPage });
-
-function NewAlumniPage() {
-  const navigate = useNavigate();
-  return (
-    <AlumniCreateDialog
-      onClose={() => {
-        void navigate({ to: "/alumni" });
-      }}
-    />
-  );
-}
+export const Route = createFileRoute("/_app/alumni/new")({
+  beforeLoad: () => {
+    throw redirect({ to: "/alumni" });
+  },
+});

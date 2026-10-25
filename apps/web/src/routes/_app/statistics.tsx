@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/utils/api";
 import { FormCard, PageHeader, PageShell } from "@/components/page-header";
 import { DataTable, TableCell, TableRow } from "@/components/data-table";
+import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
 
 export const Route = createFileRoute("/_app/statistics")({ component: Statistics });
 function Statistics() {
@@ -15,9 +16,22 @@ function Statistics() {
         description="Privacy-safe totals across eligible alumni profiles. These views contain no personal records or exports."
       />
       {result.isPending ? (
-        <p role="status">Loading statistics…</p>
+        <FormCard title="Graduate tracking totals">
+          <div
+            role="status"
+            className="grid grid-cols-2 gap-5 md:grid-cols-4"
+          >
+            <span className="sr-only">Loading statistics…</span>
+            {["Graduates", "Tracked", "Untracked", "Tracked percentage"].map((label) => (
+              <div key={label}>
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <Skeleton className="mt-2 h-8 w-20" />
+              </div>
+            ))}
+          </div>
+        </FormCard>
       ) : result.error ? (
-        <p role="alert">
+        <p role="alert" className="rounded-lg border p-4 text-sm">
           Statistics could not be loaded.{" "}
           <button className="underline" onClick={() => void result.refetch()}>
             Retry
@@ -25,12 +39,15 @@ function Statistics() {
         </p>
       ) : data ? (
         <>
-          <p role="note" className="text-sm text-muted-foreground">
+          <p
+            role="note"
+            className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          >
             {data.message} Nonzero cohorts smaller than {data.minimumCohort} are withheld.
           </p>
           <FormCard title="Graduate tracking totals">
             {data.totals ? (
-              <dl className="grid grid-cols-2 gap-5 md:grid-cols-4">
+              <dl className="grid grid-cols-2 gap-5 md:grid-cols-4 md:divide-x">
                 {(
                   [
                     ["Graduates", data.totals.graduates.toLocaleString()],
@@ -39,9 +56,11 @@ function Statistics() {
                     ["Tracked percentage", `${data.totals.percentTracked.toFixed(2)}%`],
                   ] as const
                 ).map(([label, value]) => (
-                  <div key={label}>
+                  <div key={label} className="min-w-0 md:pl-5 md:first:pl-0">
                     <dt className="text-sm text-muted-foreground">{label}</dt>
-                    <dd className="mt-2 text-2xl font-normal tabular-nums">{value}</dd>
+                    <dd className="mt-2 text-2xl font-medium tracking-tight tabular-nums">
+                      {value}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -61,9 +80,7 @@ function Statistics() {
             >
               {data.byDepartment.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell>
-                    {d.name}
-                  </TableCell>
+                  <TableCell>{d.name}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {d.graduates.toLocaleString()}
                   </TableCell>

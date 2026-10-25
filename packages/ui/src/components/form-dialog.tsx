@@ -30,7 +30,7 @@ export function FormDialog({
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/45" />
-        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border bg-background shadow-xl outline-none">
+        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border bg-card shadow-xl outline-none">
           <div className="relative shrink-0 border-b px-5 py-4 pr-14">
             <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
             {description ? (
@@ -41,7 +41,7 @@ export function FormDialog({
             <Dialog.Close
               disabled={pending}
               aria-label="Close dialog"
-              className="absolute top-3 right-3 flex size-9 items-center justify-center rounded-md hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+              className="absolute top-2 right-2 flex size-11 items-center justify-center rounded-lg border border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:outline-2 focus-visible:outline-destructive disabled:opacity-50"
             >
               <X className="size-4" />
             </Dialog.Close>
@@ -50,7 +50,7 @@ export function FormDialog({
             {children}
           </div>
           {footer ? (
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-background px-5 py-3">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-muted/30 px-5 py-4">
               {footer}
             </div>
           ) : null}

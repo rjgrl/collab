@@ -24,5 +24,7 @@ export function authRoutes(secureCookies: boolean) {
   router.patch("/profile-completion", authenticate, auth.completeProfile);
   router.patch("/profile", authenticate, auth.updateProfile);
   router.patch("/password", authenticate, auth.changePassword);
+  router.post("/email-change-challenges", authenticate, auth.requestEmailChange);
+  router.post("/email-change-confirmations", authenticate, auth.confirmEmailChange);
   return router;
 }

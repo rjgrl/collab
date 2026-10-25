@@ -7,12 +7,12 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
   CardDescription,
 } from "@Alumni-Tracking-Ss/ui/components/card";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { NameFields, emptyName, nameDraft } from "@/components/name-fields";
 import { AccountProfileFields } from "@/components/account-profile-fields";
 import { PasswordGuidance } from "@/components/password-guidance";
@@ -67,7 +67,20 @@ export function AccountVerification() {
   }, [data?.ready, navigate]);
   const refresh = () => queryClient.invalidateQueries();
   const save = useMutation({
-    mutationFn: () => client.auth.completeProfile(completionProfileSchema.parse({ ...profile, ...(data?.academicNeeded ? { ...academic, graduationYear: academic.graduationYear ? Number(academic.graduationYear) : undefined } : {}) })),
+    mutationFn: () =>
+      client.auth.completeProfile(
+        completionProfileSchema.parse({
+          ...profile,
+          ...(data?.academicNeeded
+            ? {
+                ...academic,
+                graduationYear: academic.graduationYear
+                  ? Number(academic.graduationYear)
+                  : undefined,
+              }
+            : {}),
+        }),
+      ),
     onSuccess: async () => {
       setEditing(false);
       setSent((value) => ({ ...value, phone: false }));
@@ -115,26 +128,44 @@ export function AccountVerification() {
     (error) => error !== null,
   );
   return (
-    <div className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle>Complete and verify your account</CardTitle>
-          <CardDescription>
+    <main className="flex min-h-svh items-center justify-center bg-muted/40 px-4 py-8 sm:py-12">
+      <Card className="w-full max-w-2xl">
+        <CardHeader className="gap-2">
+          <p className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <GraduationCap className="size-5 shrink-0 text-primary" aria-hidden="true" />
+            Alumni Tracking System
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Complete and verify your account
+          </h1>
+          <CardDescription className="break-words">
             Finish these required steps before using the system. {data?.email}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-5">
+        <CardContent className="flex flex-col gap-6">
           <LocalVerificationNotice />
-          {status.isPending ? <p role="status">Loading account verification...</p> : null}
+          {status.isPending ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Loading account verification...
+            </p>
+          ) : null}
           {status.isError ? (
-            <p role="alert">
+            <p
+              className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-3 text-sm text-destructive"
+              role="alert"
+            >
               Unable to load verification.{" "}
-              <button onClick={() => void status.refetch()}>Retry</button>
+              <button
+                className="rounded-sm font-medium underline underline-offset-4"
+                onClick={() => void status.refetch()}
+              >
+                Retry
+              </button>
             </p>
           ) : null}
           {data && (data.profileNeeded || data.academicNeeded || editing) ? (
             <form
-              className="grid gap-3 sm:grid-cols-2"
+              className="grid gap-4 sm:grid-cols-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 save.mutate();
@@ -149,14 +180,20 @@ export function AccountVerification() {
                 value={profile}
                 onChange={(contact) => setProfile({ ...profile, ...contact })}
               />
-              {data.academicNeeded ? <AcademicProfileFields value={academic} onChange={setAcademic} /> : null}
-              <PrimaryButton type="submit" pending={save.isPending}>
+              {data.academicNeeded ? (
+                <AcademicProfileFields value={academic} onChange={setAcademic} />
+              ) : null}
+              <PrimaryButton
+                className="sm:col-span-2 sm:justify-self-start"
+                type="submit"
+                pending={save.isPending}
+              >
                 Save contact details
               </PrimaryButton>
             </form>
           ) : data ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span>Phone: {data.phoneNumber}</span>
+            <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <span className="break-words">Phone: {data.phoneNumber}</span>
               <Button variant="outline" onClick={() => setEditing(true)}>
                 Change phone/details
               </Button>
@@ -164,15 +201,15 @@ export function AccountVerification() {
           ) : null}
           {data?.passwordNeeded ? (
             <section
-              className="flex flex-col gap-3 border-t pt-4"
+              className="flex flex-col gap-4 border-t pt-6"
               aria-labelledby="create-password-title"
             >
-              <h2 id="create-password-title" className="font-medium">
+              <h2 id="create-password-title" className="text-base font-semibold">
                 Create your password (required)
               </h2>
               {data.googleFresh ? (
                 <form
-                  className="flex flex-col gap-3"
+                  className="flex flex-col gap-4"
                   onSubmit={(event) => {
                     event.preventDefault();
                     createPassword.mutate();
@@ -232,18 +269,18 @@ export function AccountVerification() {
                 return (
                   <section
                     key={kind}
-                    className="flex flex-col gap-3 border-t pt-4"
+                    className="flex flex-col gap-4 border-t pt-6"
                     aria-labelledby={`verify-${kind}-title`}
                   >
-                    <h2 id={`verify-${kind}-title`} className="font-medium">
+                    <h2 id={`verify-${kind}-title`} className="text-base font-semibold">
                       Verify your {kind === "email" ? "email" : "phone number"}
                     </h2>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="break-words text-sm text-muted-foreground">
                       {kind === "email" ? data.email : data.phoneNumber}. Codes expire in 10
                       minutes.
                     </p>
                     {!available ? (
-                      <p role="status" className="text-sm">
+                      <p role="status" className="rounded-lg border bg-muted/50 px-3 py-3 text-sm">
                         {kind === "email" ? "Email" : "SMS"} delivery is unavailable. Contact an
                         administrator; verification cannot be skipped.
                       </p>
@@ -265,7 +302,7 @@ export function AccountVerification() {
                           : `Send ${kind === "email" ? "email" : "SMS"} code`}
                     </Button>
                     <form
-                      className="flex flex-col gap-3"
+                      className="flex flex-col gap-4"
                       onSubmit={(event) => {
                         event.preventDefault();
                         verify.mutate(kind);
@@ -297,7 +334,11 @@ export function AccountVerification() {
               })
             : null}
           {errors.map((error, index) => (
-            <p key={index} role="alert" className="text-sm text-destructive">
+            <p
+              key={index}
+              role="alert"
+              className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+            >
               {error.message}
             </p>
           ))}
@@ -306,6 +347,6 @@ export function AccountVerification() {
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

@@ -30,13 +30,13 @@ export function PageHeader({
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-medium tracking-tight">{title}</h1>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description ? (
           <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   );
 }
@@ -69,7 +69,7 @@ export function FormCard({
   children,
 }: {
   title?: string;
-  description?: string;
+  description?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -109,17 +109,21 @@ export function FormField({
         ) : null}
       </Label>
       {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
 
 export function FormActions({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap gap-2 md:col-span-2">{children}</div>;
+  return <div className="flex flex-wrap items-center gap-2 pt-2 md:col-span-2">{children}</div>;
 }
 
 export function FieldsetLabel({ children }: { children: ReactNode }) {
-  return <p className="text-xs leading-none">{children}</p>;
+  return <p className="text-sm font-medium leading-snug">{children}</p>;
 }
 
 export function FilterBar({ children }: { children: ReactNode }) {

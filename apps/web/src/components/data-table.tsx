@@ -1,6 +1,7 @@
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
+import { cn } from "@Alumni-Tracking-Ss/ui/lib/utils";
 import type { ComponentProps, ReactNode } from "react";
 
 import { EmptyState } from "@/components/page-header";
@@ -33,7 +34,7 @@ export function DataTable({
   const showEmpty = Boolean(isEmpty) && !loading;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-4" aria-busy={loading || undefined}>
       {onSearch || toolbar ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {onSearch ? (
@@ -54,19 +55,21 @@ export function DataTable({
         role="region"
         aria-label={label}
         tabIndex={0}
-        className="overflow-x-auto border border-border focus-visible:outline-2 focus-visible:outline-ring"
+        className="overflow-x-auto rounded-xl border border-border bg-card focus-visible:outline-2 focus-visible:outline-ring"
       >
         <table className="w-full min-w-[32rem] text-left text-sm md:min-w-0">
-          <thead className="text-xs text-muted-foreground">
+          <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
               {headers.map((header) => (
                 <th
                   key={header}
                   className={
                     header === "Actions" ||
-                    /^(Graduates|Tracked|Untracked|% tracked|Count|Users|Programs)$/.test(header)
-                      ? "px-3 py-2.5 text-right font-medium"
-                      : "px-3 py-2.5 font-medium"
+                    /^(Graduates|Tracked|Untracked|% tracked|Count|Users|Programs|Alumni)$/.test(
+                      header,
+                    )
+                      ? "px-4 py-3 text-right font-medium"
+                      : "px-4 py-3 font-medium"
                   }
                 >
                   {header}
@@ -101,8 +104,13 @@ export function DataTable({
   );
 }
 
-export function TableRow({ children, className }: { children: ReactNode; className?: string }) {
-  return <tr className={className ?? "border-t border-border/70 hover:bg-muted/40"}>{children}</tr>;
+export function TableRow({ className, ...props }: ComponentProps<"tr">) {
+  return (
+    <tr
+      className={cn("border-t border-border/70 transition-colors hover:bg-muted/40", className)}
+      {...props}
+    />
+  );
 }
 
 export function TableCell({
@@ -115,7 +123,7 @@ export function TableCell({
   colSpan?: number;
 }) {
   return (
-    <td className={className ?? "px-3 py-2.5 align-middle"} colSpan={colSpan}>
+    <td className={cn("px-4 py-3 align-middle break-words", className)} colSpan={colSpan}>
       {children}
     </td>
   );

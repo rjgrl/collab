@@ -138,6 +138,16 @@ export interface EvidenceFileRecord extends Timestamped {
   createdById?: Types.ObjectId | null;
   deletedAt?: Date | null;
 }
+export interface AccountPhotoRecord extends Timestamped {
+  userId: Types.ObjectId;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  provider: StorageProvider;
+  storageKey: string;
+  url?: string | null;
+  deletedAt?: Date | null;
+}
 export interface NotificationRecord extends Created {
   recipientId: Types.ObjectId;
   alumniId: Types.ObjectId;
@@ -384,6 +394,20 @@ export const schemas = {
     createdById: ref("User", false),
     deletedAt: Date,
   }),
+  AccountPhoto: schema<AccountPhotoRecord>("AccountPhoto", {
+    userId: ref("User"),
+    originalName: requiredString,
+    mimeType: {
+      type: String,
+      enum: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+      required: true,
+    },
+    sizeBytes: { type: Number, required: true, min: 1, max: 10 * 1024 * 1024 },
+    provider: { type: String, enum: ["local", "google_drive", "imgbb"], required: true },
+    storageKey: requiredString,
+    url: String,
+    deletedAt: Date,
+  }),
   Notification: schema<NotificationRecord>(
     "Notification",
     {
@@ -532,6 +556,7 @@ schemas.Employment.index({ alumniId: 1 }, { name: "Employment_alumniId_idx" });
 schemas.TrackingEvent.index({ alumniId: 1 }, { name: "TrackingEvent_alumniId_idx" });
 schemas.EvidenceFile.index({ alumniId: 1 }, { name: "EvidenceFile_alumniId_idx" });
 schemas.EvidenceFile.index({ trackingEventId: 1 }, { name: "EvidenceFile_trackingEventId_idx" });
+schemas.AccountPhoto.index({ userId: 1, createdAt: -1 }, { name: "AccountPhoto_userId_createdAt_idx" });
 schemas.AuditLog.index({ actorId: 1 }, { name: "AuditLog_actorId_idx" });
 schemas.AuditLog.index({ entity: 1, entityId: 1 }, { name: "AuditLog_entity_entityId_idx" });
 schemas.Notification.index(
@@ -576,6 +601,7 @@ export function createModels(connection: Connection) {
     Employment: connection.model("Employment", schemas.Employment),
     TrackingEvent: connection.model("TrackingEvent", schemas.TrackingEvent),
     EvidenceFile: connection.model("EvidenceFile", schemas.EvidenceFile),
+    AccountPhoto: connection.model("AccountPhoto", schemas.AccountPhoto),
     Notification: connection.model("Notification", schemas.Notification),
     AuditLog: connection.model("AuditLog", schemas.AuditLog),
     IntegrationSetting: connection.model("IntegrationSetting", schemas.IntegrationSetting),

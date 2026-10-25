@@ -78,38 +78,122 @@ it("routes legacy unlinked Alumni accounts to profile completion without affecti
   }
 });
 
-it("labels legacy Viewer roles Alumni in role lists and member accounts without changing grants", async () => {
+it("labels legacy Viewer roles Alumni without changing existing accounts or grants", async () => {
   const f = fixture();
+  f.tables.User = [{ id: "legacy", _id: "legacy", ...account, status: "active" }];
+  f.tables.UserRole = [{ userId: "legacy", roleId: viewerId }];
   const roles = await rolesService.list(f.context, {});
   assert.equal(roles.find((r) => r.key === "viewer")?.name, "Alumni");
+  const users = await usersService.list(f.context, { page: 1, pageSize: 20 });
+  assert.equal(users[0]?.userRoles[0]?.role.name, "Alumni");
   assert.equal(f.tables.Role![0]!.key, "viewer");
-  const user = await usersService.create(
-    f.context,
-    usersSchemas.create.input.parse({
-      ...account,
-      roleIds: [viewerId],
-      alumniProfile,
-    }),
-  );
-  assert.equal(user.userRoles[0]?.role.name, "Alumni");
-  assert.equal(user.userRoles[0]?.role.key, "viewer");
+  assert.equal(f.tables.UserRole[0]?.roleId, viewerId);
 });
 
-it("defaults new accounts to Alumni and creates their linked registry profile", async () => {
+it("defaults managed accounts to Staff without creating or claiming an Alumni profile", async () => {
   const f = fixture();
+  f.tables.Alumni = [{ id: "historical", studentNumber: alumniProfile.studentNumber }];
+  const before = structuredClone(f.tables.Alumni);
+  const user = await usersService.create(f.context, usersSchemas.create.input.parse(account));
+  assert.equal(user.userRoles[0]?.roleId, staffId);
+  assert.equal(user.alumniId, null);
+  assert.equal(f.tables.User?.[0]?.verificationRequired, true);
+  assert.equal(f.tables.User?.[0]?.needsProfileCompletion, true);
+  assert.deepEqual(f.tables.Alumni, before);
+});
+
+it("allows another Super Admin account while preserving protected role scope", async () => {
+  const f = fixture();
+  const superId = "555555555555555555555555";
+  f.tables.Role!.push({ id: superId, key: "super_admin", name: "Super Admin", isSystem: true });
   const user = await usersService.create(
     f.context,
-    usersSchemas.create.input.parse({
-      ...account,
-      alumniProfile,
-    }),
+    usersSchemas.create.input.parse({ ...account, roleIds: [superId] }),
   );
-  assert.equal(user.userRoles[0]?.roleId, viewerId);
-  assert.equal(user.alumniId, f.tables.Alumni?.[0]?.id);
-  assert.equal(f.tables.User?.[0]?.needsProfileCompletion, false);
-  assert.equal(f.tables.User?.[0]?.verificationRequired, true);
-  assert.equal(f.tables.Alumni?.[0]?.studentNumber, alumniProfile.studentNumber);
-  assert.equal(f.tables.Alumni?.[0]?.personalEmail, account.email);
+  assert.equal(user.userRoles[0]?.role.key, "super_admin");
+  const ordinaryAdmin = fixture();
+  ordinaryAdmin.context.user!.roles = ["admin"];
+  await assert.rejects(
+    () => usersService.create(ordinaryAdmin.context, usersSchemas.create.input.parse(account)),
+    /Only a super administrator can manage system roles/,
+  );
+  assert.equal(ordinaryAdmin.tables.User?.length ?? 0, 0);
+});
+
+it("denies managed creation to Staff and custom roles even with legacy users.write grants", async () => {
+  for (const key of ["staff", "legacy_manager", "viewer"]) {
+    const f = fixture();
+    f.context.user!.roles = [key];
+    await assert.rejects(
+      () => usersService.create(f.context, usersSchemas.create.input.parse(account)),
+      { code: "FORBIDDEN" },
+    );
+    assert.equal(f.operations.length, 0);
+  }
+});
+
+it("rejects Alumni, legacy Viewer, Admin and custom managed role keys, including mixed roles", async () => {
+  for (const key of ["viewer", "alumni", "admin", "custom_manager"]) {
+    const f = fixture();
+    f.tables.Role![0]!.key = key;
+    for (const roleIds of [[viewerId], [staffId, viewerId]])
+      await assert.rejects(
+        () =>
+          usersService.create(f.context, usersSchemas.create.input.parse({ ...account, roleIds })),
+        /only have Staff or Super Admin/,
+      );
+    assert.equal(f.tables.User?.length ?? 0, 0);
+    assert.equal(f.tables.Alumni?.length ?? 0, 0);
+  }
+});
+
+it("rejects retired Alumni and contact fields at both contract and direct service boundaries", async () => {
+  for (const extra of [
+    { alumniProfile },
+    { phoneNumber: alumniProfile.phoneNumber },
+    { gender: "Female" },
+  ]) {
+    const f = fixture();
+    const input = { middleName: "", suffix: "", ...account, ...extra };
+    assert.equal(usersSchemas.create.input.safeParse(input).success, false);
+    await assert.rejects(() => usersService.create(f.context, input));
+    assert.equal(f.operations.length, 0);
+  }
+});
+
+it("rolls back a managed account if role assignment fails", async () => {
+  const f = fixture();
+  f.failWrite("UserRole", "insertMany", new Error("Synthetic assignment failure"));
+  await assert.rejects(
+    () => usersService.create(f.context, usersSchemas.create.input.parse(account)),
+    /Synthetic assignment failure/,
+  );
+  assert.equal(f.tables.User?.length ?? 0, 0);
+  assert.equal(f.tables.UserRole?.length ?? 0, 0);
+});
+
+it("prevents managed accounts from becoming Alumni while preserving historical Alumni role edits", async () => {
+  for (const currentRoleIds of [[staffId], [staffId, viewerId]]) {
+    const f = fixture();
+    f.tables.User = [{ id: "managed", ...account, updatedAt: new Date(), status: "active" }];
+    f.tables.UserRole = currentRoleIds.map((roleId) => ({ id: roleId, userId: "managed", roleId }));
+    await assert.rejects(
+      () => usersService.update(f.context, { id: "managed", roleIds: [viewerId] }),
+      /cannot be converted to Alumni/,
+    );
+    assert.deepEqual(
+      f.tables.UserRole.map((row) => row.roleId),
+      currentRoleIds,
+    );
+  }
+  const f = fixture();
+  f.tables.User = [
+    { id: "historical", ...account, updatedAt: new Date(), status: "active", alumniId: "profile" },
+  ];
+  f.tables.UserRole = [{ userId: "historical", roleId: viewerId }];
+  await usersService.update(f.context, { id: "historical", roleIds: [viewerId] });
+  assert.equal(f.tables.UserRole[0]?.roleId, viewerId);
+  assert.equal(f.tables.User[0]?.alumniId, "profile");
 });
 
 it("denies Alumni access to other pending accounts even with a legacy management grant", async () => {
@@ -119,95 +203,4 @@ it("denies Alumni access to other pending accounts even with a legacy management
     code: "FORBIDDEN",
   });
   assert.equal(f.operations.length, 0);
-});
-
-it("rejects Alumni accounts with missing academic details instead of creating an orphan", async () => {
-  const f = fixture();
-  await assert.rejects(
-    () =>
-      usersService.create(
-        f.context,
-        usersSchemas.create.input.parse({
-          ...account,
-          roleIds: [viewerId],
-        }),
-      ),
-    /Alumni.*profile|profile.*Alumni/i,
-  );
-  assert.equal(f.tables.User?.length ?? 0, 0);
-  assert.equal(f.tables.Alumni?.length ?? 0, 0);
-});
-
-it("preserves Staff creation without requiring an Alumni profile", async () => {
-  const f = fixture();
-  const user = await usersService.create(
-    f.context,
-    usersSchemas.create.input.parse({
-      ...account,
-      roleIds: [staffId],
-    }),
-  );
-  assert.equal(user.alumniId, null);
-  assert.equal(user.userRoles[0]?.role.key, "staff");
-  assert.equal(f.tables.Alumni?.length ?? 0, 0);
-});
-
-it("rolls back the profile when account creation fails", async () => {
-  const f = fixture();
-  f.failWrite("User", "create", new Error("Synthetic account failure"));
-  await assert.rejects(
-    () =>
-      usersService.create(
-        f.context,
-        usersSchemas.create.input.parse({
-          ...account,
-          roleIds: [viewerId],
-          alumniProfile,
-        }),
-      ),
-    /Synthetic account failure/,
-  );
-  assert.equal(f.tables.Alumni?.length ?? 0, 0);
-  assert.equal(f.tables.UserRole?.length ?? 0, 0);
-});
-
-it("requires Alumni write access before provisioning a linked profile", async () => {
-  const f = fixture();
-  f.context.user!.permissions = f.context.user!.permissions.filter((p) => p !== "alumni.write");
-  await assert.rejects(
-    () =>
-      usersService.create(
-        f.context,
-        usersSchemas.create.input.parse({
-          ...account,
-          roleIds: [viewerId],
-          alumniProfile,
-        }),
-      ),
-    { code: "FORBIDDEN" },
-  );
-  assert.equal(f.tables.Alumni?.length ?? 0, 0);
-  assert.equal(f.tables.User?.length ?? 0, 0);
-});
-
-it("does not claim existing student records or allow inactive programs when creating accounts", async () => {
-  for (const conflict of [true, false]) {
-    const f = fixture();
-    if (conflict)
-      f.tables.Alumni = [{ id: "existing", studentNumber: alumniProfile.studentNumber }];
-    else f.tables.Program![0]!.deletedAt = new Date();
-    await assert.rejects(
-      () =>
-        usersService.create(
-          f.context,
-          usersSchemas.create.input.parse({
-            ...account,
-            roleIds: [viewerId],
-            alumniProfile,
-          }),
-        ),
-      conflict ? /existing profile/ : /active degree program/,
-    );
-    assert.equal(f.tables.User?.length ?? 0, 0);
-  }
 });

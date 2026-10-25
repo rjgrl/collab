@@ -85,6 +85,7 @@ export const rotationResultSchema = okSchema.extend({
 export const verificationStatusSchema = z.object({
   email: emailSchema,
   emailVerified: z.boolean(),
+  pendingEmail: emailSchema.nullable().optional(),
   phoneVerified: z.boolean(),
   phoneNumber: z.string(),
   gender: z.string(),
@@ -177,6 +178,20 @@ export const authSchemas = {
       .object({ kind: z.enum(["email", "phone"]), code: z.string().regex(/^\d{6}$/) })
       .strict(),
     output: okSchema,
+  },
+  requestEmailChange: {
+    input: z.object({ email: emailSchema, currentPassword: z.string().min(1).max(256) }).strict(),
+    output: okSchema.extend({ expiresInSeconds: z.number(), resendAfterSeconds: z.number() }),
+  },
+  confirmEmailChange: {
+    input: z
+      .object({
+        email: emailSchema,
+        currentPassword: z.string().min(1).max(256),
+        code: z.string().regex(/^\d{6}$/),
+      })
+      .strict(),
+    output: rotationResultSchema,
   },
   createGooglePassword: {
     input: z

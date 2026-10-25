@@ -30,7 +30,9 @@ test("legacy accounts can confirm a recovery email without losing app access", a
   const { emailCode } = await (await request.get("http://127.0.0.1:3100/__test/code")).json();
   await page.locator("#recovery-email-code").fill(emailCode);
   await page.getByRole("button", { name: "Confirm recovery email", exact: true }).click();
-  await expect(page.getByText("Recovery email confirmed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Email verification", exact: true })).toHaveText(
+    "Verified",
+  );
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/dashboard$/);
 });

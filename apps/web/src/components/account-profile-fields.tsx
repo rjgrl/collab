@@ -1,6 +1,7 @@
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { NativeSelect } from "@/components/native-select";
 import { FormField } from "@/components/page-header";
+import { PhoneInput } from "./phone-input";
 
 export type AccountProfile = { phoneNumber: string; gender: string; facebookAccount: string };
 
@@ -13,19 +14,24 @@ export function AccountProfileFields({
 }) {
   return (
     <>
-      <FormField id="phone-number" label="Phone number" required>
-        <Input
-          id="phone-number"
-          type="tel"
-          placeholder="+639171234567"
-          autoComplete="tel"
-          required
-          minLength={7}
-          maxLength={30}
-          value={value.phoneNumber}
-          onChange={(event) => onChange({ ...value, phoneNumber: event.target.value })}
-        />
-      </FormField>
+      <div>
+        <FormField id="phone-number" label="Phone number" required>
+          <PhoneInput
+            id="phone-number"
+            type="tel"
+            autoComplete="tel"
+            required
+            minLength={7}
+            maxLength={30}
+            value={value.phoneNumber}
+            onChange={(phoneNumber) => onChange({ ...value, phoneNumber })}
+            aria-describedby="phone-number-hint"
+          />
+        </FormField>
+        <p id="phone-number-hint" className="mt-2 text-xs text-muted-foreground">
+          Select a country or paste an international number.
+        </p>
+      </div>
       <FormField id="account-gender" label="Gender" required>
         <NativeSelect
           id="account-gender"

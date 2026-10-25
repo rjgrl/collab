@@ -6,11 +6,7 @@ import type { Database, UserRecord } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
-import {
-  isAdministrator,
-  isAlumniAccount,
-  formatDisplayName,
-} from "@Alumni-Tracking-Ss/contracts/names";
+import { isAlumniAccount, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import {
   alumniSchemas,
   meProfileSchemas,
@@ -184,24 +180,10 @@ export const alumniService = {
     const { id } = alumniSchemas.get.input.parse(input);
     return detail(context, id);
   },
-  async create(context: Context, input: z.input<typeof alumniSchemas.create.input>) {
+  async create(context: Context, _input: z.input<typeof alumniSchemas.create.input>) {
     management(context, "alumni.write");
-    const data = alumniSchemas.create.input.parse(input);
-    return context.db.transaction(async (tx) => {
-      await activeProgram(tx, data.programId);
-      await uniqueStudent(tx, data.studentNumber);
-      const a = toEntity(
-        (await tx.Alumni.create({ ...data, employmentStatus: "unknown" })).toObject(),
-      );
-      await audit(
-        tx,
-        context,
-        "alumni.create",
-        "alumni",
-        a.id,
-        `Created Alumni ${JSON.stringify(formatDisplayName(a))} (${a.studentNumber}), program ${data.programId}`,
-      );
-      return { ...a, program: await entityProgram(tx, String(a.programId)) };
+    throw new ApiError("FORBIDDEN", {
+      message: "Manual Alumni creation is unavailable. Alumni must self-register.",
     });
   },
   async update(context: Context, input: z.input<typeof alumniSchemas.update.input>) {
@@ -290,49 +272,12 @@ export const meProfileService = {
 };
 export async function linkAlumni(
   context: Context,
-  input: z.input<typeof alumniSchemas.linkAlumni.input>,
+  _input: z.input<typeof alumniSchemas.linkAlumni.input>,
 ) {
-  const actor = management(context, "users.write");
+  management(context, "users.write");
   requireAccess(context, "alumni.write");
-  if (!isAdministrator(actor))
-    throw new ApiError("FORBIDDEN", { message: "Only an administrator can link alumni profiles." });
-  const { id, alumniId } = alumniSchemas.linkAlumni.input.parse(input);
-  return context.db.transaction(async (tx) => {
-    const user = await tx.User.findOne({ _id: id, status: "active" }).lean();
-    if (!user) throw new ApiError("NOT_FOUND", { message: "Active user not found." });
-    const alumni = await activeAlumni(tx, alumniId);
-    if (user.alumniId && String(user.alumniId) !== alumniId)
-      throw new ApiError("CONFLICT", {
-        message: "This user is already linked to another profile.",
-      });
-    if (await tx.User.exists({ _id: { $ne: id }, alumniId }))
-      throw new ApiError("CONFLICT", {
-        message: "This alumni profile is already linked to another account.",
-      });
-    if (!user.firstName || !user.lastName)
-      throw new ApiError("CONFLICT", {
-        message: "Complete the user's structured name before linking this profile.",
-      });
-    const names = {
-      firstName: user.firstName,
-      middleName: user.middleName ?? "",
-      lastName: user.lastName,
-      suffix: user.suffix ?? "",
-    };
-    await tx.User.updateOne(
-      { _id: id, status: "active" },
-      { $set: { alumniId, name: formatDisplayName(names) } },
-    );
-    await tx.Alumni.updateOne({ _id: alumniId, ...active }, { $set: names });
-    await audit(
-      tx,
-      context,
-      "users.linkAlumni",
-      "user",
-      id,
-      `Linked account ${JSON.stringify(user.name)} (${user.email}) to Alumni ${JSON.stringify(formatDisplayName(alumni))} (${alumni.studentNumber}), record ${alumniId}`,
-    );
-    return { ok: true };
+  throw new ApiError("FORBIDDEN", {
+    message: "Manual Alumni linking is unavailable. Alumni must complete their own registration.",
   });
 }
 export const filesService = {
@@ -347,16 +292,22 @@ export const filesService = {
         throw new ApiError("FORBIDDEN", { message: "You may only remove your own files." });
       await activeAlumni(tx, String(file.alumniId));
       await tx.EvidenceFile.updateOne({ _id: id, ...active }, { $set: { deletedAt: new Date() } });
-      if (file.kind === "image")
+      if (file.kind === "image") {
+        const imageUrls = [`/api/files/${id}`, `/api/me/files/${id}`, ...(file.url ? [file.url] : [])];
+        await tx.User.updateOne(
+          { alumniId: file.alumniId, image: { $in: imageUrls } },
+          { $set: { image: null } },
+        );
         await tx.Alumni.updateOne(
           {
             _id: file.alumniId,
             photoUrl: {
-              $in: [`/api/files/${id}`, `/api/me/files/${id}`, ...(file.url ? [file.url] : [])],
+              $in: imageUrls,
             },
           },
-          { $unset: { photoUrl: 1 } },
+          { $set: { photoUrl: null } },
         );
+      }
       await audit(
         tx,
         context,

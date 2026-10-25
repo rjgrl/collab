@@ -1,6 +1,8 @@
 # Alumni Tracking System
 
-A local testing setup for the team: React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. Every laptop/desktop runs its own database. No Atlas account, shared database password, Docker, or Google credentials are required for the core application.
+A role-based Alumni tracking application built with React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. Alumni register and maintain their academic/employment profile; Staff review evidence and tracking decisions; Super Admins manage accounts, permissions, audit logs and integrations.
+
+The team setup runs a separate database on each laptop/desktop. No Atlas account, shared database password, Docker, or Google credentials are required for local functionality testing.
 
 ## Install once on each device
 
@@ -41,7 +43,7 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 5. Initializes a new, randomly named database for this checkout, adds missing Mongoose collections/indexes without removing records or indexes, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
-For sample departments and three synthetic alumni, use **`pnpm setup:local --demo`** instead of `pnpm setup:local`. This is optional; normal setup gives you an administrator and an empty application ready for data entry. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
+For sample departments and three synthetic alumni, use **`pnpm setup:local --demo`** instead of `pnpm setup:local`. Normal setup creates an administrator; configure departments/programs and let Alumni self-register. Admins create Staff or Super Admin accounts through Members. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 
@@ -70,6 +72,8 @@ pnpm dev
 
 Stop this checkout's development servers before pulling/installing/generating on Windows. Setup preserves local configuration and existing account passwords; populated databases are verified without schema/seed updates. If schema changes are needed, back up local data, review the changes, then run `pnpm setup:local --update-existing`. If index inspection reports a conflict, setup stops. Review `pnpm db:migrate --dry-run` and a backup before authorizing `pnpm db:migrate --apply`; never delete data or drop an index to bypass the report.
 
+This update adds the `AccountPhoto` collection and its user/date index. For an existing database, run `pnpm db:migrate --dry-run`, review the plan and back up your data, then run `pnpm setup:local --update-existing` (or `pnpm db:migrate --apply`). The migration adds missing collections/indexes without deleting existing records. Department codes are absent from the active model, forms and API; legacy stored fields/indexes are not destructively removed.
+
 ## Connect using MongoDB Compass
 
 1. Run `pnpm setup:local` or `pnpm dev` so the server is running.
@@ -79,7 +83,7 @@ Stop this checkout's development servers before pulling/installing/generating on
    mongodb://127.0.0.1:27018/?replicaSet=rs0
    ```
 
-3. Connect and open the database named in your private `apps/server/.env` (`collab_dev_` plus a random suffix for new clones). Existing configured database names are preserved. You should see collections such as `User`, `Role`, `Permission`, `Alumni`, and `Department` after setup.
+3. Connect and open the database named in your private `apps/server/.env` (`collab_dev_` plus a random suffix for new clones). Existing configured database names are preserved. Collections include `User`, `Role`, `Permission`, `Alumni`, `Department`, `Program`, `Employment`, `EvidenceFile`, `AccountPhoto`, `Notification` and `AuditLog`.
 
 The application's generated local server environment uses:
 
@@ -119,11 +123,13 @@ Start with `pnpm run doctor` (read-only; credentials are never printed). See the
 ```sh
 pnpm --filter web build
 pnpm check-types
+pnpm test:browser-types
 pnpm lint
 pnpm test
 pnpm check:secrets
 pnpm build
 pnpm check:production-build
+pnpm check:server-build
 ```
 
 Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. See [test results](docs/test-report.md) for measured coverage and limits. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
@@ -142,7 +148,7 @@ Create a Google Cloud **Web application** OAuth client and configure the consent
 
 In production, new-account registration also requires ALLOW_PUBLIC_SIGNUP=true; existing accounts can still sign in when registration is disabled. Restart the server, then enable **Google sign-in** in Settings > Integrations. Both sign-in and signup use the same Google button. Without credentials or with the integration disabled, the button is unavailable; local password sign-in still works. For a shared deployment, set APP_URL to the public origin serving /api/auth/google and register that origin's HTTPS callback. See [Google's OAuth setup instructions](https://developers.google.com/identity/openid-connect/openid-connect#settingup).
 
-Email signup requires separate first/last names, optional middle/suffix fields, phone number, Male/Female selection, and password; the Facebook profile URL is optional. Emails are trimmed and stored in lowercase. Existing emails are rejected, including concurrent signup attempts protected by MongoDB's unique email index. Google sign-in reuses an existing account with the verified email instead of creating a duplicate. New Google accounts receive the Viewer role and must create a password after a fresh Google verification, without a current-password field. The Google proof expires after five minutes, is bound to the current session, and is consumed once; creating a password also revokes other sessions. Future password changes require the current password. No automatic/shared password is generated.
+Email signup requires separate first/last names, optional middle/suffix fields, phone number, Male/Female selection, and password; the Facebook profile URL is optional. Emails are trimmed and stored in lowercase. Existing emails are rejected, including concurrent signup attempts protected by MongoDB's unique email index. Google sign-in reuses an existing account with the verified email instead of creating a duplicate. New Google accounts receive the Alumni role (legacy internal key `viewer`) and must create a password after a fresh Google verification, without a current-password field. The Google proof expires after five minutes, is bound to the current session, and is consumed once; creating a password also revokes other sessions. Future password changes require the current password. No automatic/shared password is generated.
 
 After pulling model/index changes, review `pnpm db:migrate --dry-run`. Back up local data before explicitly applying additive indexes with `pnpm setup:local --update-existing`; restart `pnpm dev` afterward.
 
@@ -156,15 +162,23 @@ Email confirmation uses the existing HTTPS JSON mail gateway: configure SMTP_URL
 
 Google sign-in does not silently activate a pending, unconfirmed password registration with the same email. Confirm the original registration email and sign in with that password before linking Google; this prevents a pre-registered password or phone from becoming trusted through someone else's Google verification.
 
-## REST rewrite and account policy
+## Account and tracking workflows
 
 Architecture and REST contracts are documented in [the developer guide](docs/system/developer-guide.md). The [defense guide](docs/DEFENSE_GUIDE.md) traces one complete request and explains validation, ownership, MFA and errors. Follow the [migration and rollback runbook](docs/migrations/MONGOOSE_REST.md) before applying indexes to an existing database.
 
 Current measured checks and remaining operational limits are recorded in [migration verification](docs/MIGRATION_VERIFICATION.md).
 
-`viewer` is the legacy role key for Alumni. Public signup creates a linked Alumni account/profile atomically after collecting student number and a valid degree program. Alumni sign in to **My Profile**, with access only to the profile explicitly linked through `User.alumniId`; the directory and management routes return forbidden even if the old role still has broad read permissions. An administrator with user/alumni management permissions uses **Settings > Members > Link alumni profile** after checking identity and student number. Legacy accounts must confirm structured names through Account settings (or an authorized account edit) before linking; names and emails never establish ownership automatically.
+`viewer` remains the internal legacy role key; the interface labels it **Alumni**. Public registration creates the account and linked Alumni profile atomically after collecting student number and a valid degree program. Alumni sign in to **My Profile** and access only their explicitly linked record. Historical broad grants do not give Alumni directory or management access.
 
-Names are stored as first, middle, last and suffix fields. Middle names and suffixes are optional; suffix suggestions also accept custom text. Existing display names remain unchanged until confirmed. Account names are the source of truth and updates synchronize linked alumni names transactionally. Alumni can update names, gender, mobile number and Facebook contact; Alumni also manage their own employment, profile photo and private evidence. Staff maintain student numbers, academic assignments and tracking decisions. Employment and file edits do not imply tracked status.
+**Settings > Account** is the single place for personal details: structured name, profile photo, email, country-selectable phone, gender and Facebook contact. Photo controls sit inside Personal details for every role. The header and Alumni My Profile show the account photo. Photos use authenticated private delivery; replacing/removing one archives its metadata and does not delete historical evidence.
+
+Changing email requires the current password and a code delivered to the new address, even when local signup verification is relaxed. The old address remains active until confirmation succeeds. Confirmation verifies the new address, synchronizes the linked Alumni contact, invalidates password-reset links and signs out other sessions while preserving the current session's MFA proof. Live email changes need the enabled HTTPS mail gateway described above.
+
+**My Profile** contains Alumni academic identity, employment and supporting evidence. Staff maintain student numbers, academic assignments and tracking decisions. Employment/file edits do not automatically mark a record tracked. Alumni evidence uploads notify Staff for review through the header bell between the theme control and account menu. Admin Alumni detail shows profile photo and supporting evidence separately.
+
+**Members > Add user** offers Staff (default) and Super Admin only. Manual Alumni creation, account conversion to Alumni and manual linking are retired at the API boundary as well as in the UI. Alumni self-register; existing/imported historical records remain available for authorized review. Names and email matches never establish account ownership automatically.
+
+**Departments** use names without codes. **Audit logs** show compact summaries with a clickable detail dialog containing the full recorded summary for that event. **Integrations** are restricted to administrators, including for Staff with historical grants; enabled status is green and disabled status is red. Settings also contains Roles and permissions.
 
 Staff and Alumni do not require MFA, including accounts with saved enrollment. Administrator roles (`super_admin` or `admin`) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
 
@@ -172,7 +186,7 @@ Additional isolated verification: `pnpm test:mongoose-db`, `pnpm test:forms-db`,
 
 ## Isolated accounts for role demonstrations
 
-Run `pnpm accounts:local` to provision fresh generated Admin, Staff and Alumni credentials in a guarded `collab_test_accounts_*` database. Read the generated JSON privately under `.tools/test-accounts/`; `latest.txt` identifies it. Then run `pnpm dev:accounts` and open **http://localhost:3003** (API port 3004). This starts the normal application with an isolated profile and preserves working database configuration. Administrator MFA is paused for this managed local role demo. Ctrl+C stops these test servers; MongoDB/data remain intact.
+Run `pnpm accounts:local` to provision fresh generated Admin, Staff and Alumni credentials in a guarded `collab_test_accounts_*` database. Read the generated JSON privately under `.tools/test-accounts/`; `latest.txt` identifies it. Then run `pnpm dev:accounts` and open **http://localhost:3003** (API port 3004). Port 3003 is available only while this command is running; it is a separate role demo, while the main app stays on port 3001. This starts the normal application with an isolated profile and preserves working database configuration. Administrator MFA is paused for this managed local role demo. Ctrl+C stops these test servers; MongoDB/data remain intact.
 
 For automated role checks, install Chromium once with `pnpm exec playwright install chromium`. With those servers running, `pnpm test:roles-local` rehearses normal UI login for all three roles, the configured Admin MFA policy, Admin-only integrations, role/session revocation and disabled sessions. It saves synthetic screenshots and private authenticator/recovery artifacts under `.tools/role-browser/`. These files contain secrets: do not share or commit them. The tool only accepts the generated synthetic namespace; it has no production endpoint or fixed test password.
 

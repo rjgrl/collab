@@ -161,9 +161,34 @@ it("retired profile PATCH rejects personal fields and directs direct service cal
   await assert.rejects(() => meProfileService.update(context(f.db), {}), /Settings.*Account/);
   assert.equal(f.operations.length, 0);
 });
-it("explicit linking requires Administrator role, both permissions and completed security gates", async () => {
-  const staff = context({}, ["staff"]);
-  await assert.rejects(() => linkAlumni(staff, { id: userId, alumniId }), /Only an administrator/);
+it("retired manual Alumni create/link APIs deny every management role and preserve existing ownership", async () => {
+  for (const roles of [["staff"], ["admin"], ["super_admin"], ["legacy_manager"]]) {
+    const f = modelFixture({
+      User: [{ id: userId, alumniId, firstName: "Existing", lastName: "Owner" }],
+      Alumni: [{ ...alumni, id: alumniId }],
+    });
+    const before = structuredClone(f.tables);
+    const c = context(f.db, roles);
+    await assert.rejects(
+      () => linkAlumni(c, { id: userId, alumniId: otherId }),
+      /Manual Alumni linking/,
+    );
+    await assert.rejects(
+      () =>
+        alumniService.create(c, {
+          studentNumber: "NEW",
+          firstName: "New",
+          lastName: "Record",
+          gender: "Female",
+          programId,
+        }),
+      /must self-register/,
+    );
+    assert.equal(f.operations.length, 0);
+    assert.deepEqual(f.tables, before);
+  }
+});
+it("retired linking still requires both permissions and completed security gates", async () => {
   const admin = context({}, ["super_admin"]);
   admin.user!.permissions = ["users.write"];
   await assert.rejects(() => linkAlumni(admin, { id: userId, alumniId }), /alumni.write/);
@@ -173,49 +198,6 @@ it("explicit linking requires Administrator role, both permissions and completed
   admin.user!.needsProfileCompletion = false;
   admin.user!.mfaVerified = false;
   await assert.rejects(() => linkAlumni(admin, { id: userId, alumniId }), /authenticator/);
-});
-it("linking rejects duplicate ownership and preserves the existing link", async () => {
-  let writes = 0;
-  const db = {
-    User: {
-      findOne: () => query({ _id: userId, status: "active", firstName: "User", lastName: "Name" }),
-      exists: async () => ({ _id: otherId }),
-      updateOne: async () => {
-        writes++;
-      },
-    },
-    Alumni: { findOne: () => query(alumni) },
-    transaction: async (work: (tx: Database) => Promise<unknown>) =>
-      work(db as unknown as Database),
-  };
-  await assert.rejects(
-    () => linkAlumni(context(db, ["super_admin"]), { id: userId, alumniId }),
-    /already linked/,
-  );
-  assert.equal(writes, 0);
-});
-it("linking synchronizes reviewed account names and records an audit transaction", async () => {
-  const db = linkedDb();
-  const changes: Array<unknown> = [];
-  Object.assign(db.User, {
-    exists: async () => null,
-    updateOne: async (_f: unknown, u: unknown) => changes.push(u),
-  });
-  Object.assign(db.Alumni, { updateOne: async (_f: unknown, u: unknown) => changes.push(u) });
-  const audits: Array<unknown> = [];
-  Object.assign(db, {
-    AuditLog: { create: async (row: unknown) => audits.push(row) },
-    transaction: async (work: (tx: Database) => Promise<unknown>) =>
-      work(db as unknown as Database),
-  });
-  assert.deepEqual(await linkAlumni(context(db, ["super_admin"]), { id: userId, alumniId }), {
-    ok: true,
-  });
-  assert.deepEqual(changes[0], { $set: { alumniId, name: "User Middle Names Jr." } });
-  assert.deepEqual(changes[1], {
-    $set: { firstName: "User", middleName: "Middle", lastName: "Names", suffix: "Jr." },
-  });
-  assert.equal(audits.length, 1);
 });
 it("Alumni management only updates academic fields and rejects identity/contact writes", async () => {
   const f = modelFixture({

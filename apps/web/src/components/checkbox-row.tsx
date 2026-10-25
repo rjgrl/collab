@@ -11,8 +11,12 @@ export function CheckboxRow({
   children: ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-2 text-sm">
-      <Checkbox checked={checked} onCheckedChange={(value) => onCheckedChange(value === true)} className="mt-0.5" />
+    <label className="flex cursor-pointer min-h-11 items-start gap-3 py-2 text-sm">
+      <Checkbox
+        checked={checked}
+        onCheckedChange={(value) => onCheckedChange(value === true)}
+        className="mt-0.5"
+      />
       <span>{children}</span>
     </label>
   );

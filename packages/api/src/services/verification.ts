@@ -1,7 +1,7 @@
 import { toEntity } from "@Alumni-Tracking-Ss/db";
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { ApiError } from "../http-error";
-import { hashPassword } from "@Alumni-Tracking-Ss/db";
+import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context, IntegrationEnv } from "../context";
 import { sendEmail } from "../integrations/email";
 import { checkPhoneCode, sendPhoneCode, smsConfigured } from "../integrations/sms";
@@ -12,6 +12,8 @@ import { assertPasswordSafe } from "./password-security";
 import { rotateSession } from "./session-rotation";
 import { contactVerificationPolicy } from "./contact-policy";
 import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { requireAccess } from "../access";
+import { consumeAuthAttempt } from "./throttle";
 
 export type VerificationKind = "email" | "phone";
 const VALID_MS = 10 * 60_000;
@@ -62,9 +64,20 @@ export async function verificationStatus(context: Context) {
     context.integrationEnv.verificationSecret.length >= 32,
   );
   const academicNeeded = isAlumniAccount(context.user!) && !user.alumniId;
+  const pending = await context.db.VerificationChallenge.findOne({
+    userId: user.id,
+    kind: "email",
+    target: { $ne: user.email },
+    consumedAt: null,
+    expiresAt: { $gt: new Date() },
+    attempts: { $lt: MAX_ATTEMPTS },
+  })
+    .lean()
+    .exec();
   return {
     email: user.email,
     emailVerified: Boolean(user.emailVerified),
+    pendingEmail: pending?.target ?? null,
     phoneVerified: Boolean(user.phoneVerified),
     phoneNumber: user.phoneNumber ?? "",
     gender: user.gender ?? "",
@@ -89,7 +102,7 @@ export async function verificationStatus(context: Context) {
 }
 
 export async function startVerification(context: Context, kind: VerificationKind) {
-  const { db, integrationEnv: env } = context;
+  const { db } = context;
   const user = await db.User.findOne({ _id: context.user!.id })
     .lean()
     .orFail(() => new ApiError("UNAUTHORIZED"))
@@ -105,6 +118,12 @@ export async function startVerification(context: Context, kind: VerificationKind
     throw new ApiError("BAD_REQUEST", {
       message: "Save a phone number with its country code first.",
     });
+  return issueVerification(context, kind, target);
+}
+
+async function issueVerification(context: Context, kind: VerificationKind, target: string) {
+  const { db, integrationEnv: env } = context;
+  const user = context.user!;
   const nonce = randomBytes(32).toString("hex");
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const digest = codeDigest(env, nonce, code);
@@ -202,7 +221,7 @@ export async function startVerification(context: Context, kind: VerificationKind
   return { ok: true, expiresInSeconds: 600, resendAfterSeconds: 60 };
 }
 
-export async function confirmVerification(context: Context, kind: VerificationKind, code: string) {
+async function verifyChallenge(context: Context, kind: VerificationKind, code: string) {
   const { db, integrationEnv: env } = context;
   const challenge = await db.VerificationChallenge.findOne({ userId: context.user!.id, kind })
     .lean()
@@ -240,19 +259,29 @@ export async function confirmVerification(context: Context, kind: VerificationKi
           (await checkPhoneCode(env, challenge.providerSid, challenge.target, code)),
         );
   if (!valid) throw new ApiError("BAD_REQUEST", { message: "The verification code is incorrect." });
+  return challenge;
+}
+
+async function consumeChallenge(db: Context["db"], challenge: { id: string; nonce: string }) {
+  const consumed = await db.VerificationChallenge.updateOne(
+    {
+      _id: challenge.id,
+      nonce: challenge.nonce,
+      consumedAt: null,
+      expiresAt: { $gt: new Date() },
+      attempts: { $lte: MAX_ATTEMPTS },
+    },
+    { $set: { consumedAt: new Date(), codeHash: null } },
+  ).exec();
+  if (consumed.modifiedCount !== 1)
+    throw new ApiError("CONFLICT", { message: "This verification code has already been used." });
+}
+
+export async function confirmVerification(context: Context, kind: VerificationKind, code: string) {
+  const { db } = context;
+  const challenge = await verifyChallenge(context, kind, code);
   return authorizationTransaction(db, async (tx) => {
-    const consumed = await tx.VerificationChallenge.updateOne(
-      {
-        _id: challenge.id,
-        nonce: challenge.nonce,
-        consumedAt: null,
-        expiresAt: { $gt: new Date() },
-        attempts: { $lte: MAX_ATTEMPTS },
-      },
-      { $set: { consumedAt: new Date(), codeHash: null } },
-    ).exec();
-    if (consumed.modifiedCount !== 1)
-      throw new ApiError("CONFLICT", { message: "This verification code has already been used." });
+    await consumeChallenge(tx, challenge);
     const updated = await tx.User.updateOne(
       {
         _id: context.user!.id,
@@ -274,6 +303,90 @@ export async function confirmVerification(context: Context, kind: VerificationKi
     });
     return { ok: true };
   });
+}
+
+async function currentEmailOwner(context: Context, password: string) {
+  const actor = requireAccess(context);
+  await consumeAuthAttempt(context.db, "email-change-password", actor.id, 10);
+  const user = await context.db.User.findById(actor.id).lean().exec();
+  if (!user?.passwordHash || !(await verifyPassword(password, user.passwordHash)))
+    throw new ApiError("FORBIDDEN", { message: "Current password is incorrect." });
+  return user;
+}
+
+export async function requestEmailChange(context: Context, email: string, currentPassword: string) {
+  const user = await currentEmailOwner(context, currentPassword);
+  const target = email.trim().toLowerCase();
+  if (target === user.email)
+    throw new ApiError("BAD_REQUEST", { message: "Choose a different email address." });
+  if (await context.db.User.exists({ email: target }))
+    throw new ApiError("CONFLICT", { message: "This email address is already in use." });
+  const result = await issueVerification(context, "email", target);
+  await writeAudit(context.db, {
+    actor: context.user,
+    action: "auth.email.change_requested",
+    entity: "user",
+    entityId: context.user!.id,
+    summary: `Requested confirmation for new email ${JSON.stringify(target)}`,
+    ipAddress: context.ipAddress,
+  });
+  return result;
+}
+
+export async function confirmEmailChange(
+  context: Context,
+  email: string,
+  currentPassword: string,
+  code: string,
+) {
+  const user = await currentEmailOwner(context, currentPassword);
+  const target = email.trim().toLowerCase();
+  const challenge = await verifyChallenge(context, "email", code);
+  if (challenge.target !== target || target === user.email)
+    throw new ApiError("BAD_REQUEST", {
+      message: "The pending email changed. Request another code.",
+    });
+  // Advance the existing reset-token version, including requests still sending to the old mailbox.
+  const passwordHash = await hashPassword(currentPassword);
+  const rotated = await authorizationTransaction(context.db, async (tx) => {
+    await consumeChallenge(tx, challenge);
+    const changed = await tx.User.updateOne(
+      {
+        _id: context.user!.id,
+        status: "active",
+        email: user.email,
+        passwordHash: user.passwordHash,
+      },
+      { $set: { email: target, emailVerified: true, passwordHash } },
+    ).exec();
+    if (changed.modifiedCount !== 1)
+      throw new ApiError("CONFLICT", {
+        message: "Account changed. Sign in again before changing your email.",
+      });
+    if (user.alumniId)
+      await tx.Alumni.updateOne(
+        { _id: user.alumniId, deletedAt: null },
+        { $set: { personalEmail: target } },
+      ).exec();
+    await tx.PasswordReset.deleteMany({ userId: context.user!.id }).exec();
+    const session = await rotateSession(tx, context, undefined, true);
+    await writeAudit(tx, {
+      actor: context.user,
+      action: "auth.email.changed",
+      entity: "user",
+      entityId: context.user!.id,
+      summary: `Changed email from ${JSON.stringify(user.email)} to ${JSON.stringify(target)} after confirmation; revoked other sessions`,
+      ipAddress: context.ipAddress,
+    });
+    return session;
+  });
+  context.onSessionRotation?.(rotated);
+  return {
+    ok: true,
+    ...(context.onSessionRotation
+      ? {}
+      : { sessionToken: rotated.token, expiresAt: rotated.expiresAt.toISOString() }),
+  };
 }
 
 export async function createGooglePassword(context: Context, password: string) {

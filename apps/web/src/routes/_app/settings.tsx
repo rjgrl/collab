@@ -14,7 +14,7 @@ function SettingsLayout() {
     { to: "/settings/integrations", label: "Integrations", permission: "integrations.read" },
   ] as const;
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-6">
       <nav aria-label="Settings" className="flex flex-wrap gap-2 border-b pb-3">
         {sections
           .filter(
@@ -29,7 +29,7 @@ function SettingsLayout() {
               to={item.to}
               activeOptions={{ exact: true }}
               aria-current={pathname.replace(/\/$/, "") === item.to ? "page" : undefined}
-              className="rounded-md px-3 py-2 text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:bg-muted aria-[current=page]:font-medium"
+              className="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:bg-muted aria-[current=page]:font-medium"
             >
               {item.label}
             </Link>

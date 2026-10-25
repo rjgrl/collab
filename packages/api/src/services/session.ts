@@ -39,6 +39,11 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
   const assigned = await loadUserRoles(db, userId);
   const roles = assigned.map((role) => role.key);
   const alumniAccount = isAlumniAccount({ roles });
+  const alumniPhoto =
+    !user.image && user.alumniId
+      ? await db.Alumni.findOne({ _id: user.alumniId, deletedAt: null }).select("photoUrl").lean()
+      : null;
+  const image = user.image || alumniPhoto?.photoUrl || null;
   const permissions = [
     ...new Set(
       assigned.flatMap((role) => role.rolePermissions.map(({ permission }) => permission.key)),
@@ -54,7 +59,7 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
       suffix: user.suffix ?? undefined,
     }),
     email: user.email,
-    image: user.image ?? null,
+    image: image?.replace(/^\/api\/files\/([a-f\d]{24})$/i, "/api/me/files/$1?preview=1") ?? null,
     firstName: user.firstName ?? undefined,
     middleName: user.middleName ?? undefined,
     lastName: user.lastName ?? undefined,
@@ -274,7 +279,7 @@ export async function upsertGoogleUser(
     if (existing.status !== "active")
       throw new ApiError("FORBIDDEN", { message: "This account is disabled." });
     assertGoogleLinkAllowed(existing);
-    // Provider display names never overwrite account-confirmed structured or legacy names.
+    // Provider names and photos initialize new accounts; later sign-ins preserve account edits.
     const updated = await db.User.findOneAndUpdate(
       {
         _id: existing.id,
@@ -284,7 +289,6 @@ export async function upsertGoogleUser(
       },
       {
         $set: {
-          image: input.image ?? existing.image,
           emailVerified: true,
           verificationRequired: existing.verificationRequired || !existing.passwordHash,
           needsProfileCompletion: existing.needsProfileCompletion || !existing.passwordHash,

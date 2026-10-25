@@ -46,7 +46,14 @@ function RootComponent() {
         storageKey="vite-ui-theme"
       >
         <Outlet />
-        <Toaster richColors expand />
+        <Toaster
+          richColors
+          expand
+          closeButton
+          position="top-center"
+          offset={{ top: 80 }}
+          mobileOffset={{ top: 80 }}
+        />
       </ThemeProvider>
       {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-left" /> : null}
       {import.meta.env.DEV ? (

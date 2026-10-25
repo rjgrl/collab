@@ -9,7 +9,7 @@ const png = Buffer.from(
 test.beforeEach(async ({ request }) => {
   await request.post("http://127.0.0.1:3100/__test/reset");
 });
-test("new member accounts default to Alumni and appear alongside pending Alumni accounts", async ({
+test("managed members default to Staff while Alumni self-register and legacy records remain visible", async ({
   page,
   request,
 }, info) => {
@@ -20,35 +20,48 @@ test("new member accounts default to Alumni and appear alongside pending Alumni 
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await enrollAdministrator(page);
   await page.goto("/settings/users");
+  await expect(page.getByRole("button", { name: "Link alumni profile", exact: true })).toHaveCount(
+    0,
+  );
   await page.getByRole("button", { name: "Add user", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add user", exact: true });
-  await expect(dialog.getByRole("checkbox", { name: "Alumni", exact: true })).toBeChecked();
-  await expect(dialog.getByText("Viewer", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("checkbox", { name: "Staff", exact: true })).toBeChecked();
+  await expect(dialog.getByRole("checkbox", { name: "Super Admin", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("checkbox")).toHaveCount(2);
+  for (const name of ["Alumni", "Viewer"])
+    await expect(dialog.getByRole("checkbox", { name, exact: true })).toHaveCount(0);
+  for (const name of [
+    "Phone number",
+    "Student number",
+    "Gender",
+    "Degree program",
+    "Facebook profile link",
+  ])
+    await expect(dialog.getByLabel(name, { exact: true })).toHaveCount(0);
   await dialog.getByRole("textbox", { name: "First name", exact: true }).fill("Managed");
-  await dialog.getByRole("textbox", { name: "Last name", exact: true }).fill("Graduate");
+  await dialog.getByRole("textbox", { name: "Last name", exact: true }).fill("Staff");
   await dialog.getByRole("textbox", { name: "Email", exact: true }).fill("managed@example.test");
-  await dialog.locator("#password").fill("Synthetic managed alumni passphrase 123!");
-  await dialog.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234569");
-  await dialog.getByRole("combobox", { name: "Gender", exact: true }).selectOption("Male");
-  await dialog.getByRole("textbox", { name: "Student number", exact: true }).fill("MANAGED-001");
-  await dialog
-    .getByRole("combobox", { name: "Degree program", exact: true })
-    .selectOption("000000000000000000000302");
+  await dialog.locator("#password").fill("Synthetic managed staff passphrase 123!");
   await dialog.getByRole("button", { name: "Create user", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const member = page.getByRole("row").filter({ hasText: "managed@example.test" });
-  await expect(member.getByRole("cell", { name: "Alumni", exact: true })).toBeVisible();
+  await expect(member.getByRole("cell", { name: "Test Staff", exact: true })).toBeVisible();
   await page.goto("/alumni");
-  const registered = page.getByRole("row").filter({ hasText: "MANAGED-001" });
-  await expect(registered.getByText("Registered account", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add alumni", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText(/Alumni self-register to create their account and profile/),
+  ).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "managed@example.test" })).toHaveCount(0);
   const pending = page.getByRole("row").filter({ hasText: "alumni@example.test" });
   await expect(pending.getByText("Awaiting profile completion", { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(registered).toBeVisible();
+  await page.goto("/alumni/new");
+  await expect(page).toHaveURL(/\/alumni$/);
+  await expect(page.getByRole("dialog", { name: "Add alumni", exact: true })).toHaveCount(0);
   await expect(pending).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: info.outputPath("alumni-accounts.png"), fullPage: true });
 });
+
 test("legacy Alumni accounts complete missing academic details before entering the application", async ({
   page,
   request,
@@ -139,31 +152,53 @@ test("local Alumni registration persists academic identity, employment and owned
   const fileResponse = await page.request.get((await preview.getAttribute("href"))!);
   expect(fileResponse.status()).toBe(200);
   expect(fileResponse.headers()["content-disposition"]).toContain("inline");
-  await page.getByLabel("File purpose").selectOption("image");
-  await page
-    .getByLabel("Choose profile photo")
+  await expect(page.getByLabel("File purpose")).toHaveCount(0);
+  await expect(page.getByLabel("Choose profile photo")).toHaveCount(0);
+  await page.goto("/settings");
+  const personal = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByRole("heading", { name: "Personal details", exact: true }) });
+  const photo = personal.getByRole("region", { name: "Profile photo", exact: true });
+  await expect(photo).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Preview Employment proof.png", exact: true }),
+  ).toHaveCount(0);
+  await photo
+    .getByLabel("Profile photo", { exact: true })
     .setInputFiles({ name: "Profile photo.png", mimeType: "image/png", buffer: png });
   const uploadResponse = page.waitForResponse(
-    (r) => r.url().endsWith("/api/me/files") && r.request().method() === "POST",
+    (r) => r.url().endsWith("/api/me/photo") && r.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Upload file", exact: true }).click();
+  await page.getByRole("button", { name: "Upload photo", exact: true }).click();
   expect((await uploadResponse).status()).toBe(201);
-  await expect(page.getByAltText("Alumni profile", { exact: true })).toBeVisible();
+  await expect(photo.getByRole("img", { name: /profile photo$/ })).toBeVisible();
   await expect
     .poll(() =>
-      page
-        .getByAltText("Alumni profile", { exact: true })
+      photo
+        .getByRole("img", { name: /profile photo$/ })
         .evaluate((image: HTMLImageElement) => image.naturalWidth),
     )
     .toBeGreaterThan(0);
   await page.mouse.move(0, 0);
   // Audit a stable frame after the transient success toast has finished fading.
-  await expect(page.getByText("File uploaded", { exact: true })).toHaveCount(0, { timeout: 10000 });
+  await expect(page.getByText("Profile photo updated", { exact: true })).toHaveCount(0, {
+    timeout: 10000,
+  });
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath("account-profile-photo.png"), fullPage: true });
+  await page.reload();
+  await expect(photo.getByRole("img", { name: /profile photo$/ })).toBeVisible();
+  await page.goto("/my-profile");
+  await expect(page.getByRole("img", { name: /profile photo$/ })).toHaveCount(1);
+  await expect(page.locator("header img")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Preview Profile photo.png", exact: true }),
+  ).toHaveCount(0);
+  await expect(preview).toBeVisible();
   await page.screenshot({ path: info.outputPath("my-profile-complete.png"), fullPage: true });
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Remove Employment proof.png", exact: true }).click();

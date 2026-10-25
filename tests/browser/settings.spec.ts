@@ -116,29 +116,12 @@ test("creation dialogs contain forms, trap focus and return focus to the add but
     ["/settings/users", "Add user", "First name"],
     ["/departments", "Add department", "Name"],
     ["/programs", "Add program", "Code"],
-    ["/alumni", "Add alumni", "Student number"],
   ] as const) {
     await page.goto(path);
     const add = page.getByRole("button", { name: title, exact: true });
     await add.click();
     const dialog = page.getByRole("dialog", { name: title, exact: true });
     await expect(dialog.getByRole("textbox", { name: field, exact: true })).toBeVisible();
-    if (title === "Add alumni") {
-      const gender = dialog.getByRole("combobox", { name: "Gender", exact: true });
-      await expect(gender).toHaveAttribute("required", "");
-      await expect(gender.locator("option")).toHaveText(["Select gender", "Male", "Female"]);
-      expect(
-        await gender.evaluate((element) => (element as HTMLSelectElement).checkValidity()),
-      ).toBe(false);
-      await gender.selectOption("Female");
-      expect(
-        await gender.evaluate((element) => (element as HTMLSelectElement).checkValidity()),
-      ).toBe(true);
-      await expect(dialog.getByRole("textbox", { name: "Batch", exact: true })).toHaveCount(0);
-      await expect(
-        dialog.getByRole("textbox", { name: "Facebook profile link", exact: true }),
-      ).toHaveAttribute("type", "url");
-    }
     expect(
       (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
     ).toEqual([]);

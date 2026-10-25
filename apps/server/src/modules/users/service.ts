@@ -1,5 +1,9 @@
-import type { UserInput } from "@Alumni-Tracking-Ss/contracts/users";
-import { formatDisplayName, isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { usersSchemas, type UserInput } from "@Alumni-Tracking-Ss/contracts/users";
+import {
+  formatDisplayName,
+  isAdministrator,
+  isAlumniAccount,
+} from "@Alumni-Tracking-Ss/contracts/names";
 import { hashPassword, toEntity } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/access";
@@ -14,7 +18,6 @@ import {
 } from "@Alumni-Tracking-Ss/api/services/authorization";
 import { updateAccountNames } from "@Alumni-Tracking-Ss/api/services/account-names";
 import { assertPasswordSafe } from "@Alumni-Tracking-Ss/api/services/password-security";
-import { createRegistrationProfile } from "@Alumni-Tracking-Ss/api/services/registration";
 
 export const usersService = {
   async list(context: Context, input: UserInput<"list">) {
@@ -42,35 +45,31 @@ export const usersService = {
   async create(context: Context, input: UserInput<"create">) {
     rejectAlumniManagement(context);
     const actor = requireAccess(context, "users.write");
+    if (!isAdministrator(actor))
+      throw new ApiError("FORBIDDEN", {
+        message: "Only administrators can create managed accounts.",
+      });
+    input = usersSchemas.create.input.parse(input);
     await assertPasswordSafe(input.password);
     const passwordHash = await hashPassword(input.password);
     return authorizationTransaction(context.db, async (tx) => {
       let roleIds = input.roleIds;
       if (!roleIds) {
-        const role = await tx.Role.findOne({ key: "viewer" }).lean();
+        const role = await tx.Role.findOne({ key: "staff" }).lean();
         if (!role)
           throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
         roleIds = [String(role._id)];
       }
       const roles = await validateRoleIds(tx, actor, roleIds);
-      const alumniAccount = isAlumniAccount({ roles: roles.map((role) => role.key) });
-      if (alumniAccount && !input.alumniProfile)
+      if (roles.some((role) => role.key !== "staff" && role.key !== "super_admin"))
         throw new ApiError("BAD_REQUEST", {
           message:
-            "An Alumni profile with student number, degree program and contact details is required.",
-        });
-      if (alumniAccount) requireAccess(context, "alumni.write");
-      if (!alumniAccount && input.alumniProfile)
-        throw new ApiError("BAD_REQUEST", {
-          message: "Alumni profile details apply only to Alumni accounts.",
+            "Managed accounts may only have Staff or Super Admin roles. Alumni must self-register.",
         });
       const email = input.email.toLowerCase();
       if (await tx.User.findOne({ email }).lean().exec())
         throw new ApiError("CONFLICT", { message: "Email is already in use." });
       const { firstName, middleName, lastName, suffix } = input;
-      const alumni = input.alumniProfile
-        ? await createRegistrationProfile(tx, { ...input, ...input.alumniProfile, email })
-        : null;
       const row = await tx.User.create({
         firstName,
         middleName,
@@ -79,16 +78,9 @@ export const usersService = {
         name: formatDisplayName(input),
         email,
         passwordHash,
-        ...(input.alumniProfile
-          ? {
-              phoneNumber: input.alumniProfile.phoneNumber,
-              gender: input.alumniProfile.gender,
-              facebookAccount: input.alumniProfile.facebookAccount,
-            }
-          : {}),
-        alumniId: alumni ? toEntity(alumni.toObject()).id : null,
+        alumniId: null,
         verificationRequired: true,
-        needsProfileCompletion: !alumni,
+        needsProfileCompletion: true,
       });
       const user = toEntity(row.toObject());
       await tx.UserRole.insertMany(
@@ -100,7 +92,7 @@ export const usersService = {
         action: "users.create",
         entity: "user",
         entityId: user.id,
-        summary: `Created account ${JSON.stringify(user.name)} (${user.email}) with roles ${roles.map((role) => role.name).join(", ")}${alumni ? `; linked Alumni profile ${input.alumniProfile!.studentNumber}` : ""}`,
+        summary: `Created account ${JSON.stringify(user.name)} (${user.email}) with roles ${roles.map((role) => role.name).join(", ")}`,
         ipAddress: context.ipAddress,
       });
       return publicUser(tx, user.id);
@@ -122,7 +114,19 @@ export const usersService = {
           throw new ApiError("FORBIDDEN", {
             message: "Super administrator role assignments are protected.",
           });
-        await validateRoleIds(tx, actor, input.roleIds);
+        const nextRoles = await validateRoleIds(tx, actor, input.roleIds);
+        const currentKeys = roles.map((role) => role.key);
+        const nextKeys = nextRoles.map((role) => role.key);
+        if (
+          nextKeys.some(
+            (key) => (key === "viewer" || key === "alumni") && !currentKeys.includes(key),
+          ) ||
+          (!isAlumniAccount({ roles: currentKeys }) && isAlumniAccount({ roles: nextKeys }))
+        )
+          throw new ApiError("BAD_REQUEST", {
+            message:
+              "Alumni accounts must self-register; managed accounts cannot be converted to Alumni.",
+          });
       }
       const { firstName, middleName, lastName, suffix } = input;
       const names = Object.fromEntries(

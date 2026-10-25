@@ -27,6 +27,7 @@ import { queryClient } from "@/utils/api";
 import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { LocalVerificationNotice } from "./local-verification-notice";
 import { NotificationsBell } from "./notifications-bell";
+import { AccountAvatar } from "./account-avatar";
 
 const NAV = [
   { to: "/my-profile", label: "My Profile", permission: null, icon: UserRound },
@@ -42,8 +43,8 @@ const NAV = [
 
 function navClass(active: boolean) {
   return cn(
-    "flex items-center gap-2 px-2 py-2 text-sm hover:bg-sidebar-accent",
-    active && "bg-sidebar-accent font-medium",
+    "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent",
+    active && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold",
   );
 }
 
@@ -82,7 +83,13 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-svh bg-background">
-      <aside className="hidden w-56 shrink-0 border-r bg-sidebar text-sidebar-foreground md:flex md:flex-col">
+      <a
+        href="#main-content"
+        className="sr-only fixed top-2 left-2 z-50 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only"
+      >
+        Skip to main content
+      </a>
+      <aside className="hidden w-56 shrink-0 bg-sidebar text-sidebar-foreground md:flex md:flex-col">
         <div className="flex items-center gap-3 px-4 py-5">
           <GraduationCap className="size-7" aria-hidden="true" />
           <div>
@@ -90,7 +97,7 @@ export function AppShell() {
             <p className="mt-0.5 text-xs text-muted-foreground">University registry</p>
           </div>
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 p-2" aria-label="Main">
+        <nav className="flex flex-1 flex-col gap-1 px-3 py-2" aria-label="Main">
           {items.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
@@ -108,8 +115,12 @@ export function AppShell() {
           })}
         </nav>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-2 border-b px-3 md:px-4">
+      <div className="flex min-w-0 flex-1 flex-col bg-card md:my-3 md:mr-3 md:rounded-xl md:border md:border-border">
+        <header className="flex min-h-16 items-center gap-2 border-b px-3 md:px-6">
+          <p className="hidden text-sm font-medium text-muted-foreground md:block">
+            {items.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))
+              ?.label ?? "Alumni Tracking"}
+          </p>
           <div className="flex min-w-0 items-center gap-2 md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
@@ -131,7 +142,7 @@ export function AppShell() {
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-            <span className="truncate text-sm font-medium">Alumni Tracking</span>
+            <GraduationCap className="size-5 shrink-0 text-primary" aria-hidden="true" />
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <ModeToggle />
@@ -140,7 +151,14 @@ export function AppShell() {
               <DropdownMenuTrigger
                 render={<Button variant="outline" className="h-auto min-h-10 py-1" size="sm" />}
               >
-                <span className="flex min-w-0 max-w-[8.5rem] flex-col items-start sm:max-w-[14rem]">
+                <span aria-hidden="true">
+                  <AccountAvatar
+                    image={session.data?.image}
+                    name={session.data?.name ?? "Account"}
+                    className="size-8"
+                  />
+                </span>
+                <span className="flex min-w-0 max-w-[5rem] flex-col items-start sm:max-w-[14rem]">
                   <span className="w-full truncate">{session.data?.name ?? "Account"}</span>
                   <span
                     className="text-xs font-normal text-muted-foreground"
@@ -162,7 +180,11 @@ export function AppShell() {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex min-w-0 flex-1 flex-col gap-4 p-4 outline-none md:p-6 lg:p-8"
+        >
           <LocalVerificationNotice />
           <Outlet />
         </main>

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/utils/api";
+import { StatusBadge } from "@/components/status-badge";
 
 const INTEGRATION_NAMES: Record<string, string> = {
   recaptcha: "reCAPTCHA",
@@ -72,15 +73,20 @@ export function IntegrationsPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {list.isPending ? <p role="status">Loading integrations...</p> : null}
         {list.isError ? (
-          <p role="alert">Unable to load integrations. Reload to try again.</p>
+          <p role="alert" className="rounded-lg border p-4 text-sm md:col-span-2">
+            Unable to load integrations. Reload to try again.
+          </p>
         ) : null}
         {list.data?.map((item) => (
           <Card key={item.key}>
             <CardHeader>
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <CardTitle>
                   {INTEGRATION_NAMES[item.key] ?? item.key.replaceAll("_", " ")}
                 </CardTitle>
+                <StatusBadge tone={item.enabled ? "active" : "disabled"}>
+                  {item.enabled ? "Enabled" : "Disabled"}
+                </StatusBadge>
               </div>
               <CardDescription>{item.summary}</CardDescription>
             </CardHeader>
@@ -110,8 +116,9 @@ export function IntegrationsPage() {
                 Facebook profile URLs.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
+            <CardContent className="flex flex-col items-start gap-4">
               <Textarea
+                className="font-mono text-xs"
                 rows={8}
                 value={csv}
                 onChange={(event) => setCsv(event.target.value)}
@@ -144,7 +151,7 @@ export function IntegrationsPage() {
             <CardHeader>
               <CardTitle>Test email</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3 sm:flex-row">
+            <CardContent className="flex flex-col gap-4 sm:flex-row">
               <FormField id="testEmail" label="Recipient">
                 <Input
                   id="testEmail"

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { client, queryClient } from "@/utils/api";
 import { FormCard, FormField, PrimaryButton } from "./page-header";
 import { CheckboxRow } from "./checkbox-row";
+import { BriefcaseBusiness } from "lucide-react";
 
 type Employment = z.infer<typeof employmentOutputSchema>;
 const emptyJob = {
@@ -87,20 +88,29 @@ export function EmploymentPanel({
       title="Employment"
       description="Keep your job history current. Employment is self-reported; tracking is a separate staff decision."
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {jobs.length} {jobs.length === 1 ? "job" : "jobs"} recorded
         </p>
         {canWrite ? (
-          <Button variant="outline" size="sm" onClick={() => edit(null)}>
+          <Button size="sm" onClick={() => edit(null)}>
             Add employment
           </Button>
         ) : null}
       </div>
       {jobs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No employment recorded. Add your current job or previous experience.
-        </p>
+        <div className="flex items-start gap-3 rounded-lg border border-dashed bg-muted/20 p-5">
+          <BriefcaseBusiness
+            aria-hidden="true"
+            className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+          />
+          <div>
+            <p className="text-sm font-medium">No employment recorded</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add your current job or previous experience.
+            </p>
+          </div>
+        </div>
       ) : (
         <ul className="divide-y">
           {jobs.map((job) => (

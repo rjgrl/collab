@@ -17,6 +17,8 @@ import { NameFields, nameDraft, type NameDraft } from "@/components/name-fields"
 import { AccountProfileFields, type AccountProfile } from "@/components/account-profile-fields";
 import { updateProfileSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import { api, client, queryClient } from "@/utils/api";
+import { AccountPhotoControls } from "@/components/account-photo-controls";
+import { EmailChange } from "@/components/email-change";
 
 export const Route = createFileRoute("/_app/settings/")({ component: AccountSettings });
 
@@ -59,9 +61,15 @@ function AccountSettings() {
   });
   return (
     <PageShell>
-      <PageHeader title="Account settings" description="Manage your account and password." />
+      <PageHeader
+        title="Account settings"
+        description="Manage your personal details and account security."
+      />
       {session.data?.mfaRequired || session.data?.mfaEnrolled ? (
-        <Link className="underline" to="/security">
+        <Link
+          className="w-fit rounded-lg border px-4 py-3 text-sm font-medium underline-offset-4 hover:bg-muted hover:underline"
+          to="/security"
+        >
           Manage authenticator and recovery codes
         </Link>
       ) : (
@@ -69,49 +77,65 @@ function AccountSettings() {
           Authenticator verification is optional for this account.
         </p>
       )}
-      <div className="grid items-start gap-4 md:grid-cols-2">
-        <FormCard title="Personal details" description={session.data?.email}>
-          <form
-            className="grid gap-3 sm:grid-cols-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              profile.mutate();
-            }}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+        <div className="flex min-w-0 flex-col gap-6">
+          <FormCard
+            title="Personal details"
+            description={
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="break-all">{session.data?.email}</span>
+                <EmailVerification />
+                <EmailChange />
+              </div>
+            }
           >
-            {!session.data?.firstName || !session.data.lastName ? (
-              <p className="text-sm text-muted-foreground">
-                Current display name: {session.data?.name}. Confirm the separate name fields below
-                when you are ready.
-              </p>
-            ) : null}
-            <NameFields
-              value={names ?? nameDraft(session.data)}
-              onChange={setNames}
-              prefix="account"
-            />
-            <AccountProfileFields value={currentContact} onChange={setContact} />
-            <p className="text-sm text-muted-foreground sm:col-span-2">
-              Changing your phone number clears its verification. Confirm the new number when
-              required.
-            </p>
-            {verification.isError ? <p role="alert">{verification.error.message}</p> : null}
-            {profile.isError ? <p role="alert">{profile.error.message}</p> : null}
-            <PrimaryButton
-              type="submit"
-              pending={profile.isPending}
-              disabled={!verification.data || (names === null && contact === null)}
+            <section aria-label="Profile photo" className="mb-5 border-b pb-5">
+              <AccountPhotoControls
+                image={session.data?.image}
+                name={session.data?.name ?? "Account"}
+              />
+            </section>
+            <form
+              className="grid gap-4 sm:grid-cols-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                profile.mutate();
+              }}
             >
-              Save personal details
-            </PrimaryButton>
-          </form>
-          <EmailVerification />
-        </FormCard>
+              {!session.data?.firstName || !session.data.lastName ? (
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  Current display name: {session.data?.name}. Confirm the separate name fields below
+                  when you are ready.
+                </p>
+              ) : null}
+              <NameFields
+                value={names ?? nameDraft(session.data)}
+                onChange={setNames}
+                prefix="account"
+              />
+              <AccountProfileFields value={currentContact} onChange={setContact} />
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                Changing your phone number clears its verification. Confirm the new number when
+                required.
+              </p>
+              {verification.isError ? <p role="alert">{verification.error.message}</p> : null}
+              {profile.isError ? <p role="alert">{profile.error.message}</p> : null}
+              <PrimaryButton
+                type="submit"
+                pending={profile.isPending}
+                disabled={!verification.data || (names === null && contact === null)}
+              >
+                Save personal details
+              </PrimaryButton>
+            </form>
+          </FormCard>
+        </div>
         <FormCard
           title="Password"
           description="Enter your current password. A successful change signs out your other sessions."
         >
           <form
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               changePassword.mutate();

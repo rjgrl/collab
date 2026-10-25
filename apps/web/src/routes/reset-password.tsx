@@ -1,7 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
-import { FormCard, FormField, PrimaryButton } from "@/components/page-header";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from "@Alumni-Tracking-Ss/ui/components/card";
+import { FormField, PrimaryButton } from "@/components/page-header";
 import { PasswordGuidance } from "@/components/password-guidance";
 import { client, queryClient } from "@/utils/api";
 
@@ -31,12 +38,22 @@ function ResetPassword() {
     return () => window.removeEventListener("hashchange", readToken);
   }, []);
   return (
-    <div className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <div className="w-full max-w-md">
-        <FormCard
-          title={token ? "Choose a new password" : "Reset your password"}
-          description="Reset links expire in 15 minutes and work once. Resetting a password signs out all sessions and keeps your authenticator enabled."
-        >
+    <main className="flex min-h-svh items-center justify-center bg-muted/40 px-4 py-8 sm:py-12">
+      <Card className="w-full max-w-md">
+        <CardHeader className="gap-2">
+          <p className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <GraduationCap className="size-5 shrink-0 text-primary" aria-hidden="true" />
+            Alumni Tracking System
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {token ? "Choose a new password" : "Reset your password"}
+          </h1>
+          <CardDescription>
+            Reset links expire in 15 minutes and work once. Resetting a password signs out all
+            sessions and keeps your authenticator enabled.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
           <form
             className="flex flex-col gap-4"
             onSubmit={(event) => {
@@ -65,7 +82,9 @@ function ResetPassword() {
             }}
           >
             {message ? (
-              <p role="status">{message}</p>
+              <p className="rounded-lg border bg-muted/50 px-3 py-3 text-sm" role="status">
+                {message}
+              </p>
             ) : token ? (
               <>
                 <FormField id="reset-password" label="New password" required>
@@ -115,13 +134,23 @@ function ResetPassword() {
                 </PrimaryButton>
               </>
             )}
-            {error ? <p role="alert">{error}</p> : null}
-            <Link className="underline" to="/login">
+            {error ? (
+              <p
+                className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+            <Link
+              className="self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
+              to="/login"
+            >
               Back to sign in
             </Link>
           </form>
-        </FormCard>
-      </div>
-    </div>
+        </CardContent>
+      </Card>
+    </main>
   );
 }
