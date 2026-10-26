@@ -87,3 +87,29 @@ playwright-report/
 
 # Local visual inspection state
 .taste-skill/
+
+# Local agent tooling and generated repository analysis
+/.21st/
+/.codex/
+/graphify-out/
+/tasks/
+/GLOSSARY.md
+
+# Retain only setup, migration, deployment and security/recovery instructions.
+# Historical guides/reports stay local; they are not application dependencies.
+/docs/*
+!/docs/DEVELOPMENT_SETUP.md
+!/docs/WINDOWS_SETUP.md
+!/docs/TROUBLESHOOTING.md
+!/docs/deployment.md
+!/docs/system/
+/docs/system/*
+!/docs/system/installation.md
+!/docs/migrations/
+/docs/migrations/*
+!/docs/migrations/MONGOOSE_REST.md
+!/docs/operations/
+/docs/operations/*
+!/docs/operations/ACCOUNT_SECURITY.md
+!/docs/operations/DISASTER_RECOVERY.md
+!/docs/operations/FORMS_WEBHOOK.md

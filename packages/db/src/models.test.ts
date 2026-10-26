@@ -8,7 +8,7 @@ import { toEntity } from "./serialization";
 describe("legacy MongoDB model compatibility", () => {
   it("matches every persisted field in the frozen legacy schema without changing scalar or ObjectId storage", async () => {
     const legacy = await readFile(
-      new URL("../../../docs/migrations/legacy-prisma-schema.prisma", import.meta.url),
+      new URL("./fixtures/legacy-prisma-schema.prisma", import.meta.url),
       "utf8",
     );
     const scalarTypes: Record<string, string> = {

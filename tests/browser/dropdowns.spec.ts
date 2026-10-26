@@ -49,6 +49,9 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
     await expect(gender).toBeFocused();
     await gender.press("ArrowDown");
     await expect(gender).toHaveAttribute("aria-expanded", "true");
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.getAttribute("role")))
+      .toBe("option");
     await page.keyboard.press("End");
     await page.keyboard.press("Enter");
     await expect(gender).toHaveText("Female");

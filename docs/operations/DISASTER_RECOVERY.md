@@ -2,7 +2,7 @@
 
 This is a bounded development rehearsal, not a production backup service. `pnpm test:recovery-local` generates new `collab_recovery_source_<random>` and `collab_recovery_target_<random>` databases on loopback 27018 / `rs0`; it accepts no caller-supplied database name. It refuses NODE_ENV=production, verifies the target has no collections and never uses `--drop`, an existing application database or private environment files.
 
-MongoDB Database Tools 100.19.1 were downloaded as a portable ZIP from the [official archive](https://www.mongodb.com/try/download/database-tools/releases/archive), into ignored `.tools/database-tools-100.19.1/`. No system PATH, service or administrator installation was changed. Observed ZIP SHA-256: `527738a0f9ab2d80ea40cb8fc7a68f8e28664a2fd4e3b63626c2d4629aeb7f37`. This is a recorded download digest, not independent vendor-signature verification. Successful local operation was observed with MongoDB 9.0.2; do not infer a vendor support promise for other version combinations.
+Install reviewed compatible MongoDB Database Tools from the [official archive](https://www.mongodb.com/try/download/database-tools/releases/archive). The PowerShell example below expects the portable 100.19.1 package under ignored `.tools/database-tools-100.19.1/`; adjust that path for your approved installation. Verify the download and compatibility with your MongoDB version before running it.
 
 Reproduce in PowerShell after dependency installation, environment type generation and a local build:
 
@@ -12,7 +12,7 @@ $env:MONGODB_TOOLS_DIR = (Get-ChildItem .tools/database-tools-100.19.1 -Recurse 
 pnpm test:recovery-local
 ```
 
-For another OS, install reviewed compatible Database Tools through its approved workflow and set MONGODB_TOOLS_DIR to its bin directory. This pass verified Windows only. Read the [official restore documentation](https://www.mongodb.com/docs/database-tools/mongorestore/) before adapting commands; an archive restore can report success with zero documents if namespace filtering is wrong.
+For another OS, install reviewed compatible Database Tools through its approved workflow and set MONGODB_TOOLS_DIR to its bin directory. Validate the chosen OS/tool combination independently. Read the [official restore documentation](https://www.mongodb.com/docs/database-tools/mongorestore/) before adapting commands; an archive restore can report success with zero documents if namespace filtering is wrong.
 
 The script:
 
@@ -24,11 +24,11 @@ The script:
 6. Confirms the target is still empty, decrypts in memory and runs `mongorestore --archive --gzip --nsInclude source.* --nsFrom source.* --nsTo target.* --stopOnError` against the loopback server. The URI deliberately contains no database filter; namespace mapping determines the new target.
 7. Restores files into new directories, compares every fixture document/index and runtime-file hash, resolves application relationships, downloads the evidence through the private-file reader, proves unique-index enforcement and checks restored Forms receipts suppress replay without changes.
 
-The output is an ignored, ACL-protected result.json with counts/timings/hashes and explicit limits. A sanitized snapshot is committed as documentation evidence, not as a backup. No database or rehearsal output was deleted during this phase.
+The output is an ignored, ACL-protected result.json with counts/timings/hashes and explicit limits. Keep this output private; it is rehearsal evidence, not a production backup.
 
 ## Recovery point and recovery time
 
-The 2026-10-23 completion run restored nine documents across 22 collections and 59 index definitions, plus 66 required files (5,234,465 bytes). Dump time was 74.26 ms; measured restore plus validation was 2,028.27 ms. The fixture starts tracked to match its initial tracking event; replay assertions remain intact. This is a tiny same-host fixture, not a production RTO commitment. Provisioning, incident detection, download, human approval, service launch and user acceptance are excluded.
+The script reports synthetic document/index/file counts and dump/restore validation timings. This tiny same-host fixture cannot establish a production RTO commitment. Provisioning, incident detection, download, human approval, service launch and user acceptance are excluded.
 
 The source is quiesced for the dump; no online multi-collection consistency or point-in-time/oplog guarantee is claimed. A deliberate post-backup alumni write is absent in the target, demonstrating the recovery-point boundary. Real RPO depends on backup schedule, successful verification, concurrent-write strategy and sender reconciliation. No accepted operational RPO/RTO targets exist yet.
 
@@ -38,4 +38,4 @@ The source is quiesced for the dump; no online multi-collection consistency or p
 - Store encrypted backups off-host/immutably and keys in a separately controlled recovery system. Two folders on one development host do not protect against host loss or a compromised local account.
 - Verify least-privilege database/service identities, restore-account permissions and another OS principal's denied access. The local server is an unauthenticated loopback development replica set; it does not demonstrate production database access control.
 - Establish consistent live backups, schedules, retention/deletion, freshness/failure monitoring, alerts, restore ownership, rehearsal frequency and documented RPO/RTO acceptance.
-- Restore evidence, databases, Forms receipts and application version together. Follow the account-security key/session compatibility runbook; never overwrite a real database or discard receipts/keys as a recovery shortcut.
+- Restore evidence, databases, Forms receipts and application version together. Follow [account security](ACCOUNT_SECURITY.md) for key/session compatibility; never overwrite a real database or discard receipts/keys as a recovery shortcut.

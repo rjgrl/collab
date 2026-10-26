@@ -2,7 +2,7 @@
 
 ## Team testing setup
 
-The [README](../../README.md) is the primary clone/pull guide. Install Git, the tested Node version, pnpm 12.5.1, MongoDB Community Server (`mongod`), and Compass. Then run:
+The [README](../../README.md) is the primary clone/pull guide. Install Git, the Node version in `.node-version`, pnpm 12.5.1 and MongoDB Community Server (`mongod`); Compass is optional. Then run:
 
 ```sh
 pnpm install --frozen-lockfile

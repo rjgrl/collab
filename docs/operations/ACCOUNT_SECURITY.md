@@ -2,8 +2,6 @@
 
 Local functionality testing uses `LOCAL_REQUIRE_EMAIL_VERIFICATION=false` and `LOCAL_REQUIRE_PHONE_VERIFICATION=false` in the private server environment. Both default to `true`; exemptions are accepted only with `NODE_ENV=development` or `test` and a named loopback MongoDB database on port 27018, replica set rs0. Restart the API and refresh after changes. Contacts remain unverified, and no verification codes are fabricated. Set both to `true` (or remove them) and restart to restore strict gates for verification-required accounts. For local testing, set `LOCAL_DISABLE_MFA=true`: Administrator enrollment/challenge is paused only in managed loopback development. Setup supplies this local default; set it false/remove it and restart to restore normal Admin MFA. Production rejects true. Existing factors/recovery codes are preserved and sessions are not falsely marked MFA-verified. Staff and Alumni never have mandatory MFA.
 
-Updated 2026-10-23. Local unit, real MongoDB and browser verification; no deployment or live messages were sent.
-
 ## Update a development machine
 
 Stop this checkout's development processes before installing dependencies, then run:
@@ -16,7 +14,7 @@ pnpm dev
 
 Setup preserves existing accounts/data and fills missing private `SESSION_SECRET` and `MFA_ENCRYPTION_KEY` values with independent random values. For a new empty local database it applies additive collections/indexes and seeds development access. Populated databases are verified without writes; reviewed changes require backup and explicit `--update-existing`. Do not run data-loss/reset flags. An existing nonempty invalid key is preserved for operator correction. Back up valuable data before schema changes.
 
-Mongoose models run directly without a generated client or native query engine. Index migration, transaction rollback and browser fixtures were verified in randomly named synthetic namespaces; the working application database was not modified. See the [migration runbook](../migrations/MONGOOSE_REST.md) and [verification report](../MIGRATION_VERIFICATION.md).
+Mongoose models run directly without a generated client or native query engine. Run migration, transaction and browser checks in isolated synthetic namespaces before approving a cutover. See the [migration runbook](../migrations/MONGOOSE_REST.md).
 
 ## Authenticator enrollment and recovery
 
@@ -62,7 +60,7 @@ Alumni/member list responses remain arrays and now accept `page` (default 1) and
 
 Every response has a server-generated request ID. Production or `HTTP_LOGGING=true` logs only request ID, method, status and duration; no URL/query, payload, cookies, email, OTP or authorization header is logged by that middleware. Readiness requires MongoDB to report a writable primary. Production also requires enabled/configured verification providers; SMS is currently unimplemented, so production readiness stays 503. This deliberate deployment blocker must be resolved before release. Shutdown drains HTTP requests before disconnecting Mongoose, with a ten-second forced-close deadline.
 
-The pinned, read-only GitHub Actions quality workflow covers synthetic tests/build/browser/advisory gates. It has not run remotely and does not certify Linux, DB durability or real providers. Live Forms sender retry behavior, backup/restore rehearsal, monitoring alerts, CSP/TLS/host controls, privacy decisions and production recovery remain release gates.
+The pinned, read-only GitHub Actions quality workflow covers tests/build/browser/advisory gates. Verify its results for the intended release; those checks do not certify database durability or real providers. Live Forms sender retry behavior, backup/restore rehearsal, monitoring alerts, CSP/TLS/host controls, privacy decisions and production recovery remain release gates.
 
 ## Reproduce security checks
 
@@ -84,6 +82,6 @@ pnpm check:production-build
 
 `LOCAL_REQUIRE_EMAIL_VERIFICATION` and `LOCAL_REQUIRE_PHONE_VERIFICATION` independently default to true. Local setup supplies false only for managed development/testing; a request body or browser setting cannot change policy. No flag updates `emailVerified`, `phoneVerified`, email/phone timestamps, password state, or academic completion. Strict mode rechecks stored unverified states on subsequent requests. Existing grandfathered accounts with `verificationRequired=false` retain their historical access; do not silently backfill live identities. New public registrations and newly Admin-created accounts require verification. Admin-created accounts also complete their contact/name form at first access.
 
-Google confirms email ownership only. New Google users must explicitly confirm structured names, student number and program to create their Alumni profile, then create a password using a recent Google proof. Local contact exemptions waive delivery gates, never the academic/name or password steps. Imported-profile claims need Admin identity review; matching email/name/student number cannot grant ownership. A conflicting student number rolls the entire signup transaction back.
+Google confirms email ownership only. New Google users must explicitly confirm structured names, student number and program to create their Alumni profile, then create a password using a recent Google proof. Local contact exemptions waive delivery gates, never the academic/name or password steps. Existing imported profiles and ownership links are preserved; registration cannot claim a historical profile by matching email, name or student number. Manual account/profile linking is retired; any historical ownership reconciliation requires a separately reviewed institutional process. A conflicting student number rolls the entire signup transaction back.
 
 To return to strict mode: configure enabled email delivery and a real SMS adapter; test actual receipt, code expiry/resend/rate limits and account-change behavior in isolated staging; set both local flags true/remove them; restart and check an unverified account is restricted. Production rejects either false flag at startup. Readiness is configuration evidence, not proof that a provider delivered a message. No real SMS adapter is supplied in this implementation, so this release is for local functionality verification until that integration is completed.

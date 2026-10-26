@@ -1,14 +1,14 @@
 # Deployment guide
 
-Phase 5 staging templates/local admission: [infrastructure review](audits/PHASE5_INFRASTRUCTURE_REVIEW.md). Production startup requires exact HTTPS origins, valid keys, credentialed verified-TLS MongoDB, an absolute upload directory and MongoDB IP budgets. Listener defaults to loopback; set HOST deliberately for a reviewed private topology. TRUSTED_PROXY_IPS is exact IPs only, with one overwritten X-Forwarded-For address. Templates are undeployed; obtain authorization before provisioning or exposing infrastructure.
+Production startup requires exact HTTPS origins, valid keys, credentialed verified-TLS MongoDB, an absolute upload directory and MongoDB IP budgets. Listener defaults to loopback; set HOST deliberately for a reviewed private topology. TRUSTED_PROXY_IPS is exact IPs only, with one overwritten X-Forwarded-For address. Obtain authorization before provisioning or exposing infrastructure.
 
-This release has local build, test, and browser checks; it has not been deployed. Use a staging environment before releasing private alumni data. The test report distinguishes synthetic persistence from real MongoDB verification.
+Use an isolated staging environment before releasing private alumni data. Local checks do not establish production readiness or verify provider delivery, failover or recovery.
 
 ## Hosting layout
 
 Use one Node service and the built static web application behind one HTTPS origin, with a private persistent upload directory and a MongoDB replica set. This fits the existing session cookies, proxy paths, and local-storage fallback without adding provider-specific infrastructure. A managed MongoDB replica set or an operator-maintained replica set works; a standalone MongoDB server does not support the transactions used by Mongoose. Keep one application instance until shared file storage and distributed rate limiting are provisioned.
 
-The Mongoose application requires no generated Prisma client or native query engine. Node 26.10.0 and pnpm 12.5.1 were used for the recorded checks. Supported Node ranges are 22.18+, 24.11+, or 26+; verify a different runtime before adopting it.
+The Mongoose application requires no generated Prisma client or native query engine. Use the pinned Node 26.10.0 and pnpm 12.5.1 toolchain. Supported Node ranges are 22.18+, 24.11+, or 26+; verify a different runtime before adopting it.
 
 ## Environment inventory
 
@@ -63,7 +63,7 @@ Server values belong in the service secret manager or protected `apps/server/.en
    pnpm db:migrate --dry-run
    ```
 
-4. Back up the database and private uploads. Read [the cutover runbook](migrations/MONGOOSE_REST.md) and inspect the dry-run report on a staging clone. Review every existing index, duplicate preflight and conflict. Obtain target-specific authorization before `pnpm db:migrate --apply`. This adds absent collections/indexes only, without dropping, resetting, rewriting names, auto-linking accounts or reseeding. Confirm `User_alumniId_key` and FormsReceipt uniqueness before enabling dependent traffic. Run `pnpm db:verify-transactions` against the approved isolated replica set; the synthetic write rolls back. Preserve password/session formats and encryption keys for rollback compatibility.
+4. Back up the database and private uploads. Read [the cutover runbook](migrations/MONGOOSE_REST.md) and inspect the dry-run report on a staging clone. Review every existing index, duplicate preflight and conflict. Obtain target-specific authorization before `pnpm db:migrate --apply`. This adds absent collections/indexes and retires only the reviewed legacy `Department_code_key`, preserving its full definition in `MigrationIndexBackup`. It never resets records, rewrites names, auto-links accounts or reseeds; unrelated indexes remain intact. Confirm `User_alumniId_key` and FormsReceipt uniqueness before enabling dependent traffic. Run `pnpm db:verify-transactions` against the approved isolated replica set; the synthetic write rolls back. Preserve password/session formats and encryption keys for rollback compatibility.
 5. Preserve existing production accounts and roles. Repository seeding refuses production; provisioning a new production administrator requires a separately reviewed institutional procedure. `pnpm db:seed` is for development/bootstrap rehearsal only, never an existing production database. Remove bootstrap secrets from steady-state service configuration.
 6. Run isolated checks before pointing the service at real data:
 
@@ -79,7 +79,7 @@ Server values belong in the service secret manager or protected `apps/server/.en
    pnpm check:production-build
    ```
 
-   On a fresh clone, generate route types with a web build before `check-types`: `pnpm --filter web build`. Browser tests use ports 3100 and 3101 and a fresh isolated real MongoDB namespace; they exercise the actual MongoDB models and transactions; provider delivery and production operations remain separate checks. See [migration verification](MIGRATION_VERIFICATION.md) for measured results and remaining staging checks.
+   On a fresh clone, generate route types with a web build before `check-types`: `pnpm --filter web build`. Browser tests use ports 3100 and 3101 and a fresh isolated real MongoDB namespace; they exercise the actual MongoDB models and transactions; provider delivery and production operations remain separate checks. Follow the [migration runbook](migrations/MONGOOSE_REST.md) for cutover and rollback; complete the operational checks below in staging.
 
 7. Build and install on the same OS/runtime as the service. The server build bundles the workspace code and uses installed Express/Mongoose dependencies; obsolete generated query engines are excluded. Keep the workspace production dependencies available at runtime; the web output is `apps/web/dist` and the API entry is `apps/server/dist/index.mjs`.
 8. Create `UPLOAD_DIR` owned only by the application account, outside static roots. Mount it persistently and encrypt backups. Private evidence defaults to local storage if Drive is unavailable. Set disk quotas and capacity alerts. imgBB is for intentionally public profile photos; never put private employment evidence there. Drive uploads stay private and are downloaded through the authorized API.
@@ -119,7 +119,7 @@ Set a site-specific Content Security Policy at the static host after testing Goo
 - reCAPTCHA: use a v2 checkbox site/secret key pair registered for the deployed hostname. The browser renders the provider widget and the server verifies its token. The local checkbox is development-only; production rejects that fallback. If reCAPTCHA is enabled without keys, sign-in fails until keys are configured or an administrator disables the integration.
 - Drive: enable Drive API, share only the private evidence folder with the service account, and verify upload plus authenticated download. Do not make the folder public. Local fallback requires persistent space even when Drive is configured.
 - Sheets: enable Sheets API and share only the designated sheet with the service account. Verify import and RAW-value export. Existing reads are limited to A1:Z1000; schedule larger imports manually until pagination is implemented.
-- Forms: defaults off. Configure POST `/api/integrations/google-forms/webhook` with `x-webhook-secret` and a stable 16–128-character `Idempotency-Key` per response/version; all environments reject missing server secrets. Apply the additive FormsReceipt unique index before enablement. Local transactional replay/concurrency/rollback acceptance passes; real sender retry/ordering and ingress/retention review remain. Keep disabled until authorized acceptance. See [Forms contract](operations/FORMS_WEBHOOK.md).
+- Forms: defaults off. Configure POST `/api/integrations/google-forms/webhook` with `x-webhook-secret` and a stable 16–128-character `Idempotency-Key` per response/version; all environments reject missing server secrets. Apply the additive FormsReceipt unique index before enablement. Run local transactional replay/concurrency/rollback checks, then verify real sender retry/ordering and ingress/retention policy in staging. Keep disabled until authorized acceptance. See [Forms contract](operations/FORMS_WEBHOOK.md).
 - Email: configure the HTTPS gateway and sender. Run Send test in Settings and confirm actual receipt. A successful HTTP response is not proof of delivery.
 - imgBB: verify public-photo use is permitted by the institution before enabling it.
 
@@ -138,17 +138,17 @@ Set a site-specific Content Security Policy at the static host after testing Goo
 
 ## Remaining operational verification
 
-- Real local MongoDB transactions, unique links, concurrent updates and Forms replay/rollback were verified with synthetic namespaces. Production topology, failover and restoration remain unverified.
+- Verify transactions, unique ownership, concurrent updates and Forms replay/rollback in isolated MongoDB namespaces. Production topology, failover and restoration require separate acceptance.
 - Deployment host, domain, proxy, persistent volume, monitoring and restore drills require operator verification.
 - External-provider OAuth, mail, Drive, Sheets and Forms sender behavior require credentials and staging acceptance. SMS delivery is unimplemented; strict accounts remain restricted and production readiness returns 503 until the provider adapter is completed and accepted. Keep unverified integrations disabled.
 - Malware scanning, retention/purge policy and multi-instance shared file storage require institutional decisions. Pagination is implemented; deep-offset performance and real capacity remain unverified.
-- Hosted Windows/Linux CI and a physical second-device rehearsal have not been run for this rewrite.
+- Verify the intended release in hosted Windows/Linux CI and on a physical second device; local results alone do not establish either.
 
 Local checks do not establish production readiness.
 
 ## Mongoose and REST cutover
 
-Read [the migration runbook](migrations/MONGOOSE_REST.md) before applying any changes. Existing collection names, ObjectIds, references, timestamps and indexes are retained. Automatic index creation is disabled at server startup. First inspect the target using the DB package's `db:migrate --dry-run`, back up the database and private uploads, review conflicts, and obtain operator authorization before `--apply`. Apply adds only absent collections/indexes; it never drops or replaces an existing index, rewrites names, links accounts, resets or reseeds an existing database. The partial unique `User.alumniId` index and FormsReceipt uniqueness must be present before enabling corresponding traffic. Run `db:verify-transactions` against the approved isolated environment before cutover.
+Read [the migration runbook](migrations/MONGOOSE_REST.md) before applying any changes. Existing collection names, ObjectIds, references, timestamps and records are retained; unrelated indexes remain intact. Automatic index creation is disabled at server startup. First inspect the target using the DB package's `db:migrate --dry-run`, back up the database and private uploads, review conflicts, and obtain operator authorization before `--apply`. Apply adds absent collections/indexes and retires only the reviewed legacy `Department_code_key` after saving its full definition in `MigrationIndexBackup`. It never rewrites names, links accounts, resets records or reseeds an existing database. Review the runbook before rollback: restoring that index can be blocked by duplicate or missing department codes. The partial unique `User.alumniId` index and FormsReceipt uniqueness must be present before enabling corresponding traffic. Run `db:verify-transactions` against the approved isolated environment before cutover.
 
 Repository seeding now explicitly refuses `NODE_ENV=production`; provisioning a new production administrator requires a separately reviewed institutional process. The migration preserves existing administrators and passwords. Development bootstrap commands must not be used to alter an existing production database.
 
@@ -158,4 +158,4 @@ Only `/api` REST endpoints are served. Retired `/rpc` and `/api-reference` endpo
 
 Production must leave `LOCAL_REQUIRE_EMAIL_VERIFICATION` and `LOCAL_REQUIRE_PHONE_VERIFICATION` true or absent; false is rejected at startup. LOCAL_DISABLE_MFA must be false/absent in production; a local testing pause is rejected. Verify a real SMS adapter, enabled HTTPS email gateway and actual receipt/code-expiry behavior in isolated staging. Readiness intentionally stays 503 while these mandatory capabilities are incomplete; do not weaken it to deploy. Review grandfathered `verificationRequired=false` accounts and old Staff integration grants with an explicit institutional migration plan rather than silently changing their access.
 
-Use [current completion evidence](COMPLETION_VERIFICATION.md), not historical Done labels or prior audit counts, for this working revision. No provider activation, production schema update or deployment was performed.
+Record target-specific acceptance before provider activation, production schema changes or deployment. Passing local checks is insufficient authorization or evidence of operational readiness.

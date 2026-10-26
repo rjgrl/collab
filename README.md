@@ -95,9 +95,13 @@ Closing Compass does not stop MongoDB. Closing the application terminal leaves t
 
 ## What teammates get from Git
 
-Committed: all source packages, workspace manifests, pinned pnpm lockfile, Mongoose models, additive index migration, seed logic, environment schemas/examples, native MongoDB discovery/startup and replica initialization scripts, setup/verification scripts, and documentation. Database models run directly from the TypeScript package.
+Committed: application/shared-package source, workspace manifests, pinned pnpm lockfile, Mongoose models, migration and seed logic, environment schemas/examples, database startup helpers, setup/verification scripts, tests and CI. Database models run directly from the TypeScript package. Tests and CI verify the development repository; the university deployment package will be reviewed separately.
 
-Ignored deliberately: real `.env` files, per-device passwords, MongoDB data/logs, uploads, `node_modules`, obsolete generated database artifacts, build outputs, and test traces. `pnpm install` and `pnpm setup:local` recreate the required local dependencies/config/environment types. Team changes to database records are **not** synchronized by Git; commit synthetic seed changes if everyone needs the same sample data.
+Retained documentation is limited to this README, setup/troubleshooting instructions, deployment configuration, migration/rollback, account recovery, disaster recovery and the Forms sender contract. Font and UI asset licenses/attribution remain with their assets.
+
+Ignored deliberately: real `.env` files, per-device passwords, MongoDB data/logs, uploads, `node_modules`, generated database artifacts, build outputs and test traces. Historical defense/requirements guides, audits, reports, design/planning notes, agent tooling and generated knowledge graphs also stay local. The allowlist in `.gitignore` identifies the retained operator documents; do not force-add excluded files.
+
+`pnpm install` and `pnpm setup:local` recreate the required local dependencies/config/environment types. Team changes to database records are **not** synchronized by Git; commit synthetic seed changes if everyone needs the same sample data. Removing a document from the current branch leaves earlier versions available in Git history.
 
 Do not copy another person's `node_modules`, build output, `.tools`, or `.env` files into your clone. Do not overwrite your local environment with examples on every pull.
 
@@ -132,9 +136,9 @@ pnpm check:production-build
 pnpm check:server-build
 ```
 
-Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. See [test results](docs/test-report.md) for measured coverage and limits. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
+Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
 
-The web build always uses production mode without editing your local `.env`; development tools remain available through `pnpm dev`. Historical [pre-production audit](docs/audits/SECURITY_AUDIT.md), [verification results](docs/audits/TEST_RESULTS.md), [remaining risks](docs/audits/REMAINING_RISKS.md), and [release checklist](docs/DEPLOYMENT_CHECKLIST.md) distinguish completed local fixes from unresolved release blockers. MFA, password policy/reset, shared throttling and session hardening are implemented with local acceptance tests. Live verification delivery, production recovery/operations and other documented review gates remain pending; this application is not certified production-ready.
+The web build always uses production mode without editing your local `.env`; development tools remain available through `pnpm dev`. MFA, password policy/reset, shared throttling and session hardening have local acceptance tests. Live verification delivery and production recovery/operations require acceptance before deployment; follow the [deployment instructions](docs/deployment.md) and [recovery runbook](docs/operations/DISASTER_RECOVERY.md). This application is not certified production-ready.
 
 Optional real-database security checks: `pnpm test:security-db`. This creates a fresh random loopback test database and rolls back synthetic account records; it does not touch the working application database. Tests use local mocks and send no real verification messages. See the security operations guide for the exact scope and retained test artifacts.
 
@@ -164,9 +168,7 @@ Google sign-in does not silently activate a pending, unconfirmed password regist
 
 ## Account and tracking workflows
 
-Architecture and REST contracts are documented in [the developer guide](docs/system/developer-guide.md). The [defense guide](docs/DEFENSE_GUIDE.md) traces one complete request and explains validation, ownership, MFA and errors. Follow the [migration and rollback runbook](docs/migrations/MONGOOSE_REST.md) before applying indexes to an existing database.
-
-Current measured checks and remaining operational limits are recorded in [migration verification](docs/MIGRATION_VERIFICATION.md).
+Follow the [migration and rollback runbook](docs/migrations/MONGOOSE_REST.md) before applying indexes to an existing database.
 
 `viewer` remains the internal legacy role key; the interface labels it **Alumni**. Public registration creates the account and linked Alumni profile atomically after collecting student number and a valid degree program. Alumni sign in to **My Profile** and access only their explicitly linked record. Historical broad grants do not give Alumni directory or management access.
 
@@ -194,4 +196,4 @@ Run `pnpm accounts:local` to provision fresh generated Admin, Staff and Alumni c
 
 For automated role checks, install Chromium once with `pnpm exec playwright install chromium`. With those servers running, `pnpm test:roles-local` rehearses normal UI login for all three roles, the configured Admin MFA policy, Admin-only integrations, role/session revocation and disabled sessions. It saves synthetic screenshots and private authenticator/recovery artifacts under `.tools/role-browser/`. These files contain secrets: do not share or commit them. The tool only accepts the generated synthetic namespace; it has no production endpoint or fixed test password.
 
-See [feature coverage](docs/FEATURE_MATRIX.md), [completion verification](docs/COMPLETION_VERIFICATION.md), [user guide](docs/system/user-guide.md), [defense guide](docs/DEFENSE_GUIDE.md) and [domain glossary](GLOSSARY.md). Public registration requires `ALLOW_PUBLIC_SIGNUP=true`; local role demonstrations set this explicitly without changing your private working configuration.
+Public registration requires `ALLOW_PUBLIC_SIGNUP=true`; local role demonstrations set this explicitly without changing your private working configuration.

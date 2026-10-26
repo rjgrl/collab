@@ -1,9 +1,0 @@
-# Phase 5 accessibility evidence
-
-2026-10-19. **PARTIAL; no WCAG conformance claim.** All 34 desktop/mobile Chromium browser tests pass. New coverage checks login and signup at 320 CSS pixels, no horizontal document overflow, current/new-password and email autocomplete semantics, and Axe WCAG 2/2.1/2.2 AA tags. Existing MFA/reset/settings/dialog/focus/switch/error checks were rerun.
-
-Visual inspection performed: the generated desktop `login-320.png` and `signup-320.png` were viewed. Labels, fields, password guidance, disabled-provider explanation and account-switch controls were visible without horizontal clipping. Signup naturally fills more vertical space. This is a manual visual review of two screenshots plus automated interaction tests, not manual assistive-technology acceptance or actual 400% browser zoom.
-
-Evidence paths: `test-results/phase5-authentication-refl-1cf42--password-manager-semantics-{desktop,mobile}/` contains the 320px screenshots after the browser run; outputs are ignored. The initial new test looked for the submit button to switch modes and timed out; corrected to the existing “Need an account? Sign up” control. No product accessibility defect was established by that selector error. Separate TypeScript checking found a pre-existing loose test tuple and now passes after a literal-tuple annotation.
-
-Pending human tests: screen-reader names/announcements and error recovery across every critical journey; real zoom/reflow at 200–400%, forced colors/contrast in all themes, visible/unobscured focus, pointer target exceptions, password-manager behavior, accessible MFA/recovery alternatives, data tables/alumni search, authentication and dialog interaction on supported browsers/devices. Axe cannot verify every criterion. Existing React head/script development warnings remain; they are not evidence that the stored-XSS payload executed.
