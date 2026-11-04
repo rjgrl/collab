@@ -177,6 +177,24 @@ export const ROLE_PRESETS = {
         key !== "audit.read",
     ),
   },
+  faculty: {
+    key: "faculty",
+    name: "Faculty",
+    description:
+      "Faculty tracker. Alumni access is limited by the linked faculty record's department and role level.",
+    permissions: [
+      "departments.read",
+      "programs.read",
+      "alumni.read",
+      "alumni.write",
+      "tracking.write",
+      "files.read",
+      "files.write",
+      "dashboard.read",
+      "reports.read",
+      "reports.export",
+    ] satisfies PermissionKey[],
+  },
   viewer: {
     key: "viewer",
     name: "Alumni",

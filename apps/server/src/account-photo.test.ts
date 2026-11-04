@@ -6,6 +6,7 @@ import path from "node:path";
 import request from "supertest";
 import type { AuthUser, Context } from "@Alumni-Tracking-Ss/api/context";
 import { modelFixture } from "../../../packages/api/src/services/model-test-fixture";
+import sharp from "sharp";
 import { loadAuthUser } from "@Alumni-Tracking-Ss/api/services/session";
 import { MAX_ACCOUNT_PHOTO_BYTES } from "@Alumni-Tracking-Ss/contracts/account-photo";
 import { createApp } from "./app";
@@ -21,10 +22,18 @@ const userId = "111111111111111111111111";
 const otherId = "222222222222222222222222";
 const alumniId = "333333333333333333333333";
 const origin = "https://app.example.test";
-const png = Buffer.from(
+const png = await sharp({
+  create: { width: 4, height: 4, channels: 3, background: "#336699" },
+})
+  .png()
+  .toBuffer();
+// Valid PNG header and chunk layout, corrupt pixel data: passes sniffing, fails decoding.
+const corruptPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZx8AAAAASUVORK5CYII=",
   "base64",
 );
+// Photos are re-encoded on upload, so stored and served bytes are WebP.
+const isWebp = (buffer: Buffer) => buffer.subarray(8, 12).toString("latin1") === "WEBP";
 function viewer(overrides: Partial<AuthUser> = {}): AuthUser {
   return {
     id: userId,
@@ -97,9 +106,9 @@ it("lets every account role upload, replace and remove photos without an Alumni 
       .get(firstUrl)
       .set("Authorization", "Bearer synthetic")
       .expect(200);
-    assert.match(String(image.headers["content-type"]), /image\/png/);
+    assert.match(String(image.headers["content-type"]), /image\/webp/);
     assert.match(String(image.headers["cache-control"]), /private, no-store/);
-    assert.deepEqual(image.body, png);
+    assert.ok(isWebp(image.body as Buffer));
     const stored = f.tables.AccountPhoto![0]!;
     const storageKey = String(stored.storageKey);
     const next = await request(server)
@@ -117,7 +126,7 @@ it("lets every account role upload, replace and remove photos without an Alumni 
       .expect(200, { image: null });
     await request(server).get(nextUrl).set("Authorization", "Bearer synthetic").expect(404);
     assert.equal(f.tables.User![0]!.image, null);
-    assert.deepEqual(await readFile(path.join(uploadDir, storageKey)), png);
+    assert.ok(isWebp(await readFile(path.join(uploadDir, storageKey))));
     assert.equal(f.tables.EvidenceFile!.length, 1);
   }
 });
@@ -164,8 +173,13 @@ it("enforces owner and management access and blocks Alumni with legacy managemen
           userId,
           id,
         )
-      ).buffer,
-      png,
+      ).buffer as Buffer,
+      await readFile(
+        path.join(
+          f.context.integrationEnv.uploadDir!,
+          String(f.tables.AccountPhoto![0]!.storageKey),
+        ),
+      ),
     );
   }
   f.tables.User![0]!.alumniId = undefined;
@@ -186,6 +200,7 @@ it("rejects wrong contents, unsupported types, oversized uploads, and cross-orig
     /valid JPEG/,
   );
   await assert.rejects(uploadAccountPhoto(f.context, file(png, "image/svg+xml")), /valid JPEG/);
+  await assert.rejects(uploadAccountPhoto(f.context, file(corruptPng)), /uncorrupted image/);
   await assert.rejects(
     uploadAccountPhoto(f.context, file(Buffer.alloc(MAX_ACCOUNT_PHOTO_BYTES + 1))),
     /10 MB/,

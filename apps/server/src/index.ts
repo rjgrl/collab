@@ -5,7 +5,13 @@ import { ENV } from "./env.server";
 import { db } from "./services";
 import { drainAndDisconnect } from "./shutdown";
 import { validateRuntimeConfig } from "./runtime-config";
+import { staffEmailDomains } from "@Alumni-Tracking-Ss/api/services/staff-domain";
 const integrationEnv = readIntegrationEnv();
+// Fails fast in production when STAFF_EMAIL_DOMAINS is missing or malformed.
+if (!staffEmailDomains())
+  console.warn(
+    "STAFF_EMAIL_DOMAINS is unset: staff email domains are unrestricted (development only).",
+  );
 const runtime = validateRuntimeConfig({
   nodeEnv: ENV.NODE_ENV,
   origin: ENV.CORS_ORIGIN,

@@ -1,4 +1,6 @@
 import { TablePagination } from "@/components/table-pagination";
+import { FormSelect } from "@/components/form-select";
+import { useCollegeOptions } from "@/lib/academic-options";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -16,15 +18,14 @@ export const Route = createFileRoute("/_app/departments")({
   component: DepartmentsPage,
 });
 
-type Draft = { id?: string; name: string; description: string };
-
-const emptyDraft: Draft = { name: "", description: "" };
+type Draft = { id?: string; collegeId: string; name: string; description: string };
 
 function DepartmentsPage() {
   const session = useSession();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const colleges = useCollegeOptions();
   const list = useQuery(
     api.departments.list.queryOptions({ input: { search, page, pageSize: 20 } }),
   );
@@ -36,11 +37,13 @@ function DepartmentsPage() {
       if (value.id) {
         return client.departments.update({
           id: value.id,
+          collegeId: value.collegeId,
           name: value.name,
           description: value.description,
         });
       }
       return client.departments.create({
+        collegeId: value.collegeId,
         name: value.name,
         description: value.description,
       });
@@ -69,7 +72,13 @@ function DepartmentsPage() {
         description="Organize alumni programs by department."
         actions={
           canWrite ? (
-            <PrimaryButton onClick={() => setDraft(emptyDraft)}>Add department</PrimaryButton>
+            <PrimaryButton
+              onClick={() =>
+                setDraft({ collegeId: colleges.data?.[0]?.id ?? "", name: "", description: "" })
+              }
+            >
+              Add department
+            </PrimaryButton>
           ) : null
         }
       />
@@ -100,6 +109,21 @@ function DepartmentsPage() {
               save.mutate(draft);
             }}
           >
+            <FormField id="college" label="College" required>
+              <FormSelect
+                id="college"
+                value={draft.collegeId}
+                onValueChange={(selected) => setDraft({ ...draft, collegeId: selected })}
+                required
+                items={[
+                  { value: "", label: "Select college" },
+                  ...(colleges.data?.map((college) => ({
+                    value: college.id,
+                    label: college.name,
+                  })) ?? []),
+                ]}
+              />
+            </FormField>
             <FormField id="name" label="Name" required>
               <Input
                 id="name"
@@ -127,7 +151,7 @@ function DepartmentsPage() {
         </p>
       ) : null}
       <DataTable
-        headers={["Name", "Programs", "Actions"]}
+        headers={["Name", "College", "Programs", "Actions"]}
         search={search}
         onSearch={(value) => {
           setSearch(value);
@@ -144,6 +168,7 @@ function DepartmentsPage() {
             <TableCell>
               <span className="font-medium">{row.name}</span>
             </TableCell>
+            <TableCell>{row.college?.name ?? ""}</TableCell>
             <TableCell className="text-right tabular-nums">
               {row._count.programs.toLocaleString()}
             </TableCell>
@@ -154,6 +179,7 @@ function DepartmentsPage() {
                     onClick={() =>
                       setDraft({
                         id: row.id,
+                        collegeId: row.collegeId,
                         name: row.name,
                         description: row.description,
                       })

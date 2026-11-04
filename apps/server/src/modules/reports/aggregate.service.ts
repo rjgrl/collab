@@ -9,7 +9,7 @@ const safe = (graduates: number, tracked: number) =>
     (graduates === tracked || graduates - tracked >= minimumCohort));
 export async function aggregateSummary(context: Context) {
   requireAccess(context);
-  const summary = await summarizePopulation(context);
+  const summary = await summarizePopulation(context, undefined, false);
   const suppressed = !safe(summary.graduates, summary.tracked);
   const departmentsSafe =
     !suppressed && summary.byDepartment.every((d) => safe(d.graduates, d.tracked));

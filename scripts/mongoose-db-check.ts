@@ -19,8 +19,8 @@ try {
   assert.equal(initial.createdIndexes.length, 0, "Dry-run must not create indexes");
   assert.equal(initial.conflicts.length, 0);
   const applied = await migrateDatabase(db, "apply");
-  assert.equal(applied.createdCollections.length, 23);
-  assert.equal(applied.createdIndexes.length, 38);
+  assert.equal(applied.createdCollections.length, 26);
+  assert.equal(applied.createdIndexes.length, 46);
   const retainedEnv = {
     SEED_ADMIN_EMAIL: process.env.SEED_ADMIN_EMAIL,
     SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD,
@@ -38,10 +38,10 @@ try {
     }
   }
   assert.equal(await db.User.countDocuments(), 1);
-  assert.equal(await db.Role.countDocuments(), 3);
+  assert.equal(await db.Role.countDocuments(), 4);
   assert.equal(await db.Permission.countDocuments(), 26);
   await verifyTransactionSupport(db);
-  const department = await db.Department.create({ name: "Synthetic" });
+  const department = await db.Department.create({ collegeId: (await db.College.create({ name: "Synthetic college" }))._id, name: "Synthetic" });
   const program = await db.Program.create({
     departmentId: department._id,
     code: "SYNTHETIC",
@@ -102,7 +102,7 @@ try {
   assert.equal(rollback.createdIndexes.length, 0);
   assert.equal(await db.User.countDocuments(), 4);
   console.log(
-    "PASS fresh synthetic namespace: read-only startup/dry-run, 23 collections/38 indexes, seed, nested automatic-session rollback, legacy absent/null fields, ObjectId serialization, unique partial links, repeatable migration and non-destructive rollback. Synthetic namespace retained; working database untouched.",
+    "PASS fresh synthetic namespace: read-only startup/dry-run, 26 collections/46 indexes, seed, nested automatic-session rollback, legacy absent/null fields, ObjectId serialization, unique partial links, repeatable migration and non-destructive rollback. Synthetic namespace retained; working database untouched.",
   );
 } catch {
   console.error("Synthetic Mongoose database verification failed; private diagnostics withheld.");

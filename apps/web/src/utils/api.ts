@@ -12,7 +12,13 @@ import {
   selfEmploymentSchemas,
   uploadOutputSchema,
 } from "@Alumni-Tracking-Ss/contracts/alumni";
-import { departmentsSchemas, programsSchemas } from "@Alumni-Tracking-Ss/contracts/academic";
+import { assignSchemas, facultySchemas } from "@Alumni-Tracking-Ss/contracts/faculty";
+import { contactsSchemas } from "@Alumni-Tracking-Ss/contracts/contacts";
+import {
+  collegesSchemas,
+  departmentsSchemas,
+  programsSchemas,
+} from "@Alumni-Tracking-Ss/contracts/academic";
 import {
   dashboardSchemas,
   reportsSchemas,
@@ -166,6 +172,18 @@ export const client = {
     delete: endpoint(rolesSchemas.delete, "DELETE", "/api/roles/:id"),
   },
   permissions: { list: endpoint(permissionsSchemas.list, "GET", "/api/permissions") },
+  colleges: {
+    list: endpoint(collegesSchemas.list, "GET", "/api/colleges"),
+    create: endpoint(collegesSchemas.create, "POST", "/api/colleges"),
+    update: endpoint(collegesSchemas.update, "PATCH", "/api/colleges/:id"),
+    delete: endpoint(collegesSchemas.delete, "DELETE", "/api/colleges/:id"),
+  },
+  faculty: {
+    list: endpoint(facultySchemas.list, "GET", "/api/faculty"),
+    create: endpoint(facultySchemas.create, "POST", "/api/faculty"),
+    update: endpoint(facultySchemas.update, "PATCH", "/api/faculty/:id"),
+    assign: endpoint(assignSchemas.assign, "POST", "/api/alumni/assign"),
+  },
   departments: {
     list: endpoint(departmentsSchemas.list, "GET", "/api/departments"),
     get: endpoint(departmentsSchemas.get, "GET", "/api/departments/:id"),
@@ -184,7 +202,11 @@ export const client = {
     pendingAccounts: endpoint(alumniSchemas.pendingAccounts, "GET", "/api/alumni/pending-accounts"),
     list: endpoint(alumniSchemas.list, "GET", "/api/alumni"),
     get: endpoint(alumniSchemas.get, "GET", "/api/alumni/:id"),
+    history: endpoint(alumniSchemas.history, "GET", "/api/alumni/:id/history"),
     update: endpoint(alumniSchemas.update, "PATCH", "/api/alumni/:id"),
+    addContact: endpoint(contactsSchemas.create, "POST", "/api/alumni/:alumniId/contacts"),
+    updateContact: endpoint(contactsSchemas.update, "PATCH", "/api/alumni/:alumniId/contacts/:id"),
+    deleteContact: endpoint(contactsSchemas.delete, "DELETE", "/api/alumni/:alumniId/contacts/:id"),
     delete: endpoint(alumniSchemas.delete, "DELETE", "/api/alumni/:id"),
     addEmployment: endpoint(
       alumniSchemas.addEmployment,
@@ -297,3 +319,28 @@ export function createQueryClient() {
   });
 }
 export const queryClient = createQueryClient();
+
+/** Downloads a server-generated PDF; errors surface the server's message like JSON calls do. */
+export async function downloadPdf(
+  path: string,
+  query: Record<string, string | number | undefined> = {},
+) {
+  const search = new URLSearchParams(
+    Object.entries(query).flatMap(([key, value]) =>
+      value === undefined || value === "" ? [] : [[key, String(value)]],
+    ),
+  );
+  const response = await fetch(
+    `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${path}${search.size ? `?${search}` : ""}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) await readJson(response, z.unknown());
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "report.pdf";
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}

@@ -131,7 +131,7 @@ if (process.argv[2] === "--start") {
       passwordHash: await hashPassword(staff.password),
     });
     await db.UserRole.create({ userId: staffUser._id, roleId: staffRole._id });
-    const department = await db.Department.create({
+    const department = await db.Department.create({ collegeId: (await db.College.create({ name: "Synthetic college" }))._id,
       name: "Synthetic test department",
     });
     const program = await db.Program.create({

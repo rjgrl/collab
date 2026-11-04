@@ -48,7 +48,7 @@ try {
     { key: "recaptcha", enabled: false },
     { key: "google_forms", enabled: true },
   ]);
-  const department = await db.Department.create({ name: "Synthetic" });
+  const department = await db.Department.create({ collegeId: (await db.College.create({ name: "Synthetic college" }))._id, name: "Synthetic" });
   const program = await db.Program.create({
     code: "P5",
     name: "Synthetic",

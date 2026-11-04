@@ -13,6 +13,7 @@
     "db:verify-transactions": "tsx src/verify-transactions.ts"
   },
   "dependencies": {
+    "@Alumni-Tracking-Ss/contracts": "workspace:*",
     "mongoose": "^9.0.1",
     "zod": "catalog:"
   },

@@ -36,6 +36,7 @@ const ids = {
   adminRole: "000000000000000000000101",
   staffRole: "000000000000000000000102",
   viewerRole: "000000000000000000000103",
+  college: "000000000000000000000300",
   department: "000000000000000000000301",
   program: "000000000000000000000302",
   alumniProfile: "000000000000000000000201",
@@ -142,7 +143,8 @@ async function reset() {
     needsProfileCompletion: false,
   });
   await db.UserRole.create({ userId: ids.admin, roleId: ids.adminRole });
-  await db.Department.create({ _id: ids.department, name: "Synthetic IT" });
+  await db.College.create({ _id: ids.college, name: "Synthetic College" });
+  await db.Department.create({ _id: ids.department, collegeId: ids.college, name: "Synthetic IT" });
   await db.Program.create({
     _id: ids.program,
     code: "TEST_BSIT",
@@ -297,9 +299,14 @@ async function historicalEnrollment(userId: string) {
   ).exec();
 }
 async function ensureAcademicFixtures() {
+  await db.College.updateOne(
+    { _id: ids.college },
+    { $setOnInsert: { name: "Synthetic College" } },
+    { upsert: true },
+  ).exec();
   await db.Department.updateOne(
     { _id: ids.department },
-    { $setOnInsert: { name: "Synthetic IT" } },
+    { $setOnInsert: { name: "Synthetic IT", collegeId: ids.college } },
     { upsert: true },
   ).exec();
   await db.Program.updateOne(

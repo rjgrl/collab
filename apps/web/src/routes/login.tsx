@@ -24,8 +24,8 @@ import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import { client, api, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>): { error?: "google" } =>
-    search.error === "google" ? { error: "google" } : {},
+  validateSearch: (search: Record<string, unknown>): { error?: "google" | "google_domain" } =>
+    search.error === "google" || search.error === "google_domain" ? { error: search.error } : {},
   component: LoginPage,
 });
 
@@ -44,9 +44,11 @@ function LoginPage() {
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(
-    search.error === "google"
-      ? "Google sign-in could not be completed. Please try again or sign in with your password."
-      : null,
+    search.error === "google_domain"
+      ? "Admin and faculty accounts must sign in with a BukSU institutional Google account."
+      : search.error === "google"
+        ? "Google sign-in could not be completed. Please try again or sign in with your password."
+        : null,
   );
 
   const recaptcha = config.data?.recaptcha;

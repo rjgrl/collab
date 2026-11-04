@@ -1,4 +1,5 @@
 import { usersSchemas, type UserInput } from "@Alumni-Tracking-Ss/contracts/users";
+import { assertStaffEmailAllowed } from "@Alumni-Tracking-Ss/api/services/staff-domain";
 import {
   formatDisplayName,
   isAdministrator,
@@ -67,6 +68,10 @@ export const usersService = {
             "Managed accounts may only have Staff or Super Admin roles. Alumni must self-register.",
         });
       const email = input.email.toLowerCase();
+      assertStaffEmailAllowed(
+        email,
+        roles.map((role) => role.key),
+      );
       if (await tx.User.findOne({ email }).lean().exec())
         throw new ApiError("CONFLICT", { message: "Email is already in use." });
       const { firstName, middleName, lastName, suffix } = input;
@@ -127,6 +132,7 @@ export const usersService = {
             message:
               "Alumni accounts must self-register; managed accounts cannot be converted to Alumni.",
           });
+        assertStaffEmailAllowed(current.email, nextKeys);
       }
       const { firstName, middleName, lastName, suffix } = input;
       const names = Object.fromEntries(

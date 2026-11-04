@@ -9,9 +9,11 @@ import { auditService } from "../../../../apps/server/src/modules/audit/service"
 import { modelFixture } from "./model-test-fixture";
 
 const actorId = "111111111111111111111111";
+const collegeId = "222222222222222222222222";
 function fixture() {
   const f = modelFixture({
     User: [{ id: actorId, name: "Original Actor", email: "original@example.test" }],
+    College: [{ id: collegeId, name: "College of Science", deletedAt: null }],
   });
   const context = {
     db: f.db,
@@ -36,8 +38,8 @@ function fixture() {
 it("creates departments without codes and keeps program codes required", async () => {
   const f = fixture();
   assert.equal(departmentInputSchema.safeParse({ name: "Science", code: "" }).success, false);
-  const first = await departmentsService.create(f.context, { name: "Science" });
-  const second = await departmentsService.create(f.context, { name: "Arts" });
+  const first = await departmentsService.create(f.context, { collegeId, name: "Science" });
+  const second = await departmentsService.create(f.context, { collegeId, name: "Arts" });
   assert.equal(Object.hasOwn(first, "code"), false);
   assert.equal(Object.hasOwn(second, "code"), false);
   assert.equal(programInputSchema.safeParse({ name: "Degree", departmentId: actorId }).success, false);
@@ -46,20 +48,20 @@ it("creates departments without codes and keeps program codes required", async (
 
 it("preserves historical stored department codes when editing names", async () => {
   const f = fixture();
-  f.tables.Department = [{ id: actorId, name: "Science", code: "SCI", deletedAt: null }];
-  const updated = await departmentsService.update(f.context, { id: actorId, name: "New Science" });
+  f.tables.Department = [{ id: actorId, collegeId, name: "Science", code: "SCI", deletedAt: null }];
+  const updated = await departmentsService.update(f.context, { collegeId, id: actorId, name: "New Science" });
   assert.equal(updated.name, "New Science");
   assert.equal(f.tables.Department[0]?.code, "SCI");
 });
 
 it("records the actual department changes and actor at event time despite later edits", async () => {
   const f = fixture();
-  await departmentsService.create(f.context, {
+  await departmentsService.create(f.context, { collegeId,
     name: "Science",
     description: "Old description",
   });
   f.tables.Department![0]!.id = actorId;
-  await departmentsService.update(f.context, {
+  await departmentsService.update(f.context, { collegeId,
     id: actorId,
     name: "Natural Sciences",
     description: "New description",
@@ -79,11 +81,11 @@ it("records the actual department changes and actor at event time despite later 
 
 it("keeps a department change atomic with its audit entry", async () => {
   const f = fixture();
-  await departmentsService.create(f.context, { name: "Science" });
+  await departmentsService.create(f.context, { collegeId, name: "Science" });
   f.tables.Department![0]!.id = actorId;
   f.failWrite("AuditLog", "create", new Error("Synthetic audit failure"));
   await assert.rejects(
-    () => departmentsService.update(f.context, { id: actorId, name: "Changed" }),
+    () => departmentsService.update(f.context, { collegeId, id: actorId, name: "Changed" }),
     /Synthetic audit failure/,
   );
   assert.equal(f.tables.Department![0]?.name, "Science");

@@ -33,7 +33,35 @@ const auditedFields = new Set([
   "permissionKeys",
   "enabled",
   "alumniId",
+  "collegeId",
+  "employeeNumber",
+  "roleLevel",
+  "active",
+  "assignedFacultyId",
+  "batch",
+  "type",
+  "value",
+  "label",
+  "isPrimary",
 ]);
+
+export type FieldChange = { field: string; old: unknown; new: unknown };
+
+/** Structured old/new pairs for audited fields that actually changed; stored in metadata.changes. */
+export function fieldChanges(before: object, after: Record<string, unknown>): FieldChange[] {
+  const previous = before as Record<string, unknown>;
+  const render = (value: unknown) => JSON.stringify(value ?? null);
+  return Object.entries(after)
+    .filter(
+      ([key, value]) =>
+        auditedFields.has(key) && value !== undefined && render(previous[key]) !== render(value),
+    )
+    .map(([field, value]) => ({
+      field,
+      old: previous[field] === undefined ? null : JSON.parse(render(previous[field])),
+      new: JSON.parse(render(value)),
+    }));
+}
 
 export function describeAuditChanges(before: object, after: Record<string, unknown>) {
   const previous = before as Record<string, unknown>;

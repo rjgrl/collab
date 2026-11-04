@@ -44,6 +44,7 @@ export async function uploadAccountPhoto(context: Context, file?: Express.Multer
     buffer: file.buffer,
     mimeType: file.mimetype,
     originalName: file.originalname,
+    resizeImage: true,
   });
   const id = randomBytes(12).toString("hex");
   const image = accountPhotoUrl(user.id, id);
@@ -63,9 +64,11 @@ export async function uploadAccountPhoto(context: Context, file?: Express.Multer
       _id: id,
       userId: user.id,
       originalName: file.originalname,
-      mimeType: file.mimetype,
-      sizeBytes: file.buffer.length,
-      ...stored,
+      provider: stored.provider,
+      storageKey: stored.storageKey,
+      url: stored.url,
+      mimeType: stored.mimeType,
+      sizeBytes: stored.sizeBytes,
     });
     if (owner.alumniId)
       await db.Alumni.updateOne(

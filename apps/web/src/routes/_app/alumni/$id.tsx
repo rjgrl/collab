@@ -1,5 +1,6 @@
 import { EmploymentPanel } from "@/components/employment-panel";
 import { EvidencePanel } from "@/components/evidence-panel";
+import { ContactsPanel } from "@/components/contacts-panel";
 import { useProgramOptions } from "@/lib/academic-options";
 import { Card, CardContent, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
@@ -21,8 +22,8 @@ import {
   PrimaryButton,
 } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { can, useSession } from "@/lib/session";
-import { client, api, queryClient } from "@/utils/api";
+import { can, managesFaculty, useSession } from "@/lib/session";
+import { client, api, downloadPdf, queryClient } from "@/utils/api";
 
 export const Route = createFileRoute("/_app/alumni/$id")({
   component: AlumniDetailPage,
@@ -35,9 +36,20 @@ function AlumniDetailPage() {
   const alumni = useQuery(api.alumni.get.queryOptions({ input: { id } }));
   const record = alumni.data;
   const [form, setForm] = useState({
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    suffix: "",
+    gender: "",
+    batch: "",
     studentNumber: "",
     graduationYear: "",
     programId: "",
+  });
+  const showHistory = managesFaculty(session.data);
+  const history = useQuery({
+    ...api.alumni.history.queryOptions({ input: { id } }),
+    enabled: showHistory,
   });
   const [trackingNotes, setTrackingNotes] = useState("");
 
@@ -46,6 +58,12 @@ function AlumniDetailPage() {
       return;
     }
     setForm({
+      firstName: record.firstName,
+      middleName: record.middleName ?? "",
+      lastName: record.lastName,
+      suffix: record.suffix ?? "",
+      gender: record.gender ?? "",
+      batch: record.batch ?? "",
       studentNumber: record.studentNumber,
       graduationYear: record.graduationYear ? String(record.graduationYear) : "",
       programId: record.programId,
@@ -57,6 +75,7 @@ function AlumniDetailPage() {
       client.alumni.update({
         id,
         ...form,
+        gender: form.gender === "Male" || form.gender === "Female" ? form.gender : undefined,
         graduationYear: Number(form.graduationYear),
       }),
     onSuccess: async () => {
@@ -116,7 +135,22 @@ function AlumniDetailPage() {
       <PageHeader
         title={formatDisplayName(record)}
         description={`${record.program.department.name} / ${record.program.code}`}
-        actions={<StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
+            {can(session.data?.permissions, "reports.export") ? (
+              <QuietButton
+                onClick={() =>
+                  void downloadPdf(`/api/reports/alumni/${id}/profile.pdf`).catch((error: Error) =>
+                    toast.error(error.message),
+                  )
+                }
+              >
+                Profile PDF
+              </QuietButton>
+            ) : null}
+          </div>
+        }
       />
       <Card>
         <CardHeader>
@@ -130,6 +164,62 @@ function AlumniDetailPage() {
               save.mutate();
             }}
           >
+            <FormField id="firstName" label="First name" required>
+              <Input
+                id="firstName"
+                required
+                value={form.firstName}
+                onChange={(event) => setForm({ ...form, firstName: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
+            <FormField id="middleName" label="Middle name">
+              <Input
+                id="middleName"
+                value={form.middleName}
+                onChange={(event) => setForm({ ...form, middleName: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
+            <FormField id="lastName" label="Last name" required>
+              <Input
+                id="lastName"
+                required
+                value={form.lastName}
+                onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
+            <FormField id="suffix" label="Suffix">
+              <Input
+                id="suffix"
+                value={form.suffix}
+                onChange={(event) => setForm({ ...form, suffix: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
+            <FormField id="gender" label="Gender">
+              <FormSelect
+                id="gender"
+                value={form.gender}
+                onValueChange={(selected) => setForm({ ...form, gender: selected })}
+                disabled={!canWrite}
+                items={[
+                  { value: "", label: "Not specified" },
+                  { value: "Female", label: "Female" },
+                  { value: "Male", label: "Male" },
+                ]}
+              />
+            </FormField>
+            <FormField id="batch" label="Batch">
+              <Input
+                id="batch"
+                maxLength={40}
+                value={form.batch}
+                onChange={(event) => setForm({ ...form, batch: event.target.value })}
+                disabled={!canWrite}
+              />
+            </FormField>
             <FormField id="programId" label="Program">
               <FormSelect
                 id="programId"
@@ -178,6 +268,8 @@ function AlumniDetailPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ContactsPanel alumniId={id} contacts={record.contacts} canWrite={canWrite} />
 
       <EmploymentPanel jobs={record.employments} alumniId={id} canWrite={canWrite} />
 
@@ -263,6 +355,53 @@ function AlumniDetailPage() {
           canDelete={can(session.data?.permissions, "files.delete")}
         />
       </div>
+
+      {showHistory ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Change history</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {history.isError ? (
+              <p role="alert" className="text-sm">
+                {history.error.message}
+              </p>
+            ) : !history.data?.length ? (
+              <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                {history.isPending ? "Loading history…" : "No recorded changes."}
+              </p>
+            ) : (
+              <ul className="divide-y text-sm">
+                {history.data.map((entry) => (
+                  <li key={entry.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+                    <p className="text-xs text-muted-foreground">
+                      <time dateTime={new Date(entry.createdAt).toISOString()}>
+                        {new Date(entry.createdAt).toLocaleString()}
+                      </time>{" "}
+                      · {entry.actor?.name ?? "System"} · {entry.action}
+                    </p>
+                    {entry.changes.length ? (
+                      <ul className="flex flex-col gap-0.5">
+                        {entry.changes.map((change) => (
+                          <li key={change.field} className="break-words">
+                            <span className="font-medium">{change.field}</span>:{" "}
+                            <span className="text-muted-foreground">
+                              {JSON.stringify(change.old ?? null)}
+                            </span>{" "}
+                            → {JSON.stringify(change.new ?? null)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="break-words">{entry.summary}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
     </PageShell>
   );
 }

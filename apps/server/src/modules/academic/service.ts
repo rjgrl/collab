@@ -3,7 +3,11 @@ import type { Database, PermissionKey } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/access";
-import { departmentsSchemas, programsSchemas } from "@Alumni-Tracking-Ss/contracts/academic";
+import {
+  collegesSchemas,
+  departmentsSchemas,
+  programsSchemas,
+} from "@Alumni-Tracking-Ss/contracts/academic";
 import type { z } from "zod";
 import { writeAudit, describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
 export const active = { deletedAt: null };
@@ -20,6 +24,7 @@ export async function audit(
   entity: string,
   entityId: string,
   summary: string,
+  metadata?: Record<string, unknown>,
 ) {
   await writeAudit(db, {
     actor: context.user,
@@ -27,8 +32,14 @@ export async function audit(
     entity,
     entityId,
     summary,
+    metadata,
     ipAddress: context.ipAddress,
   });
+}
+export async function activeCollege(db: Database, id: string) {
+  const row = await db.College.findOne({ _id: id, ...active }).lean();
+  if (!row) throw new ApiError("BAD_REQUEST", { message: "Active college not found." });
+  return toEntity(row);
 }
 export async function activeDepartment(db: Database, id: string) {
   const row = await db.Department.findOne({ _id: id, ...active }).lean();
@@ -54,27 +65,134 @@ async function uniqueProgram(db: Database, code: string, departmentId: string, i
   if (await db.Program.exists({ code, departmentId, ...(id ? { _id: { $ne: id } } : {}) }))
     throw new ApiError("CONFLICT", { message: "Program code already exists in this department." });
 }
-export const departmentsService = {
-  async list(context: Context, input?: z.input<typeof departmentsSchemas.list.input>) {
+export const collegesService = {
+  async list(context: Context, input?: z.input<typeof collegesSchemas.list.input>) {
     management(context, "departments.read");
-    const p = departmentsSchemas.list.input.parse(input) ?? { page: 1, pageSize: 20 };
-    const q = p.search
-      ? {
-          $or: [
-            { name: { $regex: escapeRegex(p.search), $options: "i" } },
-          ],
-        }
-      : {};
-    const rows = await context.db.Department.find({ ...active, ...q })
+    const p = collegesSchemas.list.input.parse(input) ?? { page: 1, pageSize: 20 };
+    const q = p.search ? { name: { $regex: escapeRegex(p.search), $options: "i" } } : {};
+    const rows = await context.db.College.find({ ...active, ...q })
       .sort({ name: 1, _id: 1 })
       .skip((p.page - 1) * p.pageSize)
       .limit(p.pageSize)
       .lean();
     return Promise.all(
       rows.map(async (row) => {
+        const c = toEntity(row);
+        return {
+          ...c,
+          _count: {
+            departments: await context.db.Department.countDocuments({ collegeId: c.id, ...active }),
+          },
+        };
+      }),
+    );
+  },
+};
+export const collegeWriteService = {
+  async create(context: Context, input: z.input<typeof collegesSchemas.create.input>) {
+    management(context, "departments.write");
+    const data = collegesSchemas.create.input.parse(input);
+    return context.db.transaction(async (tx) => {
+      const row = toEntity((await tx.College.create(data)).toObject());
+      await audit(
+        tx,
+        context,
+        "colleges.create",
+        "college",
+        row.id,
+        `Created college ${JSON.stringify(row.name)}`,
+      );
+      return { ...row, _count: { departments: 0 } };
+    });
+  },
+  async update(context: Context, input: z.input<typeof collegesSchemas.update.input>) {
+    management(context, "departments.write");
+    const { id, ...data } = collegesSchemas.update.input.parse(input);
+    return context.db.transaction(async (tx) => {
+      const before = await activeCollege(tx, id);
+      const row = await tx.College.findOneAndUpdate(
+        { _id: id, ...active },
+        { $set: data },
+        { returnDocument: "after", runValidators: true },
+      ).lean();
+      if (!row) throw new ApiError("NOT_FOUND");
+      await audit(
+        tx,
+        context,
+        "colleges.update",
+        "college",
+        id,
+        `Updated college ${JSON.stringify(before.name)}: ${describeAuditChanges(before, data)}`,
+      );
+      return {
+        ...toEntity(row),
+        _count: { departments: await tx.Department.countDocuments({ collegeId: id, ...active }) },
+      };
+    });
+  },
+  async delete(context: Context, input: z.input<typeof collegesSchemas.delete.input>) {
+    management(context, "departments.delete");
+    const { id } = collegesSchemas.delete.input.parse(input);
+    return context.db.transaction(async (tx) => {
+      const college = await activeCollege(tx, id);
+      await blockIfInUse(
+        [[await tx.Department.countDocuments({ collegeId: id, ...active }), "department"]],
+        "college",
+      );
+      await tx.College.updateOne({ _id: id, ...active }, { $set: { deletedAt: new Date() } });
+      await audit(
+        tx,
+        context,
+        "colleges.delete",
+        "college",
+        id,
+        `Archived college ${JSON.stringify(college.name)}`,
+      );
+      return { ok: true };
+    });
+  },
+};
+/** Archiving is blocked while anything still hangs off the node; the message says what. */
+async function blockIfInUse(counts: [number, string][], entity: string) {
+  const blockers = counts
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${count} ${label}${count === 1 ? "" : "s"}`);
+  if (blockers.length)
+    throw new ApiError("CONFLICT", {
+      message: `This ${entity} still has ${blockers.join(", ")}. Move or archive them first.`,
+    });
+}
+export const departmentsService = {
+  async list(context: Context, input?: z.input<typeof departmentsSchemas.list.input>) {
+    management(context, "departments.read");
+    const p = departmentsSchemas.list.input.parse(input) ?? { page: 1, pageSize: 20 };
+    const q = p.search
+      ? {
+          $or: [{ name: { $regex: escapeRegex(p.search), $options: "i" } }],
+        }
+      : {};
+    const rows = await context.db.Department.find({
+      ...active,
+      ...(p.collegeId ? { collegeId: p.collegeId } : {}),
+      ...q,
+    })
+      .sort({ name: 1, _id: 1 })
+      .skip((p.page - 1) * p.pageSize)
+      .limit(p.pageSize)
+      .lean();
+    const colleges = new Map(
+      (
+        await context.db.College.find({ _id: { $in: rows.map((row) => row.collegeId) } })
+          .select("_id name")
+          .lean()
+      ).map((college) => [String(college._id), { id: String(college._id), name: college.name }]),
+    );
+    return Promise.all(
+      rows.map(async (row) => {
         const d = toEntity(row);
         return {
           ...d,
+          college: colleges.get(String(d.collegeId)),
           _count: {
             programs: await context.db.Program.countDocuments({ departmentId: d.id, ...active }),
           },
@@ -96,6 +214,7 @@ export const departmentsService = {
     management(context, "departments.write");
     const data = departmentsSchemas.create.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await activeCollege(tx, data.collegeId);
       const row = toEntity((await tx.Department.create(data)).toObject());
       await audit(
         tx,
@@ -113,6 +232,7 @@ export const departmentsService = {
     const { id, ...data } = departmentsSchemas.update.input.parse(input);
     return context.db.transaction(async (tx) => {
       const before = await activeDepartment(tx, id);
+      if (data.collegeId) await activeCollege(tx, data.collegeId);
       const row = await tx.Department.findOneAndUpdate(
         { _id: id, ...active },
         { $set: data },
@@ -135,6 +255,16 @@ export const departmentsService = {
     const { id } = departmentsSchemas.delete.input.parse(input);
     return context.db.transaction(async (tx) => {
       const department = await activeDepartment(tx, id);
+      await blockIfInUse(
+        [
+          [await tx.Program.countDocuments({ departmentId: id, ...active }), "program"],
+          [
+            await tx.Faculty.countDocuments({ departmentId: id, ...active, active: true }),
+            "active faculty member",
+          ],
+        ],
+        "department",
+      );
       await tx.Department.updateOne({ _id: id, ...active }, { $set: { deletedAt: new Date() } });
       await audit(
         tx,
@@ -238,6 +368,10 @@ export const programsService = {
     management(context, "programs.delete");
     const { id } = programsSchemas.delete.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await blockIfInUse(
+        [[await tx.Alumni.countDocuments({ programId: id, ...active }), "alumni record"]],
+        "program",
+      );
       const row = await tx.Program.findOneAndUpdate(
         { _id: id, ...active },
         { $set: { deletedAt: new Date() } },

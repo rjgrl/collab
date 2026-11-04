@@ -66,6 +66,15 @@ export const authUserSchema = z.object({
   mfaVersion: z.string().optional(),
   roles: z.array(z.string()),
   permissions: z.array(z.string()),
+  // The signed-in user's active faculty record, which sets their alumni scope and management level.
+  faculty: z
+    .object({
+      id: objectIdSchema,
+      roleLevel: z.enum(["faculty", "department", "college"]),
+      departmentId: objectIdSchema,
+    })
+    .nullable()
+    .optional(),
 });
 export type AuthUser = z.infer<typeof authUserSchema>;
 export const noInputSchema = z.object({}).strict().default({});

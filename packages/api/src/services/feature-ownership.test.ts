@@ -74,7 +74,11 @@ const alumni = {
   isTracked: false,
 };
 const program = { _id: programId, code: "BSIT", name: "IT program", departmentId };
-const department = { _id: departmentId, name: "IT department" };
+const department = {
+  _id: departmentId,
+  collegeId: "666666666666666666666666",
+  name: "IT department",
+};
 function linkedDb() {
   return {
     User: {
@@ -95,6 +99,7 @@ function linkedDb() {
     Employment: { find: () => query([]) },
     TrackingEvent: { find: () => query([]) },
     EvidenceFile: { find: () => query([]) },
+    AlumniContact: { find: () => query([]) },
   };
 }
 it("blocks Alumni directory and management APIs even with every permission", async () => {
@@ -200,25 +205,24 @@ it("retired linking still requires both permissions and completed security gates
   admin.user!.mfaVerified = false;
   await assert.rejects(() => linkAlumni(admin, { id: userId, alumniId }), /authenticator/);
 });
-it("Alumni management only updates academic fields and rejects identity/contact writes", async () => {
+it("Alumni management edits profile fields but never the legacy contact fields", async () => {
   const f = modelFixture({
-    User: [{ id: userId, status: "disabled", alumniId, firstName: "Account", lastName: "Name" }],
     Alumni: [{ ...alumni, id: alumniId }],
     Program: [{ ...program, id: programId }],
     Department: [{ ...department, id: departmentId }],
   });
   const academic = { id: alumniId, studentNumber: "SYN-2", programId, graduationYear: 2025 };
-  for (const key of ["firstName", "gender", "personalEmail", "mobileNumber", "facebookAccount"])
+  // Contacts are managed through the contacts API, so these keys are rejected outright.
+  for (const key of ["personalEmail", "mobileNumber", "facebookAccount"])
     await assert.rejects(() =>
-      alumniService.update(context(f.db, ["staff"]), {
-        ...academic,
-        [key]: "Changed",
-      }),
+      alumniService.update(context(f.db, ["staff"]), { ...academic, [key]: "Changed" }),
     );
   assert.equal(f.operations.length, 0);
   await alumniService.update(context(f.db, ["staff"]), academic);
   assert.equal(f.tables.Alumni?.[0]?.studentNumber, "SYN-2");
-  assert.equal(f.tables.Alumni?.[0]?.firstName, "Original");
+  assert.equal(f.tables.Alumni?.[0]?.firstName, "Original", "omitted names are unchanged");
+  await alumniService.update(context(f.db, ["staff"]), { ...academic, firstName: "Edited" });
+  assert.equal(f.tables.Alumni?.[0]?.firstName, "Edited");
 });
 it("malformed IDs and employment date order fail before persistence", async () => {
   const c = context({}, ["staff"]);

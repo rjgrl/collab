@@ -3,6 +3,7 @@ import { idInputSchema, objectIdSchema, paginationSchema, okSchema, dateSchema }
 import { structuredNameSchema } from "./names";
 import { programOutputSchema } from "./academic";
 import { normalizePhoneNumber, phoneNumberSchema } from "./phone";
+import { contactOutputSchema } from "./contacts";
 export const genderSchema = z.enum(["Male", "Female"]);
 export const graduationYearSchema = z.number().int().min(1950).max(2100);
 export const mobileSchema = z
@@ -50,15 +51,33 @@ export const alumniInputSchema = structuredNameSchema
     employmentStatus: z.enum(["employed", "unemployed", "unknown"]).optional(),
   })
   .strict();
+// No default: an omitted field must mean "unchanged", never "cleared".
+const optionalPlainText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .refine((value) => !/[\p{Cc}\p{Cf}]/u.test(value), "Remove control characters.")
+    .optional();
 export const alumniUpdateInputSchema = alumniInputSchema
   .pick({ studentNumber: true, programId: true, graduationYear: true })
-  .extend({ id: objectIdSchema });
+  .extend({
+    id: objectIdSchema,
+    // Optional so older clients that send only academic fields keep working.
+    firstName: structuredNameSchema.shape.firstName.optional(),
+    middleName: optionalPlainText(80),
+    lastName: structuredNameSchema.shape.lastName.optional(),
+    suffix: optionalPlainText(30),
+    gender: genderSchema.optional(),
+    batch: z.string().trim().max(40).optional(),
+  });
 export const alumniListInputSchema = paginationSchema
   .extend({
     departmentId: objectIdSchema.optional(),
     programId: objectIdSchema.optional(),
     tracked: z.enum(["all", "tracked", "untracked"]).optional(),
     graduationYear: z.coerce.number().int().min(1950).max(2100).optional(),
+    assignment: z.enum(["all", "mine", "unassigned", "needs_reassignment"]).optional(),
   })
   .strict()
   .optional();
@@ -159,10 +178,24 @@ export const alumniOutputSchema = z.object({
   lastTrackedAt: date,
   programId: objectIdSchema,
   program: programOutputSchema,
+  assignedFacultyId: objectIdSchema.nullable().default(null),
+  assignedFaculty: z.object({ id: objectIdSchema, name: z.string() }).nullable().default(null),
+  needsReassignment: z.boolean().default(false),
   isTracked: z.boolean().default(false),
   employments: z.array(employmentOutputSchema).default([]),
   trackingEvents: z.array(trackingOutputSchema).default([]),
   evidenceFiles: z.array(evidenceOutputSchema).default([]),
+  // Detail: every contact. List: primary contacts only.
+  contacts: z.array(contactOutputSchema).default([]),
+});
+export const alumniHistoryEntrySchema = z.object({
+  id: objectIdSchema,
+  action: z.string(),
+  entity: z.string(),
+  summary: z.string(),
+  createdAt: dateSchema,
+  actor: z.object({ id: z.string(), name: z.string(), email: z.string() }).nullable(),
+  changes: z.array(z.object({ field: z.string(), old: z.unknown(), new: z.unknown() })).default([]),
 });
 export const alumniSchemas = {
   pendingAccounts: {
@@ -189,6 +222,7 @@ export const alumniSchemas = {
   },
   addTracking: { input: trackingInputSchema, output: trackingOutputSchema },
   linkAlumni: { input: linkAlumniInputSchema, output: okSchema },
+  history: { input: idInputSchema, output: z.array(alumniHistoryEntrySchema) },
 };
 export const selfEmploymentSchemas = {
   create: { input: selfEmploymentInputSchema, output: employmentOutputSchema },

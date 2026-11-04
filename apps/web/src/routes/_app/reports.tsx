@@ -10,7 +10,9 @@ import { FilterBar, PageHeader, PageShell, PrimaryButton } from "@/components/pa
 import { QuietButton } from "@/components/data-table";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { can, useSession } from "@/lib/session";
-import { client, api } from "@/utils/api";
+import { client, api, downloadPdf } from "@/utils/api";
+import { useCollegeOptions, useProgramOptions } from "@/lib/academic-options";
+import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 
 export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
@@ -20,6 +22,29 @@ function ReportsPage() {
   const session = useSession();
   const [departmentId, setDepartmentId] = useState("");
   const [tracked, setTracked] = useState<"all" | "tracked" | "untracked">("all");
+  // Export-only filters; the summary totals above use department and tracking only.
+  const [collegeId, setCollegeId] = useState("");
+  const [programId, setProgramId] = useState("");
+  const [graduationYear, setGraduationYear] = useState("");
+  const [batch, setBatch] = useState("");
+  const colleges = useCollegeOptions();
+  const programs = useProgramOptions();
+  const exportFilters = {
+    collegeId: collegeId || undefined,
+    departmentId: departmentId || undefined,
+    programId: programId || undefined,
+    graduationYear: graduationYear ? Number(graduationYear) : undefined,
+    batch: batch || undefined,
+    tracked,
+  };
+  const pdf = useMutation({
+    mutationFn: (kind: "alumni" | "assignments") =>
+      kind === "alumni"
+        ? downloadPdf("/api/reports/alumni.pdf", exportFilters)
+        : downloadPdf("/api/reports/assignments.pdf"),
+    onSuccess: () => toast.success("PDF downloaded"),
+    onError: (error) => toast.error(error.message),
+  });
   const summary = useQuery(
     api.reports.summary.queryOptions({
       input: { departmentId: departmentId || undefined, tracked },
@@ -27,11 +52,7 @@ function ReportsPage() {
   );
 
   const exportCsv = useMutation({
-    mutationFn: () =>
-      client.reports.alumniCsv({
-        departmentId: departmentId || undefined,
-        tracked,
-      }),
+    mutationFn: () => client.reports.alumniCsv(exportFilters),
     onSuccess: (result) => {
       const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -123,6 +144,49 @@ function ReportsPage() {
                 { value: "untracked", label: "Untracked" },
               ]}
             />
+            <FormSelect
+              className="w-full sm:w-auto sm:min-w-44"
+              value={collegeId}
+              onValueChange={setCollegeId}
+              aria-label="College"
+              items={[
+                { value: "", label: "All colleges" },
+                ...(colleges.data?.map((college) => ({ value: college.id, label: college.name })) ??
+                  []),
+              ]}
+            />
+            <FormSelect
+              className="w-full sm:w-auto sm:min-w-44"
+              value={programId}
+              onValueChange={setProgramId}
+              aria-label="Program"
+              items={[
+                { value: "", label: "All programs" },
+                ...(programs.data?.map((program) => ({
+                  value: program.id,
+                  label: `${program.code} — ${program.name}`,
+                })) ?? []),
+              ]}
+            />
+            <Input
+              className="w-full sm:w-32"
+              type="number"
+              min={1950}
+              max={2100}
+              inputMode="numeric"
+              placeholder="Grad. year"
+              aria-label="Graduation year"
+              value={graduationYear}
+              onChange={(event) => setGraduationYear(event.target.value)}
+            />
+            <Input
+              className="w-full sm:w-32"
+              maxLength={40}
+              placeholder="Batch"
+              aria-label="Batch"
+              value={batch}
+              onChange={(event) => setBatch(event.target.value)}
+            />
           </FilterBar>
           {can(session.data?.permissions, "reports.export") ? (
             <div className="flex flex-wrap gap-2">
@@ -133,6 +197,12 @@ function ReportsPage() {
               >
                 Download CSV
               </PrimaryButton>
+              <QuietButton onClick={() => pdf.mutate("alumni")} disabled={pdf.isPending}>
+                Download PDF
+              </QuietButton>
+              <QuietButton onClick={() => pdf.mutate("assignments")} disabled={pdf.isPending}>
+                Assignment report (PDF)
+              </QuietButton>
               {session.data && isAdministrator(session.data) ? (
                 <QuietButton
                   onClick={() => exportSheets.mutate()}

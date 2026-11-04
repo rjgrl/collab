@@ -100,7 +100,8 @@ function makeUser(permissions: string[], overrides: Partial<AuthUser> = {}): Aut
     image: null,
     status: "active",
     mfaVerified: true, // These tests exercise authorization after successful MFA.
-    roles: ["test"],
+    // Staff without a faculty record is the unscoped management account; scope has its own tests.
+    roles: ["staff"],
     permissions: permissions as AuthUser["permissions"],
     ...overrides,
   };
@@ -195,9 +196,17 @@ describe("RBAC: alumni permission granularity", () => {
     );
     assert.deepEqual((result as { evidenceFiles: unknown[] }).evidenceFiles, []);
   });
-  it("a custom read-only management role can list and read but cannot mutate", async () => {
+  it("a custom role without a faculty record sees no alumni records", async () => {
+    const { db } = stubDb({ alumni: [] });
+    const custom = makeUser(["alumni.read"], { roles: ["read_only_management"] });
+    await assert.rejects(
+      () => invoke(alumniRouter.get, { id: "0000000000000000000000a1" }, makeContext(custom, db)),
+      /Alumni record not found/,
+    );
+  });
+  it("a read-only management account can list and read but cannot mutate", async () => {
     const { db, reads } = stubDb({ alumni: [] });
-    const viewer = makeUser(["alumni.read"], { roles: ["read_only_management"] });
+    const viewer = makeUser(["alumni.read"], { roles: ["staff"] });
 
     await invoke(alumniRouter.list, {}, makeContext(viewer, db));
     await invoke(alumniRouter.get, { id: "0000000000000000000000a1" }, makeContext(viewer, db));

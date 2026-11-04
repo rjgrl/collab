@@ -3,9 +3,10 @@ import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import { selfEmploymentInputSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
 import type { z } from "zod";
-import { activeAlumni, linkedAlumni } from "./access";
+import { linkedAlumni } from "./access";
+import { scopedAlumni } from "@Alumni-Tracking-Ss/api/scope";
 import { audit, management } from "../academic/service";
-import { describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
+import { describeAuditChanges, fieldChanges } from "@Alumni-Tracking-Ss/api/audit";
 
 async function claimProfile(context: Context, tx: Database, alumniId: string, self: boolean) {
   if (self) {
@@ -13,7 +14,7 @@ async function claimProfile(context: Context, tx: Database, alumniId: string, se
       throw new ApiError("FORBIDDEN", { message: "You may only change your own employment." });
   } else {
     management(context, "alumni.write");
-    await activeAlumni(tx, alumniId);
+    await scopedAlumni(context, alumniId, tx);
   }
   // Serialize every job mutation through its parent, including concurrent new current jobs.
   const claim = await tx.Alumni.updateOne(
@@ -85,6 +86,7 @@ export const employmentService = {
         "employment",
         result.id,
         `Added employment for Alumni ${ownerId}: ${describeAuditChanges({}, data)}`,
+        { alumniId: ownerId, changes: fieldChanges({}, data) },
       );
       return result;
     });
@@ -122,6 +124,7 @@ export const employmentService = {
         "employment",
         id,
         `Updated employment ${JSON.stringify(existing.employer)} for Alumni ${alumniId}: ${describeAuditChanges(existing, data)}`,
+        { alumniId, changes: fieldChanges(existing, data) },
       );
       return toEntity(job);
     });
@@ -143,6 +146,7 @@ export const employmentService = {
         "employment",
         id,
         `Removed employment ${JSON.stringify(job.employer)} (${job.jobTitle ?? "no job title"}) from Alumni ${alumniId}; related evidence retained and unlinked`,
+        { alumniId },
       );
       return { ok: true };
     });

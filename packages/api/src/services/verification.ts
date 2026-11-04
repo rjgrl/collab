@@ -1,4 +1,5 @@
 import { toEntity } from "@Alumni-Tracking-Ss/db";
+import { assertStaffEmailAllowed } from "./staff-domain";
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { ApiError } from "../http-error";
 import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
@@ -319,6 +320,7 @@ export async function requestEmailChange(context: Context, email: string, curren
   const target = email.trim().toLowerCase();
   if (target === user.email)
     throw new ApiError("BAD_REQUEST", { message: "Choose a different email address." });
+  assertStaffEmailAllowed(target, context.user!.roles);
   if (await context.db.User.exists({ email: target }))
     throw new ApiError("CONFLICT", { message: "This email address is already in use." });
   const result = await issueVerification(context, "email", target);
@@ -341,6 +343,7 @@ export async function confirmEmailChange(
 ) {
   const user = await currentEmailOwner(context, currentPassword);
   const target = email.trim().toLowerCase();
+  assertStaffEmailAllowed(target, context.user!.roles);
   const challenge = await verifyChallenge(context, "email", code);
   if (challenge.target !== target || target === user.email)
     throw new ApiError("BAD_REQUEST", {

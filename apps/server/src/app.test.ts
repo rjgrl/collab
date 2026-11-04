@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync, sign } from "node:crypto";
 import { it, type TestContext } from "node:test";
 import express from "express";
 import request from "supertest";
@@ -6,6 +7,7 @@ import type { Database, PermissionKey } from "@Alumni-Tracking-Ss/db";
 import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
 import type { AuthUser } from "@Alumni-Tracking-Ss/api/context";
 import { createApp } from "./app";
+import { resetGoogleKeyCache } from "@Alumni-Tracking-Ss/api/integrations/google-id-token";
 import { createContext } from "./context";
 const origin = "https://app.example.test";
 const userId = "111111111111111111111111",
@@ -394,7 +396,7 @@ it("binds OAuth state to an HttpOnly cookie and rejects callbacks without that c
   assert.equal(callback.status, 302);
   assert.equal(location(callback), origin + "/login?error=google");
 });
-function googleFixture(existing = false, nodeEnv = "test") {
+function googleFixture(existing = false, nodeEnv = "test", roleKey = "viewer") {
   const created: Record<string, unknown>[] = [];
   let sessions = 0;
   const account = {
@@ -411,8 +413,16 @@ function googleFixture(existing = false, nodeEnv = "test") {
   const db = {
     AuthThrottle: { findOneAndUpdate: () => query({ count: 1 }) },
     IntegrationSetting: { findOne: () => query({ enabled: true }) },
-    Role: { findOne: () => query({ _id: otherId, key: "viewer" }) },
-    UserRole: { create: async () => ({}) },
+    Role: {
+      findOne: () => query({ _id: otherId, key: "viewer" }),
+      find: () => query([{ _id: otherId, key: roleKey, name: roleKey, isSystem: true }]),
+    },
+    RolePermission: { find: () => query([]) },
+    Permission: { find: () => query([]) },
+    UserRole: {
+      create: async () => ({}),
+      find: () => query(existing ? [{ _id: otherId, userId, roleId: otherId }] : []),
+    },
     User: {
       findOne: () => query(existing ? account : null),
       findOneAndUpdate: () => query(account),
@@ -450,14 +460,35 @@ function googleFixture(existing = false, nodeEnv = "test") {
   };
   return { callback, created, sessions: () => sessions };
 }
+const googleKey = generateKeyPairSync("rsa", { modulusLength: 2048 });
 function mockGoogle(t: TestContext, profile: Record<string, unknown>) {
-  t.mock.method(globalThis, "fetch", async (url: string | URL | Request) =>
-    Response.json(
-      String(url).includes("oauth2.googleapis.com/token")
-        ? { access_token: "synthetic-access-token" }
-        : profile,
-    ),
-  );
+  resetGoogleKeyCache();
+  const seconds = Math.floor(Date.now() / 1000);
+  const part = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const { verified_email, ...claims } = profile;
+  const body = `${part({ alg: "RS256", kid: "synthetic" })}.${part({
+    iss: "https://accounts.google.com",
+    aud: "synthetic-client",
+    sub: "synthetic-subject",
+    iat: seconds,
+    exp: seconds + 600,
+    email_verified: verified_email,
+    ...claims,
+  })}`;
+  const idToken = `${body}.${sign("RSA-SHA256", Buffer.from(body), googleKey.privateKey).toString("base64url")}`;
+  t.mock.method(globalThis, "fetch", async (url: string | URL | Request) => {
+    const target = String(url);
+    if (target.includes("oauth2.googleapis.com/token")) return Response.json({ id_token: idToken });
+    if (target.includes("openid-configuration"))
+      return Response.json({ jwks_uri: "https://www.googleapis.com/oauth2/v3/certs" });
+    if (target.includes("oauth2/v3/certs"))
+      return Response.json({
+        keys: [
+          { ...googleKey.publicKey.export({ format: "jwk" }), kid: "synthetic", alg: "RS256" },
+        ],
+      });
+    return new Response("", { status: 404 });
+  });
 }
 it("Google callback creates a passwordless account and redirects to profile completion", async (t) => {
   mockGoogle(t, { email: "member@example.test", name: "Google Member", verified_email: true });
@@ -483,6 +514,26 @@ it("Google callback refuses unverified email without creating an account or sess
   assert.equal(location(await f.callback()), origin + "/login?error=google");
   assert.equal(f.created.length, 0);
   assert.equal(f.sessions(), 0);
+});
+it("Google callback rejects staff accounts outside the institutional Workspace", async (t) => {
+  const previous = process.env.STAFF_EMAIL_DOMAINS;
+  process.env.STAFF_EMAIL_DOMAINS = "example.test";
+  try {
+    // Allowlisted email domain but no verified hd claim: a consumer Google account.
+    mockGoogle(t, { email: "member@example.test", verified_email: true });
+    const f = googleFixture(true, "test", "staff");
+    assert.equal(location(await f.callback()), origin + "/login?error=google_domain");
+    assert.equal(f.sessions(), 0);
+    t.mock.restoreAll();
+    mockGoogle(t, { email: "member@example.test", verified_email: true, hd: "example.test" });
+    assert.equal(
+      location(await googleFixture(true, "test", "staff").callback()),
+      origin + "/dashboard",
+    );
+  } finally {
+    if (previous === undefined) delete process.env.STAFF_EMAIL_DOMAINS;
+    else process.env.STAFF_EMAIL_DOMAINS = previous;
+  }
 });
 it("Google provider failures return to login without issuing a session", async (t) => {
   t.mock.method(globalThis, "fetch", async () => {
@@ -692,13 +743,10 @@ it("integrations are Admin-only even when Staff have all permissions", async () 
     403,
   );
 });
-it("retired Faculty endpoints are unavailable without changing legacy collections", async () => {
+it("Faculty endpoints require sign-in", async () => {
   const app = fixture({
     permissions: [...PERMISSION_KEYS],
     db: { Faculty: { find: () => query([]) } },
   });
-  assert.equal(
-    (await request(app).get("/api/faculty").set("Cookie", "ats_session=synthetic")).status,
-    404,
-  );
+  assert.equal((await request(app).get("/api/faculty")).status, 401);
 });

@@ -1,6 +1,7 @@
 import type { IndexOptions } from "mongoose";
 import type { Database } from "./index";
 import { schemas } from "./models";
+import { migrateOrgStructure, renameLegacyDepartments, type OrgMigrationReport } from "./org-migration";
 
 export type MigrationMode = "dry-run" | "apply" | "rollback";
 export interface ExistingIndex {
@@ -30,6 +31,7 @@ export interface MigrationReport {
   createdCollections: string[];
   createdIndexes: string[];
   departmentCodeIndex?: DepartmentCodeIndexReport;
+  orgStructure?: OrgMigrationReport;
   rollback: string;
 }
 function stable(value: unknown): string {
@@ -145,9 +147,9 @@ export async function migrateDatabase(
   await db.ready();
   const native = db.connection.db;
   if (!native) throw new Error("Database connection is not ready");
-  const collections = (await native.listCollections({}, { nameOnly: true }).toArray()).map(
-    ({ name }) => name,
-  );
+  const listNames = async () =>
+    (await native.listCollections({}, { nameOnly: true }).toArray()).map(({ name }) => name);
+  let collections = await listNames();
   const report: MigrationReport = {
     mode,
     collections,
@@ -156,24 +158,43 @@ export async function migrateDatabase(
     createdCollections: [],
     createdIndexes: [],
     rollback:
-      "Pause writers and run --rollback to restore the backed-up Department_code_key if all code values (including missing values) remain unique. Rollback never edits records; multiple new code-free departments require an operator-reviewed data plan before restoring the old artifact. Other additive collections and indexes remain intact.",
+      "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact.",
   };
+  if (mode === "rollback") {
+    report.orgStructure = await migrateOrgStructure(db, native, "rollback");
+    if (report.orgStructure.state === "conflict") {
+      report.conflicts.push(report.orgStructure.reason!);
+      return report;
+    }
+  }
   report.departmentCodeIndex = await migrateDepartmentCodeIndex(native, mode === "rollback" ? "rollback" : "dry-run");
   if (report.departmentCodeIndex.state === "conflict") report.conflicts.push(report.departmentCodeIndex.reason!);
   if (mode === "rollback") return report;
+  report.orgStructure = await migrateOrgStructure(db, native, "dry-run");
+  if (report.orgStructure.state === "conflict") report.conflicts.push(report.orgStructure.reason!);
+  // Until the rename runs, the legacy top-level units still live in `Department`.
+  const legacyName = (collection: string) =>
+    report.orgStructure?.state === "pending" && !collections.includes("College")
+      ? collection === "College"
+        ? "Department"
+        : collection === "Department"
+          ? null
+          : collection
+      : collection;
   for (const collection of Object.keys(schemas)) {
-    const existing = collections.includes(collection)
-      ? await native.collection(collection).listIndexes().toArray()
+    const live = legacyName(collection);
+    const existing = live && collections.includes(live)
+      ? await native.collection(live).listIndexes().toArray()
       : [];
     for (const plan of plannedIndexes().filter((index) => index.collection === collection)) {
       const inspection = inspectIndex(plan, existing);
       report.indexes.push(inspection);
       if (inspection.state === "conflict")
         report.conflicts.push(`${collection}.${plan.name}: ${inspection.reason}`);
-      if (inspection.state === "missing" && plan.unique && collections.includes(collection)) {
+      if (inspection.state === "missing" && plan.unique && live && collections.includes(live)) {
         const group = Object.fromEntries(Object.keys(plan.key).map((key) => [key, `$${key}`]));
         const duplicates = await native
-          .collection(collection)
+          .collection(live)
           .aggregate<{ groups: number }>(
             [
               ...(plan.partialFilterExpression ? [{ $match: plan.partialFilterExpression }] : []),
@@ -194,6 +215,14 @@ export async function migrateDatabase(
   if (mode !== "apply" || report.conflicts.length) return report;
   // Preflight the complete plan before writing anything. A subsequent concurrent
   // writer or index failure still fails closed; prior additions remain harmless.
+  // The legacy code index must retire while it still lives on `Department`, before the rename.
+  report.departmentCodeIndex = await migrateDepartmentCodeIndex(native, "apply");
+  if (report.departmentCodeIndex.state === "conflict") {
+    report.conflicts.push(report.departmentCodeIndex.reason!);
+    return report;
+  }
+  await renameLegacyDepartments(native);
+  collections = await listNames();
   for (const name of Object.keys(schemas)) {
     if (!collections.includes(name)) {
       await native.createCollection(name);
@@ -212,7 +241,7 @@ export async function migrateDatabase(
       });
     report.createdIndexes.push(`${index.collection}.${index.name}`);
   }
-  report.departmentCodeIndex = await migrateDepartmentCodeIndex(native, "apply");
-  if (report.departmentCodeIndex.state === "conflict") report.conflicts.push(report.departmentCodeIndex.reason!);
+  report.orgStructure = await migrateOrgStructure(db, native, "apply");
+  if (report.orgStructure.state === "conflict") report.conflicts.push(report.orgStructure.reason!);
   return report;
 }

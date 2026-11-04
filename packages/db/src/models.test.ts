@@ -26,7 +26,8 @@ describe("legacy MongoDB model compatibility", () => {
     const models = new Map(Object.entries(schemas));
     for (const match of legacy.matchAll(/model (\w+) \{([\s\S]*?)\n\}/g)) {
       const name = match[1]!;
-      const schema = models.get(name);
+      // The legacy top-level Department collection was renamed to College by org-structure-v1.
+      const schema = models.get(name === "Department" ? "College" : name);
       assert.ok(schema, `Missing legacy model ${name}`);
       for (const row of match[2]!.split("\n")) {
         const field = row.trim().match(/^(\w+)\s+(\w+)(\[\]|\?)?(.*)$/);
@@ -84,6 +85,7 @@ describe("legacy MongoDB model compatibility", () => {
 });
 
 it("does not declare department codes or uniqueness while retaining required program codes", () => {
+  assert.equal(schemas.College.path("code"), undefined);
   assert.equal(schemas.Department.path("code"), undefined);
   assert.equal(schemas.Department.indexes().some(([, options]) => options.name === "Department_code_key"), false);
   assert.equal(schemas.Program.path("code").options.required, true);

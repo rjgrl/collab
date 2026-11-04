@@ -1,4 +1,5 @@
 import { Schema, type Connection, type Model, type SchemaDefinition, Types } from "mongoose";
+import { CONTACT_TYPES, type ContactType } from "@Alumni-Tracking-Ss/contracts/contacts";
 
 export interface Identified {
   _id: Types.ObjectId;
@@ -64,20 +65,31 @@ export interface RolePermissionRecord extends Created {
   roleId: Types.ObjectId;
   permissionId: Types.ObjectId;
 }
-export interface DepartmentRecord extends Timestamped {
+export interface OrgUnitRecord extends Timestamped {
   name: string;
   description: string;
   deletedAt?: Date | null;
 }
-export interface ProgramRecord extends DepartmentRecord {
+export type CollegeRecord = OrgUnitRecord;
+export interface DepartmentRecord extends OrgUnitRecord {
+  collegeId: Types.ObjectId;
+}
+export interface ProgramRecord extends OrgUnitRecord {
   code: string;
   departmentId: Types.ObjectId;
 }
+export const FACULTY_ROLE_LEVELS = ["faculty", "department", "college"] as const;
+export type FacultyRoleLevel = (typeof FACULTY_ROLE_LEVELS)[number];
 export interface FacultyRecord extends Timestamped {
   employeeNumber: string;
   firstName: string;
   lastName: string;
   email?: string | null;
+  // Legacy pre-restructure records may lack these until an administrator completes them.
+  userId?: Types.ObjectId | null;
+  departmentId?: Types.ObjectId | null;
+  roleLevel: FacultyRoleLevel;
+  active: boolean;
   deletedAt?: Date | null;
 }
 export interface FacultyDepartmentRecord extends Created {
@@ -101,8 +113,18 @@ export interface AlumniRecord extends Timestamped {
   isTracked: boolean;
   lastTrackedAt?: Date | null;
   programId: Types.ObjectId;
+  assignedFacultyId?: Types.ObjectId | null;
+  needsReassignment?: boolean;
   photoUrl?: string | null;
   deletedAt?: Date | null;
+}
+export interface AlumniContactRecord extends Timestamped {
+  alumniId: Types.ObjectId;
+  type: ContactType;
+  value: string;
+  label: string;
+  isPrimary: boolean;
+  createdById?: Types.ObjectId | null;
 }
 export interface EmploymentRecord extends Timestamped {
   alumniId: Types.ObjectId;
@@ -134,6 +156,8 @@ export interface EvidenceFileRecord extends Timestamped {
   provider: StorageProvider;
   storageKey: string;
   url?: string | null;
+  // imgBB delete page for public profile photos; imgBB has no documented delete API.
+  deleteUrl?: string | null;
   kind: string;
   createdById?: Types.ObjectId | null;
   deletedAt?: Date | null;
@@ -312,9 +336,15 @@ export const schemas = {
     { roleId: ref("Role"), permissionId: ref("Permission") },
     createdOnly,
   ),
+  College: schema<CollegeRecord>("College", {
+    name: requiredString,
+    description: text,
+    deletedAt: Date,
+  }),
   Department: schema<DepartmentRecord>("Department", {
     name: requiredString,
     description: text,
+    collegeId: ref("College"),
     deletedAt: Date,
   }),
   Program: schema<ProgramRecord>("Program", {
@@ -329,6 +359,10 @@ export const schemas = {
     firstName: requiredString,
     lastName: requiredString,
     email: String,
+    userId: ref("User", false),
+    departmentId: ref("Department", false),
+    roleLevel: { type: String, enum: FACULTY_ROLE_LEVELS, default: "faculty" },
+    active: yes,
     deletedAt: Date,
   }),
   FacultyDepartment: schema<FacultyDepartmentRecord>(
@@ -353,8 +387,18 @@ export const schemas = {
     isTracked: no,
     lastTrackedAt: Date,
     programId: ref("Program"),
+    assignedFacultyId: ref("Faculty", false),
+    needsReassignment: no,
     photoUrl: String,
     deletedAt: Date,
+  }),
+  AlumniContact: schema<AlumniContactRecord>("AlumniContact", {
+    alumniId: ref("Alumni"),
+    type: { type: String, enum: CONTACT_TYPES, required: true },
+    value: requiredString,
+    label: text,
+    isPrimary: no,
+    createdById: ref("User", false),
   }),
   Employment: schema<EmploymentRecord>("Employment", {
     alumniId: ref("Alumni"),
@@ -390,6 +434,7 @@ export const schemas = {
     provider: { type: String, enum: ["local", "google_drive", "imgbb"], required: true },
     storageKey: requiredString,
     url: String,
+    deleteUrl: String,
     kind: { type: String, default: "evidence" },
     createdById: ref("User", false),
     deletedAt: Date,
@@ -539,7 +584,17 @@ schemas.Program.index(
   { unique: true, name: "Program_departmentId_code_key" },
 );
 schemas.Program.index({ departmentId: 1 }, { name: "Program_departmentId_idx" });
+schemas.Department.index({ collegeId: 1 }, { name: "Department_collegeId_idx" });
 schemas.Faculty.index({ employeeNumber: 1 }, { unique: true, name: "Faculty_employeeNumber_key" });
+schemas.Faculty.index(
+  { userId: 1 },
+  {
+    unique: true,
+    name: "Faculty_userId_key",
+    partialFilterExpression: { userId: { $type: "objectId" } },
+  },
+);
+schemas.Faculty.index({ departmentId: 1 }, { name: "Faculty_departmentId_idx" });
 schemas.FacultyDepartment.index(
   { facultyId: 1, departmentId: 1 },
   { unique: true, name: "FacultyDepartment_facultyId_departmentId_key" },
@@ -552,11 +607,20 @@ schemas.Alumni.index({ studentNumber: 1 }, { unique: true, name: "Alumni_student
 schemas.Alumni.index({ programId: 1 }, { name: "Alumni_programId_idx" });
 schemas.Alumni.index({ isTracked: 1 }, { name: "Alumni_isTracked_idx" });
 schemas.Alumni.index({ graduationYear: 1 }, { name: "Alumni_graduationYear_idx" });
+schemas.Alumni.index({ assignedFacultyId: 1 }, { name: "Alumni_assignedFacultyId_idx" });
+schemas.AlumniContact.index({ alumniId: 1 }, { name: "AlumniContact_alumniId_idx" });
+schemas.AlumniContact.index(
+  { alumniId: 1, type: 1 },
+  { unique: true, name: "AlumniContact_primary_key", partialFilterExpression: { isPrimary: true } },
+);
 schemas.Employment.index({ alumniId: 1 }, { name: "Employment_alumniId_idx" });
 schemas.TrackingEvent.index({ alumniId: 1 }, { name: "TrackingEvent_alumniId_idx" });
 schemas.EvidenceFile.index({ alumniId: 1 }, { name: "EvidenceFile_alumniId_idx" });
 schemas.EvidenceFile.index({ trackingEventId: 1 }, { name: "EvidenceFile_trackingEventId_idx" });
-schemas.AccountPhoto.index({ userId: 1, createdAt: -1 }, { name: "AccountPhoto_userId_createdAt_idx" });
+schemas.AccountPhoto.index(
+  { userId: 1, createdAt: -1 },
+  { name: "AccountPhoto_userId_createdAt_idx" },
+);
 schemas.AuditLog.index({ actorId: 1 }, { name: "AuditLog_actorId_idx" });
 schemas.AuditLog.index({ entity: 1, entityId: 1 }, { name: "AuditLog_entity_entityId_idx" });
 schemas.Notification.index(
@@ -568,6 +632,11 @@ schemas.Notification.index(
   { name: "Notification_recipient_evidence_key", unique: true },
 );
 schemas.AuditLog.index({ createdAt: 1 }, { name: "AuditLog_createdAt_idx" });
+// Per-alumnus history: alumni, contact, employment and assignment events carry metadata.alumniId.
+schemas.AuditLog.index(
+  { "metadata.alumniId": 1, createdAt: -1 },
+  { name: "AuditLog_alumniId_createdAt_idx" },
+);
 schemas.IntegrationSetting.index({ key: 1 }, { unique: true, name: "IntegrationSetting_key_key" });
 schemas.ImportJob.index({ createdById: 1 }, { name: "ImportJob_createdById_idx" });
 schemas.VerificationChallenge.index(
@@ -593,11 +662,13 @@ export function createModels(connection: Connection) {
     Permission: connection.model("Permission", schemas.Permission),
     UserRole: connection.model("UserRole", schemas.UserRole),
     RolePermission: connection.model("RolePermission", schemas.RolePermission),
+    College: connection.model("College", schemas.College),
     Department: connection.model("Department", schemas.Department),
     Program: connection.model("Program", schemas.Program),
     Faculty: connection.model("Faculty", schemas.Faculty),
     FacultyDepartment: connection.model("FacultyDepartment", schemas.FacultyDepartment),
     Alumni: connection.model("Alumni", schemas.Alumni),
+    AlumniContact: connection.model("AlumniContact", schemas.AlumniContact),
     Employment: connection.model("Employment", schemas.Employment),
     TrackingEvent: connection.model("TrackingEvent", schemas.TrackingEvent),
     EvidenceFile: connection.model("EvidenceFile", schemas.EvidenceFile),

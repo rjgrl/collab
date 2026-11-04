@@ -30,7 +30,6 @@ test("local Admin first login enters without an authenticator and strict mode re
           element.previousElementSibling!.getBoundingClientRect().bottom - 1,
       ),
   ).toBe(true);
-  await expect(page.getByRole("link", { name: "Faculty", exact: true })).toHaveCount(0);
   await page.goto("/settings");
   await expect(page.getByRole("link", { name: "Integrations", exact: true })).toBeVisible();
   await page.mouse.move(0, 0);
@@ -59,7 +58,6 @@ for (const legacyIntegrations of [false, true]) {
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL("**/dashboard");
     await expect(page.getByTestId("account-role")).toHaveText("Staff");
-    await expect(page.getByRole("link", { name: "Faculty", exact: true })).toHaveCount(0);
     await page.goto("/settings");
     await expect(page.getByRole("link", { name: "Integrations", exact: true })).toHaveCount(0);
     await page.goto("/settings/integrations");
@@ -78,7 +76,7 @@ for (const legacyIntegrations of [false, true]) {
     await expect(
       page.getByRole("button", { name: "Export to Google Sheets", exact: true }),
     ).toHaveCount(0);
-    expect((await page.request.get("/api/faculty")).status()).toBe(404);
+    expect((await page.request.get("/api/faculty")).status()).toBe(200);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );

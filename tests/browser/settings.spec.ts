@@ -136,7 +136,7 @@ test("creation dialogs contain forms, trap focus and return focus to the add but
   }
   await page.goto("/faculties");
   await expect(page.getByRole("heading", { name: "Faculty", exact: true })).toHaveCount(0);
-  expect((await page.request.get("/api/faculty")).status()).toBe(404);
+  expect((await page.request.get("/api/faculty")).status()).toBe(200);
 });
 
 test("account controls remain reachable and role dialogs scroll internally", async ({

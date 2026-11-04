@@ -41,7 +41,10 @@ const origin = "http://localhost:3001";
 try {
   assert.deepEqual((await migrateDatabase(db, "apply")).conflicts, []);
   await seedDatabase(db);
-  const department = await db.Department.create({ name: "Synthetic college" });
+  const department = await db.Department.create({
+    collegeId: (await db.College.create({ name: "Synthetic college" }))._id,
+    name: "Synthetic college",
+  });
   const program = await db.Program.create({
     code: "TEST",
     name: "Synthetic degree",
@@ -323,7 +326,8 @@ try {
     ).status,
     403,
   );
-  assert.equal((await request(app).get("/api/faculty").set(staffHeaders)).status, 404);
+  // Faculty records are restored; unscoped Staff may read them (for assignment) but not manage them.
+  assert.equal((await request(app).get("/api/faculty").set(staffHeaders)).status, 200);
   const summary = await request(app).get("/api/dashboard").set(staffHeaders);
   const nameSearch = await request(app)
     .get("/api/alumni")
@@ -359,6 +363,7 @@ try {
   assert.equal(published.body.totals.percentTracked, 0);
   assert.equal("registered" in published.body.totals, false);
   const smallDepartment = await db.Department.create({
+    collegeId: (await db.College.create({ name: "Synthetic college" }))._id,
     name: "Synthetic small cohort",
   });
   const smallProgram = await db.Program.create({
@@ -483,7 +488,7 @@ try {
   const completedList = await request(app).get("/api/alumni?search=PENDING-001").set(staffHeaders);
   assert.equal(completedList.body[0]?.isRegistered, true);
   console.log(
-    "PASS registration/races, managed Staff creation/default and Alumni creation denial, pending account visibility/privacy/completion, contact policy, jobs/files/ownership, retired Faculty routes, reports and statistics.",
+    "PASS registration/races, managed Staff creation/default and Alumni creation denial, pending account visibility/privacy/completion, contact policy, jobs/files/ownership, staff faculty read access, reports and statistics.",
   );
 } finally {
   await db.disconnect();

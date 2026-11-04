@@ -21,6 +21,11 @@ import type { AuthUser } from "../context";
 import { writeAudit } from "../audit";
 import { isDatabaseUnavailable } from "../errors";
 import { createRegistrationProfile } from "./registration";
+import {
+  assertStaffEmailAllowed,
+  assertStaffGoogleIdentity,
+  staffEmailRejected,
+} from "./staff-domain";
 
 const SESSION_DAYS = 7;
 export const storedSessionToken = (token: string) =>
@@ -38,12 +43,18 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
   const credential = await db.MfaCredential.findOne({ userId }).lean().exec();
   const assigned = await loadUserRoles(db, userId);
   const roles = assigned.map((role) => role.key);
+  // Also ends sessions of staff whose email or roles changed after sign-in.
+  if (staffEmailRejected(user.email, roles)) return null;
   const alumniAccount = isAlumniAccount({ roles });
   const alumniPhoto =
     !user.image && user.alumniId
       ? await db.Alumni.findOne({ _id: user.alumniId, deletedAt: null }).select("photoUrl").lean()
       : null;
   const image = user.image || alumniPhoto?.photoUrl || null;
+  const facultyRow = await db.Faculty.findOne({ userId, deletedAt: null, active: true })
+    .select("_id roleLevel departmentId")
+    .lean()
+    .exec();
   const permissions = [
     ...new Set(
       assigned.flatMap((role) => role.rolePermissions.map(({ permission }) => permission.key)),
@@ -75,6 +86,14 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
     mfaEnrolled: Boolean(credential?.secretCipher),
     mfaVersion: credential?.version,
     mfaVerified: false,
+    faculty:
+      facultyRow?.departmentId && facultyRow.roleLevel
+        ? {
+            id: String(facultyRow._id),
+            roleLevel: facultyRow.roleLevel,
+            departmentId: String(facultyRow.departmentId),
+          }
+        : null,
   };
 }
 
@@ -201,6 +220,10 @@ export async function authenticateWithPassword(
   if (roleCount === 0) {
     throw new ApiError("FORBIDDEN", { message: "No role is assigned to this account." });
   }
+  assertStaffEmailAllowed(
+    user.email,
+    (await loadUserRoles(db, user.id)).map((role) => role.key),
+  );
   await db.AuthThrottle.updateOne(
     { key: attempt.key, count: { $gt: 0 } },
     { $inc: { count: -1 } },
@@ -270,7 +293,7 @@ export async function registerUser(
 
 export async function upsertGoogleUser(
   db: Database,
-  input: { email: string; name: string; image?: string | null },
+  input: { email: string; name: string; image?: string | null; hostedDomain?: string | null },
 ) {
   const email = input.email.trim().toLowerCase();
   const existingRow = await db.User.findOne({ email }).lean().exec();
@@ -279,6 +302,11 @@ export async function upsertGoogleUser(
     if (existing.status !== "active")
       throw new ApiError("FORBIDDEN", { message: "This account is disabled." });
     assertGoogleLinkAllowed(existing);
+    assertStaffGoogleIdentity(
+      email,
+      input.hostedDomain,
+      (await loadUserRoles(db, existing.id)).map((role) => role.key),
+    );
     // Provider names and photos initialize new accounts; later sign-ins preserve account edits.
     const updated = await db.User.findOneAndUpdate(
       {
@@ -328,6 +356,11 @@ export async function upsertGoogleUser(
       const row = await db.User.findOne({ email }).lean().exec();
       if (row?.status === "active") {
         assertGoogleLinkAllowed(row);
+        assertStaffGoogleIdentity(
+          email,
+          input.hostedDomain,
+          (await loadUserRoles(db, String(row._id))).map((role) => role.key),
+        );
         return toEntity(row);
       }
     }

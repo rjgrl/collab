@@ -15,6 +15,7 @@ import { objectIdSchema } from "@Alumni-Tracking-Ss/contracts/common";
 import { z } from "zod";
 import { assertEvidenceReadAccess } from "../alumni/service";
 import { linkedAlumni } from "../alumni/access";
+import { scopedAlumni } from "@Alumni-Tracking-Ss/api/scope";
 import { isAlumniAccount, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { notifyStaffOfEvidence } from "../notifications/service";
 
@@ -39,7 +40,10 @@ export async function uploadEvidence(
   const user = requireAccess(context, self ? undefined : "files.write");
   if (self) {
     if ((await linkedAlumni(context)).id !== input.alumniId) throw new ApiError("FORBIDDEN");
-  } else rejectAlumniManagement(context);
+  } else {
+    rejectAlumniManagement(context);
+    await scopedAlumni(context, input.alumniId);
+  }
   if (!file) throw new ApiError("BAD_REQUEST", { message: "Alumni and file are required." });
   if (
     !file.originalname.trim() ||
@@ -86,6 +90,8 @@ export async function uploadEvidence(
     mimeType: file.mimetype,
     originalName: file.originalname,
     preferImageHost: input.kind === "image",
+    // Profile photos are resized and stripped; evidence is kept byte-for-byte as proof.
+    resizeImage: input.kind === "image",
   });
   return context.db.transaction(async (db) => {
     // Serialize with employment edits and profile archival before checking job ownership.
@@ -110,11 +116,12 @@ export async function uploadEvidence(
     const evidence = await db.EvidenceFile.create({
       ...input,
       originalName: file.originalname,
-      mimeType: file.mimetype,
-      sizeBytes: file.size,
+      mimeType: stored.mimeType,
+      sizeBytes: stored.sizeBytes,
       provider: stored.provider,
       storageKey: stored.storageKey,
       url: stored.url,
+      deleteUrl: stored.deleteUrl,
       createdById: user.id,
     });
     if (input.kind === "image") {
@@ -146,6 +153,7 @@ export async function uploadEvidence(
       entity: "evidence",
       entityId: evidence._id.toHexString(),
       summary: `Uploaded ${JSON.stringify(file.originalname)} (${file.mimetype}, ${file.size} bytes) to Alumni profile ${input.alumniId}${input.employmentId ? `, employment ${input.employmentId}` : ""}`,
+      metadata: { alumniId: input.alumniId },
       ipAddress: context.ipAddress,
     });
     if (self && isAlumniAccount(user) && input.kind === "evidence") {

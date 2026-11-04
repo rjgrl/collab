@@ -1,6 +1,6 @@
 # Alumni Tracking System
 
-A role-based Alumni tracking application built with React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. Alumni register and maintain their academic/employment profile; Staff review evidence and tracking decisions; Super Admins manage accounts, permissions, audit logs and integrations.
+A role-based Alumni tracking application built with React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. The academic structure is **College → Department → Program**. Alumni register and maintain their academic/employment profile; faculty trackers follow the alumni assigned to them; department and college heads manage faculty and assignments in their scope; Staff review evidence and tracking decisions; Super Admins manage accounts, permissions, audit logs and integrations.
 
 The team setup runs a separate database on each laptop/desktop. No Atlas account, shared database password, Docker, or Google credentials are required for local functionality testing.
 
@@ -43,7 +43,7 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 5. Initializes a new, randomly named database for this checkout, adds missing Mongoose collections/indexes without removing records or indexes, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
-For sample departments and three synthetic alumni, use **`pnpm setup:local --demo`** instead of `pnpm setup:local`. Normal setup creates an administrator; configure departments/programs and let Alumni self-register. Admins create Staff or Super Admin accounts through Members. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
+For sample data, use **`pnpm setup:local --demo`** instead of `pnpm setup:local` on a new database. It adds two colleges (College of Technologies with Information Technology and Automotive Technology; College of Education with Secondary Education), one program each, four synthetic alumni across them, and one faculty account per role level: `college.head@collab.test`, `department.head@collab.test`, `faculty.it@collab.test` and `faculty.education@collab.test`. The faculty accounts share the generated administrator password from `.tools/local-login.txt`. Normal setup creates an administrator; configure departments/programs and let Alumni self-register. Admins create Staff or Super Admin accounts through Members. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 
@@ -72,7 +72,18 @@ pnpm dev
 
 Stop this checkout's development servers before pulling/installing/generating on Windows. Setup preserves local configuration and existing account passwords; populated databases are verified without schema/seed updates. If schema changes are needed, back up local data, review the changes, then run `pnpm setup:local --update-existing`. If index inspection reports a conflict, setup stops. Review `pnpm db:migrate --dry-run` and a backup before authorizing `pnpm db:migrate --apply`; never delete data or drop an index to bypass the report.
 
-This update adds the `AccountPhoto` collection and its user/date index. For an existing database, run `pnpm db:migrate --dry-run`, review the plan and back up your data, then run `pnpm setup:local --update-existing` (or `pnpm db:migrate --apply`). The migration adds missing collections/indexes without deleting existing records. Department codes are absent from the active model, forms and API; legacy stored fields/indexes are not destructively removed.
+### Updating an existing database to the College/Department/Program structure
+
+This update renames the old top-level `Department` collection to `College` (all IDs are preserved), creates one placeholder department named "<College> – Unsorted" per college, moves every program into its college's placeholder, links legacy faculty records to user accounts by email, and imports each alumnus's old phone, email and Facebook fields as primary contacts. Phone numbers that cannot be normalized are counted and skipped, never stored. Setup refuses to run an un-migrated database. With `pnpm dev` stopped:
+
+```sh
+pnpm db:migrate --dry-run
+pnpm setup:local --update-existing
+```
+
+Read the dry-run's `orgStructure` section first (colleges, programs, faculty needing review, contacts imported/skipped), and back up the database (Compass export or `mongodump`). Afterwards, create real departments under **Departments**, move programs out of the "– Unsorted" placeholders, then archive the placeholders. To undo before any real departments exist, run `pnpm db:migrate --rollback`; it refuses (and changes nothing) once departments or faculty placements were added after the migration.
+
+This update also adds the `AccountPhoto` collection and its user/date index. For an existing database, run `pnpm db:migrate --dry-run`, review the plan and back up your data, then run `pnpm setup:local --update-existing` (or `pnpm db:migrate --apply`). The migration adds missing collections/indexes without deleting existing records. Department codes are absent from the active model, forms and API; legacy stored fields/indexes are not destructively removed.
 
 ## Connect using MongoDB Compass
 
@@ -136,6 +147,14 @@ pnpm check:production-build
 pnpm check:server-build
 ```
 
+Run everything, including the real-database suites, with one command (MongoDB is started on port 27018 if needed):
+
+```sh
+pnpm test:all
+```
+
+Add `-- --browser` to include the Playwright suite (`pnpm exec playwright install chromium` once first). The real-database suites can also be run individually: `pnpm test:org-migration`, `pnpm test:scope-local`, `pnpm test:faculty-local`, `pnpm test:contacts-local`, `pnpm test:reports-local`. Each creates and drops its own random loopback database.
+
 Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
 
 The web build always uses production mode without editing your local `.env`; development tools remain available through `pnpm dev`. MFA, password policy/reset, shared throttling and session hardening have local acceptance tests. Live verification delivery and production recovery/operations require acceptance before deployment; follow the [deployment instructions](docs/deployment.md) and [recovery runbook](docs/operations/DISASTER_RECOVERY.md). This application is not certified production-ready.
@@ -189,6 +208,63 @@ Changing email requires the current password and a code delivered to the new add
 Staff and Alumni do not require MFA, including accounts with saved enrollment. Administrator roles (`super_admin` or `admin`) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
 
 Additional isolated verification: `pnpm test:mongoose-db`, `pnpm test:forms-db`, `pnpm test:pentest-local` and `pnpm test:staging-local`. They create fresh synthetic loopback namespaces and retain them for inspection. Browser tests now use a fresh real MongoDB namespace on the managed local replica set; CI starts an ephemeral MongoDB replica set with a test-only dependency. No production database is touched by these checks.
+
+## Roles, scope and faculty
+
+Record-level access is decided by one helper (`packages/api/src/scope.ts`) used by every alumni list, detail view, edit, contact, employment and tracking write, file upload/download, CSV/PDF export and dashboard. RBAC permissions only decide which actions are available.
+
+| Account                                    | Alumni visible and editable                        | Assign faculty          | Manage faculty / set roles                   | Change history |
+| ------------------------------------------ | -------------------------------------------------- | ----------------------- | -------------------------------------------- | -------------- |
+| Super Admin                                | All                                                | Anyone                  | Any level                                    | Yes            |
+| College head                               | Every program in every department of their college | Within their college    | Up to department level, within their college | Within scope   |
+| Department head                            | Every program in their department                  | Within their department | Faculty level, within their department       | Within scope   |
+| Faculty                                    | Only alumni assigned to them                       | No                      | No                                           | No             |
+| Staff (no faculty record)                  | All                                                | Anyone                  | No                                           | No             |
+| Custom roles, inactive or unplaced faculty | None                                               | No                      | No                                           | No             |
+
+Out-of-scope records return **404**, the same as missing ones. Heads edit only levels strictly below their own. Each alumnus has at most one faculty tracker. Deactivating a faculty member (never deleted) or moving them to another department unassigns their alumni and flags them **Needs reassignment**. Role changes, deactivation and every assignment are audit-logged; the affected member is signed out so their scope refreshes.
+
+Faculty are created on the **Faculty** page with an institutional email; the password is optional because faculty can sign in with institutional Google. **Colleges**, **Departments** and **Programs** cannot be archived while they still hold departments, programs, active faculty or alumni; the error says what blocks it.
+
+Alumni detail pages hold the full profile edit (names sync to the alumnus's own account when registered), **Contacts** (Add contact → Phone number / Email / Social media, with edit, delete and make-primary) and, for Admins and heads, **Change history** with field, old value and new value for every alumni, contact, assignment, tracking and employment change.
+
+## BukSU institutional email
+
+Admin, Staff and Faculty accounts must use an email domain from `STAFF_EMAIL_DOMAINS` (comma-separated, exact match; subdomains and look-alikes such as `buksu.edu.ph.evil.com` are rejected). It is enforced server-side on password sign-in, on every authenticated request, when accounts are created or given staff roles, and on email changes. Alumni may keep personal emails. Production refuses to start without it; when it is unset in development the check is off and the server prints a warning.
+
+Google sign-in verifies Google's signed ID token on the server (signature against Google's published keys, issuer, audience, expiry, verified email). For staff accounts the token's `hd` (Workspace) claim must also be in the allowlist; the `hd` request parameter is never trusted. BukSU mail is hosted on Google Workspace for both `buksu.edu.ph` and `student.buksu.edu.ph`.
+
+## Integrations: Google Drive, ImgBB and PDF reports
+
+**Evidence files** go to Google Drive when `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_DRIVE_FOLDER_ID` are set, otherwise to private local disk (`UPLOAD_DIR`). Service accounts have no storage quota, so the folder must be inside a **Shared Drive** that the service account is a member of (Content manager). Files are never shared publicly; downloads always go through the signed-in, scope-checked API. If Drive is configured and an upload fails, the upload fails; it never silently falls back to local disk. Accepted types are PDF, JPEG, PNG, WebP, GIF, DOCX, XLSX and CSV up to 10 MB, checked by file contents, not just the name.
+
+**Alumni profile photos** are resized to fit 1024×1024, re-encoded as WebP and stripped of metadata (including GPS location) before upload. `IMAGE_HOST_PROVIDER` picks the host (`imgbb`, `google_drive` or `local`; blank means ImgBB when `IMGBB_API_KEY` is set). **ImgBB image URLs are public: anyone with the link can view the photo.** ImgBB has no documented delete API; the response's delete page URL is stored server-side so an operator can remove an image by hand. Account avatars (Settings → Account) are also resized but always stay on private storage.
+
+**PDF reports** (Reports page and the Profile PDF button on an alumni page) are generated server-side with pdfmake, using the bundled Roboto font, from templates in `apps/server/src/modules/reports/pdf/templates/`: an alumni list filtered by college, department, program, graduation year, batch and tracking (up to 2,000 rows; use CSV for more), a single alumnus profile sheet, and a faculty assignment report. Every export respects the caller's scope and is audit-logged.
+
+## Environment variables (apps/server/.env)
+
+| Variable                                                | Purpose                                                                                                      |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `STAFF_EMAIL_DOMAINS`                                   | Allowed Admin/Staff/Faculty email domains, e.g. `buksu.edu.ph,student.buksu.edu.ph`. Required in production. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`              | Google sign-in OAuth client.                                                                                 |
+| `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID` | Drive evidence storage (service-account key JSON on one line; folder in a Shared Drive).                     |
+| `IMAGE_HOST_PROVIDER`, `IMGBB_API_KEY`                  | Profile photo host. ImgBB URLs are public.                                                                   |
+| `UPLOAD_DIR`                                            | Private local storage directory.                                                                             |
+
+All values are secrets or deployment settings: keep them in the private `.env` or your host's secret store, never in Git. `apps/server/.env.example` lists every variable with blank values. Declare new variables in `apps/server/.env.schema` as well if you want them in the generated env types.
+
+## Known limitations
+
+- ImgBB photos are public and cannot be deleted through the API; replacing or removing a photo leaves the old copy online until it is deleted with its stored delete page.
+- Google Drive, ImgBB and Google sign-in are tested against mocked responses only; verify each once with real credentials, including one real `student.buksu.edu.ph` account, to confirm which `hd` value Google returns.
+- Assignment notifications are not sent; assigned alumni simply appear under **My assigned alumni**.
+- Deleting a primary contact does not promote another contact of that type. Alumni cannot yet manage contacts from My Profile.
+- An existing user account cannot be converted into a faculty member; create faculty with a new email.
+- The program list's alumni counts are institution-wide (totals only, no records).
+- PDF alumni lists stop at 2,000 rows; the CSV export allows 10,000.
+- Migrated programs start in "– Unsorted" placeholder departments until an administrator reorganizes them.
+- `pnpm test:forms-db` fails at `forms-local.ts:280` (403 instead of 409); this predates the College/Faculty work.
 
 ## Isolated accounts for role demonstrations
 

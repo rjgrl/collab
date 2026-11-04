@@ -27,6 +27,7 @@
     "test:clone-local": "node scripts/rehearse-clone.mjs",
     "db:seed": "node scripts/local-workflow.mjs db:seed",
     "test": "node scripts/test-local.mjs",
+    "test:all": "node scripts/test-all.mjs",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "test:browser": "playwright test",
@@ -42,6 +43,11 @@
     "db:migrate": "node scripts/local-workflow.mjs db:migrate",
     "db:verify-transactions": "node scripts/local-workflow.mjs db:verify-transactions",
     "test:mongoose-db": "tsx scripts/mongoose-db-check.ts",
+    "test:org-migration": "tsx scripts/org-migration-check.ts",
+    "test:scope-local": "tsx apps/server/src/scope-local.ts",
+    "test:faculty-local": "tsx apps/server/src/faculty-local.ts",
+    "test:contacts-local": "tsx apps/server/src/contacts-local.ts",
+    "test:reports-local": "tsx apps/server/src/reports-local.ts",
     "test:roles-local": "tsx scripts/check-local-roles.ts"
   },
   "dependencies": {

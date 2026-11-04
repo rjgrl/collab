@@ -7,15 +7,25 @@ const codeSchema = z
   .max(32)
   .regex(/^[A-Za-z0-9_-]+$/)
   .transform((v) => v.toUpperCase());
-export const departmentInputSchema = z
+const orgUnitInputSchema = z
   .object({
     name: z.string().trim().min(1).max(160),
     description: z.string().trim().max(2000).optional(),
   })
   .strict();
-export const departmentUpdateInputSchema = departmentInputSchema.extend({ id: objectIdSchema });
-export const departmentListInputSchema = paginationSchema.strict().optional();
-export const programInputSchema = departmentInputSchema.extend({
+export const collegeInputSchema = orgUnitInputSchema;
+export const collegeListInputSchema = paginationSchema.strict().optional();
+export const departmentInputSchema = orgUnitInputSchema.extend({ collegeId: objectIdSchema });
+// Omitting collegeId keeps the department in its current college.
+export const departmentUpdateInputSchema = departmentInputSchema.extend({
+  id: objectIdSchema,
+  collegeId: objectIdSchema.optional(),
+});
+export const departmentListInputSchema = paginationSchema
+  .extend({ collegeId: objectIdSchema.optional() })
+  .strict()
+  .optional();
+export const programInputSchema = orgUnitInputSchema.extend({
   code: codeSchema,
   departmentId: objectIdSchema,
 });
@@ -31,8 +41,14 @@ const departmentFields = {
   createdAt: z.coerce.date().optional(),
   updatedAt: z.coerce.date().optional(),
 };
+export const collegeOutputSchema = z.object({
+  ...departmentFields,
+  _count: z.object({ departments: z.number() }).default({ departments: 0 }),
+});
 export const departmentOutputSchema = z.object({
   ...departmentFields,
+  collegeId: objectIdSchema,
+  college: z.object({ id: objectIdSchema, name: z.string() }).optional(),
   _count: z
     .object({ programs: z.number(), faculties: z.number().optional() })
     .default({ programs: 0 }),
@@ -55,6 +71,12 @@ export const programOutputSchema = z.object({
   department: departmentOutputSchema,
   _count: z.object({ alumni: z.number() }).default({ alumni: 0 }),
 });
+export const collegesSchemas = {
+  list: { input: collegeListInputSchema, output: z.array(collegeOutputSchema) },
+  create: { input: collegeInputSchema, output: collegeOutputSchema },
+  update: { input: collegeInputSchema.extend({ id: objectIdSchema }), output: collegeOutputSchema },
+  delete: { input: idInputSchema, output: okSchema },
+};
 export const departmentsSchemas = {
   list: { input: departmentListInputSchema, output: z.array(departmentOutputSchema) },
   get: { input: idInputSchema, output: departmentOutputSchema },

@@ -4,7 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
 
 const png = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII=",
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWMwTptpnDaTAUIBAB/uBMm6iK1UAAAAAElFTkSuQmCC",
   "base64",
 );
 test.beforeEach(async ({ request }) => {
@@ -221,7 +221,7 @@ test("local Alumni registration persists academic identity, employment and owned
   expect(strict.ready).toBe(false);
 });
 
-test("Staff persist employment edits and archives without Faculty navigation", async ({
+test("Staff persist employment edits and archives and can open Faculty", async ({
   page,
   request,
 }) => {
@@ -232,8 +232,7 @@ test("Staff persist employment edits and archives without Faculty navigation", a
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL("**/dashboard");
   await expect(page.getByTestId("account-role")).toHaveText("Staff");
-  await expect(page.getByRole("link", { name: "Faculty", exact: true })).toHaveCount(0);
-  expect((await page.request.get("/api/faculty")).status()).toBe(404);
+  expect((await page.request.get("/api/faculty")).status()).toBe(200);
   await page.goto("/alumni/000000000000000000000201");
   await page.getByRole("button", { name: "Add employment", exact: true }).click();
   await page

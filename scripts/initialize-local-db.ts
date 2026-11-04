@@ -19,7 +19,11 @@ try {
       "Existing indexes or duplicate records conflict with the required schema. Review the dry-run migration privately; no records were changed.",
     );
   if (action === "verify-only") {
-    if (report.indexes.some((index) => index.state !== "present"))
+    // A pending College/Department restructure must be applied before the app can run.
+    if (
+      report.indexes.some((index) => index.state !== "present") ||
+      report.orgStructure?.state === "pending"
+    )
       throw new Error(
         "Existing local schema needs review. Back it up, review pnpm db:migrate, then explicitly run pnpm setup:local --update-existing. No records were changed.",
       );

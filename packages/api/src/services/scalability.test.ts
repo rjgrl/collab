@@ -61,6 +61,7 @@ it("bounds alumni/member pages and uses stable ordering without changing array r
     Program: { find: () => query([]) },
     Alumni: { find: () => query([], alumni) },
     User: { find: () => query([], user) },
+    AlumniContact: { find: () => query([]) },
   };
   assert.deepEqual(await alumniService.list(context(db), { page: 3, pageSize: 10 }), []);
   assert.equal(alumni.skip, 20);

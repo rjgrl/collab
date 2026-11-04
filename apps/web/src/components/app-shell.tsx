@@ -18,11 +18,13 @@ import {
   ScrollText,
   Settings,
   UserRound,
+  Users,
+  Landmark,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ModeToggle } from "@/components/mode-toggle";
-import { can, useSession } from "@/lib/session";
+import { can, canAssignFaculty, useSession } from "@/lib/session";
 import { queryClient } from "@/utils/api";
 import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { LocalVerificationNotice } from "./local-verification-notice";
@@ -33,9 +35,12 @@ const NAV = [
   { to: "/my-profile", label: "My Profile", permission: null, icon: UserRound },
   { to: "/statistics", label: "University statistics", permission: null, icon: LayoutDashboard },
   { to: "/dashboard", label: "Dashboard", permission: "dashboard.read", icon: LayoutDashboard },
+  { to: "/colleges", label: "Colleges", permission: "departments.read", icon: Landmark },
   { to: "/departments", label: "Departments", permission: "departments.read", icon: Building2 },
   { to: "/programs", label: "Programs", permission: "programs.read", icon: GraduationCap },
   { to: "/alumni", label: "Alumni", permission: "alumni.read", icon: UserRound },
+  // Gated by faculty level, not an RBAC key; see canAssignFaculty.
+  { to: "/faculty", label: "Faculty", permission: "faculty", icon: Users },
   { to: "/reports", label: "Reports", permission: "reports.read", icon: ClipboardList },
   { to: "/settings", label: "Settings", permission: null, icon: Settings },
   { to: "/audit", label: "Audit log", permission: "audit.read", icon: ScrollText },
@@ -67,7 +72,10 @@ export function AppShell() {
     alumniAccount
       ? ["/my-profile", "/statistics", "/settings"].includes(item.to)
       : !["/my-profile", "/statistics"].includes(item.to) &&
-        (item.permission === null || can(permissions, item.permission)),
+        (item.permission === null ||
+          (item.permission === "faculty"
+            ? canAssignFaculty(session.data)
+            : can(permissions, item.permission))),
   );
 
   async function logout() {

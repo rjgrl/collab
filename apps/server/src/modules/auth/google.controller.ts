@@ -1,10 +1,12 @@
 import type { RequestHandler } from "express";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { verifyGoogleIdToken } from "@Alumni-Tracking-Ss/api/integrations/google-id-token";
 import { isIntegrationEnabled } from "@Alumni-Tracking-Ss/api/integrations/registry";
 import { createSession, upsertGoogleUser } from "@Alumni-Tracking-Ss/api/services/session";
 import { writeAudit } from "@Alumni-Tracking-Ss/api/audit";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
+import { StaffDomainError } from "@Alumni-Tracking-Ss/api/services/staff-domain";
 import { requestContext } from "../../middleware/request-context";
 import { SESSION_COOKIE, sessionCookieOptions } from "../../context";
 
@@ -47,8 +49,8 @@ export function googleController(origin: string, secureCookies: boolean) {
       sameSite: "lax",
       secure: secureCookies,
     });
-    const fail = () => {
-      response.redirect(`${origin}/login?error=google`);
+    const fail = (reason: "google" | "google_domain" = "google") => {
+      response.redirect(`${origin}/login?error=${reason}`);
     };
     if (
       typeof expected !== "string" ||
@@ -80,24 +82,14 @@ export function googleController(origin: string, secureCookies: boolean) {
         }),
       });
       if (!result.ok) return fail();
-      const tokens = z.object({ access_token: z.string().min(1) }).parse(await result.json());
-      const profileResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!profileResponse.ok) return fail();
-      const profile = z
-        .object({
-          email: z.string().email(),
-          name: z.string().optional(),
-          picture: z.string().url().optional(),
-          verified_email: z.literal(true),
-        })
-        .parse(await profileResponse.json());
+      const tokens = z.object({ id_token: z.string().min(1) }).parse(await result.json());
+      // Verified server-side (signature, iss, aud, exp); `hd` is read only from these claims.
+      const profile = await verifyGoogleIdToken(tokens.id_token, env.googleClientId);
       const user = await upsertGoogleUser(db, {
         email: profile.email,
         name: profile.name || profile.email,
         image: profile.picture,
+        hostedDomain: profile.hd ?? null,
       });
       const session = await createSession(db, user.id, {
         ipAddress,
@@ -119,8 +111,8 @@ export function googleController(origin: string, secureCookies: boolean) {
       response.redirect(
         `${origin}${user.needsProfileCompletion || !user.passwordHash || (user.verificationRequired && (!user.emailVerified || !user.phoneVerified)) ? "/complete-profile" : "/dashboard"}`,
       );
-    } catch {
-      fail();
+    } catch (error) {
+      fail(error instanceof StaffDomainError ? "google_domain" : "google");
     }
   };
   return { start, callback };

@@ -7,9 +7,17 @@ import { useState } from "react";
 
 import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
 import { FormSelect } from "@/components/form-select";
-import { FilterBar, PageHeader, PageShell } from "@/components/page-header";
+import {
+  FilterBar,
+  FormField,
+  PageHeader,
+  PageShell,
+  PrimaryButton,
+} from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { can, useSession } from "@/lib/session";
+import { can, canAssignFaculty, useSession } from "@/lib/session";
+import { Checkbox } from "@Alumni-Tracking-Ss/ui/components/checkbox";
+import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { toast } from "sonner";
 import { api, client, queryClient } from "@/utils/api";
 
@@ -24,6 +32,19 @@ function AlumniPage() {
   const [pendingPage, setPendingPage] = useState(1);
   const [departmentId, setDepartmentId] = useState("");
   const [tracked, setTracked] = useState<"all" | "tracked" | "untracked">("all");
+  const isFaculty = Boolean(session.data?.faculty);
+  const [assignment, setAssignment] = useState<
+    "all" | "mine" | "unassigned" | "needs_reassignment"
+  >("all");
+  const [selected, setSelected] = useState<string[]>([]);
+  // Alumni ids the picker dialog will assign; null while the dialog is closed.
+  const [assigning, setAssigning] = useState<string[] | null>(null);
+  const [facultyId, setFacultyId] = useState("");
+  const assigner = canAssignFaculty(session.data);
+  const facultyOptions = useQuery({
+    ...api.faculty.list.queryOptions({ input: { active: "true", page: 1, pageSize: 100 } }),
+    enabled: assigner && assigning !== null,
+  });
   const departments = useDepartmentOptions();
   const pendingAccounts = useQuery(
     api.alumni.pendingAccounts.queryOptions({
@@ -36,6 +57,7 @@ function AlumniPage() {
         search,
         departmentId: departmentId || undefined,
         tracked,
+        assignment,
         page,
         pageSize: 20,
       },
@@ -51,8 +73,93 @@ function AlumniPage() {
     onError: (error) => toast.error(error.message),
   });
 
+  const assign = useMutation({
+    mutationFn: (value: { alumniIds: string[]; facultyId: string | null }) =>
+      client.faculty.assign(value),
+    onSuccess: async (result, value) => {
+      toast.success(
+        value.facultyId
+          ? `Assigned ${result.updated} alumni`
+          : `Unassigned ${result.updated} alumni`,
+      );
+      setAssigning(null);
+      setSelected([]);
+      await queryClient.invalidateQueries();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const pageIds = list.data?.map((row) => row.id) ?? [];
+  const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+
   return (
     <PageShell>
+      {assigning ? (
+        <FormDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setAssigning(null);
+          }}
+          pending={assign.isPending}
+          title={
+            assigning.length === 1
+              ? "Assign faculty"
+              : `Assign faculty to ${assigning.length} alumni`
+          }
+          footer={
+            <div className="flex flex-wrap gap-2">
+              <PrimaryButton type="submit" form="assign-form" pending={assign.isPending}>
+                Assign
+              </PrimaryButton>
+              <QuietButton
+                type="button"
+                disabled={assign.isPending}
+                onClick={() => assign.mutate({ alumniIds: assigning, facultyId: null })}
+              >
+                Unassign
+              </QuietButton>
+              <QuietButton
+                type="button"
+                disabled={assign.isPending}
+                onClick={() => setAssigning(null)}
+              >
+                Cancel
+              </QuietButton>
+            </div>
+          }
+        >
+          <form
+            id="assign-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (facultyId) assign.mutate({ alumniIds: assigning, facultyId });
+            }}
+          >
+            <FormField id="assign-faculty" label="Faculty tracker" required>
+              <FormSelect
+                id="assign-faculty"
+                value={facultyId}
+                onValueChange={setFacultyId}
+                required
+                items={[
+                  {
+                    value: "",
+                    label: facultyOptions.isPending ? "Loading faculty…" : "Select faculty",
+                  },
+                  ...(facultyOptions.data?.map((f) => ({
+                    value: f.id,
+                    label: `${f.firstName} ${f.lastName} · ${f.department?.name ?? "Unplaced"}`,
+                  })) ?? []),
+                ]}
+              />
+            </FormField>
+            {facultyOptions.isError ? (
+              <p role="alert" className="mt-2 text-sm text-destructive">
+                {facultyOptions.error.message}
+              </p>
+            ) : null}
+          </form>
+        </FormDialog>
+      ) : null}
       <PageHeader
         title="Alumni"
         description="Alumni self-register to create their account and profile. Manage registered profiles, employment, and tracking here."
@@ -65,7 +172,16 @@ function AlumniPage() {
       ) : null}
       <DataTable
         label="Alumni registry profiles"
-        headers={["Student #", "Name", "Program", "Contact", "Tracking", "Actions"]}
+        headers={[
+          ...(assigner ? ["Select"] : []),
+          "Student #",
+          "Name",
+          "Program",
+          "Contact",
+          "Tracking",
+          "Assigned to",
+          "Actions",
+        ]}
         search={search}
         onSearch={(value) => {
           setSearch(value);
@@ -75,6 +191,46 @@ function AlumniPage() {
         searchPlaceholder="Search name, student number, or email"
         toolbar={
           <FilterBar>
+            {assigner && selected.length ? (
+              <PrimaryButton
+                onClick={() => {
+                  setFacultyId("");
+                  setAssigning(selected);
+                }}
+              >
+                Assign {selected.length} selected
+              </PrimaryButton>
+            ) : null}
+            {assigner ? (
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={(value) =>
+                    setSelected(
+                      value === true
+                        ? [...new Set([...selected, ...pageIds])]
+                        : selected.filter((id) => !pageIds.includes(id)),
+                    )
+                  }
+                />
+                Select page
+              </label>
+            ) : null}
+            <FormSelect
+              className="w-full sm:w-auto sm:min-w-40"
+              value={assignment}
+              onValueChange={(value) => {
+                setAssignment(value as typeof assignment);
+                setPage(1);
+              }}
+              aria-label="Assignment"
+              items={[
+                { value: "all", label: "All assignments" },
+                ...(isFaculty ? [{ value: "mine", label: "My assigned alumni" }] : []),
+                { value: "unassigned", label: "Unassigned" },
+                { value: "needs_reassignment", label: "Needs reassignment" },
+              ]}
+            />
             <FormSelect
               className="w-full sm:w-auto sm:min-w-40"
               value={departmentId}
@@ -114,6 +270,21 @@ function AlumniPage() {
       >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
+            {assigner ? (
+              <TableCell>
+                <Checkbox
+                  aria-label={`Select ${formatDisplayName(row)}`}
+                  checked={selected.includes(row.id)}
+                  onCheckedChange={(value) =>
+                    setSelected(
+                      value === true
+                        ? [...selected, row.id]
+                        : selected.filter((id) => id !== row.id),
+                    )
+                  }
+                />
+              </TableCell>
+            ) : null}
             <TableCell>
               <span className="whitespace-nowrap tabular-nums">{row.studentNumber}</span>
             </TableCell>
@@ -131,15 +302,36 @@ function AlumniPage() {
             </TableCell>
             <TableCell>
               <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>{row.mobileNumber || "—"}</span>
-                <span>{row.personalEmail || "—"}</span>
+                <span>
+                  {row.contacts.find((c) => c.type === "phone")?.value || row.mobileNumber || "—"}
+                </span>
+                <span>
+                  {row.contacts.find((c) => c.type === "email")?.value || row.personalEmail || "—"}
+                </span>
               </div>
             </TableCell>
             <TableCell>
               <StatusBadge tone={row.isTracked ? "tracked" : "untracked"} />
             </TableCell>
             <TableCell>
+              <div className="min-w-28 text-sm">{row.assignedFaculty?.name ?? "Unassigned"}</div>
+              {row.needsReassignment ? (
+                <div className="mt-1 text-xs text-muted-foreground">Needs reassignment</div>
+              ) : null}
+            </TableCell>
+            <TableCell>
               <RowActions>
+                {assigner ? (
+                  <QuietButton
+                    aria-label={`Assign faculty to ${formatDisplayName(row)}`}
+                    onClick={() => {
+                      setFacultyId(row.assignedFacultyId ?? "");
+                      setAssigning([row.id]);
+                    }}
+                  >
+                    Assign faculty
+                  </QuietButton>
+                ) : null}
                 <QuietButton
                   nativeButton={false}
                   render={<Link to="/alumni/$id" params={{ id: row.id }} />}
