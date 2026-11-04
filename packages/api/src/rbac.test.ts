@@ -7,7 +7,7 @@ import { ApiError } from "./http-error";
 import { modelFixture } from "./services/model-test-fixture";
 
 import type { AuthUser, Context } from "./context";
-import { PERMISSION_KEYS, ROLE_PRESETS } from "@Alumni-Tracking-Ss/db";
+import { PERMISSION_KEYS, RETIRED_ROLE_KEYS, ROLE_PRESETS } from "@Alumni-Tracking-Ss/db";
 
 import {
   alumniService as alumniRouter,
@@ -100,8 +100,9 @@ function makeUser(permissions: string[], overrides: Partial<AuthUser> = {}): Aut
     image: null,
     status: "active",
     mfaVerified: true, // These tests exercise authorization after successful MFA.
-    // Staff without a faculty record is the unscoped management account; scope has its own tests.
-    roles: ["staff"],
+    // An Administrator is the only unscoped account; permissions still gate each action, and
+    // scope has its own tests.
+    roles: ["admin"],
     permissions: permissions as AuthUser["permissions"],
     ...overrides,
   };
@@ -206,7 +207,7 @@ describe("RBAC: alumni permission granularity", () => {
   });
   it("a read-only management account can list and read but cannot mutate", async () => {
     const { db, reads } = stubDb({ alumni: [] });
-    const viewer = makeUser(["alumni.read"], { roles: ["staff"] });
+    const viewer = makeUser(["alumni.read"], { roles: ["admin"] });
 
     await invoke(alumniRouter.list, {}, makeContext(viewer, db));
     await invoke(alumniRouter.get, { id: "0000000000000000000000a1" }, makeContext(viewer, db));
@@ -340,23 +341,15 @@ describe("RBAC: coverage of the permission catalog", () => {
 });
 
 describe("RBAC: role presets", () => {
-  it("staff can manage alumni but not RBAC or the audit log", () => {
-    const { permissions } = ROLE_PRESETS.staff;
-    for (const key of ["alumni.read", "alumni.write", "alumni.delete", "tracking.write"]) {
-      assert.ok((permissions as readonly string[]).includes(key), `staff must hold ${key}`);
-    }
-    for (const key of permissions) {
+  it("the Staff role is retired and faculty cannot manage RBAC or integrations", () => {
+    assert.equal("staff" in ROLE_PRESETS, false);
+    assert.deepEqual([...RETIRED_ROLE_KEYS], ["staff"]);
+    for (const key of ROLE_PRESETS.faculty.permissions) {
       assert.ok(
-        !key.startsWith("users.") && !key.startsWith("roles."),
-        `staff must not hold ${key}`,
+        !key.startsWith("users.") && !key.startsWith("roles.") && !key.startsWith("integrations."),
+        `faculty must not hold ${key}`,
       );
     }
-    assert.equal((permissions as readonly string[]).includes("audit.read"), false);
-    assert.equal((permissions as readonly string[]).includes("permissions.read"), false);
-    assert.equal(
-      permissions.some((key) => key.startsWith("integrations.")),
-      false,
-    );
   });
 
   it("viewer is strictly read-only", () => {

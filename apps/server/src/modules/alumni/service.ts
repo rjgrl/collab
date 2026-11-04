@@ -97,7 +97,7 @@ export const alumniService = {
   ) {
     management(context, "alumni.read");
     const p = alumniSchemas.pendingAccounts.input.parse(input);
-    // Unlinked accounts have no program yet, so only unscoped staff can see them.
+    // Unlinked accounts have no program yet, so only administrators can see them.
     if ((await alumniScope(context)).kind !== "all") return [];
     const rows = await context.db.User.aggregate<
       Pick<UserRecord, "_id" | "name" | "email" | "createdAt">
@@ -127,7 +127,7 @@ export const alumniService = {
       },
       {
         $match: {
-          "roles.key": { $in: ["viewer", "alumni"], $nin: ["staff", "admin", "super_admin"] },
+          "roles.key": { $in: ["viewer", "alumni"], $nin: ["faculty", "admin", "super_admin"] },
         },
       },
       { $sort: { createdAt: -1, _id: -1 } },

@@ -97,6 +97,25 @@ it("rejects missing or invalid graduation years before signup persistence", asyn
     assert.equal(f.audits(), 0);
   }
 });
+it("rejects non-BukSU emails at signup before anything is stored", async () => {
+  const previous = process.env.STAFF_EMAIL_DOMAINS;
+  process.env.STAFF_EMAIL_DOMAINS = "buksu.edu.ph,student.buksu.edu.ph";
+  try {
+    for (const email of ["grad@gmail.com", "grad@buksu.edu.ph.evil.com", "grad@xbuksu.edu.ph"]) {
+      const f = fixture();
+      await assert.rejects(() => registerUser(f.db, { ...input, email }), /BukSU institutional/);
+      assert.deepEqual(f.lookups, []);
+      assert.deepEqual(f.writes, []);
+      assert.equal(f.tables.Alumni?.length ?? 0, 0);
+    }
+    const ok = fixture();
+    await registerUser(ok.db, { ...input, email: "grad@student.buksu.edu.ph" });
+    assert.equal(ok.writes[0]?.email, "grad@student.buksu.edu.ph");
+  } finally {
+    if (previous === undefined) delete process.env.STAFF_EMAIL_DOMAINS;
+    else process.env.STAFF_EMAIL_DOMAINS = previous;
+  }
+});
 it("rejects existing emails before creating an account", async () => {
   const f = fixture({ id: "existing" });
   await assert.rejects(() => registerUser(f.db, input), /already exists/);

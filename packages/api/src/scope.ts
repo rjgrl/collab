@@ -8,11 +8,12 @@ import { ApiError } from "./http-error";
  * Which alumni a signed-in staff user may see and change. This is the single source of
  * record-level authorization; RBAC permissions only decide which actions are available.
  *
- * - Administrators, and Staff accounts without a faculty record: every alumnus.
+ * - Administrators: every alumnus.
  * - College-level faculty: alumni in any program of any department of their college.
  * - Department-level faculty: alumni in any program of their department.
  * - Faculty-level: only alumni assigned to them.
- * - Anyone else (inactive or unplaced faculty, alumni accounts): nothing.
+ * - Anyone else (inactive or unplaced faculty, accounts without a faculty record,
+ *   alumni accounts): nothing.
  */
 export type AlumniScope =
   | { kind: "all" }
@@ -44,7 +45,7 @@ async function resolveScope(db: Database, context: Context): Promise<AlumniScope
   const user = requireUser(context);
   if (isAdministrator(user)) return { kind: "all" };
   const faculty = await db.Faculty.findOne({ userId: user.id, deletedAt: null }).lean();
-  if (!faculty) return user.roles.includes("staff") ? { kind: "all" } : { kind: "none" };
+  if (!faculty) return { kind: "none" };
   const record = toEntity(faculty);
   if (!record.active || !record.departmentId) return { kind: "none" };
   const department = await db.Department.findById(record.departmentId).select("collegeId").lean();
@@ -130,7 +131,7 @@ const RANK: Record<FacultyRoleLevel | "admin", number> = {
 
 /**
  * Who may manage faculty records and roles: Administrators everywhere, and college- or
- * department-level heads inside their scope. Staff and faculty-level users manage nobody.
+ * department-level heads inside their scope. Faculty-level users manage nobody.
  */
 export type ManagerScope =
   | { level: "admin" }
@@ -165,7 +166,7 @@ export function managesDepartment(manager: ManagerScope, departmentId: string | 
 }
 
 /**
- * Assignment is an alumni operation: Administrators, unscoped Staff and heads may assign.
+ * Assignment is an alumni operation: Administrators and heads may assign.
  * Returns the departments whose faculty may be chosen (null = any).
  */
 export async function assignmentScope(context: Context): Promise<string[] | null> {
@@ -173,6 +174,6 @@ export async function assignmentScope(context: Context): Promise<string[] | null
   if (scope.kind === "all") return null;
   if (scope.kind === "college" || scope.kind === "department") return scope.departmentIds;
   throw new ApiError("FORBIDDEN", {
-    message: "Only administrators, staff, and college or department heads can assign faculty.",
+    message: "Only administrators and college or department heads can assign faculty.",
   });
 }

@@ -255,15 +255,15 @@ try {
       assert.equal(confirmation.status, 200);
       token = String(confirmation.body.sessionToken);
     }
-    if (preset.key === "staff")
-      assert.equal((await rest("alumni/list", token)).status, 200, "Staff does not require MFA");
+    if (preset.key === "faculty")
+      assert.equal((await rest("alumni/list", token)).status, 200, "Faculty does not require MFA");
     users[preset.key] = { id: user.id, token };
   }
   for (const [role, route, status] of [
     ["viewer", "users/list", 403],
     ["viewer", "reports/alumniCsv", 403],
-    ["staff", "users/list", 403],
-    ["staff", "reports/alumniCsv", 200],
+    ["faculty", "users/list", 403],
+    ["faculty", "reports/alumniCsv", 200],
     ["super_admin", "users/list", 200],
   ] as const) {
     assert.equal((await rest(route, users[role]!.token)).status, status);

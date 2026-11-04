@@ -24,7 +24,7 @@ import {
 import { toast } from "sonner";
 
 import { ModeToggle } from "@/components/mode-toggle";
-import { can, canAssignFaculty, useSession } from "@/lib/session";
+import { can, canAssignFaculty, managesFaculty, useSession } from "@/lib/session";
 import { queryClient } from "@/utils/api";
 import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { LocalVerificationNotice } from "./local-verification-notice";
@@ -43,7 +43,8 @@ const NAV = [
   { to: "/faculty", label: "Faculty", permission: "faculty", icon: Users },
   { to: "/reports", label: "Reports", permission: "reports.read", icon: ClipboardList },
   { to: "/settings", label: "Settings", permission: null, icon: Settings },
-  { to: "/audit", label: "Audit log", permission: "audit.read", icon: ScrollText },
+  // Administrators (audit.read) see everything; heads see entries in their scope.
+  { to: "/audit", label: "Audit log", permission: "audit", icon: ScrollText },
 ] as const;
 
 function navClass(active: boolean) {
@@ -61,8 +62,8 @@ export function AppShell() {
   const roleLabel = session.data
     ? isAdministrator(session.data)
       ? "Administrator"
-      : session.data.roles.includes("staff")
-        ? "Staff"
+      : session.data.roles.includes("faculty")
+        ? "Faculty"
         : isAlumniAccount(session.data)
           ? "Alumni"
           : session.data.roles.join(", ") || "Account"
@@ -75,7 +76,9 @@ export function AppShell() {
         (item.permission === null ||
           (item.permission === "faculty"
             ? canAssignFaculty(session.data)
-            : can(permissions, item.permission))),
+            : item.permission === "audit"
+              ? can(permissions, "audit.read") || managesFaculty(session.data)
+              : can(permissions, item.permission))),
   );
 
   async function logout() {

@@ -10,8 +10,9 @@ export class StaffDomainError extends ApiError {
 const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 /**
- * Institutional domains for Admin/Faculty accounts, from STAFF_EMAIL_DOMAINS (comma-separated).
- * Unset means unrestricted, which is only allowed outside production; production refuses to start.
+ * Institutional (BukSU) domains every account must use, from STAFF_EMAIL_DOMAINS
+ * (comma-separated; the name predates the rule covering Alumni too). Unset means unrestricted,
+ * which is only allowed outside production; production refuses to start.
  */
 export function staffEmailDomains(settings: NodeJS.ProcessEnv = process.env): string[] | null {
   const raw = settings.STAFF_EMAIL_DOMAINS?.trim();
@@ -39,51 +40,49 @@ export function emailDomainAllowed(email: string, domains: readonly string[]): b
   return domains.includes(parts[1]!);
 }
 
-/** Any role besides the Alumni role makes an account staff (Admin, Staff, Faculty, custom). */
+/** Any role besides the Alumni role makes an account staff (Admin, Faculty, custom). */
 export function isStaffAccount(roles: readonly string[]) {
   return roles.some((role) => role !== "viewer" && role !== "alumni");
 }
 
+/**
+ * Every account, Alumni included, must use an institutional email. `roles` is kept for callers
+ * and future per-role rules; it no longer exempts anyone.
+ */
 export function staffEmailRejected(
   email: string,
-  roles: readonly string[],
+  _roles: readonly string[] = [],
   settings: NodeJS.ProcessEnv = process.env,
 ) {
   const domains = staffEmailDomains(settings);
-  return Boolean(domains && isStaffAccount(roles) && !emailDomainAllowed(email, domains));
+  return Boolean(domains && !emailDomainAllowed(email, domains));
 }
 
 export function assertStaffEmailAllowed(
   email: string,
-  roles: readonly string[],
+  roles: readonly string[] = [],
   settings: NodeJS.ProcessEnv = process.env,
 ) {
   if (staffEmailRejected(email, roles, settings))
     throw new StaffDomainError(
-      `Admin and faculty accounts must use an institutional email (${staffEmailDomains(settings)!
+      `Use your BukSU institutional email (${staffEmailDomains(settings)!
         .map((domain) => `@${domain}`)
         .join(", ")}).`,
     );
 }
 
 /**
- * Google identities for staff accounts must come from an allowlisted Workspace: the `hd` claim
- * (from a verified ID token, never the `hd` request parameter) and the email domain must both match.
+ * Google identities must come from an allowlisted Workspace: the `hd` claim (from a verified
+ * ID token, never the `hd` request parameter) and the email domain must both match.
  */
 export function assertStaffGoogleIdentity(
   email: string,
   hostedDomain: string | null | undefined,
-  roles: readonly string[],
+  roles: readonly string[] = [],
   settings: NodeJS.ProcessEnv = process.env,
 ) {
   assertStaffEmailAllowed(email, roles, settings);
   const domains = staffEmailDomains(settings);
-  if (
-    domains &&
-    isStaffAccount(roles) &&
-    !(hostedDomain && domains.includes(hostedDomain.toLowerCase()))
-  )
-    throw new StaffDomainError(
-      "Admin and faculty accounts must sign in with an institutional Google Workspace account.",
-    );
+  if (domains && !(hostedDomain && domains.includes(hostedDomain.toLowerCase())))
+    throw new StaffDomainError("Sign in with your BukSU Google Workspace account.");
 }

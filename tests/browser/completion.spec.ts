@@ -10,7 +10,7 @@ const png = Buffer.from(
 test.beforeEach(async ({ request }) => {
   await request.post("http://127.0.0.1:3100/__test/reset");
 });
-test("managed members default to Staff while Alumni self-register and legacy records remain visible", async ({
+test("managed members are Super Admins while Alumni self-register and legacy records remain visible", async ({
   page,
   request,
 }, info) => {
@@ -26,9 +26,8 @@ test("managed members default to Staff while Alumni self-register and legacy rec
   );
   await page.getByRole("button", { name: "Add user", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add user", exact: true });
-  await expect(dialog.getByRole("checkbox", { name: "Staff", exact: true })).toBeChecked();
-  await expect(dialog.getByRole("checkbox", { name: "Super Admin", exact: true })).toBeVisible();
-  await expect(dialog.getByRole("checkbox")).toHaveCount(2);
+  await expect(dialog.getByRole("checkbox", { name: "Super Admin", exact: true })).toBeChecked();
+  await expect(dialog.getByRole("checkbox")).toHaveCount(1);
   for (const name of ["Alumni", "Viewer"])
     await expect(dialog.getByRole("checkbox", { name, exact: true })).toHaveCount(0);
   for (const name of [
@@ -40,13 +39,13 @@ test("managed members default to Staff while Alumni self-register and legacy rec
   ])
     await expect(dialog.getByLabel(name, { exact: true })).toHaveCount(0);
   await dialog.getByRole("textbox", { name: "First name", exact: true }).fill("Managed");
-  await dialog.getByRole("textbox", { name: "Last name", exact: true }).fill("Staff");
+  await dialog.getByRole("textbox", { name: "Last name", exact: true }).fill("Admin");
   await dialog.getByRole("textbox", { name: "Email", exact: true }).fill("managed@example.test");
   await dialog.locator("#password").fill("Synthetic managed staff passphrase 123!");
   await dialog.getByRole("button", { name: "Create user", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const member = page.getByRole("row").filter({ hasText: "managed@example.test" });
-  await expect(member.getByRole("cell", { name: "Test Staff", exact: true })).toBeVisible();
+  await expect(member.getByRole("cell", { name: "Test Admin", exact: true })).toBeVisible();
   await page.goto("/alumni");
   await expect(page.getByRole("button", { name: "Add alumni", exact: true })).toHaveCount(0);
   await expect(
@@ -231,7 +230,7 @@ test("Staff persist employment edits and archives and can open Faculty", async (
   await page.locator("#password").fill("BrowserTest123!");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL("**/dashboard");
-  await expect(page.getByTestId("account-role")).toHaveText("Staff");
+  await expect(page.getByTestId("account-role")).toHaveText("Faculty");
   expect((await page.request.get("/api/faculty")).status()).toBe(200);
   await page.goto("/alumni/000000000000000000000201");
   await page.getByRole("button", { name: "Add employment", exact: true }).click();

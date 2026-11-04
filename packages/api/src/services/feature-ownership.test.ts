@@ -167,7 +167,7 @@ it("retired profile PATCH rejects personal fields and directs direct service cal
   assert.equal(f.operations.length, 0);
 });
 it("retired manual Alumni create/link APIs deny every management role and preserve existing ownership", async () => {
-  for (const roles of [["staff"], ["admin"], ["super_admin"], ["legacy_manager"]]) {
+  for (const roles of [["faculty"], ["admin"], ["super_admin"], ["legacy_manager"]]) {
     const f = modelFixture({
       User: [{ id: userId, alumniId, firstName: "Existing", lastName: "Owner" }],
       Alumni: [{ ...alumni, id: alumniId }],
@@ -215,17 +215,17 @@ it("Alumni management edits profile fields but never the legacy contact fields",
   // Contacts are managed through the contacts API, so these keys are rejected outright.
   for (const key of ["personalEmail", "mobileNumber", "facebookAccount"])
     await assert.rejects(() =>
-      alumniService.update(context(f.db, ["staff"]), { ...academic, [key]: "Changed" }),
+      alumniService.update(context(f.db, ["admin"]), { ...academic, [key]: "Changed" }),
     );
   assert.equal(f.operations.length, 0);
-  await alumniService.update(context(f.db, ["staff"]), academic);
+  await alumniService.update(context(f.db, ["admin"]), academic);
   assert.equal(f.tables.Alumni?.[0]?.studentNumber, "SYN-2");
   assert.equal(f.tables.Alumni?.[0]?.firstName, "Original", "omitted names are unchanged");
-  await alumniService.update(context(f.db, ["staff"]), { ...academic, firstName: "Edited" });
+  await alumniService.update(context(f.db, ["admin"]), { ...academic, firstName: "Edited" });
   assert.equal(f.tables.Alumni?.[0]?.firstName, "Edited");
 });
 it("malformed IDs and employment date order fail before persistence", async () => {
-  const c = context({}, ["staff"]);
+  const c = context({}, ["admin"]);
   await assert.rejects(() => alumniService.get(c, { id: "bad" }));
   await assert.rejects(() => programsService.get(c, { id: "$ne" }));
   assert.equal(

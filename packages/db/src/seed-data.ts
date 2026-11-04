@@ -1,6 +1,7 @@
 import type { Types } from "mongoose";
 import { hashPassword, type Database } from "./index";
 import { PERMISSIONS, ROLE_PRESETS } from "./permissions";
+import { retireRoles } from "./retire-roles";
 const integrationKeys = [
   "recaptcha",
   "google_auth",
@@ -49,6 +50,11 @@ export async function seedDatabase(db: Database) {
           );
       }
     }
+    const retired = await retireRoles(tx);
+    if (retired.accounts)
+      console.warn(
+        `Removed the retired Staff role from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
+      );
     const existingAdmin = await tx.User.findOne({ email }).lean();
     if (!existingAdmin) {
       const role = await tx.Role.findOne({ key: "super_admin" }).orFail();
@@ -264,7 +270,7 @@ async function seedDemo(db: Database, password: string) {
       );
   }
 
-  // Unscoped Staff (no faculty record) and one Alumni login per demo profile.
+  // One Alumni login per demo profile.
   const demoUser = async (input: {
     email: string;
     first: string;
@@ -292,10 +298,6 @@ async function seedDemo(db: Database, password: string) {
       { upsert: true },
     );
   };
-  await grant(
-    (await demoUser({ email: "staff@collab.test", first: "Synthetic", last: "Staff" }))._id,
-    "staff",
-  );
   for (const sample of samples) {
     const profile = await db.Alumni.findOne({ studentNumber: sample.studentNumber }).lean();
     // Skip a profile that some other account already owns (User.alumniId is unique).
@@ -323,7 +325,6 @@ export const DEMO_ACCOUNTS = [
     email: "faculty.education@collab.test",
     role: "Faculty, Secondary Education (assigned Graduate Three)",
   },
-  { email: "staff@collab.test", role: "Staff (all alumni, no faculty record)" },
   { email: "graduate.one@collab.test", role: "Alumni, BSIT" },
   { email: "graduate.two@collab.test", role: "Alumni, BSIT" },
   { email: "graduate.three@collab.test", role: "Alumni, BSED" },

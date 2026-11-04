@@ -6,6 +6,7 @@ import { createDatabase } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createApp } from "./app";
+import { adminCookie } from "./local-admin";
 import {
   createSession,
   loadAuthUser,
@@ -308,25 +309,29 @@ try {
     });
   assert.equal(passwordCreation.status, 200, JSON.stringify(passwordCreation.body));
   assert.equal((await googleAgent.get("/api/me/profile")).status, 200);
-  const staffRole = await db.Role.findOne({ key: "staff" }).lean().orFail();
-  const staff = await db.User.create({
-    name: "Synthetic staff",
-    email: "staff@example.test",
+  // The retired Staff role is gone; unscoped reads are an administrator capability now.
+  assert.equal(await db.Role.exists({ key: "staff" }), null);
+  const facultyRole = await db.Role.findOne({ key: "faculty" }).lean().orFail();
+  const unplaced = await db.User.create({
+    name: "Synthetic unplaced faculty",
+    email: "unplaced@example.test",
     passwordHash: user.passwordHash,
   });
-  await db.UserRole.create({ userId: staff._id, roleId: staffRole._id });
-  const staffSession = await createSession(db, String(staff._id), {});
-  const staffHeaders = { Authorization: `Bearer ${staffSession.token}`, Origin: origin };
+  await db.UserRole.create({ userId: unplaced._id, roleId: facultyRole._id });
+  const unplacedSession = await createSession(db, String(unplaced._id), {});
+  const unplacedHeaders = { Authorization: `Bearer ${unplacedSession.token}`, Origin: origin };
   assert.equal(
     (
       await request(app)
         .patch("/api/integrations/recaptcha")
-        .set(staffHeaders)
+        .set(unplacedHeaders)
         .send({ enabled: false })
     ).status,
     403,
   );
-  // Faculty records are restored; unscoped Staff may read them (for assignment) but not manage them.
+  // A faculty account without a faculty record sees no alumni.
+  assert.deepEqual((await request(app).get("/api/alumni").set(unplacedHeaders)).body, []);
+  const staffHeaders = { Cookie: await adminCookie(db), Origin: origin };
   assert.equal((await request(app).get("/api/faculty").set(staffHeaders)).status, 200);
   const summary = await request(app).get("/api/dashboard").set(staffHeaders);
   const nameSearch = await request(app)
@@ -401,16 +406,31 @@ try {
     integrationEnv: {},
   } as Context;
   await db.Role.updateOne({ key: "viewer" }, { $set: { name: "Viewer" } });
+  await assert.rejects(
+    () =>
+      usersService.create(
+        adminContext,
+        usersSchemas.create.input.parse({
+          firstName: "Managed",
+          lastName: "Roleless",
+          email: "roleless@example.test",
+          password: "Synthetic managed roleless passphrase 123!",
+        }),
+      ),
+    /Choose a role/,
+  );
+  const superAdmin = await db.Role.findOne({ key: "super_admin" }).lean().orFail();
   const member = await usersService.create(
     adminContext,
     usersSchemas.create.input.parse({
       firstName: "Managed",
-      lastName: "Staff",
+      lastName: "Admin",
       email: "managed@example.test",
-      password: "Synthetic managed staff passphrase 123!",
+      password: "Synthetic managed admin passphrase 123!",
+      roleIds: [String(superAdmin._id)],
     }),
   );
-  assert.equal(member.userRoles[0]?.role.key, "staff");
+  assert.equal(member.userRoles[0]?.role.key, "super_admin");
   assert.equal(member.alumniId, null);
   const managedList = await request(app)
     .get("/api/alumni?search=managed@example.test")
@@ -430,7 +450,7 @@ try {
           roleIds: [String(viewer._id)],
         }),
       ),
-    /only have Staff or Super Admin/,
+    /only have the Super Admin role/,
   );
   assert.equal(await db.User.countDocuments({ email: "rejected@example.test" }), 0);
   const pendingGoogle = await upsertGoogleUser(db, {
@@ -439,13 +459,13 @@ try {
   });
   const viewerRole = await db.Role.findOne({ key: "viewer" }).lean().orFail();
   const mixed = await db.User.create({
-    name: "Mixed Staff",
+    name: "Mixed Faculty",
     email: "mixed@example.test",
     passwordHash: user.passwordHash,
   });
   await db.UserRole.insertMany([
     { userId: mixed._id, roleId: viewerRole._id },
-    { userId: mixed._id, roleId: staffRole._id },
+    { userId: mixed._id, roleId: facultyRole._id },
   ]);
   const graduatesBefore = (await request(app).get("/api/dashboard").set(staffHeaders)).body
     .graduates;
@@ -488,7 +508,7 @@ try {
   const completedList = await request(app).get("/api/alumni?search=PENDING-001").set(staffHeaders);
   assert.equal(completedList.body[0]?.isRegistered, true);
   console.log(
-    "PASS registration/races, managed Staff creation/default and Alumni creation denial, pending account visibility/privacy/completion, contact policy, jobs/files/ownership, staff faculty read access, reports and statistics.",
+    "PASS registration/races, Staff role retired, managed Super Admin creation and Alumni creation denial, pending account visibility/privacy/completion, contact policy, jobs/files/ownership, administrator faculty read access, reports and statistics.",
   );
 } finally {
   await db.disconnect();

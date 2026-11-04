@@ -259,9 +259,22 @@ try {
     4,
     "each linked",
   );
-  const staffRole = await fresh.Role.findOne({ key: "staff" }).orFail().lean();
-  const staffUser = await fresh.User.findOne({ email: "staff@collab.test" }).orFail().lean();
-  assert.ok(await fresh.UserRole.exists({ userId: staffUser._id, roleId: staffRole._id }));
+  // The retired Staff role is never seeded, and migration removes it from older databases.
+  assert.equal(await fresh.Role.exists({ key: "staff" }), null);
+  assert.equal(await fresh.User.exists({ email: "staff@collab.test" }), null);
+  const legacyStaff = await fresh.Role.create({ key: "staff", name: "Staff", isSystem: true });
+  const legacyUser = await fresh.User.create({ name: "Legacy Staff", email: "legacy@collab.test" });
+  await fresh.UserRole.create({ userId: legacyUser._id, roleId: legacyStaff._id });
+  const retired = await migrateDatabase(fresh, "dry-run");
+  assert.deepEqual(retired.retiredRoles, {
+    roles: ["staff"],
+    accounts: 1,
+    accountsWithoutRoles: 1,
+  });
+  assert.ok(await fresh.Role.exists({ key: "staff" }), "dry-run changes nothing");
+  assert.deepEqual((await migrateDatabase(fresh, "apply")).conflicts, []);
+  assert.equal(await fresh.Role.exists({ key: "staff" }), null);
+  assert.equal(await fresh.UserRole.exists({ userId: legacyUser._id }), null);
   const seededPrograms = await fresh.Program.find().lean();
   const seededDepartments = new Set(seededPrograms.map((p) => String(p.departmentId)));
   assert.equal(seededDepartments.size, 3, "alumni span more than one department");

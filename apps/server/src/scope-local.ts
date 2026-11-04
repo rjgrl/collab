@@ -39,10 +39,18 @@ try {
   const id = (key: keyof typeof alumni) => String(alumni[key]._id);
   const bsed = String(alumni.GThree.programId);
 
-  // Extra accounts: Staff without a faculty record (unscoped) and a deactivated faculty member.
-  // staff@collab.test comes from the demo seed.
+  // Extra accounts: a Faculty-role account with no faculty record (sees nothing; the retired
+  // Staff role used to make such accounts unscoped) and a deactivated faculty member.
   const facultyRole = await db.Role.findOne({ key: "faculty" }).orFail().lean();
   const passwordHash = await hashPassword(randomBytes(24).toString("base64url"));
+  const unplaced = await db.User.create({
+    name: "Unplaced Account",
+    email: "unplaced@collab.test",
+    emailVerified: true,
+    status: "active",
+    passwordHash,
+  });
+  await db.UserRole.create({ userId: unplaced._id, roleId: facultyRole._id });
   const inactive = await db.User.create({
     name: "Inactive Faculty",
     email: "inactive@collab.test",
@@ -83,7 +91,7 @@ try {
     "department.head@collab.test",
     "faculty.it@collab.test",
     "faculty.education@collab.test",
-    "staff@collab.test",
+    "unplaced@collab.test",
     "inactive@collab.test",
   ]) {
     const user = await db.User.findOne({ email }).orFail().lean();
@@ -105,7 +113,7 @@ try {
     "department.head@collab.test": ["GOne", "GTwo"],
     "faculty.it@collab.test": ["GOne"],
     "faculty.education@collab.test": ["GThree"],
-    "staff@collab.test": ["GOne", "GTwo", "GThree", "GFour"],
+    "unplaced@collab.test": [],
     "inactive@collab.test": [],
   };
   const all = ["GOne", "GTwo", "GThree", "GFour"] as const;

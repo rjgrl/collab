@@ -25,7 +25,7 @@ const profile = z
     accounts: z
       .array(
         z.object({
-          role: z.enum(["Administrator", "Staff", "Alumni"]),
+          role: z.enum(["Administrator", "Faculty", "Staff", "Alumni"]),
           email: z.email(),
           password: z.string().min(24),
         }),
@@ -123,7 +123,7 @@ try {
     console.log(`${account.role}: normal UI login and persisted identity verified.`);
   }
   const admin = pages.get("Administrator")!;
-  const staff = pages.get("Staff")!;
+  const staff = pages.get("Faculty")!;
   assert.equal(
     (
       await staff.request.patch("/api/integrations/recaptcha", { data: { enabled: false } })
@@ -133,7 +133,7 @@ try {
   const roles = rolesSchemas.list.output.parse(
     await (await admin.request.get("/api/roles")).json(),
   );
-  const role = roles.find((row) => row.key === "staff")!;
+  const role = roles.find((row) => row.key === "faculty")!;
   const permissions = permissionsSchemas.list.output.parse(
     await (await admin.request.get("/api/permissions")).json(),
   );
@@ -146,7 +146,7 @@ try {
     },
   });
   assert.equal(granted.status(), 200);
-  const staffAccount = profile.accounts.find((account) => account.role === "Staff")!;
+  const staffAccount = profile.accounts.find((account) => account.role === "Faculty")!;
   const loginStaff = async () => {
     const response = await staff.request.post("/api/auth/login", {
       data: { email: staffAccount.email, password: staffAccount.password, recaptchaFallback: true },

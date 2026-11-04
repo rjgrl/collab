@@ -57,7 +57,7 @@ for (const legacyIntegrations of [false, true]) {
     await page.locator("#password").fill("BrowserTest123!");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL("**/dashboard");
-    await expect(page.getByTestId("account-role")).toHaveText("Staff");
+    await expect(page.getByTestId("account-role")).toHaveText("Faculty");
     await page.goto("/settings");
     await expect(page.getByRole("link", { name: "Integrations", exact: true })).toHaveCount(0);
     await page.goto("/settings/integrations");

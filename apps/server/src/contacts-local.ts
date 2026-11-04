@@ -6,6 +6,7 @@ import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
 import { createApp } from "./app";
+import { adminCookie } from "./local-admin";
 
 // Contacts (validation, primary rule, scope), profile editing with account name sync, and the
 // field-level change history with its Admin/heads-only, in-scope visibility.
@@ -25,15 +26,15 @@ try {
   await seedDatabase(db);
   const app = createApp({ db, config: { nodeEnv: "test", origin }, integrationEnv: {} });
 
-  // The demo seed provides staff@collab.test (Staff role, no faculty record).
-  await db.User.findOne({ email: "staff@collab.test" }).orFail();
   const cookies: Record<string, string> = {};
-  for (const name of ["college.head", "department.head", "faculty.it", "staff"]) {
+  for (const name of ["college.head", "department.head", "faculty.it"]) {
     const user = await db.User.findOne({ email: `${name}@collab.test` })
       .orFail()
       .lean();
     cookies[name] = `ats_session=${(await createSession(db, String(user._id), {})).token}`;
   }
+  cookies.admin = await adminCookie(db);
+
   const as = (name: string) => ({
     get: (url: string) => request(app).get(url).set("Cookie", cookies[name]!),
     post: (url: string, body: object) =>
@@ -104,7 +105,7 @@ try {
     404,
     "unassigned",
   );
-  const g3Contact = await as("staff").post(`/api/alumni/${g3}/contacts`, {
+  const g3Contact = await as("admin").post(`/api/alumni/${g3}/contacts`, {
     type: "email",
     value: "g3@example.test",
   });
@@ -178,7 +179,6 @@ try {
   );
   assert.ok(entries.some((e) => e.action === "contacts.update"));
   assert.equal((await tracker.get(`/api/alumni/${g1}/history`)).status, 403, "faculty-level");
-  assert.equal((await as("staff").get(`/api/alumni/${g1}/history`)).status, 403, "staff");
   assert.equal(
     (await as("college.head").get(`/api/alumni/${g3}/history`)).status,
     404,

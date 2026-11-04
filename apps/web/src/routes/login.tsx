@@ -118,10 +118,14 @@ function LoginPage() {
                 id="email"
                 type="email"
                 autoComplete="email"
+                aria-describedby="email-hint"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
+              <p id="email-hint" className="text-xs text-muted-foreground">
+                Use your BukSU institutional email. Personal email addresses are not accepted.
+              </p>
             </FormField>
             {mode === "signup" ? (
               <fieldset className="grid gap-4 sm:grid-cols-2">

@@ -1,6 +1,7 @@
 import type { IndexOptions } from "mongoose";
 import type { Database } from "./index";
 import { schemas } from "./models";
+import { retireRoles, type RetiredRolesReport } from "./retire-roles";
 import { migrateOrgStructure, renameLegacyDepartments, type OrgMigrationReport } from "./org-migration";
 
 export type MigrationMode = "dry-run" | "apply" | "rollback";
@@ -32,6 +33,7 @@ export interface MigrationReport {
   createdIndexes: string[];
   departmentCodeIndex?: DepartmentCodeIndexReport;
   orgStructure?: OrgMigrationReport;
+  retiredRoles?: RetiredRolesReport;
   rollback: string;
 }
 function stable(value: unknown): string {
@@ -158,7 +160,7 @@ export async function migrateDatabase(
     createdCollections: [],
     createdIndexes: [],
     rollback:
-      "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact.",
+      "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact. Retired roles (Staff) are not restored.",
   };
   if (mode === "rollback") {
     report.orgStructure = await migrateOrgStructure(db, native, "rollback");
@@ -172,6 +174,7 @@ export async function migrateDatabase(
   if (mode === "rollback") return report;
   report.orgStructure = await migrateOrgStructure(db, native, "dry-run");
   if (report.orgStructure.state === "conflict") report.conflicts.push(report.orgStructure.reason!);
+  if (collections.includes("Role")) report.retiredRoles = await retireRoles(db, false);
   // Until the rename runs, the legacy top-level units still live in `Department`.
   const legacyName = (collection: string) =>
     report.orgStructure?.state === "pending" && !collections.includes("College")
@@ -242,6 +245,11 @@ export async function migrateDatabase(
     report.createdIndexes.push(`${index.collection}.${index.name}`);
   }
   report.orgStructure = await migrateOrgStructure(db, native, "apply");
-  if (report.orgStructure.state === "conflict") report.conflicts.push(report.orgStructure.reason!);
+  if (report.orgStructure.state === "conflict") {
+    report.conflicts.push(report.orgStructure.reason!);
+    return report;
+  }
+  // Removes the retired Staff role and its grants (not reversible; see `rollback`).
+  report.retiredRoles = await db.transaction((tx) => retireRoles(tx));
   return report;
 }

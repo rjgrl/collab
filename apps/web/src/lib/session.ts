@@ -22,8 +22,7 @@ export function managesFaculty(user: SessionUser | null | undefined) {
   return isAdministrator(user) || Boolean(user.faculty && user.faculty.roleLevel !== "faculty");
 }
 
-/** Mirrors the server's assignmentScope: administrators, unscoped Staff, and heads. */
+/** Mirrors the server's assignmentScope: administrators and heads. */
 export function canAssignFaculty(user: SessionUser | null | undefined) {
-  if (!user) return false;
-  return managesFaculty(user) || (!user.faculty && user.roles.includes("staff"));
+  return managesFaculty(user);
 }

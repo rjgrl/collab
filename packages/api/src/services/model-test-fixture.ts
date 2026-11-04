@@ -5,7 +5,12 @@ export function matches(row: Row, filter: Row): boolean {
   return Object.entries(filter).every(([key, expected]) => {
     if (key === "$or") return (expected as Row[]).some((part) => matches(row, part));
     if (key === "$and") return (expected as Row[]).every((part) => matches(row, part));
-    const actual = key === "_id" ? (row._id ?? row.id) : row[key];
+    const actual =
+      key === "_id"
+        ? (row._id ?? row.id)
+        : key.includes(".")
+          ? key.split(".").reduce<unknown>((value, part) => (value as Row | null)?.[part], row)
+          : row[key];
     if (
       expected &&
       typeof expected === "object" &&

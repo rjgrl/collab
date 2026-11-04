@@ -47,7 +47,6 @@ export function isAlumniAccount(user: { roles: readonly string[] }) {
   return (
     user.roles.some((role) => role === "viewer" || role === "alumni") &&
     !isAdministrator(user) &&
-    !user.roles.includes("staff") &&
     !user.roles.includes("faculty")
   );
 }

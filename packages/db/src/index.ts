@@ -54,7 +54,13 @@ export { toEntity } from "./serialization";
 export type { Entity } from "./serialization";
 export type * from "./models";
 
-export { PERMISSIONS, PERMISSION_KEYS, ROLE_PRESETS, isPermissionKey } from "./permissions";
+export {
+  PERMISSIONS,
+  PERMISSION_KEYS,
+  RETIRED_ROLE_KEYS,
+  ROLE_PRESETS,
+  isPermissionKey,
+} from "./permissions";
 export type { PermissionKey } from "./permissions";
 export { hashPassword, verifyPassword, createSessionToken } from "./password";
 export { percentTracked } from "./dashboard";

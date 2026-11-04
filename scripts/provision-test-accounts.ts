@@ -34,7 +34,8 @@ const profileSchema = z.object({
   accounts: z
     .array(
       z.object({
-        role: z.enum(["Administrator", "Staff", "Alumni"]),
+        // "Staff" only appears in profiles provisioned before that role was retired.
+        role: z.enum(["Administrator", "Faculty", "Staff", "Alumni"]),
         email: z.email(),
         password: z.string().min(24),
       }),
@@ -94,14 +95,14 @@ if (process.argv[2] === "--start") {
     databaseUrl: `mongodb://127.0.0.1:27018/collab_test_accounts_${suffix}?replicaSet=rs0`,
     sessionSecret: randomBytes(32).toString("hex"),
     mfaEncryptionKey: randomBytes(32).toString("hex"),
-    accounts: ["Administrator", "Staff", "Alumni"].map((role) => ({
+    accounts: ["Administrator", "Faculty", "Alumni"].map((role) => ({
       role,
       email: `${role.toLowerCase()}@collab.test`,
       password: randomBytes(24).toString("base64url"),
     })),
   });
-  const [administrator, staff, alumni] = profile.accounts;
-  assert.ok(administrator && staff && alumni);
+  const [administrator, head, alumni] = profile.accounts;
+  assert.ok(administrator && head && alumni);
   Object.assign(process.env, {
     NODE_ENV: "development",
     DATABASE_URL: profile.databaseUrl,
@@ -122,17 +123,29 @@ if (process.argv[2] === "--start") {
     );
     assert.deepEqual((await migrateDatabase(db, "apply")).conflicts, []);
     await seedDatabase(db);
-    const staffRole = await db.Role.findOne({ key: "staff" }).orFail();
-    const staffUser = await db.User.create({
-      name: "Local Staff",
-      firstName: "Local",
-      lastName: "Staff",
-      email: staff.email,
-      passwordHash: await hashPassword(staff.password),
-    });
-    await db.UserRole.create({ userId: staffUser._id, roleId: staffRole._id });
-    const department = await db.Department.create({ collegeId: (await db.College.create({ name: "Synthetic college" }))._id,
+    const department = await db.Department.create({
+      collegeId: (await db.College.create({ name: "Synthetic college" }))._id,
       name: "Synthetic test department",
+    });
+    // A college-level head: the broadest non-administrator access.
+    const facultyRole = await db.Role.findOne({ key: "faculty" }).orFail();
+    const headUser = await db.User.create({
+      name: "Local Head",
+      firstName: "Local",
+      lastName: "Head",
+      email: head.email,
+      passwordHash: await hashPassword(head.password),
+    });
+    await db.UserRole.create({ userId: headUser._id, roleId: facultyRole._id });
+    await db.Faculty.create({
+      userId: headUser._id,
+      employeeNumber: "SYNTHETIC-HEAD-001",
+      firstName: "Local",
+      lastName: "Head",
+      email: head.email,
+      departmentId: department._id,
+      roleLevel: "college",
+      active: true,
     });
     const program = await db.Program.create({
       code: "SYNTHETIC",

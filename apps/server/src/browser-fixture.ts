@@ -3,7 +3,13 @@ import path from "node:path";
 import express from "express";
 import { randomBytes } from "node:crypto";
 import { generateSecret } from "otplib";
-import { createDatabase, hashPassword, PERMISSIONS, ROLE_PRESETS } from "@Alumni-Tracking-Ss/db";
+import {
+  createDatabase,
+  hashPassword,
+  PERMISSION_KEYS,
+  PERMISSIONS,
+  ROLE_PRESETS,
+} from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { encryptMfaSecret } from "@Alumni-Tracking-Ss/api/services/mfa";
 import type { Context, IntegrationEnv } from "@Alumni-Tracking-Ss/api/context";
@@ -105,7 +111,7 @@ async function reset() {
     },
     {
       _id: ids.staffRole,
-      key: "staff",
+      key: "faculty",
       name: "Test Staff",
       description: "Synthetic role",
       isSystem: false,
@@ -337,13 +343,23 @@ async function ensureAcademicFixtures() {
     ).exec();
   }
 }
+// The "staff" browser user is a college-level head over the synthetic college, holding the
+// broad management permissions the retired Staff role used to have.
+const HEAD_PERMISSIONS = PERMISSION_KEYS.filter(
+  (key) =>
+    !key.startsWith("users.") &&
+    !key.startsWith("roles.") &&
+    !key.startsWith("integrations.") &&
+    key !== "permissions.read" &&
+    key !== "audit.read",
+);
 app.post("/__test/staff", async (request, response) => {
   await ensureAcademicFixtures();
   await grantRole(
     ids.staffRole,
     request.body?.legacyIntegrations === true
-      ? [...ROLE_PRESETS.staff.permissions, "integrations.read", "integrations.write"]
-      : ROLE_PRESETS.staff.permissions,
+      ? [...HEAD_PERMISSIONS, "integrations.read", "integrations.write"]
+      : HEAD_PERMISSIONS,
   );
   await db.User.updateOne(
     { _id: ids.staff },
@@ -366,6 +382,22 @@ app.post("/__test/staff", async (request, response) => {
   await db.UserRole.updateOne(
     { userId: ids.staff, roleId: ids.staffRole },
     { $setOnInsert: { userId: ids.staff, roleId: ids.staffRole } },
+    { upsert: true },
+  ).exec();
+  await db.Faculty.updateOne(
+    { userId: ids.staff },
+    {
+      $setOnInsert: {
+        userId: ids.staff,
+        employeeNumber: "BROWSER-HEAD",
+        firstName: "Test",
+        lastName: "Staff",
+        email: "staff@example.test",
+        departmentId: ids.department,
+        roleLevel: "college",
+        active: true,
+      },
+    },
     { upsert: true },
   ).exec();
   await historicalEnrollment(ids.staff);

@@ -11,7 +11,8 @@ import { loadAuthUser } from "./session";
 import { verificationStatus } from "./verification";
 
 const viewerId = "111111111111111111111111";
-const staffId = "222222222222222222222222";
+const facultyId = "222222222222222222222222";
+const superId = "555555555555555555555555";
 const programId = "333333333333333333333333";
 const departmentId = "444444444444444444444444";
 const account = {
@@ -31,7 +32,8 @@ function fixture() {
   const f = modelFixture({
     Role: [
       { id: viewerId, _id: viewerId, key: "viewer", name: "Viewer", isSystem: true },
-      { id: staffId, _id: staffId, key: "staff", name: "Staff", isSystem: true },
+      { id: facultyId, _id: facultyId, key: "faculty", name: "Faculty", isSystem: true },
+      { id: superId, _id: superId, key: "super_admin", name: "Super Admin", isSystem: true },
     ],
     Program: [{ id: programId, departmentId, code: "TEST", deletedAt: null }],
     Department: [{ id: departmentId, name: "Synthetic", deletedAt: null }],
@@ -56,8 +58,8 @@ function fixture() {
   return { ...f, context };
 }
 
-it("routes legacy unlinked Alumni accounts to profile completion without affecting Staff", async () => {
-  for (const roleId of [viewerId, staffId]) {
+it("routes legacy unlinked Alumni accounts to profile completion without affecting Faculty", async () => {
+  for (const roleId of [viewerId, facultyId]) {
     const f = fixture();
     f.tables.User = [
       {
@@ -74,7 +76,7 @@ it("routes legacy unlinked Alumni accounts to profile completion without affecti
     f.context.user = user;
     const status = await verificationStatus(f.context);
     assert.equal(status.academicNeeded, roleId === viewerId);
-    assert.equal(status.ready, roleId === staffId);
+    assert.equal(status.ready, roleId === facultyId);
   }
 });
 
@@ -90,12 +92,20 @@ it("labels legacy Viewer roles Alumni without changing existing accounts or gran
   assert.equal(f.tables.UserRole[0]?.roleId, viewerId);
 });
 
-it("defaults managed accounts to Staff without creating or claiming an Alumni profile", async () => {
+it("requires an explicit role for managed accounts and never creates an Alumni profile", async () => {
   const f = fixture();
   f.tables.Alumni = [{ id: "historical", studentNumber: alumniProfile.studentNumber }];
   const before = structuredClone(f.tables.Alumni);
-  const user = await usersService.create(f.context, usersSchemas.create.input.parse(account));
-  assert.equal(user.userRoles[0]?.roleId, staffId);
+  await assert.rejects(
+    () => usersService.create(f.context, usersSchemas.create.input.parse(account)),
+    /Choose a role/,
+  );
+  assert.equal(f.tables.User?.length ?? 0, 0);
+  const user = await usersService.create(
+    f.context,
+    usersSchemas.create.input.parse({ ...account, roleIds: [superId] }),
+  );
+  assert.equal(user.userRoles[0]?.roleId, superId);
   assert.equal(user.alumniId, null);
   assert.equal(f.tables.User?.[0]?.verificationRequired, true);
   assert.equal(f.tables.User?.[0]?.needsProfileCompletion, true);
@@ -104,8 +114,6 @@ it("defaults managed accounts to Staff without creating or claiming an Alumni pr
 
 it("allows another Super Admin account while preserving protected role scope", async () => {
   const f = fixture();
-  const superId = "555555555555555555555555";
-  f.tables.Role!.push({ id: superId, key: "super_admin", name: "Super Admin", isSystem: true });
   const user = await usersService.create(
     f.context,
     usersSchemas.create.input.parse({ ...account, roleIds: [superId] }),
@@ -114,14 +122,18 @@ it("allows another Super Admin account while preserving protected role scope", a
   const ordinaryAdmin = fixture();
   ordinaryAdmin.context.user!.roles = ["admin"];
   await assert.rejects(
-    () => usersService.create(ordinaryAdmin.context, usersSchemas.create.input.parse(account)),
+    () =>
+      usersService.create(
+        ordinaryAdmin.context,
+        usersSchemas.create.input.parse({ ...account, roleIds: [superId] }),
+      ),
     /Only a super administrator can manage system roles/,
   );
   assert.equal(ordinaryAdmin.tables.User?.length ?? 0, 0);
 });
 
-it("denies managed creation to Staff and custom roles even with legacy users.write grants", async () => {
-  for (const key of ["staff", "legacy_manager", "viewer"]) {
+it("denies managed creation to Faculty and custom roles even with legacy users.write grants", async () => {
+  for (const key of ["faculty", "legacy_manager", "viewer"]) {
     const f = fixture();
     f.context.user!.roles = [key];
     await assert.rejects(
@@ -132,15 +144,15 @@ it("denies managed creation to Staff and custom roles even with legacy users.wri
   }
 });
 
-it("rejects Alumni, legacy Viewer, Admin and custom managed role keys, including mixed roles", async () => {
+it("rejects Alumni, legacy Viewer, Admin, Faculty and custom managed role keys, including mixed roles", async () => {
   for (const key of ["viewer", "alumni", "admin", "custom_manager"]) {
     const f = fixture();
     f.tables.Role![0]!.key = key;
-    for (const roleIds of [[viewerId], [staffId, viewerId]])
+    for (const roleIds of [[viewerId], [facultyId], [superId, viewerId]])
       await assert.rejects(
         () =>
           usersService.create(f.context, usersSchemas.create.input.parse({ ...account, roleIds })),
-        /only have Staff or Super Admin/,
+        /only have the Super Admin role/,
       );
     assert.equal(f.tables.User?.length ?? 0, 0);
     assert.equal(f.tables.Alumni?.length ?? 0, 0);
@@ -165,7 +177,11 @@ it("rolls back a managed account if role assignment fails", async () => {
   const f = fixture();
   f.failWrite("UserRole", "insertMany", new Error("Synthetic assignment failure"));
   await assert.rejects(
-    () => usersService.create(f.context, usersSchemas.create.input.parse(account)),
+    () =>
+      usersService.create(
+        f.context,
+        usersSchemas.create.input.parse({ ...account, roleIds: [superId] }),
+      ),
     /Synthetic assignment failure/,
   );
   assert.equal(f.tables.User?.length ?? 0, 0);
@@ -173,7 +189,7 @@ it("rolls back a managed account if role assignment fails", async () => {
 });
 
 it("prevents managed accounts from becoming Alumni while preserving historical Alumni role edits", async () => {
-  for (const currentRoleIds of [[staffId], [staffId, viewerId]]) {
+  for (const currentRoleIds of [[facultyId], [facultyId, viewerId]]) {
     const f = fixture();
     f.tables.User = [{ id: "managed", ...account, updatedAt: new Date(), status: "active" }];
     f.tables.UserRole = currentRoleIds.map((roleId) => ({ id: roleId, userId: "managed", roleId }));

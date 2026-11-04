@@ -164,19 +164,6 @@ export const ROLE_PRESETS = {
       "Full access to RBAC, academic structure, alumni, files, dashboard, and integrations.",
     permissions: PERMISSION_KEYS,
   },
-  staff: {
-    key: "staff",
-    name: "Staff",
-    description: "Maintain academic structure and alumni tracking. Cannot manage RBAC.",
-    permissions: PERMISSION_KEYS.filter(
-      (key) =>
-        !key.startsWith("users.") &&
-        !key.startsWith("roles.") &&
-        !key.startsWith("integrations.") &&
-        key !== "permissions.read" &&
-        key !== "audit.read",
-    ),
-  },
   faculty: {
     key: "faculty",
     name: "Faculty",
@@ -203,6 +190,12 @@ export const ROLE_PRESETS = {
     permissions: ["files.read"] satisfies PermissionKey[],
   },
 } as const;
+
+/**
+ * Retired system roles. Seeding removes them from existing databases: "staff" gave
+ * university-wide alumni access with no faculty record, which the org scoping rules forbid.
+ */
+export const RETIRED_ROLE_KEYS = ["staff"] as const;
 
 export function isPermissionKey(key: string): key is PermissionKey {
   return PERMISSION_KEYS.some((active) => active === key);

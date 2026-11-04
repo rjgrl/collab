@@ -31,9 +31,7 @@ export function UsersPage() {
   const canWrite = Boolean(
     session.data && isAdministrator(session.data) && can(session.data.permissions, "users.write"),
   );
-  const managedRoles = roles.data?.filter(
-    (role) => role.key === "staff" || role.key === "super_admin",
-  );
+  const managedRoles = roles.data?.filter((role) => role.key === "super_admin");
   const [draft, setDraft] = useState({
     ...emptyName,
     email: "",
@@ -76,8 +74,7 @@ export function UsersPage() {
                   ...emptyName,
                   email: "",
                   password: "",
-                  roleIds:
-                    roles.data?.filter((role) => role.key === "staff").map((role) => role.id) ?? [],
+                  roleIds: managedRoles?.map((role) => role.id) ?? [],
                 });
                 setOpen(true);
               }}
@@ -106,7 +103,7 @@ export function UsersPage() {
             </>
           }
           title="Add user"
-          description="Create Staff or Super Admin accounts. Alumni create their own accounts through registration."
+          description="Create Super Admin accounts. Add faculty and heads from the Faculty page; alumni register themselves."
         >
           <form
             id="create-user"
@@ -161,7 +158,7 @@ export function UsersPage() {
                     })
                   }
                 >
-                  {role.key === "super_admin" ? "Super Admin" : "Staff"}
+                  {role.key === "super_admin" ? "Super Admin" : role.name}
                 </CheckboxRow>
               ))}
             </div>

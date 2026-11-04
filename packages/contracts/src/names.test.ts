@@ -50,8 +50,8 @@ it("preserves legacy display names until both structured names are confirmed", (
 it("identifies Alumni and keeps Administrator policy for mixed roles", () => {
   assert.equal(isAlumniAccount({ roles: ["viewer"] }), true);
   assert.equal(isAlumniAccount({ roles: ["alumni"] }), true);
-  assert.equal(isAlumniAccount({ roles: ["staff", "viewer"] }), false);
+  assert.equal(isAlumniAccount({ roles: ["faculty", "viewer"] }), false);
   assert.equal(isAlumniAccount({ roles: ["super_admin", "viewer"] }), false);
   assert.equal(isAdministrator({ roles: ["viewer", "admin"] }), true);
-  assert.equal(isAdministrator({ roles: ["staff"] }), false);
+  assert.equal(isAdministrator({ roles: ["faculty"] }), false);
 });

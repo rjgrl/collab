@@ -34,8 +34,8 @@ function fixture(roles: string[]) {
   return { ...f, app };
 }
 
-it("POST users denies Staff and custom actors holding legacy users.write grants before persistence", async () => {
-  for (const roles of [["staff"], ["legacy_manager"], ["viewer"]]) {
+it("POST users denies Faculty and custom actors holding legacy users.write grants before persistence", async () => {
+  for (const roles of [["faculty"], ["legacy_manager"], ["viewer"]]) {
     const f = fixture(roles);
     const before = structuredClone(f.tables);
     const response = await request(f.app)
@@ -55,7 +55,7 @@ it("POST users denies Staff and custom actors holding legacy users.write grants 
 });
 
 it("legacy manual Alumni create/link HTTP endpoints reject all management actors without altering history", async () => {
-  for (const roles of [["staff"], ["admin"], ["super_admin"], ["legacy_manager"]]) {
+  for (const roles of [["faculty"], ["admin"], ["super_admin"], ["legacy_manager"]]) {
     const f = fixture(roles);
     const before = structuredClone(f.tables);
     const create = await request(f.app)

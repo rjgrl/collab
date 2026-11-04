@@ -43,7 +43,7 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
   const credential = await db.MfaCredential.findOne({ userId }).lean().exec();
   const assigned = await loadUserRoles(db, userId);
   const roles = assigned.map((role) => role.key);
-  // Also ends sessions of staff whose email or roles changed after sign-in.
+  // Also ends sessions of accounts whose email no longer matches the institutional domains.
   if (staffEmailRejected(user.email, roles)) return null;
   const alumniAccount = isAlumniAccount({ roles });
   const alumniPhoto =
@@ -251,8 +251,9 @@ export async function registerUser(
     });
   const { ipAddress, ...raw } = input;
   const profile = signupSchema.parse(raw);
-  await assertPasswordSafe(profile.password);
   const email = profile.email.trim().toLowerCase();
+  assertStaffEmailAllowed(email);
+  await assertPasswordSafe(profile.password);
   const passwordHash = await hashPassword(profile.password);
   return authorizationTransaction(db, async (tx) => {
     if (await tx.User.findOne({ email }).lean().exec())
@@ -333,6 +334,7 @@ export async function upsertGoogleUser(
     throw new ApiError("FORBIDDEN", {
       message: "Ask an administrator to create your account before using Google sign-in.",
     });
+  assertStaffGoogleIdentity(email, input.hostedDomain);
   try {
     return await authorizationTransaction(db, async (tx) => {
       const role = await tx.Role.findOne({ key: "viewer" }).lean().exec();

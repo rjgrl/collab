@@ -79,7 +79,7 @@ export function EvidencePanel({
         fixedKind === "image"
           ? "Profile photo associated with this Alumni record. Supporting documents are listed separately."
           : fixedKind === "evidence"
-            ? "Share documents for Staff review. Uploading evidence does not automatically mark you as tracked."
+            ? "Share documents for review by your assigned faculty and department heads. Uploading evidence does not automatically mark you as tracked."
             : "Keep your profile photo separate from confidential employment evidence. Files remain protected by account access."
       }
     >

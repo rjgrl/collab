@@ -1,6 +1,6 @@
 # Alumni Tracking System
 
-A role-based Alumni tracking application built with React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. The academic structure is **College → Department → Program**. Alumni register and maintain their academic/employment profile; faculty trackers follow the alumni assigned to them; department and college heads manage faculty and assignments in their scope; Staff review evidence and tracking decisions; Super Admins manage accounts, permissions, audit logs and integrations.
+A role-based Alumni tracking application built with React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. The academic structure is **College → Department → Program**. Alumni register and maintain their academic/employment profile; faculty trackers follow the alumni assigned to them; department and college heads manage faculty and assignments in their scope and review evidence and the audit log for it; Super Admins manage accounts, permissions, the full audit log and integrations.
 
 The team setup runs a separate database on each laptop/desktop. No Atlas account, shared database password, Docker, or Google credentials are required for local functionality testing.
 
@@ -51,10 +51,9 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 | `department.head@collab.test`                             | Department head, Information Technology                |
 | `faculty.it@collab.test`                                  | Faculty (IT), assigned Graduate One                    |
 | `faculty.education@collab.test`                           | Faculty (Secondary Education), assigned Graduate Three |
-| `staff@collab.test`                                       | Staff, all alumni, no faculty record                   |
 | `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles               |
 
-Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or the staff/faculty demo logins are refused. Remove the demo seed and this section before deployment.
+Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or every demo login is refused. Remove the demo seed and this section before deployment.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 
@@ -62,7 +61,7 @@ With normal MFA enforcement enabled, Administrators enroll an authenticator afte
 
 ## Run again, or update after a pull
 
-Local functionality testing uses `LOCAL_REQUIRE_EMAIL_VERIFICATION=false` and `LOCAL_REQUIRE_PHONE_VERIFICATION=false` in the private server environment. Both default to `true`; exemptions are accepted only with `NODE_ENV=development` or `test` and a named loopback MongoDB database on port 27018, replica set rs0. Restart the API and refresh after changes. Contacts remain unverified, and no verification codes are fabricated. Set both to `true` (or remove them) and restart to restore strict gates for verification-required accounts. For local testing, set `LOCAL_DISABLE_MFA=true`: Administrator enrollment/challenge is paused only in managed loopback development. Setup supplies this local default; set it false/remove it and restart to restore normal Admin MFA. Production rejects true. Existing factors/recovery codes are preserved and sessions are not falsely marked MFA-verified. Staff and Alumni never have mandatory MFA.
+Local functionality testing uses `LOCAL_REQUIRE_EMAIL_VERIFICATION=false` and `LOCAL_REQUIRE_PHONE_VERIFICATION=false` in the private server environment. Both default to `true`; exemptions are accepted only with `NODE_ENV=development` or `test` and a named loopback MongoDB database on port 27018, replica set rs0. Restart the API and refresh after changes. Contacts remain unverified, and no verification codes are fabricated. Set both to `true` (or remove them) and restart to restore strict gates for verification-required accounts. For local testing, set `LOCAL_DISABLE_MFA=true`: Administrator enrollment/challenge is paused only in managed loopback development. Setup supplies this local default; set it false/remove it and restart to restore normal Admin MFA. Production rejects true. Existing factors/recovery codes are preserved and sessions are not falsely marked MFA-verified. Faculty and Alumni never have mandatory MFA.
 
 For ordinary daily use, including after reboot:
 
@@ -210,13 +209,13 @@ Phone numbers are cleaned on blur and validated on submission/API input using co
 
 Changing email requires the current password and a code delivered to the new address, even when local signup verification is relaxed. The old address remains active until confirmation succeeds. Confirmation verifies the new address, synchronizes the linked Alumni contact, invalidates password-reset links and signs out other sessions while preserving the current session's MFA proof. Live email changes need the enabled HTTPS mail gateway described above.
 
-**My Profile** contains Alumni academic identity, employment and supporting evidence. Staff maintain student numbers, academic assignments and tracking decisions. Employment/file edits do not automatically mark a record tracked. Alumni evidence uploads notify Staff for review through the header bell between the theme control and account menu. Admin Alumni detail shows profile photo and supporting evidence separately.
+**My Profile** contains Alumni academic identity, employment and supporting evidence. Administrators and in-scope faculty maintain student numbers, academic assignments and tracking decisions. Employment/file edits do not automatically mark a record tracked. Alumni evidence uploads notify the assigned faculty member and the heads of that alumnus's department and college through the header bell between the theme control and account menu. Admin Alumni detail shows profile photo and supporting evidence separately.
 
-**Members > Add user** offers Staff (default) and Super Admin only. Manual Alumni creation, account conversion to Alumni and manual linking are retired at the API boundary as well as in the UI. Alumni self-register; existing/imported historical records remain available for authorized review. Names and email matches never establish account ownership automatically.
+**Members > Add user** creates Super Admin accounts only; faculty and heads are created on the **Faculty** page. Manual Alumni creation, account conversion to Alumni and manual linking are retired at the API boundary as well as in the UI. Alumni self-register; existing/imported historical records remain available for authorized review. Names and email matches never establish account ownership automatically.
 
-**Departments** use names without codes. **Audit logs** show compact summaries with a clickable detail dialog containing the full recorded summary for that event. **Integrations** are restricted to administrators, including for Staff with historical grants; enabled status is green and disabled status is red. Settings also contains Roles and permissions.
+**Departments** use names without codes. **Audit logs** show compact summaries with a clickable detail dialog containing the full recorded summary for that event. **Integrations** are restricted to administrators, including for accounts with historical grants; enabled status is green and disabled status is red. Settings also contains Roles and permissions.
 
-Staff and Alumni do not require MFA, including accounts with saved enrollment. Administrator roles (`super_admin` or `admin`) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
+Faculty and Alumni do not require MFA, including accounts with saved enrollment. Administrator roles (`super_admin` or `admin`) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
 
 Additional isolated verification: `pnpm test:mongoose-db`, `pnpm test:forms-db`, `pnpm test:pentest-local` and `pnpm test:staging-local`. They create fresh synthetic loopback namespaces and retain them for inspection. Browser tests now use a fresh real MongoDB namespace on the managed local replica set; CI starts an ephemeral MongoDB replica set with a test-only dependency. No production database is touched by these checks.
 
@@ -224,14 +223,18 @@ Additional isolated verification: `pnpm test:mongoose-db`, `pnpm test:forms-db`,
 
 Record-level access is decided by one helper (`packages/api/src/scope.ts`) used by every alumni list, detail view, edit, contact, employment and tracking write, file upload/download, CSV/PDF export and dashboard. RBAC permissions only decide which actions are available.
 
-| Account                                    | Alumni visible and editable                        | Assign faculty          | Manage faculty / set roles                   | Change history |
-| ------------------------------------------ | -------------------------------------------------- | ----------------------- | -------------------------------------------- | -------------- |
-| Super Admin                                | All                                                | Anyone                  | Any level                                    | Yes            |
-| College head                               | Every program in every department of their college | Within their college    | Up to department level, within their college | Within scope   |
-| Department head                            | Every program in their department                  | Within their department | Faculty level, within their department       | Within scope   |
-| Faculty                                    | Only alumni assigned to them                       | No                      | No                                           | No             |
-| Staff (no faculty record)                  | All                                                | Anyone                  | No                                           | No             |
-| Custom roles, inactive or unplaced faculty | None                                               | No                      | No                                           | No             |
+| Account                                    | Alumni visible and editable                        | Assign faculty          | Manage faculty / set roles                   | Change history and audit log |
+| ------------------------------------------ | -------------------------------------------------- | ----------------------- | -------------------------------------------- | ---------------------------- |
+| Super Admin                                | All                                                | Anyone                  | Any level                                    | Everything                   |
+| College head                               | Every program in every department of their college | Within their college    | Up to department level, within their college | Within scope                 |
+| Department head                            | Every program in their department                  | Within their department | Faculty level, within their department       | Within scope                 |
+| Faculty                                    | Only alumni assigned to them                       | No                      | No                                           | No                           |
+| Any account without a faculty record       | None                                               | No                      | No                                           | No                           |
+| Custom roles, inactive or unplaced faculty | None                                               | No                      | No                                           | No                           |
+
+The **Staff** role (university-wide access with no faculty record) is retired. `pnpm db:migrate --apply` and `pnpm db:seed` remove it and its grants; its dry run reports how many accounts held it. Accounts left with no role can still sign in but see nothing until an administrator recreates them on the **Faculty** page. The removal is not undone by `--rollback`.
+
+The **Audit log** page shows everything to Super Admins (`audit.read`). College and department heads see the entries about alumni in their scope (profile, contacts, assignments, tracking) and about faculty in their departments; other accounts cannot open it.
 
 Out-of-scope records return **404**, the same as missing ones. Heads edit only levels strictly below their own. Each alumnus has at most one faculty tracker. Deactivating a faculty member (never deleted) or moving them to another department unassigns their alumni and flags them **Needs reassignment**. Role changes, deactivation and every assignment are audit-logged; the affected member is signed out so their scope refreshes.
 
@@ -241,9 +244,11 @@ Alumni detail pages hold the full profile edit (names sync to the alumnus's own 
 
 ## BukSU institutional email
 
-Admin, Staff and Faculty accounts must use an email domain from `STAFF_EMAIL_DOMAINS` (comma-separated, exact match; subdomains and look-alikes such as `buksu.edu.ph.evil.com` are rejected). It is enforced server-side on password sign-in, on every authenticated request, when accounts are created or given staff roles, and on email changes. Alumni may keep personal emails. Production refuses to start without it; when it is unset in development the check is off and the server prints a warning.
+**Every account, Alumni included,** must use an email domain from `STAFF_EMAIL_DOMAINS` (comma-separated, exact match; subdomains and look-alikes such as `buksu.edu.ph.evil.com` are rejected; the variable name predates the rule covering Alumni). It is enforced server-side on sign-up, password sign-in, first-time Google sign-in, every authenticated request, account creation and email changes. Production refuses to start without it; when it is unset in development the check is off and the server prints a warning.
 
-Google sign-in verifies Google's signed ID token on the server (signature against Google's published keys, issuer, audience, expiry, verified email). For staff accounts the token's `hd` (Workspace) claim must also be in the allowlist; the `hd` request parameter is never trusted. BukSU mail is hosted on Google Workspace for both `buksu.edu.ph` and `student.buksu.edu.ph`.
+Existing accounts with a personal email (for example Alumni who registered before this rule) are signed out and refused on their next request. Before turning this on in production, list them (`db.User.find({ email: { $not: /@(student\.)?buksu\.edu\.ph$/ } })`) and have each one change to a BukSU email, or decide how they will regain access. Graduates whose BukSU accounts are deactivated after graduation cannot sign in.
+
+Google sign-in verifies Google's signed ID token on the server (signature against Google's published keys, issuer, audience, expiry, verified email). For every account the token's `hd` (Workspace) claim must also be in the allowlist; the `hd` request parameter is never trusted. BukSU mail is hosted on Google Workspace for both `buksu.edu.ph` and `student.buksu.edu.ph`.
 
 ## Integrations: Google Drive, ImgBB and PDF reports
 
@@ -255,13 +260,13 @@ Google sign-in verifies Google's signed ID token on the server (signature agains
 
 ## Environment variables (apps/server/.env)
 
-| Variable                                                | Purpose                                                                                                      |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `STAFF_EMAIL_DOMAINS`                                   | Allowed Admin/Staff/Faculty email domains, e.g. `buksu.edu.ph,student.buksu.edu.ph`. Required in production. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`              | Google sign-in OAuth client.                                                                                 |
-| `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID` | Drive evidence storage (service-account key JSON on one line; folder in a Shared Drive).                     |
-| `IMAGE_HOST_PROVIDER`, `IMGBB_API_KEY`                  | Profile photo host. ImgBB URLs are public.                                                                   |
-| `UPLOAD_DIR`                                            | Private local storage directory.                                                                             |
+| Variable                                                | Purpose                                                                                                    |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `STAFF_EMAIL_DOMAINS`                                   | Allowed email domains for every account, e.g. `buksu.edu.ph,student.buksu.edu.ph`. Required in production. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`              | Google sign-in OAuth client.                                                                               |
+| `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID` | Drive evidence storage (service-account key JSON on one line; folder in a Shared Drive).                   |
+| `IMAGE_HOST_PROVIDER`, `IMGBB_API_KEY`                  | Profile photo host. ImgBB URLs are public.                                                                 |
+| `UPLOAD_DIR`                                            | Private local storage directory.                                                                           |
 
 All values are secrets or deployment settings: keep them in the private `.env` or your host's secret store, never in Git. `apps/server/.env.example` lists every variable with blank values. Declare new variables in `apps/server/.env.schema` as well if you want them in the generated env types.
 
@@ -279,7 +284,7 @@ All values are secrets or deployment settings: keep them in the private `.env` o
 
 ## Isolated accounts for role demonstrations
 
-Run `pnpm accounts:local` to provision fresh generated Admin, Staff and Alumni credentials in a guarded `collab_test_accounts_*` database. Read the generated JSON privately under `.tools/test-accounts/`; `latest.txt` identifies it. Then run `pnpm dev:accounts` and open **http://localhost:3003** (API port 3004). Port 3003 is available only while this command is running; it is a separate role demo, while the main app stays on port 3001. This starts the normal application with an isolated profile and preserves working database configuration. Administrator MFA is paused for this managed local role demo. Ctrl+C stops these test servers; MongoDB/data remain intact.
+Run `pnpm accounts:local` to provision fresh generated Admin, Faculty (college head) and Alumni credentials in a guarded `collab_test_accounts_*` database. Read the generated JSON privately under `.tools/test-accounts/`; `latest.txt` identifies it. Then run `pnpm dev:accounts` and open **http://localhost:3003** (API port 3004). Port 3003 is available only while this command is running; it is a separate role demo, while the main app stays on port 3001. This starts the normal application with an isolated profile and preserves working database configuration. Administrator MFA is paused for this managed local role demo. Ctrl+C stops these test servers; MongoDB/data remain intact.
 
 For automated role checks, install Chromium once with `pnpm exec playwright install chromium`. With those servers running, `pnpm test:roles-local` rehearses normal UI login for all three roles, the configured Admin MFA policy, Admin-only integrations, role/session revocation and disabled sessions. It saves synthetic screenshots and private authenticator/recovery artifacts under `.tools/role-browser/`. These files contain secrets: do not share or commit them. The tool only accepts the generated synthetic namespace; it has no production endpoint or fixed test password.
 

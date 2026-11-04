@@ -6,6 +6,7 @@ import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
 import { createApp } from "./app";
+import { adminCookie } from "./local-admin";
 
 // Scoped PDF exports. PDF text is glyph-encoded, so each export's row count is read back from
 // the audit entry the export writes; profile access is checked by status code.
@@ -24,21 +25,14 @@ try {
   assert.deepEqual((await migrateDatabase(db, "apply")).conflicts, []);
   await seedDatabase(db);
   const app = createApp({ db, config: { nodeEnv: "test", origin }, integrationEnv: {} });
-  // The demo seed provides staff@collab.test (Staff role, no faculty record).
-  await db.User.findOne({ email: "staff@collab.test" }).orFail();
   const cookies: Record<string, string> = {};
-  for (const name of [
-    "college.head",
-    "department.head",
-    "faculty.it",
-    "faculty.education",
-    "staff",
-  ]) {
+  for (const name of ["college.head", "department.head", "faculty.it", "faculty.education"]) {
     const user = await db.User.findOne({ email: `${name}@collab.test` })
       .orFail()
       .lean();
     cookies[name] = `ats_session=${(await createSession(db, String(user._id), {})).token}`;
   }
+  cookies.admin = await adminCookie(db);
   const get = (who: string, url: string) =>
     request(app)
       .get(url)
@@ -66,16 +60,16 @@ try {
   assert.equal(await pdfRows("faculty.it"), 1);
   assert.equal(await pdfRows("department.head"), 2);
   assert.equal(await pdfRows("college.head"), 3);
-  assert.equal(await pdfRows("staff"), 4);
+  assert.equal(await pdfRows("admin"), 4);
   const coe = String(
     (await db.College.findOne({ name: "College of Education" }).orFail().lean())._id,
   );
-  assert.equal(await pdfRows("staff", `?collegeId=${coe}`), 1, "college filter");
+  assert.equal(await pdfRows("admin", `?collegeId=${coe}`), 1, "college filter");
   assert.equal(await pdfRows("college.head", `?collegeId=${coe}`), 0, "filters never widen scope");
-  assert.equal(await pdfRows("staff", "?graduationYear=2023"), 1, "batch year filter");
+  assert.equal(await pdfRows("admin", "?graduationYear=2023"), 1, "batch year filter");
   const bsat = String((await db.Program.findOne({ code: "BSAT" }).orFail().lean())._id);
-  assert.equal(await pdfRows("staff", `?programId=${bsat}`), 1, "program filter");
-  assert.equal((await get("staff", "/api/reports/alumni.pdf?collegeId=bad")).status, 400);
+  assert.equal(await pdfRows("admin", `?programId=${bsat}`), 1, "program filter");
+  assert.equal((await get("admin", "/api/reports/alumni.pdf?collegeId=bad")).status, 400);
 
   const g1 = String((await db.Alumni.findOne({ studentNumber: "2020-0001" }).orFail().lean())._id);
   const g3 = String((await db.Alumni.findOne({ studentNumber: "2019-0144" }).orFail().lean())._id);
@@ -99,7 +93,7 @@ try {
   };
   assert.equal(await assignmentRows("faculty.it"), 1);
   assert.equal(await assignmentRows("department.head"), 2);
-  assert.equal(await assignmentRows("staff"), 4);
+  assert.equal(await assignmentRows("admin"), 4);
 
   // CSV exports now read contacts first, falling back to legacy profile fields.
   await db.AlumniContact.create({
@@ -108,7 +102,7 @@ try {
     value: "+639171112222",
     isPrimary: true,
   });
-  const csv = await request(app).get("/api/reports/alumni.csv").set("Cookie", cookies["staff"]!);
+  const csv = await request(app).get("/api/reports/alumni.csv").set("Cookie", cookies["admin"]!);
   assert.match(csv.body.csv as string, /\+639171112222/);
   assert.match(
     csv.body.csv as string,

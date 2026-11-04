@@ -54,18 +54,14 @@ export const usersService = {
     await assertPasswordSafe(input.password);
     const passwordHash = await hashPassword(input.password);
     return authorizationTransaction(context.db, async (tx) => {
-      let roleIds = input.roleIds;
-      if (!roleIds) {
-        const role = await tx.Role.findOne({ key: "staff" }).lean();
-        if (!role)
-          throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
-        roleIds = [String(role._id)];
-      }
+      const roleIds = input.roleIds;
+      if (!roleIds?.length)
+        throw new ApiError("BAD_REQUEST", { message: "Choose a role for the new account." });
       const roles = await validateRoleIds(tx, actor, roleIds);
-      if (roles.some((role) => role.key !== "staff" && role.key !== "super_admin"))
+      if (roles.some((role) => role.key !== "super_admin"))
         throw new ApiError("BAD_REQUEST", {
           message:
-            "Managed accounts may only have Staff or Super Admin roles. Alumni must self-register.",
+            "Managed accounts may only have the Super Admin role. Create faculty and heads from the Faculty page; alumni must self-register.",
         });
       const email = input.email.toLowerCase();
       assertStaffEmailAllowed(

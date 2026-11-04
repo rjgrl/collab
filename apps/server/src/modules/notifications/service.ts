@@ -1,11 +1,50 @@
 import { toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
+import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { notificationsSchemas } from "@Alumni-Tracking-Ss/contracts/notifications";
 import type { z } from "zod";
 
-// The caller's transaction commits the evidence and its Staff notifications together.
+/**
+ * Who reviews an alumnus's evidence: the assigned faculty member, plus department heads of the
+ * alumnus's department and college heads of its college. Only active, placed faculty with a
+ * linked, active account are notified.
+ */
+async function evidenceReviewers(db: Database, alumniId: string) {
+  const alumni = await db.Alumni.findById(alumniId).select("programId assignedFacultyId").lean();
+  if (!alumni) return [];
+  const program = await db.Program.findById(alumni.programId).select("departmentId").lean();
+  const department = program
+    ? await db.Department.findById(program.departmentId).select("collegeId").lean()
+    : null;
+  const collegeDepartments = department
+    ? (await db.Department.find({ collegeId: department.collegeId }).select("_id").lean()).map(
+        (row) => row._id,
+      )
+    : [];
+  const or: Record<string, unknown>[] = [];
+  if (alumni.assignedFacultyId) or.push({ _id: alumni.assignedFacultyId });
+  if (department) {
+    or.push({ roleLevel: "department", departmentId: department._id });
+    or.push({ roleLevel: "college", departmentId: { $in: collegeDepartments } });
+  }
+  if (!or.length) return [];
+  const faculty = await db.Faculty.find({
+    $or: or,
+    active: true,
+    deletedAt: null,
+    userId: { $ne: null },
+  })
+    .select("userId")
+    .lean();
+  const userIds = faculty.flatMap((row) => (row.userId ? [row.userId] : []));
+  return db.User.find({ _id: { $in: userIds }, status: "active" })
+    .select("_id")
+    .lean();
+}
+
+// The caller's transaction commits the evidence and its reviewer notifications together.
 export async function notifyStaffOfEvidence(
   db: Database,
   input: {
@@ -16,15 +55,7 @@ export async function notifyStaffOfEvidence(
     originalName: string;
   },
 ) {
-  const role = await db.Role.findOne({ key: "staff" }).lean();
-  if (!role) return;
-  const assignments = await db.UserRole.find({ roleId: role._id }).lean();
-  const recipients = await db.User.find({
-    _id: { $in: assignments.map((assignment) => assignment.userId) },
-    status: "active",
-  })
-    .select("_id")
-    .lean();
+  const recipients = await evidenceReviewers(db, input.alumniId);
   if (recipients.length)
     await db.Notification.insertMany(
       recipients.map((recipient) => ({
@@ -38,9 +69,11 @@ export async function notifyStaffOfEvidence(
     );
 }
 
+// Only faculty accounts receive evidence notifications (see evidenceReviewers).
 function canReview(user: NonNullable<Context["user"]>) {
   return (
-    user.roles.includes("staff") &&
+    user.roles.includes("faculty") &&
+    !isAlumniAccount(user) &&
     user.permissions.includes("alumni.read") &&
     user.permissions.includes("files.read")
   );
@@ -64,7 +97,7 @@ export const notificationsService = {
   async markRead(context: Context, input: z.infer<typeof notificationsSchemas.markRead.input>) {
     const user = requireAccess(context);
     if (!canReview(user))
-      throw new ApiError("FORBIDDEN", { message: "Staff review access is required." });
+      throw new ApiError("FORBIDDEN", { message: "Reviewer access is required." });
     const filter = { _id: input.id, recipientId: user.id };
     if (!(await context.db.Notification.exists(filter)))
       throw new ApiError("NOT_FOUND", { message: "Notification not found." });

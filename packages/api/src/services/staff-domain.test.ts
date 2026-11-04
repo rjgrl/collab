@@ -43,39 +43,43 @@ it("reads domains from env, refuses a missing list in production, and rejects ma
     assert.throws(() => staffEmailDomains({ NODE_ENV: "test", STAFF_EMAIL_DOMAINS: bad }), bad);
 });
 
-it("restricts only staff accounts; alumni keep personal email", () => {
+it("restricts every account, Alumni included, to institutional email", () => {
   assert.equal(isStaffAccount(["viewer"]), false);
   assert.equal(isStaffAccount(["alumni"]), false);
   assert.equal(isStaffAccount([]), false);
-  for (const roles of [["super_admin"], ["staff"], ["faculty"], ["viewer", "custom"]])
+  for (const roles of [["super_admin"], ["faculty"], ["viewer", "custom"]])
     assert.equal(isStaffAccount(roles), true, roles.join());
-  assert.equal(staffEmailRejected("grad@gmail.com", ["viewer"], settings), false);
-  assert.equal(staffEmailRejected("head@gmail.com", ["faculty"], settings), true);
+  for (const roles of [["viewer"], ["alumni"], ["faculty"], []])
+    assert.equal(staffEmailRejected("someone@gmail.com", roles, settings), true, roles.join());
+  assert.equal(staffEmailRejected("grad@student.buksu.edu.ph", ["viewer"], settings), false);
   assert.equal(
     staffEmailRejected("head@gmail.com", ["faculty"], { NODE_ENV: "development" }),
     false,
+    "unrestricted when no domains are configured outside production",
   );
 });
 
-it("requires the verified hd claim to be allowlisted for staff Google identities", () => {
+it("requires the verified hd claim to be allowlisted for every Google identity", () => {
   assert.doesNotThrow(() =>
     assertStaffGoogleIdentity("head@buksu.edu.ph", "buksu.edu.ph", ["faculty"], settings),
   );
   assert.doesNotThrow(() =>
-    assertStaffGoogleIdentity("s@student.buksu.edu.ph", "buksu.edu.ph", ["faculty"], settings),
+    assertStaffGoogleIdentity("s@student.buksu.edu.ph", "buksu.edu.ph", ["viewer"], settings),
   );
-  for (const hd of [null, undefined, "", "gmail.com", "buksu.edu.ph.evil.com"])
-    assert.throws(
-      () => assertStaffGoogleIdentity("head@buksu.edu.ph", hd, ["faculty"], settings),
-      StaffDomainError,
-      String(hd),
-    );
+  for (const roles of [["faculty"], ["viewer"], []])
+    for (const hd of [null, undefined, "", "gmail.com", "buksu.edu.ph.evil.com"])
+      assert.throws(
+        () => assertStaffGoogleIdentity("head@buksu.edu.ph", hd, roles, settings),
+        StaffDomainError,
+        `${roles.join()} ${String(hd)}`,
+      );
   assert.throws(
     () => assertStaffGoogleIdentity("head@evil.test", "buksu.edu.ph", ["faculty"], settings),
     StaffDomainError,
   );
-  assert.doesNotThrow(() =>
-    assertStaffGoogleIdentity("grad@gmail.com", null, ["viewer"], settings),
+  assert.throws(
+    () => assertStaffGoogleIdentity("grad@gmail.com", null, ["viewer"], settings),
+    StaffDomainError,
   );
 });
 
@@ -93,7 +97,7 @@ async function withDomains<T>(work: () => Promise<T>) {
 function accounts(password: string) {
   return modelFixture({
     Role: [
-      { id: "rs", key: "staff", name: "Staff", isSystem: true },
+      { id: "rs", key: "faculty", name: "Faculty", isSystem: true },
       { id: "rv", key: "viewer", name: "Alumni", isSystem: true },
     ],
     User: [
@@ -132,18 +136,20 @@ it("enforces the allowlist on password login, existing sessions and Google sign-
   const f = accounts(await hashPassword(password));
   await withDomains(async () => {
     await authenticateWithPassword(f.db, { email: "head@buksu.edu.ph", password });
-    await authenticateWithPassword(f.db, { email: "grad@gmail.com", password });
-    await assert.rejects(
-      () => authenticateWithPassword(f.db, { email: "head@buksu.edu.ph.evil.com", password }),
-      StaffDomainError,
-    );
+    for (const email of ["head@buksu.edu.ph.evil.com", "grad@gmail.com"])
+      await assert.rejects(
+        () => authenticateWithPassword(f.db, { email, password }),
+        StaffDomainError,
+        email,
+      );
     await assert.rejects(
       () =>
         authenticateWithPassword(f.db, { email: "head@buksu.edu.ph.evil.com", password: "wrong" }),
       /Invalid email or password/,
-      "domain is checked only after the password, so it does not reveal staff accounts",
+      "domain is checked only after the password, so it does not reveal accounts",
     );
     assert.equal(await loadAuthUser(f.db, "staffBad"), null);
+    assert.equal(await loadAuthUser(f.db, "alumni"), null, "personal-email Alumni lose access");
     assert.ok(await loadAuthUser(f.db, "staffOk"));
     await assert.rejects(
       () =>
@@ -155,6 +161,16 @@ it("enforces the allowlist on password login, existing sessions and Google sign-
       name: "Head",
       hostedDomain: "buksu.edu.ph",
     });
-    await upsertGoogleUser(f.db, { email: "grad@gmail.com", name: "Grad", hostedDomain: null });
+    await assert.rejects(
+      () => upsertGoogleUser(f.db, { email: "grad@gmail.com", name: "Grad", hostedDomain: null }),
+      StaffDomainError,
+    );
+    const before = f.tables.User!.length;
+    await assert.rejects(
+      () => upsertGoogleUser(f.db, { email: "new@gmail.com", name: "New", hostedDomain: null }),
+      StaffDomainError,
+      "new Google accounts outside BukSU are refused before creation",
+    );
+    assert.equal(f.tables.User!.length, before);
   });
 });

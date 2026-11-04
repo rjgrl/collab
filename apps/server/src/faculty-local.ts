@@ -6,6 +6,7 @@ import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
 import { createApp } from "./app";
+import { adminCookie } from "./local-admin";
 
 // Faculty management, role limits, assignment and academic delete guards on seeded demo data.
 if (process.env.NODE_ENV === "production") throw new Error("Synthetic local acceptance only.");
@@ -24,22 +25,17 @@ try {
   await seedDatabase(db);
   const app = createApp({ db, config: { nodeEnv: "test", origin }, integrationEnv: {} });
 
-  // The demo seed provides staff@collab.test (Staff role, no faculty record).
-  await db.User.findOne({ email: "staff@collab.test" }).orFail();
+  // The retired Staff role is not seeded: its demo login must not exist.
+  assert.equal(await db.User.exists({ email: "staff@collab.test" }), null);
 
   const cookieFor = async (email: string) => {
     const user = await db.User.findOne({ email }).orFail().lean();
     return `ats_session=${(await createSession(db, String(user._id), {})).token}`;
   };
   const cookies: Record<string, string> = {};
-  for (const name of [
-    "college.head",
-    "department.head",
-    "faculty.it",
-    "faculty.education",
-    "staff",
-  ])
+  for (const name of ["college.head", "department.head", "faculty.it", "faculty.education"])
     cookies[name] = await cookieFor(`${name}@collab.test`);
+  cookies.admin = await adminCookie(db);
   const as = (name: string) => ({
     get: (url: string) => request(app).get(url).set("Cookie", cookies[name]!),
     post: (url: string, body: object) =>
@@ -85,7 +81,7 @@ try {
     "department.head@collab.test",
     "faculty.it@collab.test",
   ]);
-  assert.equal((await names("staff")).length, 4);
+  assert.equal((await names("admin")).length, 4);
   assert.equal((await as("faculty.it").get("/api/faculty")).status, 403);
 
   // Creating: only levels strictly below your own, only inside your departments.
@@ -153,7 +149,12 @@ try {
     403,
   );
   assert.equal(
-    (await as("staff").post("/api/faculty", draft("n7@collab.test", it, "faculty", "N-7"))).status,
+    (
+      await as("faculty.education").post(
+        "/api/faculty",
+        draft("n7@collab.test", it, "faculty", "N-7"),
+      )
+    ).status,
     403,
   );
   assert.equal(
@@ -258,7 +259,7 @@ try {
   });
   assert.deepEqual(bulk.body, { updated: 2 });
   assert.equal(
-    (await as("staff").post("/api/alumni/assign", { alumniIds: [g3], facultyId: null })).status,
+    (await as("admin").post("/api/alumni/assign", { alumniIds: [g3], facultyId: null })).status,
     200,
   );
   assert.equal((await db.Alumni.findById(g3).lean())!.assignedFacultyId, null);
@@ -295,18 +296,18 @@ try {
   );
 
   // Academic delete guards name what blocks them.
-  const blocked = await as("staff").delete(`/api/departments/${it}`);
+  const blocked = await as("admin").delete(`/api/departments/${it}`);
   assert.equal(blocked.status, 409);
   assert.match(blocked.body.error, /program/);
   const cot = String(
     (await db.College.findOne({ name: "College of Technologies" }).orFail().lean())._id,
   );
-  assert.equal((await as("staff").delete(`/api/colleges/${cot}`)).status, 409);
+  assert.equal((await as("admin").delete(`/api/colleges/${cot}`)).status, 409);
   const bsit = String((await db.Program.findOne({ code: "BSIT" }).orFail().lean())._id);
-  assert.equal((await as("staff").delete(`/api/programs/${bsit}`)).status, 409);
-  const fresh = await as("staff").post("/api/colleges", { name: "College of Testing" });
+  assert.equal((await as("admin").delete(`/api/programs/${bsit}`)).status, 409);
+  const fresh = await as("admin").post("/api/colleges", { name: "College of Testing" });
   assert.equal(fresh.status, 201);
-  assert.equal((await as("staff").delete(`/api/colleges/${fresh.body.id}`)).status, 200);
+  assert.equal((await as("admin").delete(`/api/colleges/${fresh.body.id}`)).status, 200);
   console.log(
     "PASS faculty: scoped listing, create/edit level and department limits, email allowlist, scoped single and bulk assignment, immediate My Assigned, deactivation release, audited role change, delete guards.",
   );
