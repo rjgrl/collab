@@ -263,4 +263,69 @@ async function seedDemo(db: Database, password: string) {
         { $set: { assignedFacultyId: record._id } },
       );
   }
+
+  // Unscoped Staff (no faculty record) and one Alumni login per demo profile.
+  const demoUser = async (input: {
+    email: string;
+    first: string;
+    last: string;
+    alumniId?: Types.ObjectId;
+  }) =>
+    (await db.User.findOne({ email: input.email }).lean()) ??
+    (
+      await db.User.create({
+        name: `${input.first} ${input.last}`,
+        firstName: input.first,
+        lastName: input.last,
+        email: input.email,
+        emailVerified: true,
+        passwordHash: await hashPassword(password),
+        status: "active",
+        ...(input.alumniId ? { alumniId: input.alumniId } : {}),
+      })
+    ).toObject();
+  const grant = async (userId: Types.ObjectId, key: string) => {
+    const roleRow = await db.Role.findOne({ key }).orFail().lean();
+    await db.UserRole.updateOne(
+      { userId, roleId: roleRow._id },
+      { $setOnInsert: { userId, roleId: roleRow._id } },
+      { upsert: true },
+    );
+  };
+  await grant(
+    (await demoUser({ email: "staff@collab.test", first: "Synthetic", last: "Staff" }))._id,
+    "staff",
+  );
+  for (const sample of samples) {
+    const profile = await db.Alumni.findOne({ studentNumber: sample.studentNumber }).lean();
+    // Skip a profile that some other account already owns (User.alumniId is unique).
+    if (
+      !profile ||
+      (await db.User.exists({ alumniId: profile._id, email: { $ne: sample.personalEmail } }))
+    )
+      continue;
+    const user = await demoUser({
+      email: sample.personalEmail,
+      first: sample.firstName,
+      last: sample.lastName,
+      alumniId: profile._id,
+    });
+    await grant(user._id, "viewer");
+  }
 }
+
+/** Demo sign-ins, all sharing the bootstrap administrator password. Listed in .tools/local-login.txt. */
+export const DEMO_ACCOUNTS = [
+  { email: "college.head@collab.test", role: "College head (College of Technologies)" },
+  { email: "department.head@collab.test", role: "Department head (Information Technology)" },
+  { email: "faculty.it@collab.test", role: "Faculty, IT (assigned Graduate One)" },
+  {
+    email: "faculty.education@collab.test",
+    role: "Faculty, Secondary Education (assigned Graduate Three)",
+  },
+  { email: "staff@collab.test", role: "Staff (all alumni, no faculty record)" },
+  { email: "graduate.one@collab.test", role: "Alumni, BSIT" },
+  { email: "graduate.two@collab.test", role: "Alumni, BSIT" },
+  { email: "graduate.three@collab.test", role: "Alumni, BSED" },
+  { email: "graduate.four@collab.test", role: "Alumni, BSAT" },
+] as const;

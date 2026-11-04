@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import request from "supertest";
-import { createDatabase, hashPassword } from "@Alumni-Tracking-Ss/db";
+import { createDatabase } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
@@ -24,15 +24,8 @@ try {
   await seedDatabase(db);
   const app = createApp({ db, config: { nodeEnv: "test", origin }, integrationEnv: {} });
 
-  const staffRole = await db.Role.findOne({ key: "staff" }).orFail().lean();
-  const staff = await db.User.create({
-    name: "Synthetic Staff",
-    email: "staff@collab.test",
-    emailVerified: true,
-    status: "active",
-    passwordHash: await hashPassword(randomBytes(24).toString("base64url")),
-  });
-  await db.UserRole.create({ userId: staff._id, roleId: staffRole._id });
+  // The demo seed provides staff@collab.test (Staff role, no faculty record).
+  await db.User.findOne({ email: "staff@collab.test" }).orFail();
 
   const cookieFor = async (email: string) => {
     const user = await db.User.findOne({ email }).orFail().lean();

@@ -130,6 +130,7 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     email,
     password,
     loginFile,
-    demo: demo || effective.SEED_DEMO_DATA === "true",
+    // The caller decides; a stale SEED_DEMO_DATA in packages/db/.env no longer overrides it.
+    demo,
   };
 }

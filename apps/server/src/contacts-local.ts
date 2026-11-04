@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import request from "supertest";
-import { createDatabase, hashPassword } from "@Alumni-Tracking-Ss/db";
+import { createDatabase } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
@@ -25,15 +25,8 @@ try {
   await seedDatabase(db);
   const app = createApp({ db, config: { nodeEnv: "test", origin }, integrationEnv: {} });
 
-  const staffRole = await db.Role.findOne({ key: "staff" }).orFail().lean();
-  const staff = await db.User.create({
-    name: "Synthetic Staff",
-    email: "staff@collab.test",
-    emailVerified: true,
-    status: "active",
-    passwordHash: await hashPassword(randomBytes(24).toString("base64url")),
-  });
-  await db.UserRole.create({ userId: staff._id, roleId: staffRole._id });
+  // The demo seed provides staff@collab.test (Staff role, no faculty record).
+  await db.User.findOne({ email: "staff@collab.test" }).orFail();
   const cookies: Record<string, string> = {};
   for (const name of ["college.head", "department.head", "faculty.it", "staff"]) {
     const user = await db.User.findOne({ email: `${name}@collab.test` })
@@ -150,17 +143,10 @@ try {
   assert.equal(g1Row.firstName, "Renamed");
   assert.equal(g1Row.batch, "2024-A");
   assert.equal(g1Row.lastName, "Graduate One", "omitted fields are unchanged");
-  const viewerRole = await db.Role.findOne({ key: "viewer" }).orFail().lean();
-  const owner = await db.User.create({
-    name: "Synthetic Graduate Two",
-    firstName: "Synthetic",
-    lastName: "Graduate Two",
-    email: "graduate.two@collab.test",
-    emailVerified: true,
-    status: "active",
-    alumniId: g2,
-  });
-  await db.UserRole.create({ userId: owner._id, roleId: viewerRole._id });
+  // The demo seed links graduate.two@collab.test to this profile.
+  const owner = await db.User.findOne({ email: "graduate.two@collab.test", alumniId: g2 })
+    .orFail()
+    .lean();
   assert.equal((await profile(g2, "2020-0002", { lastName: "Graduate Second" })).status, 200);
   assert.equal((await db.User.findById(owner._id).lean())!.lastName, "Graduate Second");
   assert.equal((await db.Alumni.findById(g2).lean())!.lastName, "Graduate Second");

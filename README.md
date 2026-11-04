@@ -43,7 +43,18 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 5. Initializes a new, randomly named database for this checkout, adds missing Mongoose collections/indexes without removing records or indexes, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
-For sample data, use **`pnpm setup:local --demo`** instead of `pnpm setup:local` on a new database. It adds two colleges (College of Technologies with Information Technology and Automotive Technology; College of Education with Secondary Education), one program each, four synthetic alumni across them, and one faculty account per role level: `college.head@collab.test`, `department.head@collab.test`, `faculty.it@collab.test` and `faculty.education@collab.test`. The faculty accounts share the generated administrator password from `.tools/local-login.txt`. Normal setup creates an administrator; configure departments/programs and let Alumni self-register. Admins create Staff or Super Admin accounts through Members. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
+**Demo data is on by default during the development/testing phase.** `pnpm setup:local` adds two colleges (College of Technologies with Information Technology and Automotive Technology; College of Education with Secondary Education), one program each, four synthetic alumni, and demo logins for every role. It does this on new databases and, as additive `@collab.test`-only upserts, on existing ones. Every demo login uses the administrator's initial password and is listed in `.tools/local-login.txt`:
+
+| Email                                                     | Signs in as                                            |
+| --------------------------------------------------------- | ------------------------------------------------------ |
+| `college.head@collab.test`                                | College head, College of Technologies                  |
+| `department.head@collab.test`                             | Department head, Information Technology                |
+| `faculty.it@collab.test`                                  | Faculty (IT), assigned Graduate One                    |
+| `faculty.education@collab.test`                           | Faculty (Secondary Education), assigned Graduate Three |
+| `staff@collab.test`                                       | Staff, all alumni, no faculty record                   |
+| `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles               |
+
+Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or the staff/faculty demo logins are refused. Remove the demo seed and this section before deployment.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 

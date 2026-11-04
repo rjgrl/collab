@@ -40,17 +40,9 @@ try {
   const bsed = String(alumni.GThree.programId);
 
   // Extra accounts: Staff without a faculty record (unscoped) and a deactivated faculty member.
-  const staffRole = await db.Role.findOne({ key: "staff" }).orFail().lean();
+  // staff@collab.test comes from the demo seed.
   const facultyRole = await db.Role.findOne({ key: "faculty" }).orFail().lean();
   const passwordHash = await hashPassword(randomBytes(24).toString("base64url"));
-  const staff = await db.User.create({
-    name: "Synthetic Staff",
-    email: "staff@collab.test",
-    emailVerified: true,
-    status: "active",
-    passwordHash,
-  });
-  await db.UserRole.create({ userId: staff._id, roleId: staffRole._id });
   const inactive = await db.User.create({
     name: "Inactive Faculty",
     email: "inactive@collab.test",

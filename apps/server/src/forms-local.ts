@@ -116,7 +116,10 @@ try {
   assert.equal(await db.FormsReceipt.countDocuments({}), 0);
   assert.equal(await db.ImportJob.countDocuments({}), 0);
   assert.equal(await db.Alumni.countDocuments({}), 0);
-  const department = await db.Department.create({ collegeId: (await db.College.create({ name: "Synthetic college" }))._id, name: "Synthetic" });
+  const department = await db.Department.create({
+    collegeId: (await db.College.create({ name: "Synthetic college" }))._id,
+    name: "Synthetic",
+  });
   await db.Program.create({ code: "TEST", name: "Synthetic", departmentId: department.id });
   const first = await expected("first commit", base, "synthetic-response-001", 200);
   const saved = await db.Alumni.findOne({ studentNumber: payload.studentNumber }).orFail();

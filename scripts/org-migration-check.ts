@@ -71,16 +71,14 @@ try {
       updatedAt: now,
     },
   ]);
-  await native
-    .collection("User")
-    .insertOne({
-      _id: userId,
-      name: "Legacy Faculty",
-      email: "legacy.faculty@example.test",
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-    });
+  await native.collection("User").insertOne({
+    _id: userId,
+    name: "Legacy Faculty",
+    email: "legacy.faculty@example.test",
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  });
   await native.collection("Faculty").insertMany([
     {
       _id: facultyLinked,
@@ -250,6 +248,20 @@ try {
   const facultyRole = await fresh.Role.findOne({ key: "faculty" }).orFail().lean();
   assert.equal(await fresh.UserRole.countDocuments({ roleId: facultyRole._id }), 4);
   assert.equal(await fresh.Alumni.countDocuments({ assignedFacultyId: { $type: "objectId" } }), 2);
+  const viewerRole = await fresh.Role.findOne({ key: "viewer" }).orFail().lean();
+  assert.equal(
+    await fresh.UserRole.countDocuments({ roleId: viewerRole._id }),
+    4,
+    "alumni demo logins",
+  );
+  assert.equal(
+    await fresh.User.countDocuments({ alumniId: { $type: "objectId" } }),
+    4,
+    "each linked",
+  );
+  const staffRole = await fresh.Role.findOne({ key: "staff" }).orFail().lean();
+  const staffUser = await fresh.User.findOne({ email: "staff@collab.test" }).orFail().lean();
+  assert.ok(await fresh.UserRole.exists({ userId: staffUser._id, roleId: staffRole._id }));
   const seededPrograms = await fresh.Program.find().lean();
   const seededDepartments = new Set(seededPrograms.map((p) => String(p.departmentId)));
   assert.equal(seededDepartments.size, 3, "alumni span more than one department");
