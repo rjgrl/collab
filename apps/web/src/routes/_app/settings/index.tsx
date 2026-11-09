@@ -3,22 +3,21 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { toast } from "sonner";
-import {
-  FormCard,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
+import { FormCard, FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
 import { useSession } from "@/lib/session";
-import { PasswordGuidance } from "@/components/password-guidance";
-import { EmailVerification } from "@/components/email-verification";
-import { NameFields, nameDraft, type NameDraft } from "@/components/name-fields";
-import { AccountProfileFields, type AccountProfile } from "@/components/account-profile-fields";
+import { PasswordGuidance } from "@/components/forms/password-guidance";
+import { EmailVerification } from "@/components/account/email-verification";
+import { NameFields, nameDraft, type NameDraft } from "@/components/forms/name-fields";
+import {
+  AccountProfileFields,
+  type AccountProfile,
+} from "@/components/forms/account-profile-fields";
 import { updateProfileSchema } from "@Alumni-Tracking-Ss/contracts/auth";
-import { api, client, queryClient } from "@/utils/api";
-import { AccountPhotoControls } from "@/components/account-photo-controls";
-import { EmailChange } from "@/components/email-change";
+import { api, client, queryClient } from "@/lib/api";
+import { AccountPhotoControls } from "@/components/account/account-photo-controls";
+import { EmailChange } from "@/components/account/email-change";
 
 export const Route = createFileRoute("/_app/settings/")({ component: AccountSettings });
 
@@ -118,8 +117,12 @@ function AccountSettings() {
                 Changing your phone number clears its verification. Confirm the new number when
                 required.
               </p>
-              {verification.isError ? <p role="alert">{verification.error.message}</p> : null}
-              {profile.isError ? <p role="alert">{profile.error.message}</p> : null}
+              {verification.isError ? (
+                <ErrorAlert className="sm:col-span-2">{verification.error.message}</ErrorAlert>
+              ) : null}
+              {profile.isError ? (
+                <ErrorAlert className="sm:col-span-2">{profile.error.message}</ErrorAlert>
+              ) : null}
               <PrimaryButton
                 type="submit"
                 pending={profile.isPending}
@@ -165,7 +168,9 @@ function AccountSettings() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </FormField>
-            {changePassword.isError ? <p role="alert">{changePassword.error.message}</p> : null}
+            {changePassword.isError ? (
+              <ErrorAlert>{changePassword.error.message}</ErrorAlert>
+            ) : null}
             <PasswordGuidance id="account-password-guidance" value={password} />
             <PrimaryButton type="submit" pending={changePassword.isPending}>
               Change password

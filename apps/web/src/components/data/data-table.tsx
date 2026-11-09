@@ -2,9 +2,10 @@ import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
 import { cn } from "@Alumni-Tracking-Ss/ui/lib/utils";
+import { Search } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { EmptyState } from "@/components/page-header";
+import { EmptyState } from "@/components/layout/page";
 
 export function DataTable({
   label = "Scrollable records table",
@@ -38,13 +39,19 @@ export function DataTable({
       {onSearch || toolbar ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {onSearch ? (
-            <Input
-              value={search}
-              onChange={(event) => onSearch(event.target.value)}
-              placeholder={searchPlaceholder ?? "Search"}
-              className="max-w-sm"
-              aria-label={searchPlaceholder ?? "Search"}
-            />
+            <div className="relative w-full max-w-sm">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                value={search}
+                onChange={(event) => onSearch(event.target.value)}
+                placeholder={searchPlaceholder ?? "Search"}
+                className="pl-9"
+                aria-label={searchPlaceholder ?? "Search"}
+              />
+            </div>
           ) : (
             <div />
           )}
@@ -55,10 +62,10 @@ export function DataTable({
         role="region"
         aria-label={label}
         tabIndex={0}
-        className="overflow-x-auto rounded-xl border border-border bg-card focus-visible:outline-2 focus-visible:outline-ring"
+        className="overflow-x-auto rounded-xl border border-border bg-card shadow-card focus-visible:outline-2 focus-visible:outline-ring"
       >
         <table className="w-full min-w-[32rem] text-left text-sm md:min-w-0">
-          <thead className="bg-muted/60 text-xs text-muted-foreground">
+          <thead className="bg-muted/70 text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
             <tr>
               {headers.map((header) => (
                 <th
@@ -68,8 +75,8 @@ export function DataTable({
                     /^(Graduates|Tracked|Untracked|% tracked|Count|Users|Programs|Alumni)$/.test(
                       header,
                     )
-                      ? "px-4 py-3 text-right font-medium"
-                      : "px-4 py-3 font-medium"
+                      ? "px-4 py-2.5 text-right font-semibold"
+                      : "px-4 py-2.5 font-semibold"
                   }
                 >
                   {header}
@@ -107,7 +114,7 @@ export function DataTable({
 export function TableRow({ className, ...props }: ComponentProps<"tr">) {
   return (
     <tr
-      className={cn("border-t border-border/70 transition-colors hover:bg-muted/40", className)}
+      className={cn("border-t border-border/80 transition-colors hover:bg-muted/50", className)}
       {...props}
     />
   );
@@ -123,7 +130,7 @@ export function TableCell({
   colSpan?: number;
 }) {
   return (
-    <td className={cn("px-4 py-3 align-middle break-words", className)} colSpan={colSpan}>
+    <td className={cn("px-4 py-3.5 align-middle break-words", className)} colSpan={colSpan}>
       {children}
     </td>
   );

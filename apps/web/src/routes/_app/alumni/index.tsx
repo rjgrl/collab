@@ -1,31 +1,36 @@
 import { useDepartmentOptions } from "@/lib/academic-options";
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
-import { TablePagination } from "@/components/table-pagination";
+import { TablePagination } from "@/components/data/table-pagination";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { FormSelect } from "@/components/form-select";
 import {
-  FilterBar,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
+  DataTable,
+  QuietButton,
+  RowActions,
+  TableCell,
+  TableRow,
+} from "@/components/data/data-table";
+import { FormSelect } from "@/components/forms/form-select";
+import { FilterBar } from "@/components/data/filter-bar";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { StatusBadge } from "@/components/data/status-badge";
 import { can, canAssignFaculty, useSession } from "@/lib/session";
 import { Checkbox } from "@Alumni-Tracking-Ss/ui/components/checkbox";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { toast } from "sonner";
-import { api, client, queryClient } from "@/utils/api";
+import { api, client, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 export const Route = createFileRoute("/_app/alumni/")({
   component: AlumniPage,
 });
 
 function AlumniPage() {
+  const confirmAction = useConfirm();
   const session = useSession();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -165,10 +170,9 @@ function AlumniPage() {
         description="Alumni self-register to create their account and profile. Manage registered profiles, employment, and tracking here."
       />
       {list.isError ? (
-        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
-          {list.error.message}{" "}
-          <QuietButton onClick={() => void list.refetch()}>Retry alumni</QuietButton>
-        </p>
+        <ErrorAlert retryLabel="Retry alumni" onRetry={() => void list.refetch()}>
+          {list.error.message}
+        </ErrorAlert>
       ) : null}
       <DataTable
         label="Alumni registry profiles"
@@ -342,11 +346,15 @@ function AlumniPage() {
                   <QuietButton
                     disabled={archive.isPending}
                     aria-label={`Archive ${formatDisplayName(row)}`}
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        window.confirm(
-                          `Archive ${formatDisplayName(row)}? The profile will leave normal lists and reports. Its account and history will be preserved.`,
-                        )
+                        await confirmAction({
+                          title: `Archive ${formatDisplayName(row)}?`,
+                          description:
+                            "The profile will leave normal lists and reports. Its account and history will be preserved.",
+                          confirmLabel: "Archive",
+                          destructive: true,
+                        })
                       )
                         archive.mutate(row.id);
                     }}
@@ -376,13 +384,9 @@ function AlumniPage() {
           statistics yet. Department and tracking filters apply to completed profiles above.
         </p>
         {pendingAccounts.isError ? (
-          <p
-            role="alert"
-            className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
-          >
-            {pendingAccounts.error.message}{" "}
-            <QuietButton onClick={() => void pendingAccounts.refetch()}>Retry accounts</QuietButton>
-          </p>
+          <ErrorAlert retryLabel="Retry accounts" onRetry={() => void pendingAccounts.refetch()}>
+            {pendingAccounts.error.message}
+          </ErrorAlert>
         ) : null}
         <DataTable
           label="Alumni accounts awaiting profile completion"

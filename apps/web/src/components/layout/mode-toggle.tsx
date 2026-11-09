@@ -7,14 +7,22 @@ import {
 } from "@Alumni-Tracking-Ss/ui/components/dropdown-menu";
 import { Moon, Sun } from "lucide-react";
 
-import { useTheme } from "@/components/theme-provider";
+import { useTheme } from "@/components/layout/theme-provider";
 
 export function ModeToggle() {
   const { setTheme } = useTheme();
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        }
+      >
         <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
         <Moon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
         <span className="sr-only">Toggle theme</span>

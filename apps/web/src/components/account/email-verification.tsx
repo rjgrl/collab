@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
-import { FormField, PrimaryButton } from "@/components/page-header";
-import { client, api, queryClient } from "@/utils/api";
-import { StatusBadge } from "./status-badge";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { client, api, queryClient } from "@/lib/api";
+import { StatusBadge } from "@/components/data/status-badge";
 export function EmailVerification() {
   const status = useQuery(api.auth.verificationStatus.queryOptions());
   const [open, setOpen] = useState(false);

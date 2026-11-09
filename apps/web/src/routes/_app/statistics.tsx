@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/utils/api";
-import { FormCard, PageHeader, PageShell } from "@/components/page-header";
-import { DataTable, TableCell, TableRow } from "@/components/data-table";
+import { api } from "@/lib/api";
+import { FormCard } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { DataTable, TableCell, TableRow } from "@/components/data/data-table";
 import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
 
 export const Route = createFileRoute("/_app/statistics")({ component: Statistics });
@@ -17,10 +19,7 @@ function Statistics() {
       />
       {result.isPending ? (
         <FormCard title="Graduate tracking totals">
-          <div
-            role="status"
-            className="grid grid-cols-2 gap-5 md:grid-cols-4"
-          >
+          <div role="status" className="grid grid-cols-2 gap-5 md:grid-cols-4">
             <span className="sr-only">Loading statistics…</span>
             {["Graduates", "Tracked", "Untracked", "Tracked percentage"].map((label) => (
               <div key={label}>
@@ -31,12 +30,9 @@ function Statistics() {
           </div>
         </FormCard>
       ) : result.error ? (
-        <p role="alert" className="rounded-lg border p-4 text-sm">
-          Statistics could not be loaded.{" "}
-          <button className="underline" onClick={() => void result.refetch()}>
-            Retry
-          </button>
-        </p>
+        <ErrorAlert onRetry={() => void result.refetch()}>
+          Statistics could not be loaded.
+        </ErrorAlert>
       ) : data ? (
         <>
           <p
@@ -47,7 +43,7 @@ function Statistics() {
           </p>
           <FormCard title="Graduate tracking totals">
             {data.totals ? (
-              <dl className="grid grid-cols-2 gap-5 md:grid-cols-4 md:divide-x">
+              <dl className="grid grid-cols-2 gap-x-5 gap-y-6 md:grid-cols-4 md:divide-x">
                 {(
                   [
                     ["Graduates", data.totals.graduates.toLocaleString()],
@@ -57,8 +53,8 @@ function Statistics() {
                   ] as const
                 ).map(([label, value]) => (
                   <div key={label} className="min-w-0 md:pl-5 md:first:pl-0">
-                    <dt className="text-sm text-muted-foreground">{label}</dt>
-                    <dd className="mt-2 text-2xl font-medium tracking-tight tabular-nums">
+                    <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
+                    <dd className="mt-2 text-2xl font-semibold tracking-tight tabular-nums sm:text-[1.75rem] sm:leading-9">
                       {value}
                     </dd>
                   </div>

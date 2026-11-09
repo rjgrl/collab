@@ -1,7 +1,7 @@
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
-import { FormSelect } from "@/components/form-select";
-import { FormField } from "@/components/page-header";
-import { PhoneInput } from "./phone-input";
+import { FormSelect } from "@/components/forms/form-select";
+import { FormField } from "@/components/forms/form-layout";
+import { PhoneInput } from "@/components/forms/phone-input";
 
 export type AccountProfile = { phoneNumber: string; gender: string; facebookAccount: string };
 

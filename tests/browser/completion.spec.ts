@@ -204,8 +204,11 @@ test("local Alumni registration persists academic identity, employment and owned
   ).toHaveCount(0);
   await expect(preview).toBeVisible();
   await page.screenshot({ path: info.outputPath("my-profile-complete.png"), fullPage: true });
-  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Remove Employment proof.png", exact: true }).click();
+  await page
+    .getByRole("alertdialog", { name: "Remove Employment proof.png?" })
+    .getByRole("button", { name: "Remove", exact: true })
+    .click();
   await expect(preview).toHaveCount(0);
   await page.goto("/statistics");
   await expect(page.getByText("Totals withheld for privacy.", { exact: false })).toBeVisible();
@@ -254,8 +257,11 @@ test("Staff persist employment edits and archives and can open Faculty", async (
     .getByRole("row")
     .filter({ has: page.locator('a[href="/alumni/000000000000000000000201"]') });
   await expect(profileRow.getByText("Profile only", { exact: true })).toBeVisible();
-  page.once("dialog", (dialog) => dialog.accept());
   await profileRow.getByRole("button", { name: /^Archive / }).click();
+  await page
+    .getByRole("alertdialog", { name: /^Archive / })
+    .getByRole("button", { name: "Archive", exact: true })
+    .click();
   await expect(profileRow).toHaveCount(0);
   expect((await page.request.get("/api/alumni/000000000000000000000201")).status()).toBe(404);
   expect((await (await page.request.get("/api/dashboard")).json()).graduates).toBe(1);

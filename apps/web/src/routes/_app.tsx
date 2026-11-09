@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
 
 export const Route = createFileRoute("/_app")({

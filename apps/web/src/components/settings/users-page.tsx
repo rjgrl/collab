@@ -4,20 +4,22 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { CheckboxRow } from "@/components/checkbox-row";
-import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
+import { CheckboxRow } from "@/components/forms/checkbox-row";
 import {
-  FieldsetLabel,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
-import { TablePagination } from "@/components/table-pagination";
+  DataTable,
+  QuietButton,
+  RowActions,
+  TableCell,
+  TableRow,
+} from "@/components/data/data-table";
+import { FieldsetLabel, FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { StatusBadge } from "@/components/data/status-badge";
+import { TablePagination } from "@/components/data/table-pagination";
 import { can, useSession } from "@/lib/session";
-import { client, api, queryClient } from "@/utils/api";
-import { NameFields, emptyName } from "@/components/name-fields";
+import { client, api, queryClient } from "@/lib/api";
+import { NameFields, emptyName } from "@/components/forms/name-fields";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
 
@@ -166,10 +168,7 @@ export function UsersPage() {
         </FormDialog>
       ) : null}
       {users.isError ? (
-        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
-          {users.error.message}
-          <QuietButton onClick={() => void users.refetch()}>Retry</QuietButton>
-        </p>
+        <ErrorAlert onRetry={() => void users.refetch()}>{users.error.message}</ErrorAlert>
       ) : null}
       <DataTable
         headers={["Name", "Email", "Roles", "Status", "Actions"]}

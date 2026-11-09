@@ -1,7 +1,7 @@
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { useQuery } from "@tanstack/react-query";
 
-import { api } from "@/utils/api";
+import { api } from "@/lib/api";
 
 export function useSession() {
   return useQuery({

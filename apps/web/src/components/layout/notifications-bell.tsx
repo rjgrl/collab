@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@Alumni-Tracking-Ss/ui/components/dropdown-menu";
-import { api, client, queryClient } from "@/utils/api";
+import { api, client, queryClient } from "@/lib/api";
 import { toast } from "sonner";
 
 export function NotificationsBell() {
@@ -40,9 +40,9 @@ export function NotificationsBell() {
       <DropdownMenuTrigger
         render={
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="relative"
+            className="relative text-muted-foreground hover:text-foreground"
             aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
             data-testid="notifications-bell"
           />
@@ -52,7 +52,7 @@ export function NotificationsBell() {
         {unreadCount > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute -right-1 -top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+            className="absolute top-1 right-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none font-semibold text-primary-foreground ring-2 ring-card"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>

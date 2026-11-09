@@ -11,10 +11,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
-import { client, api, queryClient } from "@/utils/api";
-import { StatusBadge } from "@/components/status-badge";
+import { client, api, queryClient } from "@/lib/api";
+import { StatusBadge } from "@/components/data/status-badge";
 
 const INTEGRATION_NAMES: Record<string, string> = {
   recaptcha: "reCAPTCHA",
@@ -73,9 +75,9 @@ export function IntegrationsPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {list.isPending ? <p role="status">Loading integrations...</p> : null}
         {list.isError ? (
-          <p role="alert" className="rounded-lg border p-4 text-sm md:col-span-2">
+          <ErrorAlert className="md:col-span-2">
             Unable to load integrations. Reload to try again.
-          </p>
+          </ErrorAlert>
         ) : null}
         {list.data?.map((item) => (
           <Card key={item.key}>

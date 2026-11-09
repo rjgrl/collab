@@ -1,5 +1,5 @@
 import { accountPhotoResultSchema } from "@Alumni-Tracking-Ss/contracts/account-photo";
-import { ENV } from "../env";
+import { ENV } from "@/env";
 import { readJson } from "./api";
 
 const endpoint = `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/api/me/photo`;

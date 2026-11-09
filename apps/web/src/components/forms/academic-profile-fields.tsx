@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
-import { api } from "@/utils/api";
-import { collectOptionPages } from "@/utils/pagination";
-import { FormField } from "./page-header";
-import { FormSelect } from "./form-select";
+import { api } from "@/lib/api";
+import { collectOptionPages } from "@/lib/pagination";
+import { FormField } from "@/components/forms/form-layout";
+import { FormSelect } from "@/components/forms/form-select";
 
 export const emptyAcademic = { studentNumber: "", programId: "", graduationYear: "" };
 export function AcademicProfileFields({

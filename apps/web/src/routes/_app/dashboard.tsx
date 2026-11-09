@@ -1,3 +1,4 @@
+import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import {
   Card,
   CardContent,
@@ -5,14 +6,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@Alumni-Tracking-Ss/ui/components/card";
-import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { GraduationCap, Percent, UserCheck, UserX } from "lucide-react";
 
-import { DataTable, QuietButton, TableCell, TableRow } from "@/components/data-table";
-import { PageHeader, PageShell } from "@/components/page-header";
+import { DataTable, QuietButton, TableCell, TableRow } from "@/components/data/data-table";
+import { StatGrid, StatTile } from "@/components/data/stat-tile";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { PageHeader, PageShell } from "@/components/layout/page";
 import { can, useSession } from "@/lib/session";
-import { api } from "@/utils/api";
+import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: DashboardPage,
@@ -31,9 +34,9 @@ function DashboardPage() {
         actions={
           <>
             {can(session.data?.permissions, "alumni.read") ? (
-              <QuietButton nativeButton={false} render={<Link to="/alumni" />}>
+              <Button size="sm" nativeButton={false} render={<Link to="/alumni" />}>
                 View alumni
-              </QuietButton>
+              </Button>
             ) : null}
             {can(session.data?.permissions, "reports.read") ? (
               <QuietButton nativeButton={false} render={<Link to="/reports" />}>
@@ -43,16 +46,32 @@ function DashboardPage() {
           </>
         }
       />
-      <dl className="grid grid-cols-2 overflow-hidden rounded-xl border bg-card xl:grid-cols-4 [&>div]:border-b [&>div]:border-r [&>div:nth-child(2n)]:border-r-0 [&>div:nth-last-child(-n+2)]:border-b-0 xl:[&>div]:border-b-0 xl:[&>div:nth-child(2)]:border-r">
-        <StatCard label="Graduates" value={data?.graduates} loading={summary.isPending} />
-        <StatCard label="Tracked" value={data?.tracked} loading={summary.isPending} />
-        <StatCard label="Untracked" value={data?.untracked} loading={summary.isPending} />
-        <StatCard
+      <StatGrid>
+        <StatTile
+          label="Graduates"
+          value={data?.graduates}
+          loading={summary.isPending}
+          icon={GraduationCap}
+        />
+        <StatTile
+          label="Tracked"
+          value={data?.tracked}
+          loading={summary.isPending}
+          icon={UserCheck}
+        />
+        <StatTile
+          label="Untracked"
+          value={data?.untracked}
+          loading={summary.isPending}
+          icon={UserX}
+        />
+        <StatTile
           label="% tracked"
           value={data ? `${data.percentTracked.toFixed(2)}%` : undefined}
           loading={summary.isPending}
+          icon={Percent}
         />
-      </dl>
+      </StatGrid>
       <p className="text-sm text-muted-foreground">
         Registered alumni accounts:{" "}
         <span className="font-medium tabular-nums text-foreground">
@@ -61,10 +80,7 @@ function DashboardPage() {
         . Graduate totals count profiles, including unregistered graduates.
       </p>
       {summary.error ? (
-        <p role="alert" className="rounded-lg border px-4 py-3 text-sm">
-          Could not load dashboard.{" "}
-          <QuietButton onClick={() => void summary.refetch()}>Retry</QuietButton>
-        </p>
+        <ErrorAlert onRetry={() => void summary.refetch()}>Could not load dashboard.</ErrorAlert>
       ) : null}
       <Card>
         <CardHeader>
@@ -103,30 +119,5 @@ function DashboardPage() {
         </CardContent>
       </Card>
     </PageShell>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  loading,
-}: {
-  label: string;
-  value: string | number | undefined;
-  loading: boolean;
-}) {
-  return (
-    <div className="min-w-0 p-4 sm:p-5">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="mt-2 text-2xl font-medium tracking-tight tabular-nums">
-        {loading ? (
-          <Skeleton className="h-8 w-16" />
-        ) : typeof value === "number" ? (
-          value.toLocaleString()
-        ) : (
-          (value ?? "—")
-        )}
-      </dd>
-    </div>
   );
 }

@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { AccountVerification } from "@/components/account-verification";
+import { AccountVerification } from "@/components/account/account-verification";
 
 export const Route = createFileRoute("/complete-profile")({
   beforeLoad: async ({ context }) => {

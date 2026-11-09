@@ -2,14 +2,15 @@ import { useId, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { evidenceOutputSchema, employmentOutputSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
-import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
+import { Button, buttonVariants } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { toast } from "sonner";
-import { client, queryClient, uploadProfileFile } from "@/utils/api";
-import { ENV } from "../env";
-import { FormCard, FormField, PrimaryButton } from "./page-header";
-import { FormSelect } from "./form-select";
+import { client, queryClient, uploadProfileFile } from "@/lib/api";
+import { ENV } from "@/env";
+import { FormCard, FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { FormSelect } from "@/components/forms/form-select";
 import { FileCheck2, ImagePlus } from "lucide-react";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 export function EvidencePanel({
   files,
@@ -28,6 +29,7 @@ export function EvidencePanel({
   canUpload?: boolean;
   canDelete?: boolean;
 }) {
+  const confirmAction = useConfirm();
   const fieldId = useId();
   const [file, setFile] = useState<File>();
   const [selectedKind, setKind] = useState<"image" | "evidence">("evidence");
@@ -108,33 +110,40 @@ export function EvidencePanel({
                     : ""}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
                 <a
-                  className="underline underline-offset-4"
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
                   target="_blank"
                   rel="noopener noreferrer"
                   href={`${root}/${item.id}?preview=1`}
                 >
                   Preview<span className="sr-only"> {item.originalName}</span>
                 </a>
-                <a className="underline underline-offset-4" href={`${root}/${item.id}`}>
+                <a
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                  href={`${root}/${item.id}`}
+                >
                   Download<span className="sr-only"> {item.originalName}</span>
                 </a>
                 {canDelete ? (
-                  <button
-                    className="underline underline-offset-4"
+                  <Button
+                    variant="destructive"
+                    size="sm"
                     disabled={remove.isPending}
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        window.confirm(
-                          `Remove ${item.originalName}? It will no longer be available for normal viewing.`,
-                        )
+                        await confirmAction({
+                          title: `Remove ${item.originalName}?`,
+                          description: "It will no longer be available for normal viewing.",
+                          confirmLabel: "Remove",
+                          destructive: true,
+                        })
                       )
                         remove.mutate(item.id);
                     }}
                   >
                     Remove<span className="sr-only"> {item.originalName}</span>
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </li>

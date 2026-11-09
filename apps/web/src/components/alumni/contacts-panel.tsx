@@ -6,11 +6,12 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { CheckboxRow } from "@/components/checkbox-row";
-import { QuietButton } from "@/components/data-table";
-import { FormSelect } from "@/components/form-select";
-import { FormField, PrimaryButton } from "@/components/page-header";
-import { client, queryClient } from "@/utils/api";
+import { CheckboxRow } from "@/components/forms/checkbox-row";
+import { QuietButton } from "@/components/data/data-table";
+import { FormSelect } from "@/components/forms/form-select";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { client, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 type Contact = {
   id: string;
@@ -53,6 +54,7 @@ export function ContactsPanel({
   canWrite: boolean;
 }) {
   // null: closed. "choose": step 1 (pick a kind). Draft: step 2 (fields).
+  const confirmAction = useConfirm();
   const [dialog, setDialog] = useState<null | "choose" | Draft>(null);
 
   const done = async (message: string) => {
@@ -167,8 +169,14 @@ export function ContactsPanel({
                     <QuietButton
                       variant="destructive"
                       disabled={remove.isPending}
-                      onClick={() => {
-                        if (confirm(`Remove this ${TYPE_LABELS[contact.type]} contact?`))
+                      onClick={async () => {
+                        if (
+                          await confirmAction({
+                            title: `Remove this ${TYPE_LABELS[contact.type]} contact?`,
+                            confirmLabel: "Delete",
+                            destructive: true,
+                          })
+                        )
                           remove.mutate(contact);
                       }}
                     >

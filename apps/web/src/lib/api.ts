@@ -27,7 +27,7 @@ import {
 import { integrationsSchemas } from "@Alumni-Tracking-Ss/contracts/integrations";
 import { auditSchemas } from "@Alumni-Tracking-Ss/contracts/audit";
 import { notificationsSchemas } from "@Alumni-Tracking-Ss/contracts/notifications";
-import { ENV } from "../env";
+import { ENV } from "@/env";
 
 export class RestError extends Error {
   constructor(

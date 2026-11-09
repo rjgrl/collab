@@ -45,7 +45,7 @@ export function Autocomplete({
             {/* shortcut: Base UI Popup hides the surrounding form; restore it when editable inputs support nonmodal focus. */}
             <div
               data-slot="autocomplete-content"
-              className="max-h-[min(var(--available-height),20rem)] w-(--anchor-width) max-w-(--available-width) overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none"
+              className="max-h-[min(var(--available-height),20rem)] w-(--anchor-width) max-w-(--available-width) overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-raised outline-none"
             >
               <AutocompletePrimitive.Empty className="px-3 py-2.5 text-sm text-muted-foreground">
                 Use your entered suffix.

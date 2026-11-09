@@ -1,4 +1,4 @@
-import { TablePagination } from "@/components/table-pagination";
+import { TablePagination } from "@/components/data/table-pagination";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import {
@@ -12,18 +12,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { FormSelect } from "@/components/form-select";
 import {
-  FilterBar,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
+  DataTable,
+  QuietButton,
+  RowActions,
+  TableCell,
+  TableRow,
+} from "@/components/data/data-table";
+import { FormSelect } from "@/components/forms/form-select";
+import { FilterBar } from "@/components/data/filter-bar";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
 import { useDepartmentOptions } from "@/lib/academic-options";
 import { managesFaculty, useSession } from "@/lib/session";
-import { client, api, queryClient } from "@/utils/api";
+import { client, api, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 export const Route = createFileRoute("/_app/faculty")({
   component: FacultyPage,
@@ -41,6 +45,7 @@ type Draft = {
 const RANK: Record<FacultyLevel, number> = { faculty: 0, department: 1, college: 2 };
 
 function FacultyPage() {
+  const confirmAction = useConfirm();
   const session = useSession();
   const user = session.data;
   const [search, setSearch] = useState("");
@@ -225,10 +230,7 @@ function FacultyPage() {
         </FormDialog>
       ) : null}
       {list.isError ? (
-        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
-          {list.error.message}
-          <QuietButton onClick={() => void list.refetch()}>Retry</QuietButton>
-        </p>
+        <ErrorAlert onRetry={() => void list.refetch()}>{list.error.message}</ErrorAlert>
       ) : null}
       <DataTable
         label="Faculty members"
@@ -306,12 +308,15 @@ function FacultyPage() {
                     <QuietButton
                       variant={row.active ? "destructive" : undefined}
                       disabled={setActive.isPending}
-                      onClick={() => {
+                      onClick={async () => {
                         if (
                           !row.active ||
-                          confirm(
-                            `Deactivate ${row.firstName} ${row.lastName}? Their ${row.assignedCount} assigned alumni will be unassigned and flagged for reassignment.`,
-                          )
+                          (await confirmAction({
+                            title: `Deactivate ${row.firstName} ${row.lastName}?`,
+                            description: `Their ${row.assignedCount} assigned alumni will be unassigned and flagged for reassignment.`,
+                            confirmLabel: "Deactivate",
+                            destructive: true,
+                          }))
                         )
                           setActive.mutate({ id: row.id, active: !row.active });
                       }}

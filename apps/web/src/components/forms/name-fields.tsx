@@ -1,6 +1,6 @@
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Autocomplete } from "@Alumni-Tracking-Ss/ui/components/autocomplete";
-import { FormField } from "@/components/page-header";
+import { FormField } from "@/components/forms/form-layout";
 
 export type NameDraft = { firstName: string; middleName: string; lastName: string; suffix: string };
 export const emptyName: NameDraft = { firstName: "", middleName: "", lastName: "", suffix: "" };

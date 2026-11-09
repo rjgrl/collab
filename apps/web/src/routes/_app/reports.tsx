@@ -5,12 +5,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { FormSelect } from "@/components/form-select";
-import { FilterBar, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
-import { QuietButton } from "@/components/data-table";
+import { FormSelect } from "@/components/forms/form-select";
+import { FilterBar } from "@/components/data/filter-bar";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { PrimaryButton } from "@/components/forms/form-layout";
+import { QuietButton } from "@/components/data/data-table";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { can, useSession } from "@/lib/session";
-import { client, api, downloadPdf } from "@/utils/api";
+import { client, api, downloadPdf } from "@/lib/api";
 import { useCollegeOptions, useProgramOptions } from "@/lib/academic-options";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 
@@ -104,13 +107,9 @@ function ReportsPage() {
             ))}
           </dl>
           {summary.isError ? (
-            <p
-              role="alert"
-              className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
-            >
+            <ErrorAlert className="mt-4" onRetry={() => void summary.refetch()}>
               Could not load report totals.
-              <QuietButton onClick={() => void summary.refetch()}>Retry</QuietButton>
-            </p>
+            </ErrorAlert>
           ) : null}
         </CardContent>
       </Card>

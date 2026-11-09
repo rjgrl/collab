@@ -7,9 +7,9 @@ import {
   ACCOUNT_PHOTO_TYPES,
   MAX_ACCOUNT_PHOTO_BYTES,
 } from "@Alumni-Tracking-Ss/contracts/account-photo";
-import { queryClient } from "@/utils/api";
-import { removeAccountPhoto, uploadAccountPhoto } from "@/utils/account-photo";
-import { AccountAvatar } from "./account-avatar";
+import { queryClient } from "@/lib/api";
+import { removeAccountPhoto, uploadAccountPhoto } from "@/lib/account-photo";
+import { AccountAvatar } from "@/components/account/account-avatar";
 
 export function AccountPhotoControls({ image, name }: { image?: string | null; name: string }) {
   const id = useId();

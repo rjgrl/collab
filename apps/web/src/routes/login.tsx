@@ -1,27 +1,22 @@
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
-import { GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 
-import { AccountProfileFields } from "@/components/account-profile-fields";
-import { NameFields, emptyName } from "@/components/name-fields";
-import { AcademicProfileFields, emptyAcademic } from "@/components/academic-profile-fields";
-import { LocalVerificationNotice } from "@/components/local-verification-notice";
-import { PasswordGuidance } from "@/components/password-guidance";
-import { CheckboxRow } from "@/components/checkbox-row";
-import { Recaptcha } from "@/components/recaptcha";
-import { FormField, PrimaryButton } from "@/components/page-header";
+import { AccountProfileFields } from "@/components/forms/account-profile-fields";
+import { NameFields, emptyName } from "@/components/forms/name-fields";
+import { AcademicProfileFields, emptyAcademic } from "@/components/forms/academic-profile-fields";
+import { LocalVerificationNotice } from "@/components/layout/local-verification-notice";
+import { PasswordGuidance } from "@/components/forms/password-guidance";
+import { CheckboxRow } from "@/components/forms/checkbox-row";
+import { Recaptcha } from "@/components/forms/recaptcha";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { AuthHeader, AuthLayout } from "@/components/layout/auth-layout";
 import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
-import { client, api, queryClient } from "@/utils/api";
+import { client, api, queryClient } from "@/lib/api";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { error?: "google" | "google_domain" } =>
@@ -90,139 +85,122 @@ function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/40 px-4 py-8 sm:py-12">
-      <Card className={mode === "signup" ? "w-full max-w-2xl" : "w-full max-w-md"}>
-        <CardHeader className="gap-2">
-          <p className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <GraduationCap className="size-5 shrink-0 text-primary" aria-hidden="true" />
-            Alumni Tracking System
+    <AuthLayout wide={mode === "signup"}>
+      <AuthHeader
+        title={mode === "login" ? "Sign in" : "Create an account"}
+        description="Sign in to manage academic structure, alumni profiles, and graduate tracking."
+      />
+      <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
+        <LocalVerificationNotice />
+        {mode === "signup" ? (
+          <fieldset className="grid gap-4 sm:grid-cols-2">
+            <legend className="mb-3 text-sm font-semibold">Personal details</legend>
+            <NameFields value={names} onChange={setNames} prefix="signup" />
+          </fieldset>
+        ) : null}
+        <FormField id="email" label="Email" required>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            aria-describedby="email-hint"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+          <p id="email-hint" className="text-xs text-muted-foreground">
+            Use your BukSU institutional email. Personal email addresses are not accepted.
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {mode === "login" ? "Sign in" : "Create an account"}
-          </h1>
-          <CardDescription>
-            Sign in to manage academic structure, alumni profiles, and graduate tracking.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
-            <LocalVerificationNotice />
-            {mode === "signup" ? (
-              <fieldset className="grid gap-4 sm:grid-cols-2">
-                <legend className="mb-3 text-sm font-semibold">Personal details</legend>
-                <NameFields value={names} onChange={setNames} prefix="signup" />
-              </fieldset>
-            ) : null}
-            <FormField id="email" label="Email" required>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                aria-describedby="email-hint"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-              <p id="email-hint" className="text-xs text-muted-foreground">
-                Use your BukSU institutional email. Personal email addresses are not accepted.
-              </p>
-            </FormField>
-            {mode === "signup" ? (
-              <fieldset className="grid gap-4 sm:grid-cols-2">
-                <legend className="mb-3 text-sm font-semibold">Contact details</legend>
-                <AccountProfileFields value={profile} onChange={setProfile} />
-              </fieldset>
-            ) : null}
-            {mode === "signup" ? (
-              <AcademicProfileFields value={academic} onChange={setAcademic} />
-            ) : null}
-            <FormField id="password" label="Password" required>
-              <Input
-                id="password"
-                type="password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                minLength={mode === "signup" ? 15 : 1}
-                maxLength={256}
-                aria-describedby={mode === "signup" ? "signup-password-guidance" : undefined}
-              />
-            </FormField>
-            {mode === "signup" ? (
-              <PasswordGuidance id="signup-password-guidance" value={password} />
-            ) : null}
-            {mode === "login" ? (
-              <Link
-                className="self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
-                to="/reset-password"
-              >
-                Forgot password?
-              </Link>
-            ) : null}
-            {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
-              <Recaptcha
-                key={captchaAttempt}
-                siteKey={recaptcha.siteKey}
-                onToken={setRecaptchaToken}
-              />
-            ) : null}
-            {needsCheckbox ? (
-              <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
-                I am not a robot
-              </CheckboxRow>
-            ) : null}
-            <PrimaryButton
-              type="submit"
-              pending={pending}
-              disabled={
-                config.isPending ||
-                config.isError ||
-                Boolean(recaptcha?.enabled && recaptcha.live && !recaptchaToken)
-              }
-              pendingLabel={mode === "login" ? "Signing in" : "Creating"}
-            >
-              {mode === "login" ? "Sign in" : "Create account"}
-            </PrimaryButton>
-            {formError ? (
-              <p
-                className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
-                role="alert"
-              >
-                {formError}
+        </FormField>
+        {mode === "signup" ? (
+          <fieldset className="grid gap-4 sm:grid-cols-2">
+            <legend className="mb-3 text-sm font-semibold">Contact details</legend>
+            <AccountProfileFields value={profile} onChange={setProfile} />
+          </fieldset>
+        ) : null}
+        {mode === "signup" ? (
+          <AcademicProfileFields value={academic} onChange={setAcademic} />
+        ) : null}
+        <FormField id="password" label="Password" required>
+          <Input
+            id="password"
+            type="password"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            minLength={mode === "signup" ? 15 : 1}
+            maxLength={256}
+            aria-describedby={mode === "signup" ? "signup-password-guidance" : undefined}
+          />
+        </FormField>
+        {mode === "signup" ? (
+          <PasswordGuidance id="signup-password-guidance" value={password} />
+        ) : null}
+        {mode === "login" ? (
+          <Link
+            className="-mt-1 self-end text-sm font-medium text-primary underline-offset-4 hover:underline"
+            to="/reset-password"
+          >
+            Forgot password?
+          </Link>
+        ) : null}
+        {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
+          <Recaptcha key={captchaAttempt} siteKey={recaptcha.siteKey} onToken={setRecaptchaToken} />
+        ) : null}
+        {needsCheckbox ? (
+          <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
+            I am not a robot
+          </CheckboxRow>
+        ) : null}
+        <PrimaryButton
+          type="submit"
+          pending={pending}
+          disabled={
+            config.isPending ||
+            config.isError ||
+            Boolean(recaptcha?.enabled && recaptcha.live && !recaptchaToken)
+          }
+          pendingLabel={mode === "login" ? "Signing in" : "Creating"}
+        >
+          {mode === "login" ? "Sign in" : "Create account"}
+        </PrimaryButton>
+        {formError ? <ErrorAlert>{formError}</ErrorAlert> : null}
+        <div
+          aria-hidden="true"
+          className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border"
+        >
+          or
+        </div>
+        {config.data?.google.enabled ? (
+          <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
+            {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Button type="button" variant="outline" disabled>
+              {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
+            </Button>
+            {!config.isPending ? (
+              <p className="text-center text-xs text-muted-foreground">
+                Google sign-in is currently unavailable.
               </p>
             ) : null}
-            {config.data?.google.enabled ? (
-              <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
-                {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
-              </Button>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Button type="button" variant="outline" disabled>
-                  {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
-                </Button>
-                {!config.isPending ? (
-                  <p className="text-center text-xs text-muted-foreground">
-                    Google sign-in is currently unavailable.
-                  </p>
-                ) : null}
-              </div>
-            )}
-            {config.data?.signupEnabled ? (
-              <button
-                type="button"
-                className="min-h-10 rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline"
-                onClick={() => {
-                  setFormError(null);
-                  setMode(mode === "login" ? "signup" : "login");
-                }}
-              >
-                {mode === "login" ? "Need an account? Sign up" : "Already registered? Sign in"}
-              </button>
-            ) : null}
-          </form>
-        </CardContent>
-      </Card>
-    </main>
+          </div>
+        )}
+        {config.data?.signupEnabled ? (
+          <button
+            type="button"
+            className="min-h-10 rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline"
+            onClick={() => {
+              setFormError(null);
+              setMode(mode === "login" ? "signup" : "login");
+            }}
+          >
+            {mode === "login" ? "Need an account? Sign up" : "Already registered? Sign in"}
+          </button>
+        ) : null}
+      </form>
+    </AuthLayout>
   );
 }

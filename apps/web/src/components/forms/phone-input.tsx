@@ -1,7 +1,7 @@
 import PhoneNumberInput, { getCountryCallingCode, type Country } from "react-phone-number-input";
 import type { ComponentProps, FocusEventHandler } from "react";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
-import { FormSelect } from "./form-select";
+import { FormSelect } from "@/components/forms/form-select";
 import { normalizePhoneNumber } from "@Alumni-Tracking-Ss/contracts/phone";
 
 function CountrySelect({

@@ -5,7 +5,7 @@ runTool(
   [
     "--test",
     "packages/contracts/src/*.test.ts",
-    "apps/web/src/utils/*.test.ts",
+    "apps/web/src/lib/*.test.ts",
     "packages/db/src/*.test.ts",
     "packages/api/src/**/*.test.ts",
     "apps/server/src/*.test.ts",

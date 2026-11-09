@@ -4,9 +4,9 @@ import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { toast } from "sonner";
-import { api, client, queryClient } from "@/utils/api";
-import { FormField, PrimaryButton } from "./page-header";
-import { StatusBadge } from "./status-badge";
+import { api, client, queryClient } from "@/lib/api";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { StatusBadge } from "@/components/data/status-badge";
 
 export function EmailChange() {
   const status = useQuery(api.auth.verificationStatus.queryOptions());

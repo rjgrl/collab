@@ -4,8 +4,9 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
-import { ThemeProvider } from "@/components/theme-provider";
-import { api } from "@/utils/api";
+import { ConfirmProvider } from "@/components/feedback/confirm-provider";
+import { ThemeProvider } from "@/components/layout/theme-provider";
+import { api } from "@/lib/api";
 
 import "../index.css";
 
@@ -45,7 +46,9 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <Outlet />
+        <ConfirmProvider>
+          <Outlet />
+        </ConfirmProvider>
         <Toaster
           richColors
           expand

@@ -1,6 +1,6 @@
-import { EmploymentPanel } from "@/components/employment-panel";
-import { EvidencePanel } from "@/components/evidence-panel";
-import { ContactsPanel } from "@/components/contacts-panel";
+import { EmploymentPanel } from "@/components/alumni/employment-panel";
+import { EvidencePanel } from "@/components/alumni/evidence-panel";
+import { ContactsPanel } from "@/components/alumni/contacts-panel";
 import { useProgramOptions } from "@/lib/academic-options";
 import { Card, CardContent, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
@@ -11,19 +11,15 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
-import { QuietButton } from "@/components/data-table";
-import Loader from "@/components/loader";
-import { FormSelect } from "@/components/form-select";
-import {
-  FormActions,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
+import { QuietButton } from "@/components/data/data-table";
+import Loader from "@/components/layout/loader";
+import { FormSelect } from "@/components/forms/form-select";
+import { FormActions, FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { StatusBadge } from "@/components/data/status-badge";
 import { can, managesFaculty, useSession } from "@/lib/session";
-import { client, api, downloadPdf, queryClient } from "@/utils/api";
+import { client, api, downloadPdf, queryClient } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/alumni/$id")({
   component: AlumniDetailPage,
@@ -114,13 +110,7 @@ function AlumniDetailPage() {
       <PageShell>
         <PageHeader title="Alumni profile" description="This alumni record could not be found." />
         {alumni.isError ? (
-          <p
-            role="alert"
-            className="flex flex-wrap items-center gap-2 rounded-lg border p-4 text-sm"
-          >
-            {alumni.error.message}
-            <QuietButton onClick={() => void alumni.refetch()}>Retry</QuietButton>
-          </p>
+          <ErrorAlert onRetry={() => void alumni.refetch()}>{alumni.error.message}</ErrorAlert>
         ) : null}
       </PageShell>
     );

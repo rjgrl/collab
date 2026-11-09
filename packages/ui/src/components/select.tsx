@@ -40,7 +40,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 text-base text-foreground outline-none transition-colors hover:border-ring/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive data-[size=default]:h-10 data-[size=sm]:h-8 sm:text-sm *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate [&_svg]:pointer-events-none [&_svg]:shrink-0 dark:bg-input/30",
+        "flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 text-base text-foreground shadow-xs outline-none transition-colors hover:border-ring/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive data-[size=default]:h-10 data-[size=sm]:h-8 sm:text-sm *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate [&_svg]:pointer-events-none [&_svg]:shrink-0 dark:bg-background/60",
         className,
       )}
       {...props}
@@ -81,7 +81,7 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "relative isolate z-50 max-h-[min(var(--available-height),20rem)] w-(--anchor-width) min-w-36 max-w-(--available-width) overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none",
+            "relative isolate z-50 max-h-[min(var(--available-height),20rem)] w-(--anchor-width) min-w-36 max-w-(--available-width) overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-raised outline-none",
             className,
           )}
           {...props}

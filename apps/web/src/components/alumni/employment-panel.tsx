@@ -8,11 +8,13 @@ import {
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
+import { Badge } from "@Alumni-Tracking-Ss/ui/components/badge";
 import { toast } from "sonner";
-import { client, queryClient } from "@/utils/api";
-import { FormCard, FormField, PrimaryButton } from "./page-header";
-import { CheckboxRow } from "./checkbox-row";
+import { client, queryClient } from "@/lib/api";
+import { FormCard, FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { CheckboxRow } from "@/components/forms/checkbox-row";
 import { BriefcaseBusiness } from "lucide-react";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 type Employment = z.infer<typeof employmentOutputSchema>;
 const emptyJob = {
@@ -35,6 +37,7 @@ export function EmploymentPanel({
   alumniId?: string;
   canWrite?: boolean;
 }) {
+  const confirmAction = useConfirm();
   const [editing, setEditing] = useState<Employment | null | undefined>();
   const [draft, setDraft] = useState(emptyJob);
   function edit(job: Employment | null) {
@@ -122,9 +125,9 @@ export function EmploymentPanel({
                 <h3 className="break-words text-sm font-medium">
                   {job.employer}
                   {job.isCurrent ? (
-                    <span className="ml-2 rounded bg-muted px-2 py-0.5 text-xs font-normal">
+                    <Badge variant="secondary" className="ml-2 align-middle font-medium">
                       Current
-                    </span>
+                    </Badge>
                   ) : null}
                 </h3>
                 <p className="mt-1 text-sm">{job.jobTitle || "Position not recorded"}</p>
@@ -149,11 +152,15 @@ export function EmploymentPanel({
                     variant="ghost"
                     size="sm"
                     disabled={remove.isPending}
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        window.confirm(
-                          `Remove employment at ${job.employer}? This removes the job history entry; attached evidence stays on the profile.`,
-                        )
+                        await confirmAction({
+                          title: `Remove employment at ${job.employer}?`,
+                          description:
+                            "This removes the job history entry; attached evidence stays on the profile.",
+                          confirmLabel: "Remove",
+                          destructive: true,
+                        })
                       )
                         remove.mutate(job.id);
                     }}

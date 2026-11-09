@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/utils/api";
-import { collectOptionPages } from "@/utils/pagination";
+import { api } from "@/lib/api";
+import { collectOptionPages } from "@/lib/pagination";
 
 export function useCollegeOptions() {
   return useQuery({

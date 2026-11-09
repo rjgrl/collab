@@ -10,14 +10,18 @@ import type { PermissionItem } from "@Alumni-Tracking-Ss/contracts/permission-gr
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
-import { client, api, queryClient } from "@/utils/api";
+import { client, api, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 const version = (role: { updatedAt: Date }) => new Date(role.updatedAt).toISOString();
 
 export function RolesPage() {
+  const confirmAction = useConfirm();
   const session = useSession();
   const roles = useQuery(api.roles.list.queryOptions());
   const catalogAllowed = can(session.data?.permissions, "permissions.read");
@@ -81,9 +85,16 @@ export function RolesPage() {
           <form
             id="create-role"
             className="grid gap-3 sm:grid-cols-2"
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault();
-              if (!dirty || window.confirm("Discard unsaved permission changes?")) {
+              if (
+                !dirty ||
+                (await confirmAction({
+                  title: "Discard unsaved permission changes?",
+                  confirmLabel: "Discard changes",
+                  destructive: true,
+                }))
+              ) {
                 create.mutate();
               }
             }}
@@ -115,7 +126,9 @@ export function RolesPage() {
                 onChange={(event) => setNewRole({ ...newRole, description: event.target.value })}
               />
             </FormField>
-            {create.isError ? <p role="alert">{create.error.message}</p> : null}
+            {create.isError ? (
+              <ErrorAlert className="sm:col-span-2">{create.error.message}</ErrorAlert>
+            ) : null}
             <div className="sm:col-span-2">
               <PermissionControls
                 permissions={permissions.data}
@@ -129,9 +142,7 @@ export function RolesPage() {
       ) : null}
       {roles.isPending ? <p role="status">Loading roles...</p> : null}
       {roles.isError ? (
-        <div role="alert" className="rounded-lg border p-4 text-sm">
-          Unable to load roles. <button onClick={() => void roles.refetch()}>Retry</button>
-        </div>
+        <ErrorAlert onRetry={() => void roles.refetch()}>Unable to load roles.</ErrorAlert>
       ) : null}
       {roles.data?.length === 0 ? (
         <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
@@ -144,15 +155,22 @@ export function RolesPage() {
             key={role.id}
             type="button"
             aria-pressed={selected === role.id}
-            className="min-w-0 rounded-xl border bg-card p-5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-foreground/40 aria-pressed:bg-muted"
-            onClick={() => {
-              if (!dirty || window.confirm("Discard unsaved permission changes?")) {
+            className="min-w-0 rounded-xl border bg-card p-5 text-left shadow-card transition-[border-color,box-shadow,background-color] hover:border-primary/40 hover:shadow-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-primary aria-pressed:bg-accent/50 aria-pressed:ring-2 aria-pressed:ring-primary/15"
+            onClick={async () => {
+              if (
+                !dirty ||
+                (await confirmAction({
+                  title: "Discard unsaved permission changes?",
+                  confirmLabel: "Discard changes",
+                  destructive: true,
+                }))
+              ) {
                 setSelected(role.id);
                 setDirty(false);
               }
             }}
           >
-            <span className="block font-medium">{role.name}</span>
+            <span className="block font-semibold">{role.name}</span>
             <span className="mt-2 block text-sm tabular-nums text-muted-foreground">
               {role._count.userRoles} members | {role.rolePermissions.length} permissions
               {role.key === "super_admin" ? " | Protected" : ""}
@@ -166,10 +184,9 @@ export function RolesPage() {
         </p>
       ) : null}
       {permissions.isError ? (
-        <div role="alert" className="rounded-lg border p-4 text-sm">
-          Unable to load the permission catalog.{" "}
-          <button onClick={() => void permissions.refetch()}>Retry</button>
-        </div>
+        <ErrorAlert onRetry={() => void permissions.refetch()}>
+          Unable to load the permission catalog.
+        </ErrorAlert>
       ) : null}
       {current && permissions.data ? (
         <RoleEditor
@@ -177,8 +194,15 @@ export function RolesPage() {
           role={current}
           permissions={permissions.data}
           onDirty={setDirty}
-          onClose={() => {
-            if (!dirty || window.confirm("Discard unsaved permission changes?")) {
+          onClose={async () => {
+            if (
+              !dirty ||
+              (await confirmAction({
+                title: "Discard unsaved permission changes?",
+                confirmLabel: "Discard changes",
+                destructive: true,
+              }))
+            ) {
               setSelected(null);
               setDirty(false);
             }

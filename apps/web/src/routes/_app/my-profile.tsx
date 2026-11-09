@@ -1,13 +1,14 @@
-import { EmploymentPanel } from "@/components/employment-panel";
-import { EvidencePanel } from "@/components/evidence-panel";
+import { EmploymentPanel } from "@/components/alumni/employment-panel";
+import { EvidencePanel } from "@/components/alumni/evidence-panel";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
-import { api } from "@/utils/api";
-import { FormCard, PageHeader, PageShell } from "@/components/page-header";
-import { QuietButton } from "@/components/data-table";
+import { api } from "@/lib/api";
+import { FormCard } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { QuietButton } from "@/components/data/data-table";
 import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
-import { StatusBadge } from "@/components/status-badge";
+import { StatusBadge } from "@/components/data/status-badge";
 import {
   Card,
   CardContent,
@@ -16,7 +17,7 @@ import {
   CardDescription,
 } from "@Alumni-Tracking-Ss/ui/components/card";
 import { BriefcaseBusiness, FileCheck2 } from "lucide-react";
-import { AccountAvatar } from "@/components/account-avatar";
+import { AccountAvatar } from "@/components/account/account-avatar";
 import { useSession } from "@/lib/session";
 
 export const Route = createFileRoute("/_app/my-profile")({ component: MyProfile });

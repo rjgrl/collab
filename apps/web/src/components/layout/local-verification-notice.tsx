@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/utils/api";
+import { api } from "@/lib/api";
 export function LocalVerificationNotice() {
   const config = useQuery(api.auth.config.queryOptions());
   if (!import.meta.env.DEV || !config.data?.contactVerification?.localBypass) return null;

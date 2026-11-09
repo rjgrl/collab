@@ -29,10 +29,10 @@ export function FormDialog({
       disablePointerDismissal
     >
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/45" />
-        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border bg-card shadow-xl outline-none">
-          <div className="relative shrink-0 border-b px-5 py-4 pr-14">
-            <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
+        <Dialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-[2px] transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl outline-none">
+          <div className="relative shrink-0 border-b px-5 py-4 pr-16 sm:px-6">
+            <Dialog.Title className="text-base font-semibold tracking-tight">{title}</Dialog.Title>
             {description ? (
               <Dialog.Description className="mt-1 text-sm text-muted-foreground">
                 {description}
@@ -41,16 +41,16 @@ export function FormDialog({
             <Dialog.Close
               disabled={pending}
               aria-label="Close dialog"
-              className="absolute top-2 right-2 flex size-11 items-center justify-center rounded-lg border border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:outline-2 focus-visible:outline-destructive disabled:opacity-50"
+              className="absolute top-2 right-2 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
             >
               <X className="size-4" />
             </Dialog.Close>
           </div>
-          <div className="min-h-0 overflow-y-auto overscroll-contain p-5" data-dialog-body>
+          <div className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6" data-dialog-body>
             {children}
           </div>
           {footer ? (
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-muted/30 px-5 py-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-muted/50 px-5 py-3.5 sm:px-6">
               {footer}
             </div>
           ) : null}

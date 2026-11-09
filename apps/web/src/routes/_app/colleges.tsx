@@ -1,4 +1,4 @@
-import { TablePagination } from "@/components/table-pagination";
+import { TablePagination } from "@/components/data/table-pagination";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -7,10 +7,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import {
+  DataTable,
+  QuietButton,
+  RowActions,
+  TableCell,
+  TableRow,
+} from "@/components/data/data-table";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { PageHeader, PageShell } from "@/components/layout/page";
 import { can, useSession } from "@/lib/session";
-import { client, api, queryClient } from "@/utils/api";
+import { client, api, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 export const Route = createFileRoute("/_app/colleges")({
   component: CollegesPage,
@@ -19,6 +28,7 @@ export const Route = createFileRoute("/_app/colleges")({
 type Draft = { id?: string; name: string; description: string };
 
 function CollegesPage() {
+  const confirmAction = useConfirm();
   const session = useSession();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -107,10 +117,7 @@ function CollegesPage() {
         </FormDialog>
       ) : null}
       {list.isError ? (
-        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
-          {list.error.message}
-          <QuietButton onClick={() => void list.refetch()}>Retry</QuietButton>
-        </p>
+        <ErrorAlert onRetry={() => void list.refetch()}>{list.error.message}</ErrorAlert>
       ) : null}
       <DataTable
         headers={["Name", "Departments", "Actions"]}
@@ -147,11 +154,14 @@ function CollegesPage() {
                 {canDelete ? (
                   <QuietButton
                     variant="destructive"
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        confirm(
-                          `Archive ${row.name}? Colleges with departments cannot be archived.`,
-                        )
+                        await confirmAction({
+                          title: `Archive ${row.name}?`,
+                          description: "Colleges with departments cannot be archived.",
+                          confirmLabel: "Archive",
+                          destructive: true,
+                        })
                       )
                         remove.mutate(row.id);
                     }}

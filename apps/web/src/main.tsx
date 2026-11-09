@@ -2,9 +2,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
-import Loader from "./components/loader";
+import Loader from "@/components/layout/loader";
 import { routeTree } from "./routeTree.gen";
-import { api, queryClient } from "./utils/api";
+import { api, queryClient } from "@/lib/api";
 
 function RouteError() {
   return (

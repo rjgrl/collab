@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { DataTable, TableCell, TableRow } from "@/components/data-table";
-import { PageHeader, PageShell } from "@/components/page-header";
-import { api } from "@/utils/api";
-import { TablePagination } from "@/components/table-pagination";
+import { DataTable, TableCell, TableRow } from "@/components/data/data-table";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { api } from "@/lib/api";
+import { TablePagination } from "@/components/data/table-pagination";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { auditOutputSchema } from "@Alumni-Tracking-Ss/contracts/audit";
 import type { z } from "zod";
@@ -28,11 +29,7 @@ function AuditPage() {
         title="Audit log"
         description="Recorded account, alumni, and integration actions. Select an event to view its full summary."
       />
-      {logs.isError ? (
-        <p role="alert" className="rounded-lg border p-4 text-sm">
-          {logs.error.message}
-        </p>
-      ) : null}
+      {logs.isError ? <ErrorAlert>{logs.error.message}</ErrorAlert> : null}
       <DataTable
         headers={["When", "Actor", "Action", "Record", "Summary"]}
         search={search}

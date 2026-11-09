@@ -1,0 +1,285 @@
+import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@Alumni-Tracking-Ss/ui/components/dropdown-menu";
+import { cn } from "@Alumni-Tracking-Ss/ui/lib/utils";
+import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  BarChart3,
+  Building2,
+  ChevronRight,
+  ClipboardList,
+  GraduationCap,
+  Landmark,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  ScrollText,
+  Settings,
+  UserRound,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { AccountAvatar } from "@/components/account/account-avatar";
+import { LocalVerificationNotice } from "@/components/layout/local-verification-notice";
+import { ModeToggle } from "@/components/layout/mode-toggle";
+import { NotificationsBell } from "@/components/layout/notifications-bell";
+import { queryClient } from "@/lib/api";
+import { can, canAssignFaculty, managesFaculty, useSession } from "@/lib/session";
+import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
+
+const NAV = [
+  { to: "/my-profile", label: "My Profile", permission: null, icon: UserRound },
+  { to: "/statistics", label: "University statistics", permission: null, icon: BarChart3 },
+  { to: "/dashboard", label: "Dashboard", permission: "dashboard.read", icon: LayoutDashboard },
+  { to: "/colleges", label: "Colleges", permission: "departments.read", icon: Landmark },
+  { to: "/departments", label: "Departments", permission: "departments.read", icon: Building2 },
+  { to: "/programs", label: "Programs", permission: "programs.read", icon: GraduationCap },
+  { to: "/alumni", label: "Alumni", permission: "alumni.read", icon: UserRound },
+  // Gated by faculty level, not an RBAC key; see canAssignFaculty.
+  { to: "/faculty", label: "Faculty", permission: "faculty", icon: Users },
+  { to: "/reports", label: "Reports", permission: "reports.read", icon: ClipboardList },
+  { to: "/settings", label: "Settings", permission: null, icon: Settings },
+  // Administrators (audit.read) see everything; heads see entries in their scope.
+  { to: "/audit", label: "Audit log", permission: "audit", icon: ScrollText },
+] as const;
+
+type NavItem = (typeof NAV)[number];
+
+const STAFF_SECTIONS = [
+  { label: "Overview", paths: ["/dashboard", "/reports"] },
+  { label: "Records", paths: ["/alumni", "/faculty"] },
+  { label: "Academic structure", paths: ["/colleges", "/departments", "/programs"] },
+  { label: "Administration", paths: ["/settings", "/audit"] },
+] as const;
+
+const ALUMNI_SECTIONS = [
+  { label: "My account", paths: ["/my-profile", "/settings"] },
+  { label: "University", paths: ["/statistics"] },
+] as const;
+
+function isActive(pathname: string, to: string) {
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+export function AppShell() {
+  const session = useSession();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const permissions = session.data?.permissions ?? [];
+  const roleLabel = session.data
+    ? isAdministrator(session.data)
+      ? "Administrator"
+      : session.data.roles.includes("faculty")
+        ? "Faculty"
+        : isAlumniAccount(session.data)
+          ? "Alumni"
+          : session.data.roles.join(", ") || "Account"
+    : "Account";
+  const alumniAccount = session.data ? isAlumniAccount(session.data) : false;
+  const items = NAV.filter((item) =>
+    alumniAccount
+      ? ["/my-profile", "/statistics", "/settings"].includes(item.to)
+      : !["/my-profile", "/statistics"].includes(item.to) &&
+        (item.permission === null ||
+          (item.permission === "faculty"
+            ? canAssignFaculty(session.data)
+            : item.permission === "audit"
+              ? can(permissions, "audit.read") || managesFaculty(session.data)
+              : can(permissions, item.permission))),
+  );
+  const sections = (alumniAccount ? ALUMNI_SECTIONS : STAFF_SECTIONS)
+    .map((section) => ({
+      label: section.label,
+      items: section.paths
+        .map((path) => items.find((item) => item.to === path))
+        .filter((item): item is NavItem => Boolean(item)),
+    }))
+    .filter((section) => section.items.length > 0);
+  const current = sections
+    .flatMap((section) => section.items.map((item) => ({ section: section.label, item })))
+    .find(({ item }) => isActive(pathname, item.to));
+
+  async function logout() {
+    const response = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    if (!response.ok) {
+      toast.error("Unable to sign out. Try again.");
+      return;
+    }
+    await queryClient.clear();
+    toast.success("Signed out");
+    await navigate({ to: "/login" });
+  }
+
+  return (
+    <div className="flex min-h-svh bg-background">
+      <a
+        href="#main-content"
+        className="sr-only fixed top-2 left-2 z-50 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only"
+      >
+        Skip to main content
+      </a>
+      <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col overflow-y-auto bg-sidebar text-sidebar-foreground md:flex">
+        <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border">
+            <GraduationCap className="size-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-sidebar-accent-foreground">
+              Alumni Tracking
+            </p>
+            <p className="truncate text-xs text-sidebar-muted">University registry</p>
+          </div>
+        </div>
+        <nav className="flex flex-1 flex-col gap-1 px-3 pb-6" aria-label="Main">
+          {sections.map((section) => {
+            const labelId = `nav-section-${section.label.toLowerCase().replaceAll(" ", "-")}`;
+            return (
+              <div key={section.label} className="flex flex-col">
+                <p
+                  id={labelId}
+                  className="px-3 pt-4 pb-1.5 text-[0.6875rem] font-semibold tracking-wider text-sidebar-muted uppercase"
+                >
+                  {section.label}
+                </p>
+                <ul aria-labelledby={labelId} className="flex flex-col gap-0.5">
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(pathname, item.to);
+                    return (
+                      <li key={item.to}>
+                        <Link
+                          to={item.to}
+                          aria-current={active ? "page" : undefined}
+                          className={cn(
+                            "relative flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:outline-sidebar-ring",
+                            active &&
+                              "bg-sidebar-accent text-sidebar-accent-foreground before:absolute before:top-2 before:bottom-2 before:-left-3 before:w-[3px] before:rounded-r-full before:bg-sidebar-primary",
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "size-4 shrink-0",
+                              active ? "text-sidebar-primary" : "text-sidebar-muted",
+                            )}
+                            aria-hidden="true"
+                          />
+                          {item.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex min-h-16 items-center gap-2 border-b bg-card/90 px-3 backdrop-blur-md md:px-8">
+          <p className="hidden min-w-0 items-center gap-1.5 text-sm md:flex">
+            {current ? (
+              <>
+                <span className="text-muted-foreground">{current.section}</span>
+                <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                <span className="truncate font-medium text-foreground">{current.item.label}</span>
+              </>
+            ) : (
+              <span className="font-medium text-foreground">Alumni Tracking</span>
+            )}
+          </p>
+          <div className="flex min-w-0 items-center gap-2 md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
+                <Menu className="size-4" />
+                <span className="sr-only">Open menu</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-60">
+                {sections.map((section, index) => (
+                  <DropdownMenuGroup key={section.label}>
+                    {index > 0 ? <DropdownMenuSeparator /> : null}
+                    <DropdownMenuLabel>{section.label}</DropdownMenuLabel>
+                    {section.items.map((item) => {
+                      const active = isActive(pathname, item.to);
+                      return (
+                        <DropdownMenuItem
+                          key={item.to}
+                          nativeButton={false}
+                          aria-current={active ? "page" : undefined}
+                          className={cn(active && "bg-accent font-medium text-accent-foreground")}
+                          render={<Link to={item.to} />}
+                        >
+                          <item.icon className="size-4" />
+                          {item.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuGroup>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar text-sidebar-accent-foreground">
+              <GraduationCap className="size-4" aria-hidden="true" />
+            </span>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <ModeToggle />
+            <NotificationsBell />
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    className="ml-1 h-auto min-h-10 gap-2.5 rounded-xl py-1 pr-3 pl-1.5"
+                    size="sm"
+                  />
+                }
+              >
+                <span aria-hidden="true">
+                  <AccountAvatar
+                    image={session.data?.image}
+                    name={session.data?.name ?? "Account"}
+                    className="size-8"
+                  />
+                </span>
+                <span className="flex max-w-[5rem] min-w-0 flex-col items-start leading-tight sm:max-w-[14rem]">
+                  <span className="w-full truncate">{session.data?.name ?? "Account"}</span>
+                  <span
+                    className="text-xs font-normal text-muted-foreground"
+                    data-testid="account-role"
+                  >
+                    {roleLabel}
+                  </span>
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem disabled>{session.data?.email}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void logout()}>
+                    <LogOut data-icon="inline-start" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-6 outline-none sm:px-6 md:px-8 md:py-8"
+        >
+          <LocalVerificationNotice />
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

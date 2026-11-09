@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { UserRound } from "lucide-react";
 import { cn } from "@Alumni-Tracking-Ss/ui/lib/utils";
-import { ENV } from "../env";
+import { ENV } from "@/env";
 
 export function AccountAvatar({
   image,
