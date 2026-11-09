@@ -33,32 +33,35 @@ on local port 27018. Tooling via `vp` (vite-plus). Active branch line: phase 6, 
   If it fails, send the work back to the same worker with the failing output.
 - Never pass a worker's report to the user unchecked.
 - (added) Diffs touching auth, RBAC/scope (`packages/api/src/scope.ts`, `access.ts`,
-  `permission-groups.ts`), MFA, file access or migrations: the orchestrator reads them line
-  by line. A passing check does not prove authorization is intact.
+  `packages/contracts/src/permission-groups.ts`), MFA, file access or migrations: the
+  orchestrator reads them line by line. A passing check does not prove authorization is intact.
 
 ## Checks
 
-| Command | What it covers |
-| --- | --- |
-| `pnpm check` | format/lint (`vp check`) + typecheck all packages |
-| `pnpm lint` | lint only |
-| `pnpm test` | local test suite (`scripts/test-local.mjs`) |
-| `pnpm test:browser` | Playwright suites in `tests/browser` |
-| `pnpm test:scope-local`, `test:faculty-local`, `test:reports-local`, ... | focused server checks against local DB |
-| `pnpm run doctor` | local environment health |
+| Command                                                                  | What it covers                                    |
+| ------------------------------------------------------------------------ | ------------------------------------------------- |
+| `pnpm check`                                                             | format/lint (`vp check`) + typecheck all packages |
+| `pnpm lint`                                                              | lint only                                         |
+| `pnpm test`                                                              | local test suite (`scripts/test-local.mjs`)       |
+| `pnpm test:browser`                                                      | Playwright suites in `tests/browser`              |
+| `pnpm test:scope-local`, `test:faculty-local`, `test:reports-local`, ... | focused server checks against local DB            |
+| `pnpm run doctor`                                                        | local environment health                          |
 
 ## Folder map
 
 ```
-apps/server/src/          Express app, middleware, *-local.ts check scripts
+apps/server/src/          Express app, middleware
   modules/<domain>/       academic, account-photos, alumni, audit, auth, faculty,
                           files, integrations, notifications, reports(+pdf), roles, users
+apps/server/test/         browser-fixture.ts (Playwright API), local/*-local.ts check scripts
 apps/web/src/             React app: routes/ (TanStack, _app = signed-in shell),
-                          components/, lib/, utils/
-packages/api/             access, scope, RBAC, validation, errors, shared services
+                          components/{layout,data,forms,feedback,account,alumni,settings},
+                          lib/ (api client, session, helpers)
+packages/api/             access, scope, RBAC, validation, errors, shared services;
+                          src/test-utils/ holds the in-memory model fixture for tests
 packages/contracts/       shared zod contracts (auth, alumni, academic, audit, ...)
-packages/db/              Mongoose models and DB connection
-packages/ui/              shared UI components (cn helper in src/lib)
+packages/db/              Mongoose models and DB connection; src/cli/ seed, migrate, verify
+packages/ui/              shared UI components, design tokens in src/styles/globals.css
 packages/config/          shared tsconfig base
 scripts/                  setup, doctor, dev workflow, provisioning, rehearsal checks
 tests/browser/            Playwright specs
