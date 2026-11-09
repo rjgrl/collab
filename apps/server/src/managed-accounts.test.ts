@@ -3,7 +3,7 @@ import { it } from "node:test";
 import request from "supertest";
 import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
 import type { AuthUser } from "@Alumni-Tracking-Ss/api/context";
-import { modelFixture } from "@Alumni-Tracking-Ss/api/services/model-test-fixture";
+import { modelFixture } from "@Alumni-Tracking-Ss/api/test-utils/model-test-fixture";
 import { createApp } from "./app";
 
 const origin = "https://app.example.test";

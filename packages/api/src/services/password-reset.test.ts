@@ -5,9 +5,9 @@ import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
 import { requestPasswordReset, resetPassword } from "./password-reset";
 import { assertPasswordSafe } from "./password-security";
-import { newPasswordSchema } from "../password-policy";
+import { newPasswordSchema } from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { digest } from "./mfa";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 
 async function fixture() {
   const user = {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
 import { recoverLocalAdministrator } from "./local-recovery";
 it("local operator recovery requires explicit confirmation, administrator status and the current password", async () => {

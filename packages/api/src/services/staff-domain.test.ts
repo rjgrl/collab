@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { authenticateWithPassword, loadAuthUser, upsertGoogleUser } from "./session";
 import {
   StaffDomainError,

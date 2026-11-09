@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import type { Context } from "../context";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { auditService } from "../../../../apps/server/src/modules/audit/service";
 
 // One college with two departments (IT, Auto) and a second college (Education).

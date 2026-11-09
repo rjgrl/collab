@@ -1,6 +1,6 @@
 import "varlock/auto-load";
-import { createDatabase } from "./index";
-import { seedDatabase } from "./seed-data";
+import { createDatabase } from "../index";
+import { seedDatabase } from "../seed-data";
 
 const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL ?? "" });
 try {

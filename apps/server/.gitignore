@@ -19,7 +19,6 @@ dist/
 .alchemy
 /.next/
 .vercel
-prisma/generated/
 
 
 # deps

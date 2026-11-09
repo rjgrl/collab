@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { upsertGoogleUser } from "./session";
 
 it("preserves an account-managed photo or explicit removal on later Google sign-in", async () => {

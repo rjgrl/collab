@@ -41,7 +41,10 @@ try {
   assert.equal(await db.Role.countDocuments(), 4);
   assert.equal(await db.Permission.countDocuments(), 26);
   await verifyTransactionSupport(db);
-  const department = await db.Department.create({ collegeId: (await db.College.create({ name: "Synthetic college" }))._id, name: "Synthetic" });
+  const department = await db.Department.create({
+    collegeId: (await db.College.create({ name: "Synthetic college" }))._id,
+    name: "Synthetic",
+  });
   const program = await db.Program.create({
     departmentId: department._id,
     code: "SYNTHETIC",

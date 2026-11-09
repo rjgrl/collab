@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { ApiError } from "./http-error";
-import { modelFixture } from "./services/model-test-fixture";
+import { modelFixture } from "./test-utils/model-test-fixture";
 
 import type { AuthUser, Context } from "./context";
 import { PERMISSION_KEYS, RETIRED_ROLE_KEYS, ROLE_PRESETS } from "@Alumni-Tracking-Ss/db";

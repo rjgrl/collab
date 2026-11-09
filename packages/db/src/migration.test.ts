@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { inspectIndex, plannedIndexes, migrateDepartmentCodeIndex, type PlannedIndex } from "./migration";
+import {
+  inspectIndex,
+  plannedIndexes,
+  migrateDepartmentCodeIndex,
+  type PlannedIndex,
+} from "./migration";
 import type { Database } from "./index";
 
 describe("non-destructive index migration preflight", () => {
@@ -92,29 +97,48 @@ describe("explicit department code index retirement", () => {
     let duplicates: object[] = [];
     const writes: string[] = [];
     const native = {
-      listCollections: () => ({ toArray: async () => [{ name: "Department" }, ...(backup ? [{ name: "MigrationIndexBackup" }] : [])] }),
-      collection: (name: string) => name === "MigrationIndexBackup" ? {
-        findOne: async () => backup,
-        updateOne: async (_query: unknown, update: { $setOnInsert: { definition: Record<string, unknown> } }) => {
-          writes.push("backup");
-          backup ??= { _id: "retired-Department_code_key", ...update.$setOnInsert };
-        },
-      } : {
-        listIndexes: () => ({ toArray: async () => indexes }),
-        dropIndex: async (index: string) => {
-          assert.equal(index, legacy.name);
-          assert.ok(backup, "backup must be durable before the index is dropped");
-          writes.push("drop");
-          indexes = [];
-        },
-        aggregate: () => ({ toArray: async () => duplicates }),
-        createIndex: async (key: object, options: object) => {
-          writes.push("restore");
-          indexes.push({ key, ...options });
-        },
-      },
+      listCollections: () => ({
+        toArray: async () => [
+          { name: "Department" },
+          ...(backup ? [{ name: "MigrationIndexBackup" }] : []),
+        ],
+      }),
+      collection: (name: string) =>
+        name === "MigrationIndexBackup"
+          ? {
+              findOne: async () => backup,
+              updateOne: async (
+                _query: unknown,
+                update: { $setOnInsert: { definition: Record<string, unknown> } },
+              ) => {
+                writes.push("backup");
+                backup ??= { _id: "retired-Department_code_key", ...update.$setOnInsert };
+              },
+            }
+          : {
+              listIndexes: () => ({ toArray: async () => indexes }),
+              dropIndex: async (index: string) => {
+                assert.equal(index, legacy.name);
+                assert.ok(backup, "backup must be durable before the index is dropped");
+                writes.push("drop");
+                indexes = [];
+              },
+              aggregate: () => ({ toArray: async () => duplicates }),
+              createIndex: async (key: object, options: object) => {
+                writes.push("restore");
+                indexes.push({ key, ...options });
+              },
+            },
     } as unknown as NonNullable<Database["connection"]["db"]>;
-    return { native, writes, indexes: () => indexes, backup: () => backup, duplicate: () => { duplicates = [{}]; } };
+    return {
+      native,
+      writes,
+      indexes: () => indexes,
+      backup: () => backup,
+      duplicate: () => {
+        duplicates = [{}];
+      },
+    };
   }
   it("previews without writes, backs up before retiring, and restores the original definition", async () => {
     const f = fixture();

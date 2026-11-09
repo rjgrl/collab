@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { modelFixture } from "./services/model-test-fixture";
+import { modelFixture } from "./test-utils/model-test-fixture";
 import type { Context } from "./context";
 import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
 import { assertRoleScope, publicUser } from "./services/authorization";

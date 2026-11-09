@@ -3,8 +3,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./server-utils": "./src/server-utils.ts"
+    "./*": "./src/*.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

@@ -20,9 +20,9 @@ import { googleController } from "./modules/auth/google.controller";
 import { usersRoutes } from "./modules/users/routes";
 import { rolesRoutes } from "./modules/roles/routes";
 import { permissionsController } from "./modules/roles/permissions.controller";
-import { academicRoutes, collegesRoutes } from "./modules/academic/routes";
+import { collegesRoutes, departmentsRoutes } from "./modules/academic/routes";
+import { programsRoutes } from "./modules/academic/programs.routes";
 import { facultyRoutes } from "./modules/faculty/routes";
-import { programsRoutes } from "./modules/programs/routes";
 import { alumniRoutes } from "./modules/alumni/routes";
 import { meProfileController, deleteEmploymentController } from "./modules/alumni/self.controller";
 import { dashboardController } from "./modules/reports/dashboard.controller";
@@ -203,7 +203,7 @@ export function createApp({ db, config, integrationEnv, sessionLoader }: AppOpti
   app.get("/api/permissions", authenticate, authorize("permissions.read"), permissionsController);
   app.use("/api/colleges", collegesRoutes);
   app.use("/api/faculty", facultyRoutes);
-  app.use("/api/departments", academicRoutes);
+  app.use("/api/departments", departmentsRoutes);
   app.use("/api/programs", programsRoutes);
   app.get("/api/me/profile", authenticate, authorize(undefined, false), meProfileController.get);
   app.patch(

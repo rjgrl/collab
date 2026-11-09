@@ -5,14 +5,14 @@ import request from "supertest";
 import { createDatabase } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
-import { createApp } from "./app";
+import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
 import {
   createSession,
   loadAuthUser,
   upsertGoogleUser,
 } from "@Alumni-Tracking-Ss/api/services/session";
-import { usersService } from "./modules/users/service";
+import { usersService } from "../../src/modules/users/service";
 import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 

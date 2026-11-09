@@ -1,6 +1,6 @@
 import { programsSchemas } from "@Alumni-Tracking-Ss/contracts/academic";
 import { controller } from "../../middleware/controller";
-import { programsService } from "../academic/service";
+import { programsService } from "./service";
 
 export const programsController = {
   list: controller(programsSchemas.list, programsService.list, "query", 200),

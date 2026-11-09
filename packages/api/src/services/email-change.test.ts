@@ -3,7 +3,7 @@ import { it } from "node:test";
 import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
 import { authService } from "../../../../apps/server/src/modules/auth/service";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { storedSessionToken } from "./session";
 import { digest } from "./mfa";
 import { resetPassword } from "./password-reset";

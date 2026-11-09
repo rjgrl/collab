@@ -8,9 +8,9 @@
   "scripts": {
     "build": "tsc --noEmit",
     "check-types": "tsc --noEmit",
-    "db:seed": "tsx src/seed.ts",
-    "db:migrate": "tsx src/migrate.ts",
-    "db:verify-transactions": "tsx src/verify-transactions.ts"
+    "db:seed": "tsx src/cli/seed.ts",
+    "db:migrate": "tsx src/cli/migrate.ts",
+    "db:verify-transactions": "tsx src/cli/verify-transactions.ts"
   },
   "dependencies": {
     "@Alumni-Tracking-Ss/contracts": "workspace:*",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import type { Database } from "@Alumni-Tracking-Ss/db";
-import { modelFixture } from "./services/model-test-fixture";
+import { modelFixture } from "./test-utils/model-test-fixture";
 import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import { registerUser, upsertGoogleUser } from "./services/session";
 

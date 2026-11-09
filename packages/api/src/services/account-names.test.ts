@@ -6,7 +6,7 @@ import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
 import { authService } from "../../../../apps/server/src/modules/auth/service";
 import { usersService } from "../../../../apps/server/src/modules/users/service";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { loadAuthUser } from "./session";
 
 const id = "000000000000000000000001",

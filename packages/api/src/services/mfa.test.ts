@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { it } from "node:test";
 import { generate } from "otplib";
 import { requireAccess } from "../access";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
 import { beginMfa, confirmMfa, verifyMfa, privilegedAccount, digest } from "./mfa";

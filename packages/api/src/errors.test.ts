@@ -5,7 +5,9 @@ import { DATABASE_UNAVAILABLE_MESSAGE, isDatabaseUnavailable, publicErrorMessage
 
 describe("isDatabaseUnavailable", () => {
   it("detects Atlas replica-set timeouts", () => {
-    const error = new Error("Kind: Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary }");
+    const error = new Error(
+      "Kind: Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary }",
+    );
     assert.equal(isDatabaseUnavailable(error), true);
   });
 
@@ -24,7 +26,9 @@ describe("isDatabaseUnavailable", () => {
 
 describe("publicErrorMessage", () => {
   it("hides Prisma internals behind a database message", () => {
-    const error = Object.assign(new Error("Invalid `db.session.findUnique()` invocation"), { code: "P2010" });
+    const error = Object.assign(new Error("Invalid `db.session.findUnique()` invocation"), {
+      code: "P2010",
+    });
     assert.equal(publicErrorMessage(error), DATABASE_UNAVAILABLE_MESSAGE);
   });
 });

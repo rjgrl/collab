@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import request from "supertest";
 import type { AuthUser, Context } from "@Alumni-Tracking-Ss/api/context";
-import { modelFixture } from "../../../packages/api/src/services/model-test-fixture";
+import { modelFixture } from "@Alumni-Tracking-Ss/api/test-utils/model-test-fixture";
 import sharp from "sharp";
 import { loadAuthUser } from "@Alumni-Tracking-Ss/api/services/session";
 import { MAX_ACCOUNT_PHOTO_BYTES } from "@Alumni-Tracking-Ss/contracts/account-photo";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { it, type TestContext } from "node:test";
 import { requireAccess } from "../access";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import type { AuthUser, Context } from "../context";
 import { requiresMfa } from "./mfa-policy";
 import { loadAuthUser } from "./session";

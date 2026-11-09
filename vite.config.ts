@@ -11,7 +11,6 @@ export default defineConfig({
       "apps/server/dist/**",
       "packages/db/dist/**",
       "packages/api/dist/**",
-      "packages/db/prisma/generated/**",
     ],
     options: {
       typeAware: false,
@@ -28,7 +27,8 @@ export default defineConfig({
       "apps/server/dist/**",
       "packages/db/dist/**",
       "packages/api/dist/**",
-      "packages/db/prisma/generated/**",
+      // Vendored, unmodified shadcn dist stylesheet (see packages/ui/src/styles/README.md).
+      "packages/ui/src/styles/shadcn.css",
     ],
     singleQuote: false,
     semi: true,

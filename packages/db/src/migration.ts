@@ -2,7 +2,11 @@ import type { IndexOptions } from "mongoose";
 import type { Database } from "./index";
 import { schemas } from "./models";
 import { retireRoles, type RetiredRolesReport } from "./retire-roles";
-import { migrateOrgStructure, renameLegacyDepartments, type OrgMigrationReport } from "./org-migration";
+import {
+  migrateOrgStructure,
+  renameLegacyDepartments,
+  type OrgMigrationReport,
+} from "./org-migration";
 
 export type MigrationMode = "dry-run" | "apply" | "rollback";
 export interface ExistingIndex {
@@ -100,42 +104,93 @@ export interface DepartmentCodeIndexReport {
   definition?: Record<string, unknown>;
   reason?: string;
 }
-const departmentCodeIndex = { collection: "Department", name: "Department_code_key", key: { code: 1 }, unique: true } as const;
+const departmentCodeIndex = {
+  collection: "Department",
+  name: "Department_code_key",
+  key: { code: 1 },
+  unique: true,
+} as const;
 const backupId = "retired-Department_code_key";
 type NativeDatabase = NonNullable<Database["connection"]["db"]>;
 
 /** Only this reviewed legacy index may be retired; preserve its full definition before dropping. */
-export async function migrateDepartmentCodeIndex(native: NativeDatabase, mode: MigrationMode): Promise<DepartmentCodeIndexReport> {
-  const names = (await native.listCollections({}, { nameOnly: true }).toArray()).map(({ name }) => name);
+export async function migrateDepartmentCodeIndex(
+  native: NativeDatabase,
+  mode: MigrationMode,
+): Promise<DepartmentCodeIndexReport> {
+  const names = (await native.listCollections({}, { nameOnly: true }).toArray()).map(
+    ({ name }) => name,
+  );
   if (!names.includes("Department")) return { state: "absent" };
   const collection = native.collection("Department");
   const indexes = await collection.listIndexes().toArray();
   const existing = indexes.find((index) => index.name === departmentCodeIndex.name);
-  if (indexes.some((index) => index.name !== departmentCodeIndex.name && index.unique && sameKey(index.key, departmentCodeIndex.key)))
-    return { state: "conflict", reason: "An unreviewed unique department code index exists; no index changed." };
+  if (
+    indexes.some(
+      (index) =>
+        index.name !== departmentCodeIndex.name &&
+        index.unique &&
+        sameKey(index.key, departmentCodeIndex.key),
+    )
+  )
+    return {
+      state: "conflict",
+      reason: "An unreviewed unique department code index exists; no index changed.",
+    };
   if (existing && inspectIndex(departmentCodeIndex, [existing]).state !== "present")
-    return { state: "conflict", reason: "Department_code_key differs from the reviewed legacy definition; no index changed." };
-  const backups = native.collection<{ _id: string; definition: Record<string, unknown> }>("MigrationIndexBackup");
-  const backup = names.includes("MigrationIndexBackup") ? await backups.findOne({ _id: backupId }) : null;
+    return {
+      state: "conflict",
+      reason: "Department_code_key differs from the reviewed legacy definition; no index changed.",
+    };
+  const backups = native.collection<{ _id: string; definition: Record<string, unknown> }>(
+    "MigrationIndexBackup",
+  );
+  const backup = names.includes("MigrationIndexBackup")
+    ? await backups.findOne({ _id: backupId })
+    : null;
   if (mode === "rollback") {
     if (existing) return { state: "present", definition: existing };
     if (!backup) return { state: "absent" };
-    if (inspectIndex(departmentCodeIndex, [backup.definition as unknown as ExistingIndex]).state !== "present")
-      return { state: "conflict", reason: "Saved department index definition failed validation; no index changed." };
-    const duplicates = await collection.aggregate([
-      { $group: { _id: "$code", count: { $sum: 1 } } },
-      { $match: { count: { $gt: 1 } } }, { $limit: 1 },
-    ]).toArray();
-    if (duplicates.length) return { state: "conflict", reason: "Department codes contain duplicate or missing values; rollback requires an operator-reviewed data plan. No records changed." };
+    if (
+      inspectIndex(departmentCodeIndex, [backup.definition as unknown as ExistingIndex]).state !==
+      "present"
+    )
+      return {
+        state: "conflict",
+        reason: "Saved department index definition failed validation; no index changed.",
+      };
+    const duplicates = await collection
+      .aggregate([
+        { $group: { _id: "$code", count: { $sum: 1 } } },
+        { $match: { count: { $gt: 1 } } },
+        { $limit: 1 },
+      ])
+      .toArray();
+    if (duplicates.length)
+      return {
+        state: "conflict",
+        reason:
+          "Department codes contain duplicate or missing values; rollback requires an operator-reviewed data plan. No records changed.",
+      };
     const { key, v: _v, ns: _ns, ...options } = backup.definition;
-    await collection.createIndex(key as Record<string, 1 | -1>, options as Parameters<typeof collection.createIndex>[1]);
+    await collection.createIndex(
+      key as Record<string, 1 | -1>,
+      options as Parameters<typeof collection.createIndex>[1],
+    );
     return { state: "restore", definition: backup.definition };
   }
   if (!existing) return { state: "absent", ...(backup ? { definition: backup.definition } : {}) };
   if (backup && stable(backup.definition) !== stable(existing))
-    return { state: "conflict", reason: "Saved department index definition differs from the live index; no index changed." };
+    return {
+      state: "conflict",
+      reason: "Saved department index definition differs from the live index; no index changed.",
+    };
   if (mode === "apply") {
-    await backups.updateOne({ _id: backupId }, { $setOnInsert: { definition: existing } }, { upsert: true });
+    await backups.updateOne(
+      { _id: backupId },
+      { $setOnInsert: { definition: existing } },
+      { upsert: true },
+    );
     await collection.dropIndex(departmentCodeIndex.name);
   }
   return { state: "retire", definition: existing };
@@ -169,8 +224,12 @@ export async function migrateDatabase(
       return report;
     }
   }
-  report.departmentCodeIndex = await migrateDepartmentCodeIndex(native, mode === "rollback" ? "rollback" : "dry-run");
-  if (report.departmentCodeIndex.state === "conflict") report.conflicts.push(report.departmentCodeIndex.reason!);
+  report.departmentCodeIndex = await migrateDepartmentCodeIndex(
+    native,
+    mode === "rollback" ? "rollback" : "dry-run",
+  );
+  if (report.departmentCodeIndex.state === "conflict")
+    report.conflicts.push(report.departmentCodeIndex.reason!);
   if (mode === "rollback") return report;
   report.orgStructure = await migrateOrgStructure(db, native, "dry-run");
   if (report.orgStructure.state === "conflict") report.conflicts.push(report.orgStructure.reason!);
@@ -186,9 +245,10 @@ export async function migrateDatabase(
       : collection;
   for (const collection of Object.keys(schemas)) {
     const live = legacyName(collection);
-    const existing = live && collections.includes(live)
-      ? await native.collection(live).listIndexes().toArray()
-      : [];
+    const existing =
+      live && collections.includes(live)
+        ? await native.collection(live).listIndexes().toArray()
+        : [];
     for (const plan of plannedIndexes().filter((index) => index.collection === collection)) {
       const inspection = inspectIndex(plan, existing);
       report.indexes.push(inspection);
@@ -233,15 +293,13 @@ export async function migrateDatabase(
     }
   }
   for (const index of report.indexes.filter((item) => item.state === "missing")) {
-    await native
-      .collection(index.collection)
-      .createIndex(index.key, {
-        name: index.name,
-        unique: index.unique,
-        ...(index.partialFilterExpression
-          ? { partialFilterExpression: index.partialFilterExpression }
-          : {}),
-      });
+    await native.collection(index.collection).createIndex(index.key, {
+      name: index.name,
+      unique: index.unique,
+      ...(index.partialFilterExpression
+        ? { partialFilterExpression: index.partialFilterExpression }
+        : {}),
+    });
     report.createdIndexes.push(`${index.collection}.${index.name}`);
   }
   report.orgStructure = await migrateOrgStructure(db, native, "apply");

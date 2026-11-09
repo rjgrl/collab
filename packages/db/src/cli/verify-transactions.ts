@@ -1,7 +1,7 @@
 import "varlock/auto-load";
-import { createDatabase } from "./index";
+import { createDatabase } from "../index";
 
-import { verifyTransactionSupport } from "./transactions";
+import { verifyTransactionSupport } from "../transactions";
 
 if (!process.env.DATABASE_URL)
   throw new Error("Configure DATABASE_URL privately before the rollback-only transaction probe");

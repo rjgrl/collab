@@ -6,7 +6,7 @@ import type { Context } from "../context";
 import { usersService } from "../../../../apps/server/src/modules/users/service";
 import { rolesService } from "../../../../apps/server/src/modules/roles/service";
 import { alumniService } from "../../../../apps/server/src/modules/alumni/service";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 import { loadAuthUser } from "./session";
 import { verificationStatus } from "./verification";
 

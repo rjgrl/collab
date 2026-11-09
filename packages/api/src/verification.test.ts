@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { it } from "node:test";
 import { requireAccess } from "./access";
 import { authSchemas } from "@Alumni-Tracking-Ss/contracts/auth";
-import { modelFixture } from "./services/model-test-fixture";
+import { modelFixture } from "./test-utils/model-test-fixture";
 import type { Context } from "./context";
 import {
   accountAccessPending,

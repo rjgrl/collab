@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { dictionary } from "@zxcvbn-ts/language-common";
 import { ApiError } from "../http-error";
-import { newPasswordSchema } from "../password-policy";
+import { newPasswordSchema } from "@Alumni-Tracking-Ss/contracts/password-policy";
 const common = new Set(dictionary["passwords-common"].map((value) => value.toLowerCase()));
 export async function assertPasswordSafe(password: string) {
   newPasswordSchema.parse(password);

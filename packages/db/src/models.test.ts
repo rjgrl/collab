@@ -31,7 +31,8 @@ describe("legacy MongoDB model compatibility", () => {
       assert.ok(schema, `Missing legacy model ${name}`);
       for (const row of match[2]!.split("\n")) {
         const field = row.trim().match(/^(\w+)\s+(\w+)(\[\]|\?)?(.*)$/);
-        if (!field || !scalarTypes[field[2]!] || (name === "Department" && field[1] === "code")) continue;
+        if (!field || !scalarTypes[field[2]!] || (name === "Department" && field[1] === "code"))
+          continue;
         const schemaPath: { instance: string } | undefined =
           schema.paths[field[1] === "id" ? "_id" : field[1]!];
         assert.ok(schemaPath, `Missing legacy field ${name}.${field[1]}`);
@@ -87,6 +88,9 @@ describe("legacy MongoDB model compatibility", () => {
 it("does not declare department codes or uniqueness while retaining required program codes", () => {
   assert.equal(schemas.College.path("code"), undefined);
   assert.equal(schemas.Department.path("code"), undefined);
-  assert.equal(schemas.Department.indexes().some(([, options]) => options.name === "Department_code_key"), false);
+  assert.equal(
+    schemas.Department.indexes().some(([, options]) => options.name === "Department_code_key"),
+    false,
+  );
   assert.equal(schemas.Program.path("code").options.required, true);
 });

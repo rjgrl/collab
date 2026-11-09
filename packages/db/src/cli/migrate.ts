@@ -1,6 +1,6 @@
 import "varlock/auto-load";
-import { createDatabase } from "./index";
-import { migrateDatabase, type MigrationMode } from "./migration";
+import { createDatabase } from "../index";
+import { migrateDatabase, type MigrationMode } from "../migration";
 const args = process.argv.slice(2);
 if (args.length > 1 || args.some((arg) => !["--dry-run", "--apply", "--rollback"].includes(arg)))
   throw new Error("Usage: db:migrate [--dry-run|--apply|--rollback]");

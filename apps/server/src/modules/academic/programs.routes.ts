@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate";
 import { authorize } from "../../middleware/authorize";
-import { programsController } from "./controller";
+import { programsController } from "./programs.controller";
 
 export const programsRoutes = Router();
 programsRoutes.use(authenticate);

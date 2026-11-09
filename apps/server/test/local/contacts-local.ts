@@ -5,7 +5,7 @@ import { createDatabase } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
-import { createApp } from "./app";
+import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
 
 // Contacts (validation, primary rule, scope), profile editing with account name sync, and the

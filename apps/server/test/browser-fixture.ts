@@ -13,7 +13,7 @@ import {
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { encryptMfaSecret } from "@Alumni-Tracking-Ss/api/services/mfa";
 import type { Context, IntegrationEnv } from "@Alumni-Tracking-Ss/api/context";
-import { createApp } from "./app";
+import { createApp } from "../src/app";
 
 if (process.env.NODE_ENV !== "test") throw new Error("Browser fixtures require NODE_ENV=test.");
 process.env.PASSWORD_BREACH_CHECK = "local";

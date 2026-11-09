@@ -6,7 +6,7 @@ import type { Context } from "../context";
 import * as audit from "../audit";
 import { departmentsService } from "../../../../apps/server/src/modules/academic/service";
 import { auditService } from "../../../../apps/server/src/modules/audit/service";
-import { modelFixture } from "./model-test-fixture";
+import { modelFixture } from "../test-utils/model-test-fixture";
 
 const actorId = "111111111111111111111111";
 const collegeId = "222222222222222222222222";
@@ -42,26 +42,38 @@ it("creates departments without codes and keeps program codes required", async (
   const second = await departmentsService.create(f.context, { collegeId, name: "Arts" });
   assert.equal(Object.hasOwn(first, "code"), false);
   assert.equal(Object.hasOwn(second, "code"), false);
-  assert.equal(programInputSchema.safeParse({ name: "Degree", departmentId: actorId }).success, false);
-  assert.equal(programInputSchema.safeParse({ name: "Degree", departmentId: actorId, code: "" }).success, false);
+  assert.equal(
+    programInputSchema.safeParse({ name: "Degree", departmentId: actorId }).success,
+    false,
+  );
+  assert.equal(
+    programInputSchema.safeParse({ name: "Degree", departmentId: actorId, code: "" }).success,
+    false,
+  );
 });
 
 it("preserves historical stored department codes when editing names", async () => {
   const f = fixture();
   f.tables.Department = [{ id: actorId, collegeId, name: "Science", code: "SCI", deletedAt: null }];
-  const updated = await departmentsService.update(f.context, { collegeId, id: actorId, name: "New Science" });
+  const updated = await departmentsService.update(f.context, {
+    collegeId,
+    id: actorId,
+    name: "New Science",
+  });
   assert.equal(updated.name, "New Science");
   assert.equal(f.tables.Department[0]?.code, "SCI");
 });
 
 it("records the actual department changes and actor at event time despite later edits", async () => {
   const f = fixture();
-  await departmentsService.create(f.context, { collegeId,
+  await departmentsService.create(f.context, {
+    collegeId,
     name: "Science",
     description: "Old description",
   });
   f.tables.Department![0]!.id = actorId;
-  await departmentsService.update(f.context, { collegeId,
+  await departmentsService.update(f.context, {
+    collegeId,
     id: actorId,
     name: "Natural Sciences",
     description: "New description",

@@ -129,7 +129,10 @@ async function archive(args: string[], input?: Buffer) {
 }
 try {
   assert.deepEqual(await snapshot(target), {});
-  const department = await source.Department.create({ collegeId: (await source.College.create({ name: "Synthetic college" }))._id, name: "Synthetic department" });
+  const department = await source.Department.create({
+    collegeId: (await source.College.create({ name: "Synthetic college" }))._id,
+    name: "Synthetic department",
+  });
   const program = await source.Program.create({
     code: "DR",
     name: "Synthetic program",

@@ -8,9 +8,9 @@ import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession, loadAuthUser } from "@Alumni-Tracking-Ss/api/services/session";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
-import { createApp } from "./app";
-import { alumniService } from "./modules/alumni/service";
-import { reportsService } from "./modules/reports/service";
+import { createApp } from "../../src/app";
+import { alumniService } from "../../src/modules/alumni/service";
+import { reportsService } from "../../src/modules/reports/service";
 
 // Authorization matrix for record-level scope: every role x action against seeded demo data
 // spanning two colleges and three departments. Real MongoDB, real HTTP stack.

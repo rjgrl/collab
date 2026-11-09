@@ -8,6 +8,7 @@ tools: Read, Grep, Glob, Bash
 You get a brief and a diff (or a git range to diff). You do not edit files.
 
 Check the diff against the brief:
+
 1. Does it meet the Goal? Is any part missing?
 2. Does it break a Constraint, or touch files outside the brief's scope?
 3. Does it add anything the brief did not ask for?
