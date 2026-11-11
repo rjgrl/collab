@@ -17,15 +17,19 @@ import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { StatusBadge } from "@/components/data/status-badge";
 import { TablePagination } from "@/components/data/table-pagination";
+import { PasswordChecklist } from "@/components/forms/password-checklist";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/lib/api";
 import { NameFields, emptyName } from "@/components/forms/name-fields";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
+import { passwordMeetsPolicy } from "@Alumni-Tracking-Ss/contracts/password-policy";
+import { EditRoleDialog } from "./edit-role-dialog";
 
 export function UsersPage() {
   const session = useSession();
   const [open, setOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const users = useQuery(api.users.list.queryOptions({ input: { search, page, pageSize: 20 } }));
@@ -33,6 +37,10 @@ export function UsersPage() {
   const canWrite = Boolean(
     session.data && isAdministrator(session.data) && can(session.data.permissions, "users.write"),
   );
+  const permissions = useQuery({
+    ...api.permissions.list.queryOptions(),
+    enabled: canWrite && can(session.data?.permissions, "permissions.read"),
+  });
   const managedRoles = roles.data?.filter((role) => role.key === "super_admin");
   const [draft, setDraft] = useState({
     ...emptyName,
@@ -97,7 +105,9 @@ export function UsersPage() {
                 type="submit"
                 form="create-user"
                 pending={create.isPending}
-                disabled={!draft.roleIds.length || !roles.data}
+                disabled={
+                  !draft.roleIds.length || !roles.data || !passwordMeetsPolicy(draft.password)
+                }
                 pendingLabel="Creating"
               >
                 Create user
@@ -142,9 +152,7 @@ export function UsersPage() {
                 aria-describedby="member-password-guidance"
               />
             </FormField>
-            <p id="member-password-guidance" className="text-xs text-muted-foreground">
-              Use 15–128 characters. Spaces and Unicode are welcome. Choose a unique passphrase.
-            </p>
+            <PasswordChecklist id="member-password-guidance" value={draft.password} />
             <div className="flex flex-col gap-2">
               <FieldsetLabel>Roles</FieldsetLabel>
               {managedRoles?.map((role) => (
@@ -198,10 +206,18 @@ export function UsersPage() {
               <StatusBadge tone={user.status === "active" ? "active" : "disabled"} />
             </TableCell>
             <TableCell>
-              {can(session.data?.permissions, "users.delete") ? (
+              {canWrite || can(session.data?.permissions, "users.delete") ? (
                 <RowActions>
                   {user.alumniId ? (
                     <span className="text-xs text-muted-foreground">Alumni linked</span>
+                  ) : null}
+                  {canWrite ? (
+                    <QuietButton
+                      aria-label={`Edit role for ${user.name}`}
+                      onClick={() => setEditingUserId(user.id)}
+                    >
+                      Edit role
+                    </QuietButton>
                   ) : null}
                   {can(session.data?.permissions, "users.delete") ? (
                     <QuietButton
@@ -227,6 +243,20 @@ export function UsersPage() {
         hasNext={users.data?.length === 20}
         pending={users.isFetching}
       />
+      {editingUserId && roles.data ? (
+        <EditRoleDialog
+          user={
+            users.data?.find((u) => u.id === editingUserId) || {
+              id: editingUserId,
+              name: "",
+              userRoles: [],
+            }
+          }
+          roles={roles.data}
+          permissions={permissions.data || null}
+          onClose={() => setEditingUserId(null)}
+        />
+      ) : null}
     </PageShell>
   );
 }

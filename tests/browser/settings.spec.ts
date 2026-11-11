@@ -21,7 +21,7 @@ test("group and individual controls save through REST and survive reload", async
   await expect(master).not.toBeChecked();
   await expect(page.getByText(/Partially enabled/)).toBeVisible();
   await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Save permissions", exact: true }).click();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByText("No unsaved changes", { exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Test Staff/ }).click();
@@ -39,13 +39,13 @@ test("failed saves preserve the draft and stale saves require reload", async ({
 }) => {
   await page.getByRole("switch", { name: /^View evidence/ }).check();
   await request.post("http://127.0.0.1:3100/__test/fail");
-  await page.getByRole("button", { name: "Save permissions", exact: true }).click();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "draft has been preserved" }),
   ).toBeVisible();
   await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
   await request.post("http://127.0.0.1:3100/__test/concurrent");
-  await page.getByRole("button", { name: "Save permissions", exact: true }).click();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "This role changed" })).toBeVisible();
 });
 
@@ -143,7 +143,7 @@ test("account controls remain reachable and role dialogs scroll internally", asy
   page,
 }, testInfo) => {
   const dialog = page.getByRole("dialog");
-  const save = dialog.getByRole("button", { name: "Save permissions", exact: true });
+  const save = dialog.getByRole("button", { name: "Save changes", exact: true });
   const before = await save.boundingBox();
   await dialog.locator("[data-dialog-body]").evaluate((element) => {
     element.scrollTop = element.scrollHeight;
@@ -172,4 +172,157 @@ test("account controls remain reachable and role dialogs scroll internally", asy
     ).toBe(true);
   }
   await page.screenshot({ path: testInfo.outputPath("account.png"), fullPage: true });
+});
+
+test("role notes show on cards and can be edited", async ({ page }) => {
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Add Role", exact: true }).click();
+  const addDialog = page.getByRole("dialog", { name: "Add Role", exact: true });
+
+  // Check that the Note field exists and Description does not
+  await expect(addDialog.getByRole("textbox", { name: "Note", exact: true })).toBeVisible();
+  await expect(addDialog.getByRole("textbox", { name: "Description", exact: true })).toHaveCount(0);
+
+  // Create a role with a note
+  await addDialog.getByRole("textbox", { name: "Key", exact: true }).fill("note_probe");
+  await addDialog.getByRole("textbox", { name: "Name", exact: true }).fill("Note Probe");
+  await addDialog.getByRole("textbox", { name: "Note", exact: true }).fill("First note");
+  await addDialog.getByRole("button", { name: "Create role", exact: true }).click();
+
+  // Dialog should switch to the role editor
+  await expect(page.getByRole("dialog", { name: "Note Probe", exact: true })).toBeVisible();
+
+  // Go back to roles list
+  await page.getByRole("button", { name: "Close dialog" }).click();
+
+  // Check that the note appears on the card
+  const noteProbeCard = page.getByRole("button", { name: /Note Probe/ });
+  const cardText = await noteProbeCard.innerText();
+  expect(cardText).toContain("Note Probe");
+  expect(cardText).toContain("First note");
+  // Verify order: name first, then note, then member/permission count
+  const lines = cardText.split(/\n/).filter((line) => line.trim());
+  expect(lines[0]).toBe("Note Probe");
+  expect(lines[1]).toBe("First note");
+
+  // Open the card and edit the note
+  await noteProbeCard.click();
+  const editor = page.getByRole("dialog", { name: "Note Probe", exact: true });
+  const noteField = editor.getByRole("textbox", { name: "Note", exact: true });
+  await noteField.clear();
+  await noteField.fill("Second note");
+  await editor.getByRole("button", { name: "Save changes", exact: true }).click();
+
+  // Reload and verify the updated note persists
+  await page.reload();
+  await page.waitForURL("/settings/roles");
+  await expect(page.getByRole("button", { name: /Note Probe/ })).toBeVisible();
+  const newCardText = await page.getByRole("button", { name: /Note Probe/ }).innerText();
+  expect(newCardText).toContain("Second note");
+
+  // Open Add Role again and verify duplicate name warning appears
+  await page.getByRole("button", { name: "Add Role", exact: true }).click();
+  const newAddDialog = page.getByRole("dialog", { name: "Add Role", exact: true });
+  await newAddDialog.getByRole("textbox", { name: "Name", exact: true }).fill("Note Probe");
+  await expect(
+    newAddDialog
+      .getByRole("status")
+      .filter({ hasText: 'Another role is already named "Note Probe"' }),
+  ).toBeVisible();
+  // Verify that Create role button is still enabled
+  await expect(
+    newAddDialog.getByRole("button", { name: "Create role", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+
+  // Verify the main assertions are working:
+  // 1. Note Probe was created with a note
+  // 2. The note appears on the card
+  // 3. The note can be edited
+  // 4. Duplicate name warning appears
+  // These are all verified above
+});
+
+test("Super Admins edit a member's role through exact permission matching", async ({
+  page,
+  request,
+}) => {
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await request.post("http://127.0.0.1:3100/__test/staff");
+  const headers = { Origin: "http://127.0.0.1:3101" };
+  const catalog: { id: string; key: string; name: string }[] = await (
+    await page.request.get("/api/permissions")
+  ).json();
+  const readIds = catalog.filter((item) => item.key.endsWith(".read")).map((item) => item.id);
+  const created = await page.request.post("/api/roles", {
+    headers,
+    data: {
+      key: "probe_reader",
+      name: "Probe Reader",
+      description: "Read-only probe",
+      permissionIds: readIds,
+    },
+  });
+  expect(created.status()).toBe(201);
+
+  await page.goto("/settings/users");
+  await page.getByRole("button", { name: "Edit role for Test Staff", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit role for Test Staff", exact: true });
+  const status = dialog.getByRole("status").filter({ hasText: /Matches role|No role has/ });
+  await dialog.getByRole("radio", { name: /Probe Reader/ }).check();
+  await expect(status).toContainText("Matches role: Probe Reader");
+  await expect(dialog.getByText("Read-only probe", { exact: true })).toBeVisible();
+  const save = dialog.getByRole("button", { name: "Save role", exact: true });
+  await expect(save).toBeEnabled();
+
+  const extra = catalog.find((item) => item.key === "alumni.write")!;
+  const extraSwitch = dialog.getByRole("switch", { name: new RegExp(`^${extra.name}`) });
+  await extraSwitch.click();
+  await expect(status).toContainText("No role has exactly these permissions.");
+  await expect(save).toBeDisabled();
+  await extraSwitch.click();
+  await expect(status).toContainText("Matches role: Probe Reader");
+  await extraSwitch.click();
+
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+
+  await dialog.getByRole("button", { name: "Create a new role with these permissions" }).click();
+  const add = page.getByRole("dialog", { name: "Add Role", exact: true });
+  await add.getByRole("textbox", { name: "Key", exact: true }).fill("probe_writer");
+  await add.getByRole("textbox", { name: "Name", exact: true }).fill("Probe Writer");
+  await add.getByRole("button", { name: "Create role", exact: true }).click();
+  await expect(add).toHaveCount(0);
+  await expect(status).toContainText("Matches role: Probe Writer");
+
+  await save.click();
+  const confirm = page.getByRole("alertdialog");
+  await expect(confirm).toContainText("Test Staff will be signed out of every session");
+  await confirm.getByRole("button", { name: "Change role", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("row").filter({ hasText: "staff@example.test" })).toContainText(
+    "Probe Writer",
+  );
+});
+
+test("Edit role is absent and rejected for non-Super-Admins", async ({ page, request }) => {
+  await request.post("http://127.0.0.1:3100/__test/staff");
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("staff@example.test");
+  await page.locator("#password").fill("BrowserTest123!");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"));
+  const response = await page.request.patch("/api/users/000000000000000000000001", {
+    headers: { Origin: "http://127.0.0.1:3101" },
+    data: { roleIds: ["000000000000000000000102"] },
+  });
+  expect(response.status()).toBe(403);
+  await page.goto("/settings/users");
+  await expect(page.getByRole("button", { name: /^Edit role for/ })).toHaveCount(0);
 });

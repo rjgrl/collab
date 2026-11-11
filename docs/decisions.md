@@ -47,3 +47,16 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Why: at 1440×900 the Create account button ends at about 871px with no scrolling; at 1366×768 it needs one short scroll. Inputs and buttons keep their existing 40px height and 14px text, so the two-step fallback was not needed.
 - Test: `tests/browser/signup.spec.ts` asserts the button is fully in view at 1440×900, within 320px of the fold at 1366×768, and that fields stack on a 390px phone.
 - Note: the existing 40px controls are below a 44px touch target; this layout does not make them smaller.
+
+## 2026-11-09: Roles keep permissions; no per-user permissions
+
+- Decision: permissions stay on roles. Super Admins change a member's role from the Members page ("Edit role"); the dialog's permission checklist only finds the role whose permission set matches exactly (`matchingRoles` in `packages/contracts/src/role-match.ts`, order-independent, ignores retired or unknown permissions). With no exact match, saving is blocked and the dialog offers to create a new role with those permissions, then assigns it.
+- Why: per-user grants would bypass role review and the scope rules that already protect Super Admin assignments and Alumni/managed transitions.
+- Guards unchanged: `usersService.update` still decides every transition (users.write, `assertRoleScope`, Super Admin protection, no conversion to Alumni, staff email domains) and still revokes the member's sessions. The UI only hides the action from non-administrators; the server returns 403 to them.
+- Rejected: per-user permission overrides.
+
+## 2026-11-09: Role "Description" is shown as "Note"
+
+- Decision: the UI calls the role description a "Note". It shows under the role name on role cards (two lines, full text on hover/focus), in the Edit role picker, and is editable with the role name in the role detail view. Creating or renaming a role to an existing name shows a non-blocking warning asking for a Note that tells them apart.
+- Kept: the stored and API field is still `description` (no migration, no contract rename). Audit summaries label it "Note" for roles only.
+- Known side effect: any role update, including a note-only edit, revokes the sessions of that role's members (existing server behavior, kept unchanged).
