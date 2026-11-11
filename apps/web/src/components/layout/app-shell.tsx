@@ -1,3 +1,4 @@
+import { API_PREFIX } from "@Alumni-Tracking-Ss/contracts/api-routes";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import {
   DropdownMenu,
@@ -108,7 +109,10 @@ export function AppShell() {
     .find(({ item }) => isActive(pathname, item.to));
 
   async function logout() {
-    const response = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    const response = await fetch(`${API_PREFIX}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
     if (!response.ok) {
       toast.error("Unable to sign out. Try again.");
       return;

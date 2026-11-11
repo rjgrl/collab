@@ -1,3 +1,4 @@
+import { API_PREFIX } from "@Alumni-Tracking-Ss/contracts/api-routes";
 import { useId, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
@@ -38,7 +39,7 @@ export function EvidencePanel({
   const [employmentId, setEmploymentId] = useState("");
   const [progress, setProgress] = useState(0);
   const [inputKey, setInputKey] = useState(0);
-  const root = `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/api/${alumniId ? "" : "me/"}files`;
+  const root = `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${API_PREFIX}/${alumniId ? "" : "me/"}files`;
   const photoId = photoUrl?.match(/^\/api\/(?:me\/)?files\/([a-f0-9]{24})$/i)?.[1];
   const photoSource = photoId ? `${root}/${photoId}?preview=1` : photoUrl;
   const upload = useMutation({

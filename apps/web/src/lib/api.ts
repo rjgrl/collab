@@ -2,32 +2,9 @@ import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { toast } from "sonner";
 import { errorResponseSchema } from "@Alumni-Tracking-Ss/contracts/common";
-import { authSchemas } from "@Alumni-Tracking-Ss/contracts/auth";
-import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
-import { rolesSchemas, permissionsSchemas } from "@Alumni-Tracking-Ss/contracts/roles";
-import {
-  alumniSchemas,
-  meProfileSchemas,
-  filesSchemas,
-  selfEmploymentSchemas,
-  uploadOutputSchema,
-} from "@Alumni-Tracking-Ss/contracts/alumni";
-import { assignSchemas, facultySchemas } from "@Alumni-Tracking-Ss/contracts/faculty";
-import { contactsSchemas } from "@Alumni-Tracking-Ss/contracts/contacts";
-import {
-  collegesSchemas,
-  departmentsSchemas,
-  programsSchemas,
-} from "@Alumni-Tracking-Ss/contracts/academic";
-import {
-  dashboardSchemas,
-  reportsSchemas,
-  aggregateSchemas,
-} from "@Alumni-Tracking-Ss/contracts/reports";
-import { integrationsSchemas } from "@Alumni-Tracking-Ss/contracts/integrations";
-import { auditSchemas } from "@Alumni-Tracking-Ss/contracts/audit";
-import { notificationsSchemas } from "@Alumni-Tracking-Ss/contracts/notifications";
+import { uploadOutputSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
 import { backupsSchemas } from "@Alumni-Tracking-Ss/contracts/backups";
+import { API_PREFIX, API_ROUTES } from "@Alumni-Tracking-Ss/contracts/api-routes";
 import { ENV } from "@/env";
 
 export class RestError extends Error {
@@ -108,180 +85,33 @@ function endpoint<I extends z.ZodType, O>(
   });
 }
 
+type RouteEndpoint<R> = R extends {
+  contract: { input: infer I extends z.ZodType; output: z.ZodType<infer O> };
+}
+  ? ReturnType<typeof endpoint<I, O>>
+  : never;
+type ClientOf<T> = {
+  [K in keyof T]: T[K] extends { contract: unknown; method: string }
+    ? RouteEndpoint<T[K]>
+    : ClientOf<T[K]>;
+};
+function buildClient<T extends object>(table: T): ClientOf<T> {
+  return Object.fromEntries(
+    Object.entries(table).map(([name, value]) => [
+      name,
+      "contract" in value && "method" in value
+        ? endpoint(value.contract, value.method, `${API_PREFIX}${value.path}`)
+        : buildClient(value as object),
+    ]),
+  ) as ClientOf<T>;
+}
+
+// Every JSON endpoint comes from the shared route table (packages/contracts/src/api-routes.ts),
+// the same table the OpenAPI description and the server route test are generated from.
+const routes = buildClient(API_ROUTES);
 export const client = {
-  notifications: {
-    list: endpoint(notificationsSchemas.list, "GET", "/api/notifications"),
-    markRead: endpoint(notificationsSchemas.markRead, "PATCH", "/api/notifications/:id/read"),
-  },
-  auth: {
-    registrationPrograms: endpoint(
-      authSchemas.registrationPrograms,
-      "GET",
-      "/api/auth/registration-programs",
-    ),
-    config: endpoint(authSchemas.config, "GET", "/api/auth/config"),
-    me: endpoint(authSchemas.me, "GET", "/api/auth/me"),
-    login: endpoint(authSchemas.login, "POST", "/api/auth/login"),
-    signup: endpoint(authSchemas.signup, "POST", "/api/auth/signup"),
-    logout: endpoint(authSchemas.logout, "POST", "/api/auth/logout"),
-    forgotPassword: endpoint(
-      authSchemas.forgotPassword,
-      "POST",
-      "/api/auth/password-reset-requests",
-    ),
-    resetPassword: endpoint(authSchemas.resetPassword, "POST", "/api/auth/password-resets"),
-    mfaStatus: endpoint(authSchemas.mfaStatus, "GET", "/api/auth/mfa"),
-    beginMfa: endpoint(authSchemas.beginMfa, "POST", "/api/auth/mfa/enrollments"),
-    confirmMfa: endpoint(authSchemas.confirmMfa, "POST", "/api/auth/mfa/confirmations"),
-    verifyMfa: endpoint(authSchemas.verifyMfa, "POST", "/api/auth/mfa/verifications"),
-    verificationStatus: endpoint(authSchemas.verificationStatus, "GET", "/api/auth/verification"),
-    sendVerification: endpoint(
-      authSchemas.sendVerification,
-      "POST",
-      "/api/auth/verification-challenges",
-    ),
-    confirmVerification: endpoint(
-      authSchemas.confirmVerification,
-      "POST",
-      "/api/auth/verification-confirmations",
-    ),
-    createGooglePassword: endpoint(authSchemas.createGooglePassword, "POST", "/api/auth/password"),
-    completeProfile: endpoint(authSchemas.completeProfile, "PATCH", "/api/auth/profile-completion"),
-    updateProfile: endpoint(authSchemas.updateProfile, "PATCH", "/api/auth/profile"),
-    changePassword: endpoint(authSchemas.changePassword, "PATCH", "/api/auth/password"),
-    requestEmailChange: endpoint(
-      authSchemas.requestEmailChange,
-      "POST",
-      "/api/auth/email-change-challenges",
-    ),
-    confirmEmailChange: endpoint(
-      authSchemas.confirmEmailChange,
-      "POST",
-      "/api/auth/email-change-confirmations",
-    ),
-  },
-  users: {
-    list: endpoint(usersSchemas.list, "GET", "/api/users"),
-    create: endpoint(usersSchemas.create, "POST", "/api/users"),
-    update: endpoint(usersSchemas.update, "PATCH", "/api/users/:id"),
-    setStatus: endpoint(usersSchemas.setStatus, "PATCH", "/api/users/:id/status"),
-  },
-  roles: {
-    list: endpoint(rolesSchemas.list, "GET", "/api/roles"),
-    create: endpoint(rolesSchemas.create, "POST", "/api/roles"),
-    update: endpoint(rolesSchemas.update, "PATCH", "/api/roles/:id"),
-    delete: endpoint(rolesSchemas.delete, "DELETE", "/api/roles/:id"),
-  },
-  permissions: { list: endpoint(permissionsSchemas.list, "GET", "/api/permissions") },
-  colleges: {
-    list: endpoint(collegesSchemas.list, "GET", "/api/colleges"),
-    create: endpoint(collegesSchemas.create, "POST", "/api/colleges"),
-    update: endpoint(collegesSchemas.update, "PATCH", "/api/colleges/:id"),
-    delete: endpoint(collegesSchemas.delete, "DELETE", "/api/colleges/:id"),
-  },
-  faculty: {
-    list: endpoint(facultySchemas.list, "GET", "/api/faculty"),
-    create: endpoint(facultySchemas.create, "POST", "/api/faculty"),
-    update: endpoint(facultySchemas.update, "PATCH", "/api/faculty/:id"),
-    assign: endpoint(assignSchemas.assign, "POST", "/api/alumni/assign"),
-  },
-  departments: {
-    list: endpoint(departmentsSchemas.list, "GET", "/api/departments"),
-    get: endpoint(departmentsSchemas.get, "GET", "/api/departments/:id"),
-    create: endpoint(departmentsSchemas.create, "POST", "/api/departments"),
-    update: endpoint(departmentsSchemas.update, "PATCH", "/api/departments/:id"),
-    delete: endpoint(departmentsSchemas.delete, "DELETE", "/api/departments/:id"),
-  },
-  programs: {
-    list: endpoint(programsSchemas.list, "GET", "/api/programs"),
-    get: endpoint(programsSchemas.get, "GET", "/api/programs/:id"),
-    create: endpoint(programsSchemas.create, "POST", "/api/programs"),
-    update: endpoint(programsSchemas.update, "PATCH", "/api/programs/:id"),
-    delete: endpoint(programsSchemas.delete, "DELETE", "/api/programs/:id"),
-  },
-  alumni: {
-    pendingAccounts: endpoint(alumniSchemas.pendingAccounts, "GET", "/api/alumni/pending-accounts"),
-    list: endpoint(alumniSchemas.list, "GET", "/api/alumni"),
-    get: endpoint(alumniSchemas.get, "GET", "/api/alumni/:id"),
-    history: endpoint(alumniSchemas.history, "GET", "/api/alumni/:id/history"),
-    update: endpoint(alumniSchemas.update, "PATCH", "/api/alumni/:id"),
-    addContact: endpoint(contactsSchemas.create, "POST", "/api/alumni/:alumniId/contacts"),
-    updateContact: endpoint(contactsSchemas.update, "PATCH", "/api/alumni/:alumniId/contacts/:id"),
-    deleteContact: endpoint(contactsSchemas.delete, "DELETE", "/api/alumni/:alumniId/contacts/:id"),
-    delete: endpoint(alumniSchemas.delete, "DELETE", "/api/alumni/:id"),
-    addEmployment: endpoint(
-      alumniSchemas.addEmployment,
-      "POST",
-      "/api/alumni/:alumniId/employments",
-    ),
-    deleteEmployment: endpoint(alumniSchemas.deleteEmployment, "DELETE", "/api/employments/:id"),
-    updateEmployment: endpoint(alumniSchemas.updateEmployment, "PATCH", "/api/employments/:id"),
-    addTracking: endpoint(
-      alumniSchemas.addTracking,
-      "POST",
-      "/api/alumni/:alumniId/tracking-events",
-    ),
-  },
-  me: {
-    statistics: endpoint(aggregateSchemas.summary, "GET", "/api/me/statistics"),
-    employment: {
-      create: endpoint(selfEmploymentSchemas.create, "POST", "/api/me/employments"),
-      update: endpoint(selfEmploymentSchemas.update, "PATCH", "/api/me/employments/:id"),
-      remove: endpoint(selfEmploymentSchemas.remove, "DELETE", "/api/me/employments/:id"),
-    },
-    removeFile: endpoint(filesSchemas.remove, "DELETE", "/api/me/files/:id"),
-    profile: {
-      get: endpoint(meProfileSchemas.get, "GET", "/api/me/profile"),
-      update: endpoint(meProfileSchemas.update, "PATCH", "/api/me/profile"),
-    },
-  },
-  dashboard: { summary: endpoint(dashboardSchemas.summary, "GET", "/api/dashboard") },
-  reports: {
-    summary: endpoint(reportsSchemas.summary, "GET", "/api/reports"),
-    alumniCsv: endpoint(reportsSchemas.alumniCsv, "GET", "/api/reports/alumni.csv"),
-  },
-  integrations: {
-    list: endpoint(integrationsSchemas.list, "GET", "/api/integrations"),
-    enable: endpoint(integrationsSchemas.enable, "POST", "/api/integrations/:key/enable"),
-    updateCredentials: endpoint(
-      integrationsSchemas.update,
-      "PUT",
-      "/api/integrations/:key/credentials",
-    ),
-    disable: endpoint(integrationsSchemas.disable, "POST", "/api/integrations/:key/disable"),
-    sendTestEmail: endpoint(
-      integrationsSchemas.sendTestEmail,
-      "POST",
-      "/api/integrations/email/test-messages",
-    ),
-    notifyAlumni: endpoint(
-      integrationsSchemas.notifyAlumni,
-      "POST",
-      "/api/integrations/email/notifications",
-    ),
-    importCsv: endpoint(integrationsSchemas.importCsv, "POST", "/api/integrations/csv/imports"),
-    importSheets: endpoint(
-      integrationsSchemas.importSheets,
-      "POST",
-      "/api/integrations/google-sheets/imports",
-    ),
-    exportSheets: endpoint(
-      integrationsSchemas.exportSheets,
-      "POST",
-      "/api/integrations/google-sheets/exports",
-    ),
-  },
-  audit: { list: endpoint(auditSchemas.list, "GET", "/api/audit") },
-  files: { remove: endpoint(filesSchemas.remove, "DELETE", "/api/files/:id") },
-  backups: {
-    overview: endpoint(backupsSchemas.overview, "GET", "/api/backups"),
-    create: endpoint(backupsSchemas.create, "POST", "/api/backups"),
-    import: uploadBackupFile,
-    schedule: endpoint(backupsSchemas.schedule, "PUT", "/api/backups/schedule"),
-    restore: endpoint(backupsSchemas.restore, "POST", "/api/backups/:id/restore"),
-    restoreStatus: endpoint(backupsSchemas.restoreStatus, "GET", "/api/backups/restore"),
-    endMaintenance: endpoint(backupsSchemas.endMaintenance, "POST", "/api/backups/maintenance/end"),
-  },
+  ...routes,
+  backups: { ...routes.backups, import: uploadBackupFile },
 };
 export const api = client;
 
@@ -291,7 +121,7 @@ export async function uploadBackupFile(file: File) {
   const data = new FormData();
   data.append("backup", file);
   return readJson(
-    await fetch(`${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/api/backups/import`, {
+    await fetch(`${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${API_PREFIX}/backups/import`, {
       method: "POST",
       credentials: "include",
       body: data,
@@ -313,7 +143,7 @@ export async function uploadProfileFile(options: {
   data.append("kind", options.kind);
   if (options.alumniId) data.append("alumniId", options.alumniId);
   if (options.employmentId) data.append("employmentId", options.employmentId);
-  const url = `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/api/${options.alumniId ? "files/evidence" : "me/files"}`;
+  const url = `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${API_PREFIX}/${options.alumniId ? "files/evidence" : "me/files"}`;
   return new Promise<z.infer<typeof uploadOutputSchema>>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
@@ -363,7 +193,7 @@ export async function downloadPdf(
     ),
   );
   const response = await fetch(
-    `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${path}${search.size ? `?${search}` : ""}`,
+    `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${API_PREFIX}${path}${search.size ? `?${search}` : ""}`,
     { credentials: "include" },
   );
   if (!response.ok) await readJson(response, z.unknown());

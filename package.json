@@ -52,7 +52,8 @@
     "test:roles-local": "tsx scripts/check-local-roles.ts",
     "test:integrations-local": "tsx apps/server/test/local/integrations-local.ts",
     "test:backup-local": "tsx apps/server/test/local/backup-local.ts",
-    "tools:mongodb": "node scripts/install-mongodb-tools.mjs"
+    "tools:mongodb": "node scripts/install-mongodb-tools.mjs",
+    "openapi": "tsx packages/contracts/src/cli/openapi.ts"
   },
   "dependencies": {
     "zod": "catalog:"

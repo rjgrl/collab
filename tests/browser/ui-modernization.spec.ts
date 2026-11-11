@@ -122,14 +122,14 @@ test("workspace remains accessible across screen sizes and themes", async ({
     await inspect("mobile-navigation");
   }
 
-  await page.route("**/api/dashboard", (route) =>
+  await page.route("**/api/v1/dashboard", (route) =>
     route.fulfill({ status: 503, json: { message: "Synthetic outage" } }),
   );
   await page.goto("/dashboard");
   await expect(page.getByRole("alert").filter({ hasText: "Could not load dashboard" })).toBeVisible(
     { timeout: 15_000 },
   );
-  await page.unroute("**/api/dashboard");
+  await page.unroute("**/api/v1/dashboard");
   await page
     .getByRole("alert")
     .filter({ hasText: "Could not load dashboard" })

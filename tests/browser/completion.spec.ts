@@ -171,7 +171,7 @@ test("local Alumni registration persists academic identity, employment and owned
     .getByLabel("Profile photo", { exact: true })
     .setInputFiles({ name: "Profile photo.png", mimeType: "image/png", buffer: png });
   const uploadResponse = page.waitForResponse(
-    (r) => r.url().endsWith("/api/me/photo") && r.request().method() === "POST",
+    (r) => r.url().endsWith("/api/v1/me/photo") && r.request().method() === "POST",
   );
   await page.getByRole("button", { name: "Upload photo", exact: true }).click();
   expect((await uploadResponse).status()).toBe(201);

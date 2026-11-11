@@ -32,6 +32,7 @@ import { formsWebhookController } from "./modules/integrations/webhook.controlle
 import { auditRoutes } from "./modules/audit/routes";
 import { notificationsRoutes } from "./modules/notifications/routes";
 import { backupsRoutes } from "./modules/backups/routes";
+import { API_PREFIX } from "@Alumni-Tracking-Ss/contracts/api-routes";
 import type { BackupConfig } from "@Alumni-Tracking-Ss/api/backups/backup-service";
 import { maintenanceState } from "@Alumni-Tracking-Ss/api/backups/restore";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
@@ -55,6 +56,9 @@ export type AppOptions = {
   /** Server-only backup settings (BACKUP_ENCRYPTION_KEY, BACKUP_DIR, MONGODB_TOOLS_DIR). */
   backup?: BackupConfig;
 };
+
+/** 2026-11-11T00:00:00Z: when the unversioned /api paths were deprecated in favour of /api/v1. */
+const DEPRECATED_UNVERSIONED_API_AT = 1794355200;
 
 export function createApp({ db, config, integrationEnv, sessionLoader, backup }: AppOptions) {
   const app = express();
@@ -85,6 +89,25 @@ export function createApp({ db, config, integrationEnv, sessionLoader, backup }:
           }),
         );
     });
+    next();
+  });
+  // API versioning. /api/v1 is canonical and is served by the routers mounted under /api. The old
+  // unversioned /api paths keep working but are marked deprecated (RFC 9745 Deprecation header,
+  // Link to the successor). The Google OAuth redirect endpoints stay unversioned on purpose: their
+  // callback URL is registered with Google and their state cookie is scoped to that path.
+  app.use((request, response, next) => {
+    const versioned = /^\/api\/v1(?=\/|\?|$)/i.exec(request.url);
+    if (versioned) request.url = `/api${request.url.slice(versioned[0].length)}`;
+    else if (
+      /^\/api\//i.test(request.url) &&
+      !/^\/api\/auth\/google(?:\/callback)?(?:\?|$)/i.test(request.url)
+    ) {
+      const path = request.url.split("?")[0]!.slice("/api".length);
+      response.set({
+        Deprecation: `@${DEPRECATED_UNVERSIONED_API_AT}`,
+        Link: `<${API_PREFIX}${path}>; rel="successor-version"`,
+      });
+    }
     next();
   });
   app.use(helmet());

@@ -131,7 +131,7 @@ function AlumniDetailPage() {
             {can(session.data?.permissions, "reports.export") ? (
               <QuietButton
                 onClick={() =>
-                  void downloadPdf(`/api/reports/alumni/${id}/profile.pdf`).catch((error: Error) =>
+                  void downloadPdf(`/reports/alumni/${id}/profile.pdf`).catch((error: Error) =>
                     toast.error(error.message),
                   )
                 }

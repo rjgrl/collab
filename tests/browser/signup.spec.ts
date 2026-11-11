@@ -35,7 +35,9 @@ test("signup collects contact details and rejects an existing email", async ({ p
   await expect(year).toHaveAttribute("required", "");
   expect(await year.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
   await year.fill("2024");
-  const response = page.waitForResponse((response) => response.url().endsWith("/api/auth/signup"));
+  const response = page.waitForResponse((response) =>
+    response.url().endsWith("/api/v1/auth/signup"),
+  );
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   expect((await response).status()).toBe(409);
   await expect(page.getByRole("alert")).toContainText("already exists");

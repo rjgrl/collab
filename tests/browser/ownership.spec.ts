@@ -37,7 +37,7 @@ test("Alumni with historical MFA enrollment edit personal details only in Settin
   await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
   const saved = page.waitForResponse(
     (response) =>
-      response.url().endsWith("/api/auth/profile") && response.request().method() === "PATCH",
+      response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
   );
   await page.getByRole("button", { name: "Save personal details", exact: true }).click();
   expect((await saved).status()).toBe(200);
@@ -148,7 +148,7 @@ test("signing into another account clears the prior private profile cache before
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route("**/api/me/profile", async (route) => {
+  await page.route("**/api/v1/me/profile", async (route) => {
     await gate;
     await route.continue();
   });

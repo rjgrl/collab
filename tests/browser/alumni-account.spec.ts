@@ -43,7 +43,7 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
     await phone.blur();
     const saved = page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/auth/profile") && response.request().method() === "PATCH",
+        response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
       { timeout: 15_000 },
     );
     await page.getByRole("button", { name: "Save personal details", exact: true }).click();
@@ -73,7 +73,7 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
   await expect(countries).toHaveText("JP +81");
   const saved = page.waitForResponse(
     (response) =>
-      response.url().endsWith("/api/auth/profile") && response.request().method() === "PATCH",
+      response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
     { timeout: 15_000 },
   );
   await page.getByRole("button", { name: "Save personal details", exact: true }).click();

@@ -518,7 +518,7 @@ app.post("/__test/other-alumni", async (_request, response) => {
   response.json({ email: "other.alumni@example.test", password, id, alumniId: ids.otherProfile });
 });
 // Only this test server can inject a single roles-save failure.
-app.patch("/api/roles/:id", (_request, response, next) => {
+app.patch(["/api/roles/:id", "/api/v1/roles/:id"], (_request, response, next) => {
   if (!failNext) return next();
   failNext = false;
   response.status(500).json({ error: "Synthetic database failure", code: "INTERNAL_SERVER_ERROR" });

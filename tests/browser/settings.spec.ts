@@ -116,7 +116,7 @@ test("settings and grouped controls pass automated accessibility and fit the vie
   await expect(testButton).toBeEnabled();
   await testButton.click();
   // Wait for the request to complete and the list to be refetched
-  await page.waitForResponse((response) => response.url().includes("/api/integrations"));
+  await page.waitForResponse((response) => response.url().includes("/api/v1/integrations"));
   await page.waitForLoadState("networkidle");
 
   // Card should now show enabled

@@ -22,7 +22,7 @@ async function upload(page: Page, filename: string) {
     .getByLabel("Profile photo", { exact: true })
     .setInputFiles({ name: filename, mimeType: "image/png", buffer: png });
   const response = page.waitForResponse(
-    (r) => r.url().endsWith("/api/me/photo") && r.request().method() === "POST",
+    (r) => r.url().endsWith("/api/v1/me/photo") && r.request().method() === "POST",
   );
   await photo.getByRole("button", { name: /Upload photo|Replace photo/ }).click();
   expect((await response).status()).toBe(201);

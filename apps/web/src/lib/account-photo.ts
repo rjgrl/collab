@@ -1,8 +1,9 @@
+import { API_PREFIX } from "@Alumni-Tracking-Ss/contracts/api-routes";
 import { accountPhotoResultSchema } from "@Alumni-Tracking-Ss/contracts/account-photo";
 import { ENV } from "@/env";
 import { readJson } from "./api";
 
-const endpoint = `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/api/me/photo`;
+const endpoint = `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${API_PREFIX}/me/photo`;
 export function uploadAccountPhoto(file: File, onProgress: (progress: number) => void) {
   return new Promise<{ image: string | null }>((resolve, reject) => {
     const request = new XMLHttpRequest();

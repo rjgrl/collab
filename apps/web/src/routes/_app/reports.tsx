@@ -43,8 +43,8 @@ function ReportsPage() {
   const pdf = useMutation({
     mutationFn: (kind: "alumni" | "assignments") =>
       kind === "alumni"
-        ? downloadPdf("/api/reports/alumni.pdf", exportFilters)
-        : downloadPdf("/api/reports/assignments.pdf"),
+        ? downloadPdf("/reports/alumni.pdf", exportFilters)
+        : downloadPdf("/reports/assignments.pdf"),
     onSuccess: () => toast.success("PDF downloaded"),
     onError: (error) => toast.error(error.message),
   });
