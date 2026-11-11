@@ -8,9 +8,11 @@ export type AccountProfile = { phoneNumber: string; gender: string; facebookAcco
 export function AccountProfileFields({
   value,
   onChange,
+  compact = false,
 }: {
   value: AccountProfile;
   onChange: (value: AccountProfile) => void;
+  compact?: boolean;
 }) {
   return (
     <>
@@ -29,7 +31,9 @@ export function AccountProfileFields({
           />
         </FormField>
         <p id="phone-number-hint" className="mt-2 text-xs text-muted-foreground">
-          Select a country or paste an international number.
+          {compact
+            ? "Pick a country or paste an international number."
+            : "Select a country or paste an international number."}
         </p>
       </div>
       <FormField id="account-gender" label="Gender" required>

@@ -110,3 +110,30 @@ test("existing password accounts can save missing contact details", async ({ pag
   await page.reload();
   await expect(page).toHaveURL(/\/dashboard$/);
 });
+
+test("sign-up fits a 1440×900 desktop without scrolling", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Desktop viewport sizes only");
+  const openSignup = async (width: number, height: number) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+    await expect(page.getByRole("combobox", { name: "Degree program", exact: true })).toBeEnabled();
+  };
+  const submit = page.getByRole("button", { name: "Create account", exact: true });
+
+  await openSignup(1440, 900);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(submit).toBeInViewport({ ratio: 1 });
+
+  await openSignup(1366, 768);
+  const box = await submit.boundingBox();
+  expect(box).not.toBeNull();
+  // At most one short scroll (about three mouse-wheel notches).
+  expect(box!.y + box!.height).toBeLessThanOrEqual(768 + 320);
+
+  await openSignup(390, 844);
+  const first = await page.getByRole("textbox", { name: "First name", exact: true }).boundingBox();
+  const last = await page.getByRole("textbox", { name: "Last name", exact: true }).boundingBox();
+  expect(first!.x).toBe(last!.x);
+  expect(last!.y).toBeGreaterThan(first!.y);
+});

@@ -64,6 +64,10 @@ export function FormField({
   );
 }
 
+/** Small uppercase legend that groups the compact sign-up sections. */
+export const SECTION_LEGEND =
+  "mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase";
+
 export function FormActions({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-center gap-2 pt-2 md:col-span-2">{children}</div>;
 }

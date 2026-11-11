@@ -9,13 +9,17 @@ import { AccountProfileFields } from "@/components/forms/account-profile-fields"
 import { NameFields, emptyName } from "@/components/forms/name-fields";
 import { AcademicProfileFields, emptyAcademic } from "@/components/forms/academic-profile-fields";
 import { LocalVerificationNotice } from "@/components/layout/local-verification-notice";
-import { PasswordGuidance } from "@/components/forms/password-guidance";
+import { PasswordChecklist } from "@/components/forms/password-checklist";
 import { CheckboxRow } from "@/components/forms/checkbox-row";
 import { Recaptcha } from "@/components/forms/recaptcha";
 import { ErrorAlert } from "@/components/feedback/error-alert";
-import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { FormField, PrimaryButton, SECTION_LEGEND } from "@/components/forms/form-layout";
 import { AuthHeader, AuthLayout } from "@/components/layout/auth-layout";
 import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
+import {
+  isPasswordScreeningMessage,
+  passwordMeetsPolicy,
+} from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { client, api, queryClient } from "@/lib/api";
 
 export const Route = createFileRoute("/login")({
@@ -46,6 +50,8 @@ function LoginPage() {
         : null,
   );
 
+  const [screeningError, setScreeningError] = useState<string | null>(null);
+
   const recaptcha = config.data?.recaptcha;
   const needsCheckbox = recaptcha?.enabled && !recaptcha.live;
 
@@ -53,6 +59,7 @@ function LoginPage() {
     event.preventDefault();
     setPending(true);
     setFormError(null);
+    setScreeningError(null);
     try {
       const credentials = {
         email,
@@ -76,7 +83,8 @@ function LoginPage() {
       await navigate({ to: "/dashboard" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to continue";
-      setFormError(message);
+      if (mode === "signup" && isPasswordScreeningMessage(message)) setScreeningError(message);
+      else setFormError(message);
     } finally {
       setRecaptchaToken(undefined);
       setCaptchaAttempt((attempt) => attempt + 1);
@@ -84,67 +92,118 @@ function LoginPage() {
     }
   }
 
+  const signup = mode === "signup";
+  const googleLabel = signup ? "Sign up with Google" : "Sign in with Google";
+  const google = config.data?.google.enabled ? (
+    <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
+      {googleLabel}
+    </Button>
+  ) : (
+    <div className="flex flex-col gap-2">
+      <Button type="button" variant="outline" disabled>
+        {googleLabel}
+      </Button>
+      {!config.isPending ? (
+        <p className="text-center text-xs text-muted-foreground">
+          Google sign-in is currently unavailable.
+        </p>
+      ) : null}
+    </div>
+  );
+  const divider = (
+    <div
+      aria-hidden="true"
+      className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border"
+    >
+      or
+    </div>
+  );
+  const emailField = (
+    <FormField id="email" label="Email" required>
+      <Input
+        id="email"
+        type="email"
+        autoComplete="email"
+        aria-describedby="email-hint"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        required
+      />
+      <p id="email-hint" className="text-xs text-muted-foreground">
+        {signup
+          ? "Use your BukSU institutional email."
+          : "Use your BukSU institutional email. Personal email addresses are not accepted."}
+      </p>
+    </FormField>
+  );
+  const passwordField = (
+    <FormField id="password" label="Password" required>
+      <Input
+        id="password"
+        type="password"
+        autoComplete={signup ? "new-password" : "current-password"}
+        value={password}
+        onChange={(event) => {
+          setPassword(event.target.value);
+          setScreeningError(null);
+        }}
+        required
+        minLength={signup ? 15 : 1}
+        maxLength={256}
+        aria-describedby={signup ? "signup-password-guidance" : undefined}
+      />
+    </FormField>
+  );
+
   return (
-    <AuthLayout wide={mode === "signup"}>
+    <AuthLayout wide={signup}>
       <AuthHeader
-        title={mode === "login" ? "Sign in" : "Create an account"}
-        description="Sign in to manage academic structure, alumni profiles, and graduate tracking."
+        title={signup ? "Create an account" : "Sign in"}
+        description={
+          signup
+            ? "Register as a BukSU graduate to keep your profile and employment up to date."
+            : "Sign in to manage academic structure, alumni profiles, and graduate tracking."
+        }
+        className={signup ? "mb-4" : undefined}
       />
       <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
         <LocalVerificationNotice />
-        {mode === "signup" ? (
-          <fieldset className="grid gap-4 sm:grid-cols-2">
-            <legend className="mb-3 text-sm font-semibold">Personal details</legend>
-            <NameFields value={names} onChange={setNames} prefix="signup" />
-          </fieldset>
-        ) : null}
-        <FormField id="email" label="Email" required>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            aria-describedby="email-hint"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <p id="email-hint" className="text-xs text-muted-foreground">
-            Use your BukSU institutional email. Personal email addresses are not accepted.
-          </p>
-        </FormField>
-        {mode === "signup" ? (
-          <fieldset className="grid gap-4 sm:grid-cols-2">
-            <legend className="mb-3 text-sm font-semibold">Contact details</legend>
-            <AccountProfileFields value={profile} onChange={setProfile} />
-          </fieldset>
-        ) : null}
-        {mode === "signup" ? (
-          <AcademicProfileFields value={academic} onChange={setAcademic} />
-        ) : null}
-        <FormField id="password" label="Password" required>
-          <Input
-            id="password"
-            type="password"
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            minLength={mode === "signup" ? 15 : 1}
-            maxLength={256}
-            aria-describedby={mode === "signup" ? "signup-password-guidance" : undefined}
-          />
-        </FormField>
-        {mode === "signup" ? (
-          <PasswordGuidance id="signup-password-guidance" value={password} />
-        ) : null}
-        {mode === "login" ? (
-          <Link
-            className="-mt-1 self-end text-sm font-medium text-primary underline-offset-4 hover:underline"
-            to="/reset-password"
-          >
-            Forgot password?
-          </Link>
-        ) : null}
+        {signup ? (
+          <>
+            {google}
+            {divider}
+            <fieldset className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,9rem)] lg:items-end">
+              <legend className={SECTION_LEGEND}>Personal</legend>
+              <NameFields value={names} onChange={setNames} prefix="signup" compact />
+            </fieldset>
+            <fieldset className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.75fr)]">
+              <legend className={SECTION_LEGEND}>Contact</legend>
+              {emailField}
+              <AccountProfileFields value={profile} onChange={setProfile} compact />
+            </fieldset>
+            <AcademicProfileFields value={academic} onChange={setAcademic} compact />
+            <fieldset className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+              <legend className={SECTION_LEGEND}>Account</legend>
+              {passwordField}
+              <PasswordChecklist
+                id="signup-password-guidance"
+                value={password}
+                serverError={screeningError}
+              />
+            </fieldset>
+          </>
+        ) : (
+          <>
+            {emailField}
+            {passwordField}
+            <Link
+              className="-mt-1 self-end text-sm font-medium text-primary underline-offset-4 hover:underline"
+              to="/reset-password"
+            >
+              Forgot password?
+            </Link>
+          </>
+        )}
         {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
           <Recaptcha key={captchaAttempt} siteKey={recaptcha.siteKey} onToken={setRecaptchaToken} />
         ) : null}
@@ -159,34 +218,19 @@ function LoginPage() {
           disabled={
             config.isPending ||
             config.isError ||
-            Boolean(recaptcha?.enabled && recaptcha.live && !recaptchaToken)
+            Boolean(recaptcha?.enabled && recaptcha.live && !recaptchaToken) ||
+            (signup && !passwordMeetsPolicy(password))
           }
-          pendingLabel={mode === "login" ? "Signing in" : "Creating"}
+          pendingLabel={signup ? "Creating" : "Signing in"}
         >
-          {mode === "login" ? "Sign in" : "Create account"}
+          {signup ? "Create account" : "Sign in"}
         </PrimaryButton>
         {formError ? <ErrorAlert>{formError}</ErrorAlert> : null}
-        <div
-          aria-hidden="true"
-          className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border"
-        >
-          or
-        </div>
-        {config.data?.google.enabled ? (
-          <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
-            {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
-          </Button>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <Button type="button" variant="outline" disabled>
-              {mode === "login" ? "Sign in with Google" : "Sign up with Google"}
-            </Button>
-            {!config.isPending ? (
-              <p className="text-center text-xs text-muted-foreground">
-                Google sign-in is currently unavailable.
-              </p>
-            ) : null}
-          </div>
+        {signup ? null : (
+          <>
+            {divider}
+            {google}
+          </>
         )}
         {config.data?.signupEnabled ? (
           <button
@@ -194,10 +238,11 @@ function LoginPage() {
             className="min-h-10 rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline"
             onClick={() => {
               setFormError(null);
-              setMode(mode === "login" ? "signup" : "login");
+              setScreeningError(null);
+              setMode(signup ? "login" : "signup");
             }}
           >
-            {mode === "login" ? "Need an account? Sign up" : "Already registered? Sign in"}
+            {signup ? "Already registered? Sign in" : "Need an account? Sign up"}
           </button>
         ) : null}
       </form>

@@ -8,7 +8,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { NameFields, emptyName, nameDraft } from "@/components/forms/name-fields";
 import { AccountProfileFields } from "@/components/forms/account-profile-fields";
-import { PasswordGuidance } from "@/components/forms/password-guidance";
+import { PasswordChecklist } from "@/components/forms/password-checklist";
+import {
+  isPasswordScreeningMessage,
+  passwordMeetsPolicy,
+} from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { AuthHeader, AuthLayout } from "@/components/layout/auth-layout";
@@ -117,8 +121,12 @@ export function AccountVerification() {
       await navigate({ to: "/login" });
     },
   });
+  const screeningError =
+    createPassword.error && isPasswordScreeningMessage(createPassword.error.message)
+      ? createPassword.error.message
+      : null;
   const errors = [save.error, createPassword.error, send.error, verify.error, logout.error].filter(
-    (error) => error !== null,
+    (error): error is Error => error !== null && error.message !== screeningError,
   );
   return (
     <AuthLayout wide>
@@ -204,7 +212,10 @@ export function AccountVerification() {
                     aria-describedby="setup-password-guidance"
                     required
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      if (screeningError) createPassword.reset();
+                    }}
                   />
                 </FormField>
                 <FormField id="setup-confirmation" label="Confirm password" required>
@@ -219,11 +230,15 @@ export function AccountVerification() {
                     onChange={(event) => setConfirmation(event.target.value)}
                   />
                 </FormField>
-                <PasswordGuidance id="setup-password-guidance" value={password} />
+                <PasswordChecklist
+                  id="setup-password-guidance"
+                  value={password}
+                  serverError={screeningError}
+                />
                 <PrimaryButton
                   type="submit"
                   pending={createPassword.isPending}
-                  disabled={password !== confirmation}
+                  disabled={!passwordMeetsPolicy(password) || password !== confirmation}
                 >
                   Create password
                 </PrimaryButton>

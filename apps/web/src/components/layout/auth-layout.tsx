@@ -64,9 +64,19 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
           </ul>
         </div>
       </div>
-      <div className="flex min-w-0 flex-col items-center px-4 py-8 sm:px-8 sm:py-12 lg:justify-center lg:px-12">
-        <div className={cn("flex w-full flex-col", wide ? "max-w-2xl" : "max-w-md")}>
-          <p className="mb-8 flex items-center gap-3 text-sm font-semibold lg:hidden">
+      <div
+        className={cn(
+          "flex min-w-0 flex-col items-center px-4 sm:px-8 lg:justify-center lg:px-12",
+          wide ? "py-6 sm:py-8 lg:py-4" : "py-8 sm:py-12",
+        )}
+      >
+        <div className={cn("flex w-full flex-col", wide ? "max-w-3xl" : "max-w-md")}>
+          <p
+            className={cn(
+              "flex items-center gap-3 text-sm font-semibold lg:hidden",
+              wide ? "mb-6" : "mb-8",
+            )}
+          >
             <BrandMark className="size-9 rounded-lg bg-sidebar" />
             Alumni Tracking System
           </p>
@@ -78,9 +88,17 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
 }
 
 /** Heading block shared by auth pages. */
-export function AuthHeader({ title, description }: { title: string; description?: ReactNode }) {
+export function AuthHeader({
+  title,
+  description,
+  className,
+}: {
+  title: string;
+  description?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="mb-6 flex flex-col gap-2">
+    <div className={cn("mb-6 flex flex-col gap-2", className)}>
       <h1 className="text-2xl font-semibold tracking-tight sm:text-[1.75rem] sm:leading-9">
         {title}
       </h1>

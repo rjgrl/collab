@@ -19,10 +19,13 @@ export function NameFields({
   value,
   onChange,
   prefix = "person",
+  compact = false,
 }: {
   value: NameDraft;
   onChange: (value: NameDraft) => void;
   prefix?: string;
+  /** Sign-up layout: the suffix hint stays available to assistive tech only. */
+  compact?: boolean;
 }) {
   return (
     <>
@@ -65,7 +68,10 @@ export function NameFields({
           aria-describedby={`${prefix}-suffix-hint`}
           onValueChange={(suffix) => onChange({ ...value, suffix })}
         />
-        <p id={`${prefix}-suffix-hint`} className="text-xs text-muted-foreground">
+        <p
+          id={`${prefix}-suffix-hint`}
+          className={compact ? "sr-only" : "text-xs text-muted-foreground"}
+        >
           Choose a suggestion or enter your suffix. Leave blank if none.
         </p>
       </FormField>

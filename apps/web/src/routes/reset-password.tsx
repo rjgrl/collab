@@ -4,7 +4,11 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { AuthHeader, AuthLayout } from "@/components/layout/auth-layout";
-import { PasswordGuidance } from "@/components/forms/password-guidance";
+import { PasswordChecklist } from "@/components/forms/password-checklist";
+import {
+  isPasswordScreeningMessage,
+  passwordMeetsPolicy,
+} from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { client, queryClient } from "@/lib/api";
 
 export const Route = createFileRoute("/reset-password")({ component: ResetPassword });
@@ -18,6 +22,7 @@ function ResetPassword() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [screeningError, setScreeningError] = useState<string | null>(null);
   useEffect(() => {
     const readToken = () => {
       const incoming = new URLSearchParams(window.location.hash.slice(1)).get("token");
@@ -44,6 +49,7 @@ function ResetPassword() {
           event.preventDefault();
           setPending(true);
           setError("");
+          setScreeningError(null);
           void (async () => {
             try {
               if (token) {
@@ -58,7 +64,9 @@ function ResetPassword() {
                 setMessage(result.message);
               }
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Unable to continue.");
+              const failure = err instanceof Error ? err.message : "Unable to continue.";
+              if (isPasswordScreeningMessage(failure)) setScreeningError(failure);
+              else setError(failure);
             } finally {
               setPending(false);
             }
@@ -81,10 +89,13 @@ function ResetPassword() {
                 required
                 value={password}
                 aria-describedby="reset-guidance"
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setScreeningError(null);
+                }}
               />
             </FormField>
-            <PasswordGuidance id="reset-guidance" value={password} />
+            <PasswordChecklist id="reset-guidance" value={password} serverError={screeningError} />
             <FormField id="reset-confirmation" label="Confirm password" required>
               <Input
                 id="reset-confirmation"
@@ -96,7 +107,11 @@ function ResetPassword() {
                 onChange={(event) => setConfirmation(event.target.value)}
               />
             </FormField>
-            <PrimaryButton type="submit" pending={pending} disabled={password !== confirmation}>
+            <PrimaryButton
+              type="submit"
+              pending={pending}
+              disabled={!passwordMeetsPolicy(password) || password !== confirmation}
+            >
               Save new password
             </PrimaryButton>
           </>

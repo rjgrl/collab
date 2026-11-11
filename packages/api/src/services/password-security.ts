@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
 import { dictionary } from "@zxcvbn-ts/language-common";
 import { ApiError } from "../http-error";
-import { newPasswordSchema } from "@Alumni-Tracking-Ss/contracts/password-policy";
+import {
+  newPasswordSchema,
+  PASSWORD_SCREENING_MESSAGES,
+} from "@Alumni-Tracking-Ss/contracts/password-policy";
 const common = new Set(dictionary["passwords-common"].map((value) => value.toLowerCase()));
 export async function assertPasswordSafe(password: string) {
-  newPasswordSchema.parse(password);
   if (common.has(password.normalize("NFC").toLowerCase()))
-    throw new ApiError("BAD_REQUEST", {
-      message: "This password is commonly used or compromised. Choose a unique passphrase.",
-    });
+    throw new ApiError("BAD_REQUEST", { message: PASSWORD_SCREENING_MESSAGES.common });
+  newPasswordSchema.parse(password);
   // Explicit opt-in only. Five SHA-1 prefix characters, never plaintext/full hash.
   if (process.env.PASSWORD_BREACH_CHECK !== "hibp") return;
   const hash = createHash("sha1").update(password.normalize("NFC")).digest("hex").toUpperCase();
@@ -33,7 +34,5 @@ export async function assertPasswordSafe(password: string) {
       return suffix === hash.slice(5) && Number(count) > 0;
     })
   )
-    throw new ApiError("BAD_REQUEST", {
-      message: "This password appeared in a breach. Choose a unique passphrase.",
-    });
+    throw new ApiError("BAD_REQUEST", { message: PASSWORD_SCREENING_MESSAGES.breached });
 }

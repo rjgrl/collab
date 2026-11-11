@@ -7,7 +7,11 @@ import { FormCard, FormField, PrimaryButton } from "@/components/forms/form-layo
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { useSession } from "@/lib/session";
-import { PasswordGuidance } from "@/components/forms/password-guidance";
+import { PasswordChecklist } from "@/components/forms/password-checklist";
+import {
+  isPasswordScreeningMessage,
+  passwordMeetsPolicy,
+} from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { EmailVerification } from "@/components/account/email-verification";
 import { NameFields, nameDraft, type NameDraft } from "@/components/forms/name-fields";
 import {
@@ -56,8 +60,14 @@ function AccountSettings() {
       setCurrentPassword("");
       toast.success("Password changed. Other sessions have been signed out.");
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (!isPasswordScreeningMessage(error.message)) toast.error(error.message);
+    },
   });
+  const screeningError =
+    changePassword.error && isPasswordScreeningMessage(changePassword.error.message)
+      ? changePassword.error.message
+      : null;
   return (
     <PageShell>
       <PageHeader
@@ -165,14 +175,25 @@ function AccountSettings() {
                 minLength={15}
                 maxLength={256}
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (screeningError) changePassword.reset();
+                }}
               />
             </FormField>
-            {changePassword.isError ? (
+            <PasswordChecklist
+              id="account-password-guidance"
+              value={password}
+              serverError={screeningError}
+            />
+            {changePassword.isError && !screeningError ? (
               <ErrorAlert>{changePassword.error.message}</ErrorAlert>
             ) : null}
-            <PasswordGuidance id="account-password-guidance" value={password} />
-            <PrimaryButton type="submit" pending={changePassword.isPending}>
+            <PrimaryButton
+              type="submit"
+              pending={changePassword.isPending}
+              disabled={!passwordMeetsPolicy(password)}
+            >
               Change password
             </PrimaryButton>
           </form>

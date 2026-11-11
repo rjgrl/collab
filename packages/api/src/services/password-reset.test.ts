@@ -38,10 +38,14 @@ async function fixture() {
     },
   };
 }
-it("enforces long passphrases and screens common passwords without imposing composition", async () => {
+it("enforces length and character-type rules and screens common passwords", async () => {
   assert.equal(newPasswordSchema.safeParse("short").success, false);
-  await assertPasswordSafe("a quiet river carries seven blue boats");
-  await assertPasswordSafe("界".repeat(64));
+  await assertPasswordSafe("A quiet river carries 7 blue boats");
+  await assert.rejects(
+    () => assertPasswordSafe("a quiet river carries seven blue boats"),
+    /uppercase letter, a number/,
+  );
+  await assert.rejects(() => assertPasswordSafe("界".repeat(64)), /uppercase letter/);
   await assert.rejects(() => assertPasswordSafe("passwordpassword"), /commonly used|compromised/);
 });
 it("HIBP opt-in sends only a padded five-character hash prefix and fails closed", async () => {
