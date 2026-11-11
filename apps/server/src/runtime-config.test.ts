@@ -25,10 +25,30 @@ const valid = {
 it("accepts explicit safe runtime settings without connecting to providers", () => {
   assert.deepEqual(validateRuntimeConfig(valid, {}), { trustedProxyIps: [] });
 });
-it("refuses the local authenticator bypass in production", () => {
+it("refuses the local authenticator bypass outside explicit local development", () => {
+  const loopback = "mongodb://127.0.0.1:27018/collab_dev?replicaSet=rs0";
+  for (const nodeEnv of ["production", "staging", "preview", "test", "unknown"])
+    assert.throws(
+      () =>
+        validateRuntimeConfig(
+          { ...valid, nodeEnv, databaseUrl: loopback },
+          { LOCAL_DISABLE_MFA: "true" },
+        ),
+      /development-only/,
+      nodeEnv,
+    );
+  // Development against a remote database is refused too.
   assert.throws(
-    () => validateRuntimeConfig(valid, { LOCAL_DISABLE_MFA: "true" }),
+    () =>
+      validateRuntimeConfig({ ...valid, nodeEnv: "development" }, { LOCAL_DISABLE_MFA: "true" }),
     /development-only/,
+  );
+  assert.deepEqual(
+    validateRuntimeConfig(
+      { ...valid, nodeEnv: "development", databaseUrl: loopback },
+      { LOCAL_DISABLE_MFA: "true" },
+    ),
+    { trustedProxyIps: [] },
   );
 });
 it("rejects production URL credential/path/query ambiguities and missing keys", () => {
