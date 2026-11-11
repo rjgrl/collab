@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { startCiReplicaSet } from "./ci-replica-set";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import request from "supertest";
@@ -25,18 +26,7 @@ process.env.DATABASE_URL = `mongodb://127.0.0.1:27018/collab_completion_${random
 process.env.SEED_ADMIN_EMAIL = "synthetic-admin@example.test";
 process.env.SEED_ADMIN_PASSWORD = randomBytes(24).toString("base64url");
 process.env.SEED_DEMO_DATA = "false";
-let stopTestReplicaSet: (() => Promise<void>) | undefined;
-if (process.env.CI === "true") {
-  const { MongoMemoryReplSet } = await import("mongodb-memory-server-core");
-  const replicaSet = await MongoMemoryReplSet.create({
-    binary: { version: "9.0.0" },
-    replSet: { count: 1, name: "rs0", storageEngine: "wiredTiger" },
-    instanceOpts: [{ port: 27018 }],
-  });
-  stopTestReplicaSet = async () => {
-    await replicaSet.stop();
-  };
-}
+const stopTestReplicaSet = await startCiReplicaSet();
 const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });
 const origin = "http://localhost:3001";
 try {

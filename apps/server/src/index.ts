@@ -53,7 +53,10 @@ const app = createApp({
   integrationEnv,
 });
 await db.ready();
-await recoverInterruptedRestore(db);
+// A restore whose process died is detected at start and then every minute (heartbeat-based, so a
+// restore still running on another instance is never touched).
+await recoverInterruptedRestore(db).catch(() => false);
+setInterval(() => void recoverInterruptedRestore(db).catch(() => false), 60_000).unref();
 startBackupScheduler({ db, config: backup });
 const server = app.listen(
   Number(process.env.PORT) || 3000,

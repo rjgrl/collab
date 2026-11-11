@@ -55,7 +55,7 @@ What a backup contains: a gzip `mongodump` archive of the application database (
 
 Schedule: off, daily or weekly at a time in Asia/Manila (UTC+8), keeping the newest N scheduled backups (manual and pre-restore backups are never pruned). The schedule lives in the database; each server instance checks it every minute, but a slot claim and a lock in `BackupState` make sure only one instance runs a given backup. Scheduled and manual failures notify every active Super Admin and are audited.
 
-Off-host copy: when Google Drive is enabled with readable credentials, the server uploads the already-encrypted `.atsbak` file to the configured folder using a resumable Drive upload. The catalog records `copied`, `failed` or `skipped`, and Settings shows that result. A Drive failure never converts a verified local backup into a failed backup; operators must monitor the off-host status.
+Off-host copy: when Google Drive is enabled with readable credentials, the server uploads the already-encrypted `.atsbak` file to the configured folder using a resumable Drive upload (`drive.file` scope; the upload times out after 2 minutes plus 1 minute per 64 MiB). Drive copies are not pruned by retention; delete old ones in Drive. The catalog records `copied`, `failed` or `skipped`, and Settings shows that result. A Drive failure never converts a verified local backup into a failed backup; operators must monitor the off-host status.
 
 Restore (Super Admin with an MFA-verified session):
 
@@ -63,9 +63,13 @@ Restore (Super Admin with an MFA-verified session):
 2. Enter a current authenticator code (a fresh step-up check; recovery codes are not accepted) and type `RESTORE`.
 3. The server makes and verifies a pre-restore backup, turns on maintenance mode (every non-Super-Admin API request gets 503 except the password/Google sign-in, MFA verification, session check and sign-out routes), runs `mongorestore --drop --stopOnError`, restores files into a staging directory and swaps it in, runs pending migrations, deletes every session, and turns maintenance off. Everyone, including the operator, signs in again.
 4. If any step fails, the pre-restore backup is restored the same way. If that also fails, maintenance mode stays on and the status shows the failed step; fix the cause and restore the pre-restore backup again.
-5. If the server process stops during a restore, the next startup marks the restore failed, expires its stale restore lock and deliberately leaves maintenance mode on. After inspecting the database/files or running another restore, a verified Super Admin can use **End maintenance mode**; that action is audited.
+5. A running restore refreshes a heartbeat every 30 seconds. If the heartbeat is more than 5 minutes old (the process died), any server instance marks the restore failed at startup or within a minute, releases that restore's own lock and deliberately leaves maintenance mode on. A restore still running on another instance is never touched. After inspecting the database/files or running another restore, a verified Super Admin can use **End maintenance mode**; that action is audited.
 6. The restore is written to `restore-log.jsonl` and, because the audit log itself was replaced, re-recorded in the audit log afterwards.
 
 Check it locally with `pnpm test:backup-local` (generated databases on rs0/27018 only: backup, change data, restore, compare; corrupted file; forced mid-restore failure and rollback; interrupted-process recovery; two scheduler instances; 403/503 access; and a real HTTP restore submitted with a generated TOTP). CI runs this on Windows and Ubuntu.
 
-Limits: restore currently selects a backup already present in the server catalog; uploading an `.atsbak` from another host is not implemented. `BACKUP_DIR` on the same host does not protect against host loss unless the Google Drive copy succeeds. No point-in-time/oplog consistency is claimed; writes during a backup may or may not be included. RPO/RTO targets are still to be agreed.
+Import: Settings › Backups › Import and verify accepts an `.atsbak` up to 20 GB that decrypts with this server's `BACKUP_ENCRYPTION_KEY`. The server refuses it before reading the body when the declared size is too large or the backup folder lacks free space for twice the file. Imported backups are never deleted by retention.
+
+The database tools receive the connection URI through a private temporary config file in `BACKUP_DIR`, never on the command line.
+
+Limits: `BACKUP_DIR` on the same host does not protect against host loss unless the Google Drive copy succeeds. No point-in-time/oplog consistency is claimed; writes during a backup may or may not be included. RPO/RTO targets are still to be agreed.

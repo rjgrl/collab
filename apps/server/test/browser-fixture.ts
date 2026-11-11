@@ -1,4 +1,5 @@
 import path from "node:path";
+import { startCiReplicaSet } from "./local/ci-replica-set";
 import { existsSync } from "node:fs";
 // Isolated browser-test server. Never imported by the production entrypoint.
 import express from "express";
@@ -20,18 +21,7 @@ import { invalidateIntegrationEnvCache } from "@Alumni-Tracking-Ss/api/integrati
 
 if (process.env.NODE_ENV !== "test") throw new Error("Browser fixtures require NODE_ENV=test.");
 process.env.PASSWORD_BREACH_CHECK = "local";
-let stopTestReplicaSet: (() => Promise<void>) | undefined;
-if (process.env.CI === "true") {
-  const { MongoMemoryReplSet } = await import("mongodb-memory-server-core");
-  const replicaSet = await MongoMemoryReplSet.create({
-    binary: { version: "9.0.0" },
-    replSet: { count: 1, name: "rs0", storageEngine: "wiredTiger" },
-    instanceOpts: [{ port: 27018 }],
-  });
-  stopTestReplicaSet = async () => {
-    await replicaSet.stop();
-  };
-}
+const stopTestReplicaSet = await startCiReplicaSet();
 const databaseName = `collab_browser_${randomBytes(8).toString("hex")}`;
 process.env.DATABASE_URL = `mongodb://127.0.0.1:27018/${databaseName}?replicaSet=rs0`;
 const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });

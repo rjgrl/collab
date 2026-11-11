@@ -16,6 +16,9 @@ export const RESTORE_STEPS = [
   "finish",
 ] as const;
 export type RestoreStep = (typeof RESTORE_STEPS)[number];
+/** A running restore refreshes this often; recovery treats it as dead after RESTORE_STALE_MS. */
+export const RESTORE_HEARTBEAT_MS = 30_000;
+export const RESTORE_STALE_MS = 5 * 60_000;
 const MAINTENANCE_MESSAGE =
   "The system is being restored from a backup. Please try again in a few minutes.";
 
@@ -83,7 +86,14 @@ export async function runRestore(input: {
     finishedAt: null,
     error: null,
     owner: actor.name,
+    lockOwner: input.lockOwner,
+    heartbeatAt: startedAt,
   });
+  // Proves to other server instances that this restore is alive (see recoverInterruptedRestore).
+  const heartbeat = setInterval(() => {
+    void setStatus(db, { heartbeatAt: new Date() }).catch(() => undefined);
+  }, RESTORE_HEARTBEAT_MS);
+  heartbeat.unref?.();
   await appendRestoreLog(config, {
     event: "restore.start",
     backupId,
@@ -129,6 +139,7 @@ export async function runRestore(input: {
       }
     }
   }
+  clearInterval(heartbeat);
   const finishedAt = new Date();
   const summary =
     result === "restored"
@@ -171,20 +182,32 @@ export async function runRestore(input: {
 }
 
 /**
- * Called once at server start: a restore that was "running" cannot still be running in a fresh
- * process, so mark it failed, release the lock, and leave maintenance mode exactly as it was.
+ * Called at server start. A restore is only treated as interrupted when its heartbeat is older
+ * than RESTORE_STALE_MS, so another instance starting mid-restore never breaks a live one. The
+ * stale restore is marked failed (conditionally, so two starting instances cannot both act), its
+ * own lock is released, and maintenance mode is left exactly as it was.
  */
-export async function recoverInterruptedRestore(db: Database) {
+export async function recoverInterruptedRestore(db: Database, now = new Date()) {
+  const staleBefore = new Date(now.getTime() - RESTORE_STALE_MS);
   const row = await db.BackupState.findById("restore").lean().exec();
   if (row?.status !== "running") return false;
-  await setStatus(db, {
-    status: "failed",
-    error: `The server stopped during the restore (step: ${row.step ?? "unknown"}). Check the data, then restore the pre-restore backup or end maintenance mode.`,
-    finishedAt: new Date(),
-  });
-  await db.BackupState.updateOne(
-    { _id: "lock", kind: "restore" },
-    { $set: { lockedUntil: new Date(0) } },
+  const lastSeen = row.heartbeatAt ?? row.startedAt;
+  if (lastSeen && lastSeen.getTime() >= staleBefore.getTime()) return false;
+  const claimed = await db.BackupState.updateOne(
+    { _id: "restore", status: "running", heartbeatAt: row.heartbeatAt ?? null },
+    {
+      $set: {
+        status: "failed",
+        error: `The server stopped during the restore (step: ${row.step ?? "unknown"}). Check the data, then restore the pre-restore backup or end maintenance mode.`,
+        finishedAt: now,
+      },
+    },
   ).exec();
+  if (claimed.modifiedCount !== 1) return false;
+  if (row.lockOwner)
+    await db.BackupState.updateOne(
+      { _id: "lock", owner: row.lockOwner },
+      { $set: { lockedUntil: new Date(0) } },
+    ).exec();
   return true;
 }

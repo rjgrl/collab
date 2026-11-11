@@ -1,9 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, statfsSync } from "node:fs";
 import path from "node:path";
 import { Router, type RequestHandler } from "express";
 import multer from "multer";
-import { backupReady, type BackupConfig } from "@Alumni-Tracking-Ss/api/backups/backup-service";
+import {
+  MAX_IMPORT_BYTES,
+  backupReady,
+  type BackupConfig,
+} from "@Alumni-Tracking-Ss/api/backups/backup-service";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { backupsSchemas } from "@Alumni-Tracking-Ss/contracts/backups";
 import { authenticate } from "../../middleware/authenticate";
@@ -23,7 +27,7 @@ export function backupsRoutes(config: BackupConfig | undefined) {
       filename: (_request, _file, done) =>
         done(null, `${Date.now()}-${randomBytes(8).toString("hex")}.upload`),
     }),
-    limits: { fileSize: 500 * 1024 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+    limits: { fileSize: MAX_IMPORT_BYTES, files: 1, fields: 0, parts: 1 },
   });
   const importPreflight: RequestHandler = (request, _response, next) => {
     requireBackupAdmin(requestContext(request));
@@ -32,6 +36,18 @@ export function backupsRoutes(config: BackupConfig | undefined) {
       throw new ApiError("SERVICE_UNAVAILABLE", {
         message:
           "Backups need BACKUP_ENCRYPTION_KEY, an absolute BACKUP_DIR and MONGODB_TOOLS_DIR on the server.",
+      });
+    // Refuse before reading the body: unknown or oversized uploads, or not enough disk for the
+    // upload plus its catalog copy.
+    const declared = Number(request.get("content-length"));
+    if (!Number.isFinite(declared) || declared <= 0)
+      throw new ApiError("BAD_REQUEST", { message: "Select an .atsbak backup file." });
+    if (declared > MAX_IMPORT_BYTES)
+      throw new ApiError("PAYLOAD_TOO_LARGE", { message: "Backup files are limited to 20 GB." });
+    const disk = statfsSync(config!.dir!);
+    if (disk.bavail * disk.bsize < declared * 2 + 512 * 1024 * 1024)
+      throw new ApiError("INSUFFICIENT_STORAGE", {
+        message: "The backup folder does not have enough free space for this file.",
       });
     next();
   };

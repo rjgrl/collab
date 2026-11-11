@@ -19,6 +19,7 @@ export const backupEntrySchema = z.object({
   verified: z.boolean(),
   error: z.string().optional(),
   offHost: z.enum(["copied", "failed", "skipped"]).optional(),
+  imported: z.boolean().optional(),
   manifest: z
     .object({
       appVersion: z.string(),

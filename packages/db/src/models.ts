@@ -281,6 +281,8 @@ export interface BackupStateRecord {
   backupId?: string;
   startedAt?: Date;
   finishedAt?: Date;
+  heartbeatAt?: Date;
+  lockOwner?: string;
   updatedAt?: Date;
 }
 
@@ -613,6 +615,8 @@ export const schemas = {
       backupId: String,
       startedAt: Date,
       finishedAt: Date,
+      heartbeatAt: Date,
+      lockOwner: String,
     },
     updatedOnly,
   ),

@@ -98,8 +98,14 @@ export async function runSchedulerTick(input: {
 }): Promise<CatalogEntry | null> {
   const schedule = await input.db.BackupState.findById("schedule").lean().exec();
   const slot = dueSlot(schedule, input.now ?? new Date());
-  if (!slot || !(await claimSlot(input.db, slot))) return null;
+  if (!slot) return null;
+  // Lock first, then claim: if a manual backup or restore holds the lock, the slot stays unclaimed
+  // and the next minute's tick retries it (dueSlot keeps returning it for the rest of the day).
   if (!(await acquireLock(input.db, input.owner, "backup", 2 * 60 * 60 * 1000))) return null;
+  if (!(await claimSlot(input.db, slot))) {
+    await releaseLock(input.db, input.owner);
+    return null;
+  }
   try {
     const entry = await (input.create ?? createBackup)({
       db: input.db,

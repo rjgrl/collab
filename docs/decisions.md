@@ -86,3 +86,8 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Decision: worker briefs stay to one concern and about three files. Cryptography, restore/migration, and authorization-guard code remains with the orchestrator; workers may handle bounded UI and tests around it.
 - Decision: replacing a guard, route, or compatibility path requires a negative grep in the acceptance check so the removed path cannot survive beside the replacement.
 - Reason: this session had one destructive reset, test claims without added tests, unproved "pre-existing" failures, a dropped reCAPTCHA guard, and an old integration route that bypassed credential requirements. The user approved applying every `/reflect` proposal.
+
+## 2026-11-11: Integration keys are verified against the provider before saving
+
+- Decision: enabling an integration or updating its credentials runs a live provider check first; on failure nothing is saved and the dialog shows why. reCAPTCHA: site key format plus `siteverify` (a valid secret with a dummy token returns `invalid-input-response`). Google sign-in: a dummy code must return `invalid_grant`, anything else is a rejection. Google Drive and Sheets: open the folder or spreadsheet with the service account. ImgBB: upload a 1x1 image that expires after 60 seconds. Email: send a real test message to the administrator; in production the gateway must resolve to a public address. Google Forms needs no key (the server generates the secret).
+- Reason: owner requirement ("verify tokens/keys; if invalid, say so and do not save"), and the review found the reCAPTCHA check accepted any secret.

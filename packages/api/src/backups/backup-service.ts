@@ -54,8 +54,12 @@ export type CatalogEntry = {
   verified: boolean;
   error?: string;
   offHost?: "copied" | "failed" | "skipped";
+  /** Set for backups uploaded through Import; automatic retention never deletes them. */
+  imported?: boolean;
   manifest?: Omit<BackupManifest, "backupId" | "createdAt" | "type">;
 };
+/** Largest backup file accepted by Import. */
+export const MAX_IMPORT_BYTES = 20 * 1024 * 1024 * 1024;
 type Digest = { archiveSha256: string; files: { path: string; sha256: string; size: number }[] };
 
 const ID_PATTERN = /^[0-9]{14}-[a-f0-9]{8}$/;
@@ -135,6 +139,26 @@ async function runTool(
   }
   const code = await exited;
   if (code !== 0) throw new Error(`${path.basename(binary)} failed with exit code ${code}.`);
+}
+
+/**
+ * Gives mongodump/mongorestore the connection URI through a private YAML config file instead of
+ * the command line, where any local user could read the database password from the process list.
+ */
+async function withToolConfig<T>(dir: string, uri: string, work: (args: string[]) => Promise<T>) {
+  const file = path.join(dir, `.tool-${randomBytes(8).toString("hex")}.yaml`);
+  // JSON strings are valid YAML scalars, so the URI needs no further escaping.
+  await writeFile(
+    file,
+    `uri: ${JSON.stringify(uri)}
+`,
+    { mode: 0o600, flag: "wx" },
+  );
+  try {
+    return await work([`--config=${file}`]);
+  } finally {
+    await rm(file, { force: true });
+  }
 }
 
 /** Never copied into a backup, even if UPLOAD_DIR is misconfigured to a wider folder. */
@@ -231,20 +255,17 @@ export async function createBackup(input: {
     try {
       await writer.record(RECORD.manifest, "manifest.json", Buffer.from(JSON.stringify(manifest)));
       const archiveHash = createHash("sha256");
-      await runTool(
-        tool(toolsDir, "mongodump"),
-        [
-          `--uri=${config.databaseUrl}`,
-          "--archive",
-          "--gzip",
-          `--excludeCollection=${BACKUP_STATE_COLLECTION}`,
-        ],
-        {
-          onStdout: async (chunk) => {
-            archiveHash.update(chunk);
-            await writer.record(RECORD.archive, "", chunk);
+      await withToolConfig(dir, config.databaseUrl, (connection) =>
+        runTool(
+          tool(toolsDir, "mongodump"),
+          [...connection, "--archive", "--gzip", `--excludeCollection=${BACKUP_STATE_COLLECTION}`],
+          {
+            onStdout: async (chunk) => {
+              archiveHash.update(chunk);
+              await writer.record(RECORD.archive, "", chunk);
+            },
           },
-        },
+        ),
       );
       if (input.failAfterDump) throw new Error("Backup was interrupted for a test.");
       const digest: Digest = { archiveSha256: archiveHash.digest("hex"), files: [] };
@@ -323,6 +344,7 @@ export async function importBackup(
       createdBy,
       verified: true,
       offHost: "skipped",
+      imported: true,
       manifest: summary,
     };
     await writeCatalog(dir, entry);
@@ -391,7 +413,7 @@ export async function getBackup(config: BackupConfig | undefined, backupId: stri
 export async function pruneScheduled(config: BackupConfig | undefined, retention: number) {
   if (!config?.dir) return [];
   const scheduled = (await listBackups(config)).filter(
-    (entry) => entry.type === "scheduled" && entry.status === "succeeded",
+    (entry) => entry.type === "scheduled" && entry.status === "succeeded" && !entry.imported,
   );
   const removed = scheduled.slice(Math.max(1, retention));
   for (const entry of removed) {
@@ -429,19 +451,21 @@ export async function applyBackup(
         else await new Promise<void>((resolve) => (wake = resolve));
       }
     }
-    const restore = runTool(
-      tool(toolsDir, "mongorestore"),
-      [
-        `--uri=${config!.databaseUrl}`,
-        "--archive",
-        "--gzip",
-        "--drop",
-        "--stopOnError",
-        `--nsExclude=${manifest.databaseName}.${BACKUP_STATE_COLLECTION}`,
-        `--nsFrom=${manifest.databaseName}.*`,
-        `--nsTo=${target}.*`,
-      ],
-      { stdin: archive() },
+    const restore = withToolConfig(dir, config!.databaseUrl, (connection) =>
+      runTool(
+        tool(toolsDir, "mongorestore"),
+        [
+          ...connection,
+          "--archive",
+          "--gzip",
+          "--drop",
+          "--stopOnError",
+          `--nsExclude=${manifest.databaseName}.${BACKUP_STATE_COLLECTION}`,
+          `--nsFrom=${manifest.databaseName}.*`,
+          `--nsTo=${target}.*`,
+        ],
+        { stdin: archive() },
+      ),
     );
     const reading = readBundle(
       bundlePath(dir, backupId),
@@ -500,9 +524,10 @@ export async function copyToDrive(
     const stored = await readStoredCredentials(row, key);
     const { serviceAccountJson, folderId } = stored.values;
     if (stored.status !== "ok" || !serviceAccountJson || !folderId) return "failed";
+    // drive.file is enough to create files in the shared folder; the copy never reads anything.
     const token = await googleAccessToken(
       serviceAccountJson,
-      ["https://www.googleapis.com/auth/drive"],
+      ["https://www.googleapis.com/auth/drive.file"],
       fetcher,
     );
     const size = (await stat(file)).size;
@@ -522,8 +547,11 @@ export async function copyToDrive(
     );
     const location = session.headers.get("location");
     if (!session.ok || !location) return "failed";
+    // Bounded so a stalled upload cannot hold the backup lock: 2 minutes plus 1 minute per 64 MiB.
+    const uploadTimeoutMs = 120_000 + Math.ceil(size / (64 * 1024 * 1024)) * 60_000;
     const upload = await fetcher(location, {
       method: "PUT",
+      signal: AbortSignal.timeout(uploadTimeoutMs),
       headers: { "Content-Type": "application/octet-stream", "Content-Length": String(size) },
       body: Readable.toWeb(createReadStream(file)) as unknown as RequestInit["body"],
       duplex: "half",

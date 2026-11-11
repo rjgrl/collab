@@ -92,10 +92,11 @@
   --shadow-color: 0 0 0;
 }
 
-/* Sonner removes dismissed toasts from the DOM; keeping them opaque avoids transient text
-   contrast failures during its enter/exit transform animation. */
+/* Sonner sets opacity per state (shown 1; hidden in the stack or dismissed 0). Fading between
+   them made text briefly fail WCAG contrast, so toasts switch opacity instantly and keep only the
+   slide and size animations. */
 [data-sonner-toast] {
-  opacity: 1 !important;
+  transition-property: transform, height, box-shadow !important;
 }
 
 @theme inline {

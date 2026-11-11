@@ -8,6 +8,7 @@ import { rotateIntegrationKey } from "@Alumni-Tracking-Ss/db/integration-key-rot
 import { credentialAad, open, type SealedValue } from "@Alumni-Tracking-Ss/db/secret-box";
 import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
+import { startCiReplicaSet } from "./ci-replica-set";
 
 // Integration credentials on a real replica set: enable/update/disable through HTTP, then scan
 // every document of every collection for the encryption key and the plaintext secrets.
@@ -26,6 +27,7 @@ const secrets = {
   recaptcha: `recaptcha-secret-${randomBytes(6).toString("hex")}`,
   email: `gateway-key-${randomBytes(6).toString("hex")}`,
 };
+const stopCiReplicaSet = await startCiReplicaSet();
 const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });
 const origin = "http://localhost:3001";
 try {
@@ -156,4 +158,5 @@ try {
 } finally {
   await db.connection.dropDatabase().catch(() => undefined);
   await db.disconnect();
+  await stopCiReplicaSet();
 }

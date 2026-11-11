@@ -25,6 +25,7 @@ import {
 } from "@Alumni-Tracking-Ss/api/backups/restore";
 import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
+import { startCiReplicaSet } from "./ci-replica-set";
 
 // Backup and restore against generated databases on the local rs0 replica set only.
 if (process.env.NODE_ENV === "production") throw new Error("Synthetic local acceptance only.");
@@ -50,6 +51,7 @@ const config: BackupConfig = {
   appVersion: "1.0.0-test",
   mfaEncryptionKey: "12".repeat(32),
 };
+const stopCiReplicaSet = await startCiReplicaSet();
 const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });
 const actor = {
   id: "000000000000000000000000",
@@ -231,7 +233,14 @@ try {
   // keeps maintenance on, and lets a verified Super Admin end it after checking the database.
   await db.BackupState.updateOne(
     { _id: "restore" },
-    { $set: { status: "running", step: "database" } },
+    {
+      $set: {
+        status: "running",
+        step: "database",
+        lockOwner: "dead-instance",
+        heartbeatAt: new Date(Date.now() - 60_000),
+      },
+    },
     { upsert: true },
   ).exec();
   await db.BackupState.updateOne(
@@ -244,6 +253,12 @@ try {
       },
     },
     { upsert: true },
+  ).exec();
+  // A recent heartbeat means the restore may still be running elsewhere: leave it alone.
+  assert.equal(await recoverInterruptedRestore(db), false);
+  await db.BackupState.updateOne(
+    { _id: "restore" },
+    { $set: { heartbeatAt: new Date(Date.now() - 10 * 60_000) } },
   ).exec();
   assert.equal(await recoverInterruptedRestore(db), true);
   assert.equal((await maintenanceState(db)).active, true);
@@ -310,5 +325,6 @@ try {
 } finally {
   await db.connection.dropDatabase().catch(() => undefined);
   await db.disconnect();
+  await stopCiReplicaSet();
   await rm(root, { recursive: true, force: true });
 }

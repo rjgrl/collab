@@ -1,7 +1,51 @@
 import type { IntegrationKey } from "@Alumni-Tracking-Ss/contracts/integration-credentials";
 import { ApiError } from "../http-error";
 import type { IntegrationEnv } from "../context";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { googleAccessToken } from "./files";
+
+/** True for loopback, private, link-local, CGNAT, multicast and unspecified addresses. */
+export function isPrivateAddress(address: string) {
+  const v4 = address.startsWith("::ffff:") ? address.slice(7) : address;
+  if (isIP(v4) === 4) {
+    const [a, b] = v4.split(".").map(Number) as [number, number];
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a >= 224
+    );
+  }
+  const v6 = address.toLowerCase();
+  return (
+    v6 === "::" ||
+    v6 === "::1" ||
+    v6.startsWith("fc") ||
+    v6.startsWith("fd") ||
+    v6.startsWith("fe8") ||
+    v6.startsWith("fe9") ||
+    v6.startsWith("fea") ||
+    v6.startsWith("feb") ||
+    v6.startsWith("ff")
+  );
+}
+
+/** Production gateways must be public: an administrator cannot point the server at internal hosts. */
+async function assertPublicHost(url: string) {
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, "");
+  const addresses = isIP(host)
+    ? [host]
+    : (await lookup(host, { all: true }).catch(() => [])).map((item) => item.address);
+  if (!addresses.length || addresses.some(isPrivateAddress))
+    throw new ApiError("BAD_REQUEST", {
+      message: "The email gateway must be a public HTTPS address.",
+    });
+}
 
 export async function testIntegrationConnection(
   key: IntegrationKey,
@@ -24,6 +68,11 @@ export async function testIntegrationConnection(
   switch (key) {
     case "recaptcha": {
       const secret = values.secretKey?.trim();
+      // reCAPTCHA v2/v3 site keys are 40 characters beginning with "6L".
+      if (!/^6L[0-9A-Za-z_-]{38}$/.test(values.siteKey?.trim() ?? ""))
+        throw new ApiError("BAD_REQUEST", {
+          message: "That does not look like a reCAPTCHA site key.",
+        });
       if (!secret)
         throw new ApiError("BAD_REQUEST", {
           message: "Secret key is required for testing.",
@@ -48,8 +97,14 @@ export async function testIntegrationConnection(
           });
         }
 
-        const payload = (await response.json()) as { error_codes?: string[] };
-        if (payload.error_codes?.includes("invalid-input-secret")) {
+        // Google's field is "error-codes" (hyphen). With a valid secret and a dummy token Google
+        // answers invalid-input-response; an unknown secret gives invalid-input-secret.
+        const payload = (await response.json()) as { success?: boolean; "error-codes"?: unknown };
+        const codes = Array.isArray(payload["error-codes"]) ? payload["error-codes"] : [];
+        if (
+          payload.success !== true &&
+          !(codes.includes("invalid-input-response") && !codes.includes("invalid-input-secret"))
+        ) {
           throw new ApiError("BAD_REQUEST", {
             message: "Google rejected the reCAPTCHA secret key.",
           });
@@ -88,13 +143,13 @@ export async function testIntegrationConnection(
         });
 
         const payload = (await response.json()) as { error?: string };
-        // invalid_grant means the code is invalid but credentials are valid
-        if (payload.error === "invalid_client") {
+        // Google authenticates the client before the code, so a dummy code yields invalid_grant
+        // only when the client ID and secret are correct. Anything else is a rejection.
+        if (payload.error !== "invalid_grant") {
           throw new ApiError("BAD_REQUEST", {
             message: "Google rejected the client ID or secret.",
           });
         }
-        // Invalid_grant is expected and means credentials are good
       } catch (error) {
         if (error instanceof ApiError) throw error;
         throw new ApiError("BAD_REQUEST", {
@@ -221,6 +276,7 @@ export async function testIntegrationConnection(
           message: "Gateway URL, from address, and API key are required for testing.",
         });
 
+      if (process.env.NODE_ENV === "production") await assertPublicHost(gatewayUrl);
       try {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (apiKey) {
@@ -268,7 +324,29 @@ export async function testIntegrationConnection(
           });
         }
       } else if (provider === "imgbb") {
-        // No network test for imgbb, just validate format
+        const apiKey = values.apiKey?.trim();
+        if (!apiKey)
+          throw new ApiError("BAD_REQUEST", { message: "ImgBB API key is required for testing." });
+        try {
+          // Uploads a 1x1 transparent PNG that ImgBB deletes after 60 seconds.
+          const body = new URLSearchParams({
+            image:
+              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+            name: "connection-test",
+          });
+          const url = new URL("https://api.imgbb.com/1/upload");
+          url.searchParams.set("key", apiKey);
+          url.searchParams.set("expiration", "60");
+          const response = await fetcher(url.toString(), { method: "POST", signal: timeout, body });
+          const payload = (await response.json().catch(() => null)) as { success?: boolean } | null;
+          if (!response.ok || payload?.success !== true)
+            throw new ApiError("BAD_REQUEST", { message: "ImgBB rejected the API key." });
+        } catch (error) {
+          if (error instanceof ApiError) throw error;
+          throw new ApiError("BAD_REQUEST", {
+            message: "Could not reach the provider. Try again.",
+          });
+        }
       }
       break;
     }

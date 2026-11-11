@@ -81,3 +81,32 @@ it("runs one scheduled backup when two instances tick at the same time", async (
   ]);
   assert.equal(created, 1);
 });
+
+it("does not use up a slot while another backup or restore holds the lock", async () => {
+  const db = fakeDb();
+  const now = new Date("2026-11-09T18:05:00Z");
+  let created = 0;
+  const create = async () => {
+    created++;
+    return { backupId: "x" } as CatalogEntry;
+  };
+  const state = db.BackupState as unknown as {
+    findById: (id: string) => { exec: () => Promise<Record<string, unknown> | null> };
+  };
+  // A manual backup holds the lock: the tick skips without claiming the slot.
+  await (
+    db.BackupState as unknown as {
+      findOneAndUpdate: (f: unknown, u: unknown) => { exec: () => Promise<unknown> };
+    }
+  )
+    .findOneAndUpdate({}, { $set: { owner: "manual", lockedUntil: new Date(Date.now() + 60_000) } })
+    .exec();
+  assert.equal(await runSchedulerTick({ db, config: undefined, now, owner: "a", create }), null);
+  assert.equal((await state.findById("schedule").exec())!.lastSlot, undefined);
+  // Lock released: the next minute's tick runs the same slot.
+  await db.BackupState.updateOne({ _id: "lock" }, { $set: { lockedUntil: new Date(0) } }).exec();
+  const later = new Date(now.getTime() + 60_000);
+  assert.ok(await runSchedulerTick({ db, config: undefined, now: later, owner: "a", create }));
+  assert.equal(created, 1);
+  assert.equal((await state.findById("schedule").exec())!.lastSlot, "2026-11-10T02:00");
+});
