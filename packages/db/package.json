@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@Alumni-Tracking-Ss/contracts": "workspace:*",
-    "mongoose": "^9.0.1",
+    "mongoose": "^9.11.4",
     "zod": "catalog:"
   },
   "devDependencies": {

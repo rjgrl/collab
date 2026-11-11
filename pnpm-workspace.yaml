@@ -4,7 +4,10 @@ packages:
 # pnpm 10+ reads overrides from this file, not package.json. vite-plus
 # requires the real `vite` package to resolve to its own core build.
 overrides:
-  seroval: ^1.6.3
+  seroval: ^1.6.11
+  # Patched versions for published advisories in transitive dependencies (pnpm audit).
+  body-parser: ^2.4.0
+  follow-redirects: ^1.16.2
   tinypool: ^2.1.2
   source-map-js: ^1.2.2
   "shadcn>@modelcontextprotocol/sdk": ^1.31.0
@@ -14,7 +17,7 @@ allowBuilds:
   bufferutil: true
   utf-8-validate: true
 catalog:
-  zod: ^4.5.4
+  zod: ^4.6.6
   typescript: ^6.0.3
   "@types/node": ^26.4.1
   varlock: 1.18.0
