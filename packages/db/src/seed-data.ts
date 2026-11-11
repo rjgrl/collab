@@ -2,6 +2,13 @@ import type { Types } from "mongoose";
 import { hashPassword, type Database } from "./index";
 import { PERMISSIONS, ROLE_PRESETS } from "./permissions";
 import { retireRoles } from "./retire-roles";
+import {
+  INTEGRATION_CREDENTIAL_FIELDS,
+  type IntegrationKey,
+  fieldRequired,
+} from "@Alumni-Tracking-Ss/contracts/integration-credentials";
+import { parseSecretKey } from "./secret-box";
+import { sealIntegrationCredentials } from "./integration-sealing";
 const integrationKeys = [
   "recaptcha",
   "google_auth",
@@ -73,15 +80,18 @@ export async function seedDatabase(db: Database) {
         {
           $setOnInsert: {
             key,
-            enabled: key !== "google_forms",
+            // New installs start disabled; a Super Admin enables each one with tested credentials.
+            enabled: false,
             notes:
-              "Modular integration. Live credentials are optional; providers remain subject to configuration and policy.",
+              "Modular integration. Enable it in Settings with credentials; they are tested before saving.",
           },
         },
         { upsert: true },
       );
     if (process.env.SEED_DEMO_DATA === "true") await seedDemo(tx, password);
   });
+  // Seed integration credentials from environment variables (runs after transaction)
+  await seedIntegrationCredentials(db);
 }
 
 async function upsertUnit<T>(find: () => Promise<T | null>, create: () => Promise<T>) {
@@ -317,6 +327,87 @@ async function seedDemo(db: Database, password: string) {
 }
 
 /** Demo sign-ins, all sharing the bootstrap administrator password. Listed in .tools/local-login.txt. */
+async function seedIntegrationCredentials(db: Database) {
+  if (process.env.NODE_ENV === "production") return;
+
+  let key: Buffer | null = null;
+  try {
+    key = parseSecretKey(process.env.INTEGRATION_ENCRYPTION_KEY, "INTEGRATION_ENCRYPTION_KEY");
+  } catch {
+    return; // Key not valid or missing, skip credential seeding
+  }
+
+  const seededKeys: string[] = [];
+  const integrationKeyList: IntegrationKey[] = [
+    "recaptcha",
+    "google_auth",
+    "google_drive",
+    "email",
+    "image_host",
+    "google_forms",
+    "google_sheets",
+  ];
+
+  for (const integrationKey of integrationKeyList) {
+    const row = await db.IntegrationSetting.findOne({ key: integrationKey }).exec();
+    // Upsert: always proceed even if row doesn't exist yet
+    if (row && row.credentials) continue; // Skip if credentials already exist
+
+    const fields = INTEGRATION_CREDENTIAL_FIELDS[integrationKey];
+    const envValues: Record<string, string> = {};
+    let allRequiredSet = true;
+
+    // For google_sheets, special handling for account field
+    if (integrationKey === "google_sheets") {
+      envValues["account"] = "own"; // Use own service account by default
+    }
+
+    for (const field of fields) {
+      if (!field.env) continue;
+      const envValue = process.env[field.env]?.trim();
+      if (envValue) {
+        envValues[field.name] = envValue;
+      } else if (fieldRequired(field, envValues)) {
+        allRequiredSet = false;
+        break;
+      }
+    }
+
+    // Special case: image_host provider from IMAGE_HOST_PROVIDER
+    if (integrationKey === "image_host" && envValues.apiKey && !envValues.provider) {
+      envValues.provider = process.env.IMAGE_HOST_PROVIDER?.trim() || "imgbb";
+    }
+
+    if (!allRequiredSet) continue;
+    if (Object.keys(envValues).length === 0) continue;
+
+    // Seal the credentials using the helper
+    const sealed = sealIntegrationCredentials(key, integrationKey, envValues);
+
+    // Upsert the row with sealed credentials
+    const now = new Date();
+    await db.IntegrationSetting.findOneAndUpdate(
+      { key: integrationKey },
+      {
+        $set: {
+          credentials: sealed.credentials,
+          credentialHints: sealed.credentialHints,
+          keyFingerprint: sealed.keyFingerprint,
+          credentialsUpdatedAt: now,
+          enabled: true,
+        },
+      },
+      { upsert: true },
+    ).exec();
+
+    seededKeys.push(integrationKey);
+  }
+
+  if (seededKeys.length > 0) {
+    console.log(`Seeded integration credentials: ${seededKeys.join(", ")}`);
+  }
+}
+
 export const DEMO_ACCOUNTS = [
   { email: "college.head@collab.test", role: "College head (College of Technologies)" },
   { email: "department.head@collab.test", role: "Department head (Information Technology)" },

@@ -48,6 +48,7 @@ it("contact bypass cannot be applied to production or a remote development datab
           appUrl: undefined,
           verificationSecret: undefined,
           mfaEncryptionKey: undefined,
+          integrationEncryptionKey: undefined,
           uploadDir: undefined,
         },
         process.env,

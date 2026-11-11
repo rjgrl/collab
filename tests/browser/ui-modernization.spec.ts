@@ -115,6 +115,10 @@ test("workspace remains accessible across screen sizes and themes", async ({
     }
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("menuitem", { name: "Departments", exact: true })).toBeVisible();
+    // Axe blends colors through a half-faded menu; measure contrast only after the open animation.
+    await page.evaluate(() =>
+      Promise.all(document.getAnimations().map((animation) => animation.finished)),
+    );
     await inspect("mobile-navigation");
   }
 

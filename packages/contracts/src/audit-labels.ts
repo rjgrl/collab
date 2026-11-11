@@ -81,6 +81,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // Integrations
   "integrations.import": "Ran import",
   "integrations.toggle": "Toggled integration",
+  "integrations.enable": "Enabled integration",
+  "integrations.update": "Updated integration credentials",
+  "integrations.disable": "Disabled integration",
 
   // Employment
   "employment.create": "Created employment record",

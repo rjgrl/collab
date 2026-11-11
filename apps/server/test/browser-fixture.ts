@@ -14,6 +14,8 @@ import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { encryptMfaSecret } from "@Alumni-Tracking-Ss/api/services/mfa";
 import type { Context, IntegrationEnv } from "@Alumni-Tracking-Ss/api/context";
 import { createApp } from "../src/app";
+import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
+import { invalidateIntegrationEnvCache } from "@Alumni-Tracking-Ss/api/integrations/credential-store";
 
 if (process.env.NODE_ENV !== "test") throw new Error("Browser fixtures require NODE_ENV=test.");
 process.env.PASSWORD_BREACH_CHECK = "local";
@@ -63,6 +65,17 @@ const verificationEnv: IntegrationEnv = {
   verificationSecret: "synthetic-test-only-verification-key-1234567890",
   mfaEncryptionKey: "12".repeat(32),
   webOrigin: "http://127.0.0.1:3101",
+  integrationEncryptionKey: "34".repeat(32),
+  connectionTester: async (_key, values) => {
+    // Reject if any value contains "reject"
+    for (const value of Object.values(values)) {
+      if (typeof value === "string" && value.includes("reject")) {
+        throw new ApiError("BAD_REQUEST", {
+          message: "Synthetic provider rejected the credentials.",
+        });
+      }
+    }
+  },
 };
 const nativeFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
@@ -95,6 +108,8 @@ async function reset() {
   resetLink = "";
   failNext = false;
   verificationEnv.smsProvider = undefined;
+  // Requests build their env from this object through a short cache; drop it after changes.
+  invalidateIntegrationEnvCache();
   const permissions = PERMISSIONS.map((permission, index) => ({
     ...permission,
     _id: (0x1000 + index).toString(16).padStart(24, "0"),
@@ -259,6 +274,7 @@ app.post("/__test/connect-sms", (_request, response) => {
       return sid === "synthetic-sms" && phone === user?.phoneNumber && code === "654321";
     },
   };
+  invalidateIntegrationEnvCache();
   response.json({ ok: true });
 });
 app.post("/__test/fail", (_request, response) => {

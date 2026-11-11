@@ -107,6 +107,7 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     UPLOAD_DIR: "./uploads",
     SESSION_SECRET: randomBytes(32).toString("hex"),
     MFA_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
+    INTEGRATION_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
   });
   await fillMissingEnv(path.join(root, "apps/web/.env"), {
     NODE_ENV: "development",

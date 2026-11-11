@@ -6,7 +6,21 @@ import { integrationsController } from "./controller";
 export const integrationsRoutes = Router();
 integrationsRoutes.use(authenticate);
 integrationsRoutes.get("/", authorize("integrations.read"), integrationsController.list);
-integrationsRoutes.patch("/:key", authorize("integrations.write"), integrationsController.toggle);
+integrationsRoutes.post(
+  "/:key/enable",
+  authorize("integrations.write"),
+  integrationsController.enable,
+);
+integrationsRoutes.put(
+  "/:key/credentials",
+  authorize("integrations.write"),
+  integrationsController.updateCredentials,
+);
+integrationsRoutes.post(
+  "/:key/disable",
+  authorize("integrations.write"),
+  integrationsController.disable,
+);
 integrationsRoutes.post(
   "/email/test-messages",
   authorize("integrations.write"),

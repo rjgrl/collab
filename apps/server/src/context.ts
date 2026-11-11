@@ -30,8 +30,10 @@ export function readIntegrationEnv(): IntegrationEnv {
     googleFormsWebhookSecret: envString("GOOGLE_FORMS_WEBHOOK_SECRET"),
     smtpUrl: envString("SMTP_URL"),
     smtpFrom: envString("SMTP_FROM"),
+    emailApiKey: envString("EMAIL_GATEWAY_API_KEY"),
     verificationSecret: envString("SESSION_SECRET"),
     mfaEncryptionKey: envString("MFA_ENCRYPTION_KEY"),
+    integrationEncryptionKey: envString("INTEGRATION_ENCRYPTION_KEY"),
     imgbbApiKey: envString("IMGBB_API_KEY"),
     imageHostProvider: envString("IMAGE_HOST_PROVIDER"),
     uploadDir: envString("UPLOAD_DIR") ?? "./uploads",
@@ -72,6 +74,7 @@ export async function createContext(options: {
   secureCookies?: boolean;
   trustedProxyIps?: readonly string[];
   sessionLoader?: typeof loadAuthUserFromToken;
+  production?: boolean;
 }): Promise<ApiContext> {
   const { request, response, db } = options;
   const token = readSessionToken(request);

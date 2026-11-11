@@ -33,6 +33,7 @@ export function validateRuntimeConfig(
     databaseUrl: string;
     verificationSecret: string | undefined;
     mfaEncryptionKey: string | undefined;
+    integrationEncryptionKey: string | undefined;
     uploadDir: string | undefined;
   },
   settings: NodeJS.ProcessEnv = process.env,
@@ -55,6 +56,27 @@ export function validateRuntimeConfig(
       "LOCAL_DISABLE_MFA is development-only and requires managed loopback MongoDB. Remove it before production.",
     );
   if (input.nodeEnv !== "production") return { trustedProxyIps };
+  const encKeyPattern = /^[a-f0-9]{64}$/i;
+  if (!encKeyPattern.test(input.integrationEncryptionKey ?? ""))
+    throw Error(
+      "Production requires valid INTEGRATION_ENCRYPTION_KEY (64 hexadecimal characters).",
+    );
+  // Check INTEGRATION_ENCRYPTION_KEY is distinct from other keys (case-insensitive comparison)
+  const integrationKeyNorm = (input.integrationEncryptionKey ?? "").toLowerCase();
+  const mfaKeyNorm = (input.mfaEncryptionKey ?? "").toLowerCase();
+  const sessionSecretNorm = (input.verificationSecret ?? "").toLowerCase();
+  const backupKeyNorm = (settings.BACKUP_ENCRYPTION_KEY ?? "").toLowerCase();
+
+  if (
+    integrationKeyNorm &&
+    ((input.mfaEncryptionKey && integrationKeyNorm === mfaKeyNorm) ||
+      (input.verificationSecret && integrationKeyNorm === sessionSecretNorm) ||
+      (settings.BACKUP_ENCRYPTION_KEY && integrationKeyNorm === backupKeyNorm))
+  ) {
+    throw Error(
+      "INTEGRATION_ENCRYPTION_KEY must be different from MFA_ENCRYPTION_KEY, SESSION_SECRET and BACKUP_ENCRYPTION_KEY.",
+    );
+  }
   for (const value of [input.origin, input.appUrl]) {
     let url: URL;
     try {

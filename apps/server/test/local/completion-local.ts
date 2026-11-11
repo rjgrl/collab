@@ -321,12 +321,8 @@ try {
   const unplacedSession = await createSession(db, String(unplaced._id), {});
   const unplacedHeaders = { Authorization: `Bearer ${unplacedSession.token}`, Origin: origin };
   assert.equal(
-    (
-      await request(app)
-        .patch("/api/integrations/recaptcha")
-        .set(unplacedHeaders)
-        .send({ enabled: false })
-    ).status,
+    (await request(app).post("/api/integrations/recaptcha/disable").set(unplacedHeaders).send({}))
+      .status,
     403,
   );
   // A faculty account without a faculty record sees no alumni.

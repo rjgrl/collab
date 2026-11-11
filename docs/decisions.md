@@ -60,3 +60,13 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Decision: the UI calls the role description a "Note". It shows under the role name on role cards (two lines, full text on hover/focus), in the Edit role picker, and is editable with the role name in the role detail view. Creating or renaming a role to an existing name shows a non-blocking warning asking for a Note that tells them apart.
 - Kept: the stored and API field is still `description` (no migration, no contract rename). Audit summaries label it "Note" for roles only.
 - Known side effect: any role update, including a note-only edit, revokes the sessions of that role's members (existing server behavior, kept unchanged).
+
+## 2026-11-09: Integration credentials live encrypted in the database; integrations default to disabled
+
+- Decision: Super Admins enter integration credentials in Settings › Integrations. They are stored in `IntegrationSetting` as AES-256-GCM ciphertext (random IV per value, auth tag stored, AAD `integration:<key>:<field>`), sealed with `INTEGRATION_ENCRYPTION_KEY`. That key exists only in the server environment, must be 64 hex characters, and must differ from `MFA_ENCRYPTION_KEY`, `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`; production refuses to start otherwise. Documents keep only an 8-hex SHA-256 fingerprint of the key, so restores with another key show "can't be read" instead of failing silently.
+- Write-only: secrets are never returned, logged or audited; the UI shows "Set · ends in ••••1234" (last 4 only for values of 12+ characters). Non-secret values (site keys, IDs, URLs) are shown to administrators.
+- Enabling requires every required value, a format check and a provider connection test before anything is saved; disabling erases the credentials and turns the integration off in one transaction; Google Forms gets a server-generated secret shown once. The old `PATCH /api/integrations/:key` toggle, which could enable without credentials, was removed.
+- Defaults: a missing row now means disabled. The migration writes explicit rows with the previous implicit values only on existing deployments; fresh installs and new seeds start disabled. Production ignores credential env vars; development may fall back to them and `pnpm db:seed` copies them into the database once.
+- Requests build `IntegrationEnv` from the database through a 5-second in-process cache (invalidated on writes in the same process), so another server instance may use the old credentials for up to 5 seconds.
+- Rotation: `pnpm db:rotate-integration-key` (see `docs/operations/INTEGRATIONS.md`) re-seals everything in one transaction.
+- Not done: the email gateway URL is an administrator-supplied HTTPS URL fetched by the server (admin-only, HTTPS-only; no allowlist).

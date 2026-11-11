@@ -37,6 +37,10 @@ import { employmentController } from "./modules/alumni/employment.controller";
 import { aggregateController } from "./modules/reports/aggregate.controller";
 import { smsConfigured } from "@Alumni-Tracking-Ss/api/integrations/sms";
 import { isIntegrationEnabled } from "@Alumni-Tracking-Ss/api/integrations/registry";
+import {
+  resolveIntegrationEnv,
+  withoutIntegrationCredentials,
+} from "@Alumni-Tracking-Ss/api/integrations/credential-store";
 
 export type AppOptions = {
   db: Database;
@@ -163,12 +167,15 @@ export function createApp({ db, config, integrationEnv, sessionLoader }: AppOpti
       await db.ready();
       const hello = await db.connection.db?.command({ hello: 1 });
       const ready = hello?.isWritablePrimary === true && typeof hello.setName === "string";
+      const resolvedEnv = await resolveIntegrationEnv(db, integrationEnv, {
+        production: secureCookies,
+      });
       const contactVerification =
         !secureCookies ||
         Boolean(
-          (integrationEnv.verificationSecret?.length ?? 0) >= 32 &&
-          integrationEnv.smtpUrl?.startsWith("https://") &&
-          smsConfigured(integrationEnv) &&
+          (resolvedEnv.verificationSecret?.length ?? 0) >= 32 &&
+          resolvedEnv.smtpUrl?.startsWith("https://") &&
+          smsConfigured(resolvedEnv) &&
           (await isIntegrationEnabled(db, "email")),
         );
       response.status(ready && contactVerification ? 200 : 503).json({
@@ -180,13 +187,20 @@ export function createApp({ db, config, integrationEnv, sessionLoader }: AppOpti
     }
   });
   app.use(async (request, response, next) => {
+    const requestEnv = await resolveIntegrationEnv(db, integrationEnv, {
+      production: config.nodeEnv === "production",
+    }).catch(() =>
+      config.nodeEnv === "production"
+        ? withoutIntegrationCredentials(integrationEnv)
+        : integrationEnv,
+    );
     setRequestContext(
       request,
       await createContext({
         request,
         response,
         db,
-        integrationEnv,
+        integrationEnv: requestEnv,
         secureCookies,
         trustedProxyIps: config.trustedProxyIps,
         sessionLoader,

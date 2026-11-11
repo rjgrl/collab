@@ -5,6 +5,7 @@ import express from "express";
 import request from "supertest";
 import type { Database, PermissionKey } from "@Alumni-Tracking-Ss/db";
 import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
+import { sealIntegrationCredentials } from "@Alumni-Tracking-Ss/db/integration-sealing";
 import type { AuthUser } from "@Alumni-Tracking-Ss/api/context";
 import { createApp } from "./app";
 import { resetGoogleKeyCache } from "@Alumni-Tracking-Ss/api/integrations/google-id-token";
@@ -412,9 +413,41 @@ function googleFixture(existing = false, nodeEnv = "test", roleKey = "viewer") {
     passwordHash: "synthetic-existing-hash",
     verificationRequired: false,
   };
+
+  // For production, provide sealed credentials in the database
+  const testKey = Buffer.from("12".repeat(32), "hex");
+  const sealedCreds = sealIntegrationCredentials(testKey, "google_auth", {
+    clientId: "synthetic-client",
+    clientSecret: "synthetic-secret",
+  });
+  const googleAuthRow = {
+    _id: "google_auth_row",
+    key: "google_auth",
+    enabled: true,
+    credentials: sealedCreds.credentials,
+    credentialHints: sealedCreds.credentialHints,
+    keyFingerprint: sealedCreds.keyFingerprint,
+  };
+
   const db = {
     AuthThrottle: { findOneAndUpdate: () => query({ count: 1 }) },
-    IntegrationSetting: { findOne: () => query({ enabled: true }) },
+    IntegrationSetting: {
+      findOne: () => query({ enabled: true }),
+      find: () =>
+        Object.assign(
+          Promise.resolve(
+            nodeEnv === "production" ? [googleAuthRow] : [], // Non-production doesn't need seeded creds
+          ),
+          {
+            lean: function () {
+              return this;
+            },
+            exec: async function () {
+              return await this;
+            },
+          },
+        ),
+    },
     Role: {
       findOne: () => query({ _id: otherId, key: "viewer" }),
       find: () => query([{ _id: otherId, key: roleKey, name: roleKey, isSystem: true }]),
@@ -443,14 +476,24 @@ function googleFixture(existing = false, nodeEnv = "test", roleKey = "viewer") {
     AuditLog: { create: async () => ({ _id: otherId }) },
     transaction: async <T>(work: (tx: Database) => Promise<T>) => work(db as unknown as Database),
   };
+
+  // In production, use the test key; in test mode, include env credentials
+  const integrationEnv =
+    nodeEnv === "production"
+      ? {
+          appUrl: "https://api.example.test",
+          integrationEncryptionKey: "12".repeat(32), // Match the test key
+        }
+      : {
+          appUrl: "https://api.example.test",
+          googleClientId: "synthetic-client",
+          googleClientSecret: "synthetic-secret",
+        };
+
   const app = createApp({
     db: db as unknown as Database,
     config: { nodeEnv, origin },
-    integrationEnv: {
-      appUrl: "https://api.example.test",
-      googleClientId: "synthetic-client",
-      googleClientSecret: "synthetic-secret",
-    },
+    integrationEnv,
     sessionLoader: async () => null,
   });
   const callback = async () => {
@@ -734,15 +777,36 @@ it("integrations are Admin-only even when Staff have all permissions", async () 
     (await request(app).get("/api/integrations").set("Cookie", "ats_session=synthetic")).status,
     403,
   );
+  for (const [method, path, body] of [
+    [
+      "post",
+      "/api/integrations/recaptcha/enable",
+      { credentials: { siteKey: "a", secretKey: "b" } },
+    ],
+    ["put", "/api/integrations/recaptcha/credentials", { credentials: {} }],
+    ["post", "/api/integrations/recaptcha/disable", {}],
+  ] as const)
+    assert.equal(
+      (
+        await request(app)
+          [method](path)
+          .set("Origin", origin)
+          .set("Cookie", "ats_session=synthetic")
+          .send(body)
+      ).status,
+      403,
+      path,
+    );
+  // The old toggle that enabled without credentials no longer exists.
   assert.equal(
     (
       await request(app)
         .patch("/api/integrations/recaptcha")
         .set("Origin", origin)
         .set("Cookie", "ats_session=synthetic")
-        .send({ enabled: false })
+        .send({ enabled: true })
     ).status,
-    403,
+    404,
   );
 });
 it("Faculty endpoints require sign-in", async () => {

@@ -65,7 +65,7 @@ type QueryArgs<S extends z.ZodType> =
 // A small fetch helper: the contract validates both request input and the untrusted response.
 function endpoint<I extends z.ZodType, O>(
   contract: { input: I; output: z.ZodType<O> },
-  method: "GET" | "POST" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
 ) {
   async function request(input: z.input<I> | undefined, signal?: AbortSignal): Promise<O> {
@@ -241,7 +241,13 @@ export const client = {
   },
   integrations: {
     list: endpoint(integrationsSchemas.list, "GET", "/api/integrations"),
-    toggle: endpoint(integrationsSchemas.toggle, "PATCH", "/api/integrations/:key"),
+    enable: endpoint(integrationsSchemas.enable, "POST", "/api/integrations/:key/enable"),
+    updateCredentials: endpoint(
+      integrationsSchemas.update,
+      "PUT",
+      "/api/integrations/:key/credentials",
+    ),
+    disable: endpoint(integrationsSchemas.disable, "POST", "/api/integrations/:key/disable"),
     sendTestEmail: endpoint(
       integrationsSchemas.sendTestEmail,
       "POST",

@@ -4,7 +4,14 @@ import { integrationsService } from "./service";
 
 export const integrationsController = {
   list: controller(integrationsSchemas.list, integrationsService.list, "none", 200),
-  toggle: controller(integrationsSchemas.toggle, integrationsService.toggle, "combined", 200),
+  enable: controller(integrationsSchemas.enable, integrationsService.enable, "combined", 201),
+  updateCredentials: controller(
+    integrationsSchemas.update,
+    integrationsService.updateCredentials,
+    "combined",
+    200,
+  ),
+  disable: controller(integrationsSchemas.disable, integrationsService.disable, "combined", 200),
   sendTestEmail: controller(
     integrationsSchemas.sendTestEmail,
     integrationsService.sendTestEmail,

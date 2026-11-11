@@ -72,14 +72,88 @@ test("settings and grouped controls pass automated accessibility and fit the vie
     .click();
   await expect(page.getByRole("heading", { name: "Integrations", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Google Drive", exact: true })).toBeVisible();
+
+  // Disable Google Drive flow
   await page.getByRole("button", { name: "Disable Google Drive", exact: true }).click();
+  const disableConfirm = page.getByRole("alertdialog", { name: /Disable Google Drive/i });
+  await expect(disableConfirm).toBeVisible();
+  await expect(disableConfirm).toContainText("Disabling erases the saved credentials");
+  await disableConfirm.getByRole("button", { name: "Disable and erase", exact: true }).click();
+  // The alert dialog should close
+  await expect(disableConfirm).not.toBeVisible({ timeout: 2000 });
+  // Wait for the network request to complete
+  await page.waitForLoadState("networkidle");
+  // Check that the button changed from "Disable" to "Enable"
   await expect(
     page.getByRole("button", { name: "Enable Google Drive", exact: true }),
   ).toBeVisible();
+
+  // Enable Google Drive flow
+  await page.getByRole("button", { name: "Enable Google Drive", exact: true }).click();
+  const enableDialog = page.getByRole("dialog", { name: "Enable Google Drive", exact: true });
+  await expect(enableDialog).toBeVisible();
+
+  // Test button disabled when form is empty
+  const testButton = enableDialog.getByRole("button", { name: "Test and enable", exact: true });
+  await expect(testButton).toBeDisabled();
+
+  // Fill in the credentials
+  const serviceAccountInput = enableDialog.getByRole("textbox", {
+    name: "Service account JSON",
+    exact: true,
+  });
+  const folderIdInput = enableDialog.getByRole("textbox", { name: "Folder ID", exact: true });
+  const serviceAccountJson = JSON.stringify({
+    client_email: "drive@example.iam.gserviceaccount.com",
+    private_key: "-----BEGIN PRIVATE KEY-----\nSYNTHETIC\n-----END PRIVATE KEY-----\n",
+    private_key_id: "synthetic0000wxyz",
+  });
+  await serviceAccountInput.fill(serviceAccountJson);
+  await folderIdInput.fill("synthetic-folder");
+
+  // Now the test button should be enabled
+  await expect(testButton).toBeEnabled();
+  await testButton.click();
+  // Wait for the request to complete and the list to be refetched
+  await page.waitForResponse((response) => response.url().includes("/api/integrations"));
+  await page.waitForLoadState("networkidle");
+
+  // Card should now show enabled
+  await expect(
+    page.getByRole("heading", { name: "Google Drive", exact: true }).locator(".."),
+  ).toContainText("Enabled");
+  await expect(page.getByText("Folder ID:")).toBeVisible();
+  await expect(page.getByText("synthetic-folder")).toBeVisible();
+  await expect(page.getByText("Set · ends in ••••wxyz")).toBeVisible();
+
+  // Page should not expose secrets
+  expect(await page.textContent("body")).not.toContain("SYNTHETIC");
+  expect(await page.textContent("body")).not.toContain("BEGIN PRIVATE KEY");
+
+  // Test reCAPTCHA with rejected credentials
+  await page.getByRole("button", { name: "Enable reCAPTCHA", exact: true }).click();
+  const recaptchaDialog = page.getByRole("dialog", { name: "Enable reCAPTCHA", exact: true });
+  await expect(recaptchaDialog).toBeVisible();
+  await recaptchaDialog
+    .getByRole("textbox", { name: "Site key", exact: true })
+    .fill("synthetic-site-key");
+  await recaptchaDialog
+    .getByRole("textbox", { name: "Secret key", exact: true })
+    .fill("reject-this-secret-1234");
+  await recaptchaDialog.getByRole("button", { name: "Test and enable", exact: true }).click();
+  await expect(recaptchaDialog).toContainText("Synthetic provider rejected the credentials.");
+  await recaptchaDialog.getByRole("button", { name: "Close dialog" }).click();
+  await expect(recaptchaDialog).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "reCAPTCHA", exact: true }).locator(".."),
+  ).toContainText("Disabled");
+
+  // Verify persistence after reload
   await page.reload();
+  await page.waitForLoadState("networkidle");
   await expect(
-    page.getByRole("button", { name: "Enable Google Drive", exact: true }),
-  ).toBeVisible();
+    page.getByRole("heading", { name: "Google Drive", exact: true }).locator(".."),
+  ).toContainText("Enabled");
   expect(
     (
       await new AxeBuilder({ page })

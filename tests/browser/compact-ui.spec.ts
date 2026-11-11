@@ -28,8 +28,47 @@ test("audit details, integration statuses and account controls remain compact an
     .locator('[data-slot="card"]')
     .filter({ has: page.getByRole("heading", { name: "Google Forms", exact: true }) });
   await forms.getByRole("button", { name: "Enable Google Forms", exact: true }).click();
+
+  // Dialog should have no fields, just a message
+  const enableDialog = page.getByRole("dialog", { name: "Enable Google Forms", exact: true });
+  await expect(enableDialog).toBeVisible();
+  await expect(enableDialog).toContainText("A webhook secret will be generated");
+  await enableDialog
+    .getByRole("button", { name: "Generate secret and enable", exact: true })
+    .click();
+  await page.waitForLoadState("networkidle");
+
+  // Reveal dialog should show the secret
+  const revealDialog = page.getByRole("dialog", {
+    name: "Google Forms webhook secret",
+    exact: true,
+  });
+  await expect(revealDialog).toBeVisible();
+  const secretCode = revealDialog.locator("code");
+  const secretText = await secretCode.textContent();
+  expect(secretText).toMatch(/^[0-9a-f]{64}$/); // 64 hex characters
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await revealDialog.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(revealDialog).not.toBeVisible();
+
+  // Secret should not be visible on the page anymore
+  expect(await page.textContent("body")).not.toContain(secretText);
+
+  // Card should show enabled
   await expect(forms.getByText("Enabled", { exact: true })).toBeVisible();
+
+  // Disable flow
   await forms.getByRole("button", { name: "Disable Google Forms", exact: true }).click();
+  const disableConfirm = page.getByRole("alertdialog", { name: /Disable Google Forms/i });
+  await expect(disableConfirm).toBeVisible();
+  await disableConfirm.getByRole("button", { name: "Disable and erase", exact: true }).click();
+  await page.waitForLoadState("networkidle");
   await expect(forms.getByText("Disabled", { exact: true })).toBeVisible();
 
   async function inspect(name: string) {

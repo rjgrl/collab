@@ -10,15 +10,19 @@ export type IntegrationEnv = {
   googleServiceAccountJson?: string;
   googleDriveFolderId?: string;
   googleSheetsSpreadsheetId?: string;
+  googleSheetsServiceAccountJson?: string;
   googleFormsWebhookSecret?: string;
   smtpUrl?: string;
   smtpFrom?: string;
+  emailApiKey?: string;
   verificationSecret?: string;
   mfaEncryptionKey?: string;
+  integrationEncryptionKey?: string;
   smsProvider?: {
     sendCode: (phone: string) => Promise<string>;
     checkCode: (sid: string, phone: string, code: string) => Promise<boolean>;
   };
+  connectionTester?: (key: string, values: Record<string, string>) => Promise<void>;
   imgbbApiKey?: string;
   imageHostProvider?: string;
   uploadDir?: string;

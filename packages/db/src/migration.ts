@@ -7,6 +7,7 @@ import {
   renameLegacyDepartments,
   type OrgMigrationReport,
 } from "./org-migration";
+import { createIntegrationDefaults, type IntegrationDefaultsReport } from "./integration-defaults";
 
 export type MigrationMode = "dry-run" | "apply" | "rollback";
 export interface ExistingIndex {
@@ -38,6 +39,7 @@ export interface MigrationReport {
   departmentCodeIndex?: DepartmentCodeIndexReport;
   orgStructure?: OrgMigrationReport;
   retiredRoles?: RetiredRolesReport;
+  integrationDefaults?: IntegrationDefaultsReport;
   rollback: string;
 }
 function stable(value: unknown): string {
@@ -218,6 +220,7 @@ export async function migrateDatabase(
       "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact. Retired roles (Staff) are not restored.",
   };
   if (mode === "rollback") {
+    report.integrationDefaults = await createIntegrationDefaults(db, "rollback");
     report.orgStructure = await migrateOrgStructure(db, native, "rollback");
     if (report.orgStructure.state === "conflict") {
       report.conflicts.push(report.orgStructure.reason!);
@@ -233,6 +236,7 @@ export async function migrateDatabase(
   if (mode === "rollback") return report;
   report.orgStructure = await migrateOrgStructure(db, native, "dry-run");
   if (report.orgStructure.state === "conflict") report.conflicts.push(report.orgStructure.reason!);
+  report.integrationDefaults = await createIntegrationDefaults(db, "dry-run");
   if (collections.includes("Role")) report.retiredRoles = await retireRoles(db, false);
   // Until the rename runs, the legacy top-level units still live in `Department`.
   const legacyName = (collection: string) =>
@@ -275,7 +279,12 @@ export async function migrateDatabase(
       }
     }
   }
-  if (mode !== "apply" || report.conflicts.length) return report;
+  if (mode !== "apply" || report.conflicts.length) {
+    if (mode === "dry-run" && !report.integrationDefaults) {
+      report.integrationDefaults = await createIntegrationDefaults(db, "dry-run");
+    }
+    return report;
+  }
   // Preflight the complete plan before writing anything. A subsequent concurrent
   // writer or index failure still fails closed; prior additions remain harmless.
   // The legacy code index must retire while it still lives on `Department`, before the rename.
@@ -309,5 +318,7 @@ export async function migrateDatabase(
   }
   // Removes the retired Staff role and its grants (not reversible; see `rollback`).
   report.retiredRoles = await db.transaction((tx) => retireRoles(tx));
+  // Add explicit defaults for any missing integration settings.
+  report.integrationDefaults = await createIntegrationDefaults(db, "apply");
   return report;
 }

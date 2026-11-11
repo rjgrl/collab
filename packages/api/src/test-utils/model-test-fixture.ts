@@ -74,6 +74,7 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
   let transactionFailure: Error | undefined;
   function apply(row: Row, update: Row) {
     Object.assign(row, update.$set ?? {});
+    for (const key of Object.keys((update.$unset as Row) ?? {})) delete row[key];
     for (const [key, amount] of Object.entries((update.$inc as Row) ?? {}))
       row[key] = Number(row[key] ?? 0) + Number(amount);
   }

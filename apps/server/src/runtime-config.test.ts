@@ -18,6 +18,7 @@ const valid = {
   databaseUrl: syntheticDatabaseUrl("mongodb", "tls=true"),
   verificationSecret: "synthetic-local-only-".repeat(3),
   mfaEncryptionKey: "14".repeat(32),
+  integrationEncryptionKey: "15".repeat(32),
   uploadDir: process.platform === "win32" ? "C:/synthetic/uploads" : "/synthetic/uploads",
 };
 it("accepts explicit safe runtime settings without connecting to providers", () => {
@@ -73,4 +74,24 @@ it("trusts only explicit peers and one overwritten forwarded IP", () => {
     assert.equal(resolveClientAddress("127.0.0.1", header, ["127.0.0.1"]), null);
   assert.throws(() => trustedProxyAddresses("0.0.0.0"));
   assert.throws(() => trustedProxyAddresses("127.0.0.0/8"));
+});
+it("requires a distinct 64-hex INTEGRATION_ENCRYPTION_KEY in production without echoing it", () => {
+  const key = "15".repeat(32);
+  for (const [input, settings] of [
+    [{ ...valid, integrationEncryptionKey: undefined }, {}],
+    [{ ...valid, integrationEncryptionKey: "short" }, {}],
+    [{ ...valid, integrationEncryptionKey: key, mfaEncryptionKey: key.toUpperCase() }, {}],
+    [{ ...valid, integrationEncryptionKey: key }, { BACKUP_ENCRYPTION_KEY: key }],
+  ] as const)
+    assert.throws(
+      () => validateRuntimeConfig(input, settings),
+      (error: Error) => {
+        assert.match(error.message, /INTEGRATION_ENCRYPTION_KEY/);
+        assert.ok(!error.message.toLowerCase().includes(key));
+        return true;
+      },
+    );
+  assert.deepEqual(validateRuntimeConfig({ ...valid, integrationEncryptionKey: key }, {}), {
+    trustedProxyIps: [],
+  });
 });

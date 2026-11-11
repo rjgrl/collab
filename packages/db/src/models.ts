@@ -199,6 +199,11 @@ export interface IntegrationSettingRecord extends Identified {
   key: string;
   enabled: boolean;
   notes: string;
+  credentials?: Record<string, unknown>; // Record<fieldName, SealedValue>
+  credentialHints?: Record<string, string>; // Record<fieldName, string> - last 4 chars (or "json" for type=json)
+  keyFingerprint?: string; // First 8 hex chars of SHA-256(key)
+  credentialsUpdatedAt?: Date;
+  credentialsUpdatedBy?: Types.ObjectId | null;
   updatedAt: Date;
 }
 export interface ImportJobRecord extends Created {
@@ -479,7 +484,16 @@ export const schemas = {
   ),
   IntegrationSetting: schema<IntegrationSettingRecord>(
     "IntegrationSetting",
-    { key: requiredString, enabled: yes, notes: text },
+    {
+      key: requiredString,
+      enabled: yes,
+      notes: text,
+      credentials: Schema.Types.Mixed,
+      credentialHints: Schema.Types.Mixed,
+      keyFingerprint: String,
+      credentialsUpdatedAt: Date,
+      credentialsUpdatedBy: ref("User", false),
+    },
     updatedOnly,
   ),
   ImportJob: schema<ImportJobRecord>(

@@ -65,9 +65,8 @@ for (const legacyIntegrations of [false, true]) {
     expect((await page.request.get("/api/integrations")).status()).toBe(403);
     expect(
       (
-        await page.request.patch("/api/integrations/recaptcha", {
+        await page.request.post("/api/integrations/recaptcha/disable", {
           headers: { Origin: "http://127.0.0.1:3101" },
-          data: { enabled: false },
         })
       ).status(),
     ).toBe(403);

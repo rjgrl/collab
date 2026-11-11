@@ -15,8 +15,15 @@ const payload = {
   graduationYear: 2024,
 };
 it("defaults Forms off without changing other integration defaults", async () => {
+  const settings = [
+    { key: "google_auth", enabled: true },
+    { key: "google_forms", enabled: false },
+  ];
   const db = {
-    IntegrationSetting: { findOne: () => query(null), find: () => query([]) },
+    IntegrationSetting: {
+      findOne: (filter: any) => query(settings.find((s) => s.key === filter.key)),
+      find: () => query(settings),
+    },
   } as unknown as Database;
   assert.equal(await isIntegrationEnabled(db, "google_forms"), false);
   assert.equal(await isIntegrationEnabled(db, "google_auth"), true);

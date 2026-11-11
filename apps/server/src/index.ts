@@ -19,8 +19,10 @@ const runtime = validateRuntimeConfig({
   databaseUrl: ENV.DATABASE_URL,
   verificationSecret: integrationEnv.verificationSecret,
   mfaEncryptionKey: integrationEnv.mfaEncryptionKey,
+  integrationEncryptionKey: integrationEnv.integrationEncryptionKey,
   uploadDir: integrationEnv.uploadDir,
 });
+
 const app = createApp({
   db,
   config: {

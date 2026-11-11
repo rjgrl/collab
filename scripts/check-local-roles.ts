@@ -125,9 +125,7 @@ try {
   const admin = pages.get("Administrator")!;
   const staff = pages.get("Faculty")!;
   assert.equal(
-    (
-      await staff.request.patch("/api/integrations/recaptcha", { data: { enabled: false } })
-    ).status(),
+    (await staff.request.post("/api/integrations/recaptcha/disable", { data: {} })).status(),
     403,
   );
   const roles = rolesSchemas.list.output.parse(
@@ -161,9 +159,7 @@ try {
     );
     await loginStaff();
     assert.equal(
-      (
-        await staff.request.patch("/api/integrations/recaptcha", { data: { enabled: false } })
-      ).status(),
+      (await staff.request.post("/api/integrations/recaptcha/disable", { data: {} })).status(),
       403,
     );
   } finally {
@@ -180,9 +176,7 @@ try {
   assert.equal((await staff.request.get("/api/dashboard")).status(), 401);
   await loginStaff();
   assert.equal(
-    (
-      await staff.request.patch("/api/integrations/recaptcha", { data: { enabled: false } })
-    ).status(),
+    (await staff.request.post("/api/integrations/recaptcha/disable", { data: {} })).status(),
     403,
   );
   // Exercise historical Done management rows through the normal API and real database.
