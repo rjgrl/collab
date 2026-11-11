@@ -107,3 +107,9 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Exempt: fields marked `integrity: false`. Only `AuditLog.actorId` is, because audit entries are history: after a restore, the Super Admin who ran it may not exist in the restored data, and the entry must still be written. The plugin found this (the restore audit was being dropped) and the Forms import writing its receipt before its job.
 - Not covered at write time: deletes of a parent under its children, and writes through the native driver (migrations, mongorestore). `findBrokenReferences` scans all references with `$lookup`; it runs nightly at 03:30 Asia/Manila on one instance (slot claim in `BackupState`), notifies Super Admins and writes an `integrity.references` audit entry with counts and document IDs only. Operators run `pnpm db:check-references` (exits 1 on findings).
 - Cost: one indexed `_id` lookup per reference field written. Rejected: `$jsonSchema` collection validators (cannot express cross-collection references) and a PostgreSQL migration (high cost, working system).
+
+## 2026-11-12: Backup monitoring is in-app notifications and structured logs, not a metrics stack
+
+- Decision: freshness alerts (daily 26 h, weekly 7 d + 2 h, measured from the newer of the last verified backup and the last schedule change), Drive-copy failure alerts and integrity alerts go to Super Admin notifications and the audit log, deduplicated across instances with conditional updates in `BackupState`. Tool failures log `backup_tool_failed` JSON lines with redacted stderr; restore failures log `restore_failed` / `restore_rollback_failed` and store the reason.
+- Reason: there is no metrics or alerting service in this deployment; Super Admins already use the notification inbox. A log shipper can alert on the JSON event names if one is added later.
+- Redaction is required, not cosmetic: mongodump prints the full connection URI, password included, in its own error output.

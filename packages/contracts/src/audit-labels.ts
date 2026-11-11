@@ -103,6 +103,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "backups.schedule": "Changed backup schedule",
   "backups.restore": "Restored backup",
   "backups.maintenance": "Ended maintenance mode",
+  "backups.stale": "Backups out of date",
 
   // Data integrity
   "integrity.references": "Found broken data references",

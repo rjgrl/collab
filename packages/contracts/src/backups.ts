@@ -41,8 +41,16 @@ export const restoreStatusSchema = z.object({
   finishedAt: z.coerce.date().nullable(),
 });
 
+export const backupFreshnessSchema = z.object({
+  lastSuccessAt: z.string().nullable(),
+  lastSuccessId: z.string().nullable(),
+  allowedHours: z.number().nullable(),
+  stale: z.boolean(),
+});
+
 export const backupOverviewSchema = z.object({
   configured: z.object({ encryptionKey: z.boolean(), dir: z.boolean(), tools: z.boolean() }),
+  freshness: backupFreshnessSchema,
   running: z.object({
     appVersion: z.string(),
     schemaVersion: z.number().int(),

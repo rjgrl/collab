@@ -17,6 +17,7 @@ import {
 import {
   DEFAULT_SCHEDULE,
   acquireLock,
+  backupFreshness,
   releaseLock,
   notifySuperAdmins,
 } from "@Alumni-Tracking-Ss/api/backups/scheduler";
@@ -59,8 +60,10 @@ export const backupsService = {
   async overview(context: Context, config: BackupConfig | undefined) {
     requireBackupAdmin(context);
     const schedule = await context.db.BackupState.findById("schedule").lean().exec();
+    const backups = await listBackups(config);
     return {
       configured: backupReady(config),
+      freshness: backupFreshness(schedule, backups, new Date()),
       running: {
         appVersion: config?.appVersion ?? "unknown",
         schemaVersion: SCHEMA_VERSION,
@@ -75,7 +78,7 @@ export const backupsService = {
         weekday: schedule?.weekday ?? DEFAULT_SCHEDULE.weekday,
         retention: schedule?.retention ?? DEFAULT_SCHEDULE.retention,
       },
-      backups: await listBackups(config),
+      backups,
       restore: await restoreStatus(context),
       maintenance: (await maintenanceState(context.db)).active,
     };
@@ -101,6 +104,11 @@ export const backupsService = {
         summary: `Created manual backup ${entry.backupId}`,
         ipAddress: context.ipAddress,
       });
+      if (entry.offHost === "failed")
+        await notifySuperAdmins(
+          context.db,
+          `Manual backup ${entry.backupId} was saved locally but the Google Drive copy failed.`,
+        );
       return entry;
     } catch (error) {
       const reason = error instanceof Error ? error.message : "unknown error";
@@ -144,7 +152,14 @@ export const backupsService = {
     await context.db.BackupState.updateOne(
       { _id: "schedule" },
       {
-        $set: { frequency: p.frequency, time: p.time, weekday: p.weekday, retention: p.retention },
+        $set: {
+          frequency: p.frequency,
+          time: p.time,
+          weekday: p.weekday,
+          retention: p.retention,
+          // Freshness is measured from here until the first backup under the new schedule.
+          scheduleChangedAt: new Date(),
+        },
       },
       { upsert: true },
     ).exec();

@@ -6336,6 +6336,39 @@
                       ],
                       "additionalProperties": false
                     },
+                    "freshness": {
+                      "type": "object",
+                      "properties": {
+                        "lastSuccessAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "lastSuccessId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "allowedHours": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "stale": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "lastSuccessAt",
+                        "lastSuccessId",
+                        "allowedHours",
+                        "stale"
+                      ],
+                      "additionalProperties": false
+                    },
                     "running": {
                       "type": "object",
                       "properties": {
@@ -6608,6 +6641,7 @@
                   },
                   "required": [
                     "configured",
+                    "freshness",
                     "running",
                     "schedule",
                     "backups",

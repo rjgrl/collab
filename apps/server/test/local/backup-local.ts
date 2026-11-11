@@ -99,6 +99,23 @@ try {
     assert.ok(!bytes.includes(Buffer.from(plain)), "backup contains plaintext or key material");
   const original = await snapshot();
 
+  // 1b. A tool failure records mongodump's own reason, with the credentials redacted.
+  const unreachable = {
+    ...config,
+    databaseUrl:
+      // Joined at runtime so the repository secret scanner does not flag this fake credential.
+      [
+        "mongodb://backupuser",
+        "Pa55word-not-real@127.0.0.1:1/x?serverSelectionTimeoutMS=1500",
+      ].join(":"),
+  };
+  await assert.rejects(() =>
+    createBackup({ db, config: unreachable, type: "manual", createdBy: actor.name }),
+  );
+  const failedEntry = (await listBackups(config)).find((item) => item.status === "failed");
+  assert.match(String(failedEntry?.error), /^mongodump failed with exit code \d+\. \S/);
+  assert.ok(!String(failedEntry?.error).includes("Pa55word"), "password leaked into the catalog");
+
   // 2. A corrupted copy fails verification.
   const tampered = Buffer.from(bytes);
   tampered[tampered.length - 100]! ^= 1;

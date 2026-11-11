@@ -182,7 +182,14 @@ export function BackupsPage() {
     );
   }
 
-  const { configured, running, backups, restore: restoreState, maintenance } = overview.data;
+  const {
+    configured,
+    running,
+    backups,
+    restore: restoreState,
+    maintenance,
+    freshness,
+  } = overview.data;
   const isConfigured = configured.encryptionKey && configured.dir && configured.tools;
   const isMaintenance = maintenance || restoreState.status === "running";
   // Maintenance can outlive a restore (server crash or failed rollback); keep the panel and its
@@ -207,6 +214,14 @@ export function BackupsPage() {
       {!isConfigured && (
         <ErrorAlert>
           {`Backups are not configured. Set the following environment variables on the server: ${missingConfig.join(", ")}.`}
+        </ErrorAlert>
+      )}
+
+      {isConfigured && freshness.stale && (
+        <ErrorAlert>
+          {freshness.lastSuccessAt
+            ? `Backups are out of date. The last successful backup was ${formatDateLong(freshness.lastSuccessAt)}; the schedule expects one every ${freshness.allowedHours} hours. Check the backup list for errors or run Back up now.`
+            : `No successful backup yet. The schedule expects one within ${freshness.allowedHours} hours. Run Back up now to confirm backups work.`}
         </ErrorAlert>
       )}
 

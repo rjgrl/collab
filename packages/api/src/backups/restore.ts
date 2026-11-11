@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { writeAudit } from "../audit";
-import { applyBackup, createBackup, type BackupConfig } from "./backup-service";
+import { applyBackup, createBackup, failureReason, type BackupConfig } from "./backup-service";
 import { releaseLock } from "./scheduler";
 
 export const RESTORE_STEPS = [
@@ -107,6 +107,8 @@ export async function runRestore(input: {
     | "stopped before any change"
     | "failed; maintenance mode is still on";
   let failedStep: RestoreStep | null = null;
+  let reason: string | null = null;
+  let rollbackReason: string | null = null;
   try {
     await enter("pre-restore backup");
     preRestoreId = (await createBackup({ db, config, type: "pre-restore", createdBy: actor.name }))
@@ -121,8 +123,10 @@ export async function runRestore(input: {
     await enter("finish");
     await setMaintenance(db, false);
     result = "restored";
-  } catch {
+  } catch (error) {
     failedStep = step;
+    reason = failureReason(error);
+    console.error(JSON.stringify({ event: "restore_failed", backupId, step, reason }));
     if (!preRestoreId) {
       // The pre-restore backup failed, so nothing was changed and maintenance was never entered.
       result = "stopped before any change";
@@ -134,7 +138,16 @@ export async function runRestore(input: {
         await db.Session.deleteMany({}).exec();
         await setMaintenance(db, false);
         result = "rolled back";
-      } catch {
+      } catch (error) {
+        rollbackReason = failureReason(error);
+        console.error(
+          JSON.stringify({
+            event: "restore_rollback_failed",
+            backupId,
+            preRestoreId,
+            reason: rollbackReason,
+          }),
+        );
         result = "failed; maintenance mode is still on";
       }
     }
@@ -153,6 +166,8 @@ export async function runRestore(input: {
     finishedAt,
     result,
     failedStep,
+    reason,
+    rollbackReason,
     preRestoreId,
   });
   await setStatus(db, {
@@ -165,7 +180,9 @@ export async function runRestore(input: {
             ? "stopped"
             : "failed",
     step: failedStep ?? "finish",
-    error: failedStep ? `Failed at step: ${failedStep}` : null,
+    error: failedStep
+      ? `Failed at step: ${failedStep}. ${reason ?? ""}${rollbackReason ? ` Rollback also failed: ${rollbackReason}` : ""}`.trim()
+      : null,
     finishedAt,
   });
   // The audit log was just replaced by the restore, so the record is written afterwards too.
@@ -175,7 +192,7 @@ export async function runRestore(input: {
     entity: "backup",
     entityId: backupId,
     summary,
-    metadata: { preRestoreBackupId: preRestoreId, result, failedStep },
+    metadata: { preRestoreBackupId: preRestoreId, result, failedStep, reason, rollbackReason },
   }).catch(() => undefined);
   await releaseLock(db, input.lockOwner);
   return { result, failedStep, preRestoreId };

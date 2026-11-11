@@ -97,6 +97,38 @@ export function fingerprintOf(hex: string | undefined) {
   }
 }
 
+const STDERR_TAIL_BYTES = 8 * 1024;
+
+/** Removes credentials from tool diagnostics: URI user info, password options and auth headers. */
+export function redactToolOutput(text: string) {
+  return text
+    .replace(/(mongodb(?:\+srv)?:\/\/)[^@\s/]+@/gi, "$1***@")
+    .replace(/((?:password|pwd|secret|token|key)\s*[=:]\s*)("[^"]*"|'[^']*'|\S+)/gi, "$1***")
+    .trim();
+}
+
+/** A database tool exited non-zero; `detail` is its redacted stderr tail, for server logs only. */
+export class ToolError extends Error {
+  constructor(
+    readonly tool: string,
+    readonly exitCode: number,
+    readonly detail: string,
+  ) {
+    super(`${tool} failed with exit code ${exitCode}.`);
+    this.name = "ToolError";
+  }
+}
+
+/** One short line for status displays: the last meaningful stderr line, redacted. */
+export function failureReason(error: unknown) {
+  if (error instanceof ToolError) {
+    const last = error.detail.split(/\r?\n/).filter(Boolean).at(-1);
+    return `${error.message}${last ? ` ${last.slice(0, 200)}` : ""}`;
+  }
+  if (error instanceof ApiError) return error.message;
+  return error instanceof Error ? redactToolOutput(error.message).slice(0, 200) : "Unknown error.";
+}
+
 /** Runs a database tool without a shell. Errors never include arguments (the URI holds credentials). */
 async function runTool(
   binary: string,
@@ -107,7 +139,11 @@ async function runTool(
     stdio: [io.stdin ? "pipe" : "ignore", io.onStdout ? "pipe" : "ignore", "pipe"],
     windowsHide: true,
   });
-  child.stderr?.resume();
+  // Keep the tail of the tool's diagnostics for the server log (never sent to the browser).
+  let stderr = "";
+  child.stderr?.on("data", (chunk: Buffer) => {
+    stderr = (stderr + chunk.toString("utf8")).slice(-STDERR_TAIL_BYTES);
+  });
   const exited = new Promise<number>((resolve, reject) => {
     child.once("error", () => reject(new Error(`${path.basename(binary)} could not start.`)));
     child.once("close", (code) => resolve(code ?? 1));
@@ -138,7 +174,18 @@ async function runTool(
     throw error;
   }
   const code = await exited;
-  if (code !== 0) throw new Error(`${path.basename(binary)} failed with exit code ${code}.`);
+  if (code !== 0) {
+    const name = path.basename(binary).replace(/\.exe$/i, "");
+    console.error(
+      JSON.stringify({
+        event: "backup_tool_failed",
+        tool: name,
+        exitCode: code,
+        stderr: redactToolOutput(stderr),
+      }),
+    );
+    throw new ToolError(name, code, redactToolOutput(stderr));
+  }
 }
 
 /**
@@ -197,10 +244,11 @@ async function writeCatalog(dir: string, entry: CatalogEntry) {
   await rename(temp, target);
 }
 
+// Shown to Super Admins in the catalog: tool failures carry their redacted last stderr line.
 const safeError = (error: unknown) =>
-  error instanceof ApiError
-    ? error.message
-    : error instanceof Error && /^(mongodump|mongorestore)|Backup/.test(error.message)
+  error instanceof ApiError || error instanceof ToolError
+    ? failureReason(error)
+    : error instanceof Error && error.message.startsWith("Backup")
       ? error.message
       : "The backup step failed. Check the server log for details.";
 

@@ -2,6 +2,7 @@ import type { Database, BackupStateRecord } from "@Alumni-Tracking-Ss/db";
 import { writeAudit } from "../audit";
 import {
   createBackup,
+  listBackups,
   pruneScheduled,
   type BackupConfig,
   type CatalogEntry,
@@ -88,6 +89,79 @@ export async function notifySuperAdmins(db: Database, summary: string) {
     );
 }
 
+/** Hours a schedule may go without a successful backup before it counts as stale. */
+export const FRESHNESS_HOURS = { daily: 26, weekly: 7 * 24 + 2 } as const;
+
+export type BackupFreshness = {
+  lastSuccessAt: string | null;
+  lastSuccessId: string | null;
+  allowedHours: number | null;
+  stale: boolean;
+};
+
+/**
+ * Whether the newest successful backup is recent enough for the schedule. Counted from the later
+ * of that backup and the moment the schedule was last saved, so turning a schedule on does not
+ * alert before its first run.
+ */
+export function backupFreshness(
+  schedule: (BackupSchedule & { scheduleChangedAt?: Date | null }) | null | undefined,
+  entries: CatalogEntry[],
+  now: Date,
+): BackupFreshness {
+  const last = entries.find((entry) => entry.status === "succeeded" && entry.verified) ?? null;
+  const frequency = schedule?.frequency;
+  const allowedHours =
+    frequency === "daily" || frequency === "weekly" ? FRESHNESS_HOURS[frequency] : null;
+  const since = Math.max(
+    last ? Date.parse(last.createdAt) : 0,
+    schedule?.scheduleChangedAt ? new Date(schedule.scheduleChangedAt).getTime() : 0,
+  );
+  return {
+    lastSuccessAt: last?.createdAt ?? null,
+    lastSuccessId: last?.backupId ?? null,
+    allowedHours,
+    stale: allowedHours !== null && now.getTime() - since > allowedHours * 3_600_000,
+  };
+}
+
+/**
+ * Alerts Super Admins once per stale episode (keyed by the newest good backup), across all
+ * instances: the conditional update lets exactly one instance send it.
+ */
+export async function checkBackupFreshness(input: {
+  db: Database;
+  config: BackupConfig | undefined;
+  now?: Date;
+}) {
+  if (!input.config?.dir) return null;
+  const schedule = await input.db.BackupState.findById("schedule").lean().exec();
+  const status = backupFreshness(
+    schedule,
+    await listBackups(input.config),
+    input.now ?? new Date(),
+  );
+  if (!status.stale) return status;
+  const key = `stale:${status.lastSuccessId ?? "none"}`;
+  const claimed = await input.db.BackupState.updateOne(
+    { _id: "schedule", staleAlertedFor: { $ne: key } },
+    { $set: { staleAlertedFor: key } },
+    { timestamps: false },
+  ).exec();
+  if (claimed.modifiedCount !== 1) return status;
+  const summary = status.lastSuccessAt
+    ? `No successful backup since ${status.lastSuccessAt}; the ${schedule?.frequency} schedule expects one within ${status.allowedHours} hours.`
+    : `No successful backup yet; the ${schedule?.frequency} schedule expects one within ${status.allowedHours} hours.`;
+  await writeAudit(input.db, {
+    action: "backups.stale",
+    entity: "backup",
+    entityId: status.lastSuccessId ?? "none",
+    summary,
+  });
+  await notifySuperAdmins(input.db, `Backups are out of date. ${summary}`);
+  return status;
+}
+
 /** One scheduler pass: claim the due slot, lock, back up, prune; failures notify and audit. */
 export async function runSchedulerTick(input: {
   db: Database;
@@ -113,6 +187,11 @@ export async function runSchedulerTick(input: {
       type: "scheduled",
     });
     await pruneScheduled(input.config, schedule?.retention ?? DEFAULT_SCHEDULE.retention);
+    if (entry.offHost === "failed")
+      await notifySuperAdmins(
+        input.db,
+        `Scheduled backup ${entry.backupId} was saved locally but the Google Drive copy failed.`,
+      );
     return entry;
   } catch (error) {
     const reason = error instanceof Error ? error.message : "unknown error";
@@ -132,7 +211,9 @@ export async function runSchedulerTick(input: {
 export function startBackupScheduler(input: { db: Database; config: BackupConfig | undefined }) {
   const owner = `scheduler-${process.pid}-${Math.random().toString(16).slice(2)}`;
   const timer = setInterval(() => {
-    void runSchedulerTick({ ...input, owner }).catch(() => undefined);
+    void runSchedulerTick({ ...input, owner })
+      .then(() => checkBackupFreshness(input))
+      .catch(() => undefined);
   }, 60_000);
   timer.unref();
   return () => clearInterval(timer);
