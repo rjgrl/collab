@@ -10,6 +10,7 @@ import type { AuthUser } from "@Alumni-Tracking-Ss/api/context";
 import { createApp } from "./app";
 import { resetGoogleKeyCache } from "@Alumni-Tracking-Ss/api/integrations/google-id-token";
 import { createContext } from "./context";
+import { setMaintenance } from "@Alumni-Tracking-Ss/api/backups/restore";
 const origin = "https://app.example.test";
 const userId = "111111111111111111111111",
   alumniId = "222222222222222222222222",
@@ -104,6 +105,47 @@ function fixture(
         : null,
   });
 }
+it("allows only sign-in essentials and Super Admin work during restore maintenance", async (t) => {
+  let active = false;
+  const backupState = {
+    updateOne: (_filter: unknown, update: { $set?: { active?: boolean } }) => {
+      active = Boolean(update.$set?.active);
+      return query({ modifiedCount: 1 });
+    },
+    findById: () =>
+      query(
+        active
+          ? { active: true, message: "The system is being restored from a backup." }
+          : { active: false },
+      ),
+  };
+  const dbOverride = { BackupState: backupState } as unknown as Database;
+  await setMaintenance(dbOverride, true);
+  t.after(() => setMaintenance(dbOverride, false));
+
+  const anonymous = fixture({ db: { BackupState: backupState } });
+  assert.notEqual((await request(anonymous).get("/api/auth/config")).status, 503);
+  assert.notEqual((await request(anonymous).post("/api/auth/login").send({})).status, 503);
+  for (const path of ["/api/auth/signup", "/api/auth/password-reset-requests", "/api/auth/profile"])
+    assert.equal((await request(anonymous).post(path).send({})).status, 503, path);
+
+  assert.equal(
+    (
+      await request(fixture({ roles: ["staff"] }))
+        .get("/api/dashboard")
+        .set("Cookie", "ats_session=synthetic")
+    ).status,
+    503,
+  );
+  assert.notEqual(
+    (
+      await request(fixture({ roles: ["super_admin"], enrolled: true }))
+        .get("/api/dashboard")
+        .set("Cookie", "ats_session=synthetic")
+    ).status,
+    503,
+  );
+});
 it("lets a managed local Admin enter without an enrolled authenticator", async (t) => {
   const prior = {
     NODE_ENV: process.env.NODE_ENV,

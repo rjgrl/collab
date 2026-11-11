@@ -1,12 +1,26 @@
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
-import { lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { constants, existsSync } from "node:fs";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { BACKUP_STATE_COLLECTION, SCHEMA_VERSION, type Database } from "@Alumni-Tracking-Ss/db";
 import { keyFingerprint, parseSecretKey } from "@Alumni-Tracking-Ss/db/secret-box";
 import { ApiError } from "../http-error";
-import { BundleWriter, RECORD, readBundle, safeRelativePath } from "./bundle";
+import { BundleWriter, RECORD, readBundle, readBundleHeader, safeRelativePath } from "./bundle";
+import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
+import { googleAccessToken } from "../integrations/files";
+import { readStoredCredentials } from "../integrations/credential-store";
 
 export type BackupConfig = {
   encryptionKey?: string;
@@ -123,11 +137,21 @@ async function runTool(
   if (code !== 0) throw new Error(`${path.basename(binary)} failed with exit code ${code}.`);
 }
 
+/** Never copied into a backup, even if UPLOAD_DIR is misconfigured to a wider folder. */
+export function excludedFromBackup(name: string) {
+  return (
+    /^\.env(\..*)?$/i.test(name) ||
+    [".tools", ".git", "node_modules"].includes(name) ||
+    /\.(pem|key|p12|pfx)$/i.test(name)
+  );
+}
+
 async function listUploadFiles(root: string) {
   const files: { rel: string; abs: string }[] = [];
   const walk = async (dir: string, prefix: string[]) => {
     if (!existsSync(dir)) return;
     for (const entry of await readdir(dir)) {
+      if (excludedFromBackup(entry)) continue;
       const abs = path.join(dir, entry);
       const info = await lstat(abs);
       if (info.isSymbolicLink()) continue;
@@ -246,6 +270,7 @@ export async function createBackup(input: {
       await verifyBackup(config, backupId);
       entry.verified = true;
       entry.status = "succeeded";
+      entry.offHost = await copyToDrive(input.db, config, file, backupId);
     } catch {
       entry.status = "failed";
       entry.error = "The backup was written but did not pass verification.";
@@ -262,6 +287,53 @@ export async function createBackup(input: {
     throw error instanceof ApiError
       ? error
       : new ApiError("INTERNAL_SERVER_ERROR", { message: entry.error });
+  }
+}
+
+/** Imports an encrypted bundle produced by this application and creates its local catalog entry. */
+export async function importBackup(
+  config: BackupConfig | undefined,
+  temporaryPath: string,
+  originalName: string,
+  createdBy: string,
+) {
+  const { dir } = requireConfig(config);
+  if (!originalName.toLowerCase().endsWith(".atsbak")) {
+    await rm(temporaryPath, { force: true });
+    throw new ApiError("BAD_REQUEST", { message: "Select an .atsbak backup file." });
+  }
+  let target: string | null = null;
+  try {
+    const header = await readBundleHeader(temporaryPath);
+    if (!ID_PATTERN.test(header.backupId)) throw new Error("Backup ID is invalid.");
+    const destination = bundlePath(dir, header.backupId);
+    if (existsSync(destination) || existsSync(catalogPath(dir, header.backupId)))
+      throw new ApiError("CONFLICT", { message: "This backup is already in the catalog." });
+    await copyFile(temporaryPath, destination, constants.COPYFILE_EXCL);
+    target = destination;
+    await rm(temporaryPath, { force: true });
+    const manifest = await verifyBackup(config, header.backupId);
+    const { backupId: _id, createdAt: _at, type: _type, ...summary } = manifest;
+    const entry: CatalogEntry = {
+      backupId: manifest.backupId,
+      createdAt: manifest.createdAt,
+      type: manifest.type,
+      status: "succeeded",
+      sizeBytes: (await stat(target)).size,
+      createdBy,
+      verified: true,
+      offHost: "skipped",
+      manifest: summary,
+    };
+    await writeCatalog(dir, entry);
+    return entry;
+  } catch (error) {
+    await rm(temporaryPath, { force: true });
+    if (target) await rm(target, { force: true });
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("BAD_REQUEST", {
+      message: "The uploaded backup could not be verified with this server's backup key.",
+    });
   }
 }
 
@@ -406,4 +478,58 @@ export async function applyBackup(
     await rm(staging, { recursive: true, force: true });
   }
   return manifest;
+}
+
+/**
+ * Optional off-host copy: when Google Drive is enabled with readable credentials, the encrypted
+ * file (never plaintext) is uploaded to the Drive folder. A failed copy never fails the backup.
+ */
+export async function copyToDrive(
+  db: Database,
+  config: BackupConfig,
+  file: string,
+  backupId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<"copied" | "failed" | "skipped"> {
+  const row = await db.IntegrationSetting.findOne({ key: "google_drive" }).lean().exec();
+  if (!row?.enabled) return "skipped";
+  try {
+    const key = config.integrationEncryptionKey
+      ? parseSecretKey(config.integrationEncryptionKey, "INTEGRATION_ENCRYPTION_KEY")
+      : null;
+    const stored = await readStoredCredentials(row, key);
+    const { serviceAccountJson, folderId } = stored.values;
+    if (stored.status !== "ok" || !serviceAccountJson || !folderId) return "failed";
+    const token = await googleAccessToken(
+      serviceAccountJson,
+      ["https://www.googleapis.com/auth/drive"],
+      fetcher,
+    );
+    const size = (await stat(file)).size;
+    const session = await fetcher(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true",
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(30_000),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Type": "application/octet-stream",
+          "X-Upload-Content-Length": String(size),
+        },
+        body: JSON.stringify({ name: `${backupId}.atsbak`, parents: [folderId] }),
+      },
+    );
+    const location = session.headers.get("location");
+    if (!session.ok || !location) return "failed";
+    const upload = await fetcher(location, {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream", "Content-Length": String(size) },
+      body: Readable.toWeb(createReadStream(file)) as unknown as RequestInit["body"],
+      duplex: "half",
+    } as RequestInit);
+    return upload.ok ? "copied" : "failed";
+  } catch {
+    return "failed";
+  }
 }

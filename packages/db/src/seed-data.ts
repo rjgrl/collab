@@ -327,7 +327,7 @@ async function seedDemo(db: Database, password: string) {
 }
 
 /** Demo sign-ins, all sharing the bootstrap administrator password. Listed in .tools/local-login.txt. */
-async function seedIntegrationCredentials(db: Database) {
+export async function seedIntegrationCredentials(db: Database) {
   if (process.env.NODE_ENV === "production") return;
 
   let key: Buffer | null = null;

@@ -5,7 +5,9 @@ import { toEntity } from "@Alumni-Tracking-Ss/db";
 import type { Database, UserRecord } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
-import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
+import { requireAccess, requireUser } from "@Alumni-Tracking-Ss/api/access";
+import { accountAccessPending } from "@Alumni-Tracking-Ss/api/services/verification";
+import { requiresMfa } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
 import { isAlumniAccount, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import {
   alumniSchemas,
@@ -406,6 +408,20 @@ export const alumniService = {
 };
 export const meProfileService = {
   async get(context: Context) {
+    // An unlinked Alumni account is marked as needing profile completion only because the link is
+    // missing. Report that specific 409, but keep every other access gate (verification, password,
+    // MFA) exactly as strict as requireAccess.
+    const user = requireUser(context);
+    const owner = await context.db.User.findOne({ _id: user.id, status: "active" }).lean();
+    if (
+      owner &&
+      !owner.alumniId &&
+      !accountAccessPending(toEntity(owner)) &&
+      !(requiresMfa(user) && !user.mfaVerified)
+    )
+      throw new ApiError("CONFLICT", {
+        message: "Your account must be linked to an alumni profile by an administrator.",
+      });
     const a = await linkedAlumni(context);
     return detail(context, a.id, context.db, true);
   },

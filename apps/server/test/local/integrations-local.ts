@@ -3,7 +3,9 @@ import { randomBytes } from "node:crypto";
 import request from "supertest";
 import { createDatabase } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
-import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
+import { seedDatabase, seedIntegrationCredentials } from "@Alumni-Tracking-Ss/db/seed-data";
+import { rotateIntegrationKey } from "@Alumni-Tracking-Ss/db/integration-key-rotation";
+import { credentialAad, open, type SealedValue } from "@Alumni-Tracking-Ss/db/secret-box";
 import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
 
@@ -113,8 +115,43 @@ try {
   assert.equal(row.keyFingerprint, undefined);
   stored = await scan();
   assert.ok(!stored.includes(keyHex));
+
+  // Environment seeding and key rotation also run against the real replica set, not only fakes.
+  const seededSecret = `seeded-secret-${randomBytes(6).toString("hex")}`;
+  process.env.INTEGRATION_ENCRYPTION_KEY = keyHex;
+  process.env.RECAPTCHA_SITE_KEY = "seeded-site-key";
+  process.env.RECAPTCHA_SECRET_KEY = seededSecret;
+  await seedIntegrationCredentials(db);
+  const seeded = await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean().orFail();
+  assert.equal(seeded.enabled, true);
+  assert.ok(!JSON.stringify(seeded).includes(seededSecret));
+  const nextKeyHex = randomBytes(32).toString("hex");
+  const dryRunBefore = JSON.stringify(seeded.credentials);
+  const dryRun = await rotateIntegrationKey(
+    db,
+    Buffer.from(keyHex, "hex"),
+    Buffer.from(nextKeyHex, "hex"),
+    { dryRun: true },
+  );
+  assert.ok(dryRun.keysRotated.includes("recaptcha"));
+  assert.equal(
+    JSON.stringify(
+      (await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean().orFail()).credentials,
+    ),
+    dryRunBefore,
+  );
+  await rotateIntegrationKey(db, Buffer.from(keyHex, "hex"), Buffer.from(nextKeyHex, "hex"));
+  const rotated = await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean().orFail();
+  const rotatedSecret = (rotated.credentials as Record<string, SealedValue>).secretKey!;
+  assert.equal(
+    open(Buffer.from(nextKeyHex, "hex"), credentialAad("recaptcha", "secretKey"), rotatedSecret),
+    seededSecret,
+  );
+  assert.throws(() =>
+    open(Buffer.from(keyHex, "hex"), credentialAad("recaptcha", "secretKey"), rotatedSecret),
+  );
   console.log(
-    "PASS integrations: encrypted enable/update/disable over HTTP, no secret in any response, no key or plaintext secret in any document, disable erases credentials.",
+    "PASS integrations: encrypted enable/update/disable over HTTP, no secret in responses or documents, disable erases credentials, env seed encrypts, dry-run is read-only, and real key rotation re-seals atomically.",
   );
 } finally {
   await db.connection.dropDatabase().catch(() => undefined);

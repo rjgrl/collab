@@ -5,7 +5,7 @@ import { requireAccess } from "../access";
 import { modelFixture } from "../test-utils/model-test-fixture";
 import { hashPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
-import { beginMfa, confirmMfa, verifyMfa, privilegedAccount, digest } from "./mfa";
+import { beginMfa, confirmMfa, verifyMfa, reverifyMfaCode, privilegedAccount, digest } from "./mfa";
 import { consumeAuthAttempt } from "./throttle";
 
 const password = "A private testing passphrase 82!";
@@ -125,6 +125,13 @@ it("confirms enrollment once and stores only recovery digests", async () => {
   assert.ok(!JSON.stringify(f.row).includes(f.recoveryCodes[0]!));
   await assert.rejects(() => confirmMfa(f.context, f.code), /invalid/);
   await assert.rejects(() => verifyMfa(f.context, f.code), /invalid/);
+});
+it("accepts the first step-up code when the replay marker is the initial -1", async () => {
+  const f = await enrolled();
+  f.row!.lastStep = -1;
+  await reverifyMfaCode(f.context, f.code);
+  assert.ok(Number(f.row!.lastStep) >= 0);
+  await assert.rejects(() => reverifyMfaCode(f.context, f.code), /invalid/);
 });
 it("consumes recovery codes once and requires a recent primary sign-in", async () => {
   const f = await enrolled();

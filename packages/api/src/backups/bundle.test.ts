@@ -4,7 +4,14 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, it } from "node:test";
-import { BundleWriter, RECORD, readBundle, safeRelativePath, type BundleRecord } from "./bundle";
+import {
+  BundleWriter,
+  RECORD,
+  readBundle,
+  readBundleHeader,
+  safeRelativePath,
+  type BundleRecord,
+} from "./bundle";
 
 const key = Buffer.from("7a".repeat(32), "hex");
 const id = "20261109000000-0a1b2c3d";
@@ -46,6 +53,9 @@ async function chunks(file: string) {
 
 it("round-trips records across several 1 MiB chunks without plaintext on disk", async () => {
   const file = await sample();
+  const header = await readBundleHeader(file);
+  assert.equal(header.backupId, id);
+  assert.ok(!Number.isNaN(Date.parse(header.createdAt)));
   const seen = await records(file);
   assert.deepEqual(
     Buffer.concat(seen.filter((r) => r.type === RECORD.archive).map((r) => r.data)),

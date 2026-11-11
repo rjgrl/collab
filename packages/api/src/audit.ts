@@ -30,6 +30,7 @@ const auditedFields = new Set([
   "status",
   "notes",
   "roleIds",
+  "roleNames",
   "permissionKeys",
   "enabled",
   "alumniId",

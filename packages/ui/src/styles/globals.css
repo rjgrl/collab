@@ -45,6 +45,7 @@
   --sidebar-ring: #7fb0ff;
   --success: #176241;
   --success-muted: #e9f5ee;
+  --toast-success-text: #073b24;
   --warning: #80520d;
   --warning-muted: #fff5df;
   --shadow-color: 15 31 51;
@@ -85,9 +86,16 @@
   --sidebar-ring: #93b4ff;
   --success: #91d6b4;
   --success-muted: #163a2e;
+  --toast-success-text: #b8f0d2;
   --warning: #f1cb86;
   --warning-muted: #3a2f1e;
   --shadow-color: 0 0 0;
+}
+
+/* Sonner removes dismissed toasts from the DOM; keeping them opaque avoids transient text
+   contrast failures during its enter/exit transform animation. */
+[data-sonner-toast] {
+  opacity: 1 !important;
 }
 
 @theme inline {

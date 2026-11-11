@@ -74,6 +74,8 @@ export function BackupsPage() {
   const [restoreDialog, setRestoreDialog] = useState<BackupEntry | null>(null);
   const [restoreCode, setRestoreCode] = useState("");
   const [restoreConfirmation, setRestoreConfirmation] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importInputKey, setImportInputKey] = useState(0);
   const [pollInterval, setPollInterval] = useState<number | false>(false);
 
   // Auto-populate schedule form when data loads
@@ -121,8 +123,34 @@ export function BackupsPage() {
 
   const backupNow = useMutation({
     mutationFn: () => client.backups.create(),
+    onSuccess: async (entry) => {
+      toast.success(
+        entry.offHost === "copied"
+          ? "Backup created, verified and copied to Google Drive"
+          : entry.offHost === "failed"
+            ? "Backup created and verified; Google Drive copy failed"
+            : "Backup created and verified",
+      );
+      await queryClient.invalidateQueries();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const importBackup = useMutation({
+    mutationFn: (file: File) => client.backups.import(file),
     onSuccess: async () => {
-      toast.success("Backup created and verified");
+      setImportFile(null);
+      setImportInputKey((value) => value + 1);
+      toast.success("Backup imported and verified");
+      await queryClient.invalidateQueries();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const endMaintenance = useMutation({
+    mutationFn: () => client.backups.endMaintenance(),
+    onSuccess: async () => {
+      toast.success("Maintenance mode ended");
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -157,8 +185,10 @@ export function BackupsPage() {
   const { configured, running, backups, restore: restoreState, maintenance } = overview.data;
   const isConfigured = configured.encryptionKey && configured.dir && configured.tools;
   const isMaintenance = maintenance || restoreState.status === "running";
+  // Maintenance can outlive a restore (server crash or failed rollback); keep the panel and its
+  // "End maintenance mode" action visible until a Super Admin ends it.
   const showRestoreStatus =
-    isMaintenance && (restoreStatus.data || restoreState.status === "running");
+    isMaintenance || (restoreStatus.data !== undefined && restoreStatus.data.status !== "idle");
 
   const missingConfig = [
     !configured.encryptionKey && "BACKUP_ENCRYPTION_KEY",
@@ -185,7 +215,7 @@ export function BackupsPage() {
         <div
           role="status"
           aria-live="polite"
-          className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950"
+          className="rounded-xl border border-warning/40 bg-warning-muted p-4"
         >
           <p className="text-sm font-medium">
             {restoreState.status === "running"
@@ -194,8 +224,20 @@ export function BackupsPage() {
                 ? "Restore finished. Everyone, including you, must sign in again."
                 : restoreStatus.data?.status === "rolled-back"
                   ? `Restore failed at ${restoreStatus.data.step} and was rolled back to the pre-restore backup.`
-                  : `Restore failed at ${restoreStatus.data?.step}. Maintenance mode is still on; check the server.`}
+                  : (restoreState.error ??
+                    `Restore failed at ${restoreStatus.data?.step}. Maintenance mode is still on; check the server.`)}
           </p>
+          {maintenance && restoreState.status !== "running" ? (
+            <PrimaryButton
+              variant="outline"
+              className="mt-2"
+              pending={endMaintenance.isPending}
+              pendingLabel="Ending"
+              onClick={() => endMaintenance.mutate()}
+            >
+              End maintenance mode
+            </PrimaryButton>
+          ) : null}
           {restoreStatus.data?.status === "succeeded" && (
             <Button
               variant="outline"
@@ -287,8 +329,7 @@ export function BackupsPage() {
           </CardContent>
         </Card>
 
-        {/* Back up now button */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-end gap-4">
           <PrimaryButton
             pending={backupNow.isPending}
             pendingLabel="Backing up"
@@ -297,13 +338,41 @@ export function BackupsPage() {
           >
             Back up now
           </PrimaryButton>
+          <FormField id="backup-import" label="Import encrypted backup">
+            <Input
+              key={importInputKey}
+              id="backup-import"
+              type="file"
+              accept=".atsbak,application/octet-stream"
+              onChange={(event) => setImportFile(event.currentTarget.files?.[0] ?? null)}
+              disabled={!isConfigured || importBackup.isPending}
+            />
+          </FormField>
+          <PrimaryButton
+            variant="outline"
+            pending={importBackup.isPending}
+            pendingLabel="Importing"
+            disabled={!isConfigured || !importFile}
+            onClick={() => importFile && importBackup.mutate(importFile)}
+          >
+            Import and verify
+          </PrimaryButton>
         </div>
 
         {/* Backups table */}
         {backups.length > 0 && (
           <DataTable
             label="Backups table"
-            headers={["Date", "Type", "Size", "Status", "Created by", "Verified", "Actions"]}
+            headers={[
+              "Date",
+              "Type",
+              "Size",
+              "Status",
+              "Created by",
+              "Verified",
+              "Off-host",
+              "Actions",
+            ]}
             isEmpty={false}
           >
             {backups.map((entry) => (
@@ -319,6 +388,7 @@ export function BackupsPage() {
                 </td>
                 <td className="px-4 py-3">{entry.createdBy}</td>
                 <td className="px-4 py-3">{entry.verified ? "Yes" : "No"}</td>
+                <td className="px-4 py-3 capitalize">{entry.offHost ?? "Skipped"}</td>
                 <td className="px-4 py-3 text-right">
                   <Button
                     variant="outline"

@@ -151,6 +151,30 @@ it("renderAuditSummary handles roleIds", () => {
   assert(result.includes("Admin"), "should render single role ID");
 });
 
+it("renderAuditSummary never exposes unknown or retired role IDs", () => {
+  const retiredId = "64b7f2a21f8c2a0012345678";
+  const result = renderAuditSummary(
+    {
+      entity: "user",
+      summary: `roleIds: [${JSON.stringify(retiredId)}] → []`,
+    },
+    { roles: {}, permissions: {} },
+  );
+  assert.match(result, /Unknown or retired role/);
+  assert.ok(!result.includes(retiredId));
+});
+
+it("renderAuditSummary handles stored role names without IDs", () => {
+  const result = renderAuditSummary(
+    {
+      entity: "user",
+      summary: 'roleNames: ["Staff"] → ["Department head"]',
+    },
+    { roles: {}, permissions: {} },
+  );
+  assert.match(result, /Roles: "Staff" → "Department head"/);
+});
+
 it("renderAuditSummary handles permissionKeys", () => {
   const names = {
     roles: {},

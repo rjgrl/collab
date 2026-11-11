@@ -308,6 +308,8 @@ function schema<T>(
     autoIndex: false,
     versionKey: false,
     strict: true,
+    // ImportJob intentionally uses the domain field name `errors`; Mongoose only warns about it.
+    suppressReservedKeysWarning: true,
   });
 }
 const createdOnly = { createdAt: true, updatedAt: false };

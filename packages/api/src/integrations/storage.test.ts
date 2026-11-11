@@ -85,7 +85,9 @@ it("uploads to a Shared Drive folder privately and fails loudly", async () => {
   const url = new URL(create.url);
   assert.equal(url.searchParams.get("supportsAllDrives"), "true");
   assert.equal(url.searchParams.get("uploadType"), "multipart");
-  assert.match(String((create.init?.body as Buffer).toString()), /"parents":\["folder-1"\]/);
+  const createBody = create.init?.body;
+  assert.ok(createBody);
+  assert.match(String((createBody as Buffer).toString()), /"parents":\["folder-1"\]/);
   assert.equal(
     net.calls.some((c) => c.url.includes("/permissions")),
     false,

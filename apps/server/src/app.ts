@@ -215,9 +215,21 @@ export function createApp({ db, config, integrationEnv, sessionLoader, backup }:
     );
     next();
   });
-  // During a restore every API request except sign-in and Super Admin work gets 503.
+  // During a restore every API request gets 503 except Super Admin work and the few routes a
+  // Super Admin needs to sign in (password or Google, second factor, session check, sign-out).
+  const signInRoutes = new Set([
+    "GET /api/auth/config",
+    "GET /api/auth/me",
+    "POST /api/auth/login",
+    "POST /api/auth/logout",
+    "GET /api/auth/mfa",
+    "POST /api/auth/mfa/verifications",
+    "GET /api/auth/google",
+    "GET /api/auth/google/callback",
+  ]);
   app.use(async (request, response, next) => {
-    if (!request.path.startsWith("/api/") || request.path.startsWith("/api/auth/")) return next();
+    const route = `${request.method} ${request.path.replace(/\/+$/, "")}`;
+    if (!request.path.startsWith("/api/") || signInRoutes.has(route)) return next();
     const state = await maintenanceState(db).catch(() => ({ active: false, message: "" }));
     const user = requestContext(request).user;
     if (!state.active || (user && isAdministrator(user))) return next();
@@ -234,7 +246,7 @@ export function createApp({ db, config, integrationEnv, sessionLoader, backup }:
   app.use("/api/faculty", facultyRoutes);
   app.use("/api/departments", departmentsRoutes);
   app.use("/api/programs", programsRoutes);
-  app.get("/api/me/profile", authenticate, authorize(undefined, false), meProfileController.get);
+  app.get("/api/me/profile", authenticate, meProfileController.get);
   app.patch(
     "/api/me/profile",
     authenticate,

@@ -51,7 +51,7 @@ export async function acquireLock(
     const row = await db.BackupState.findOneAndUpdate(
       { _id: "lock", $or: [{ lockedUntil: { $lt: now } }, { lockedUntil: { $exists: false } }] },
       { $set: { owner, kind, lockedUntil: new Date(now.getTime() + ttlMs) } },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     ).exec();
     return row?.owner === owner;
   } catch (error) {

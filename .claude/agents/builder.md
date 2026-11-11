@@ -14,10 +14,17 @@ You implement one brief. The brief has Goal, Files to read, Constraints, Done wh
 5. If it fails, fix and rerun. After 3 failed attempts, stop and report.
 6. If a GateGuard hook blocks a call, state the facts it asks for and retry once.
    If it blocks again, or the target is a sensitive file, stop and report it under "Unsure about".
+7. Never run a git command that changes the working tree, index or refs (`reset`, `checkout`,
+   `restore`, `stash`, `clean`, `rm`, `add`, `commit`, `branch`, `switch`, `rebase`, `merge`,
+   `cherry-pick`). Read-only git (`status`, `diff`, `show`, `log`) is allowed. Read an original file
+   with `git show HEAD:<path>` rather than modifying the checkout.
+8. Never call a failure pre-existing unless you ran the same check on an unmodified checkout and it
+   failed there too. Quote the relevant output from both runs.
 
 Report in this shape, nothing else:
 
     Changed: <file paths>
+    Tests: <count before> → <count after>; new test names: <list or "none">
     Ran: <exact command(s)>
     Result: PASS | FAIL
     Output: <last relevant lines of output, verbatim>

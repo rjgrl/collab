@@ -10,6 +10,7 @@ import {
   createBackup,
   fingerprintOf,
   getBackup,
+  importBackup,
   listBackups,
   type BackupConfig,
 } from "@Alumni-Tracking-Ss/api/backups/backup-service";
@@ -17,11 +18,13 @@ import {
   DEFAULT_SCHEDULE,
   acquireLock,
   releaseLock,
+  notifySuperAdmins,
 } from "@Alumni-Tracking-Ss/api/backups/scheduler";
 import {
   RESTORE_STEPS,
   maintenanceState,
   runRestore,
+  setMaintenance,
   type RestoreStep,
 } from "@Alumni-Tracking-Ss/api/backups/restore";
 import { backupsSchemas } from "@Alumni-Tracking-Ss/contracts/backups";
@@ -30,7 +33,7 @@ import type { z } from "zod";
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /** Super Admin with an MFA-verified session, checked on the server for every backup action. */
-function requireBackupAdmin(context: Context) {
+export function requireBackupAdmin(context: Context) {
   const user = requireAdministrator(context);
   if (user.mfaVerified !== true)
     throw new ApiError("FORBIDDEN", {
@@ -100,6 +103,8 @@ export const backupsService = {
       });
       return entry;
     } catch (error) {
+      const reason = error instanceof Error ? error.message : "unknown error";
+      await notifySuperAdmins(context.db, `Manual backup by ${user.name} failed: ${reason}`);
       await writeAudit(context.db, {
         actor: user,
         action: "backups.failed",
@@ -112,6 +117,25 @@ export const backupsService = {
     } finally {
       await releaseLock(context.db, owner);
     }
+  },
+
+  async import(
+    context: Context,
+    config: BackupConfig | undefined,
+    file: { path: string; originalname: string } | undefined,
+  ) {
+    const user = requireBackupAdmin(context);
+    if (!file) throw new ApiError("BAD_REQUEST", { message: "Select an .atsbak backup file." });
+    const entry = await importBackup(config, file.path, file.originalname, user.name);
+    await writeAudit(context.db, {
+      actor: user,
+      action: "backups.import",
+      entity: "backup",
+      entityId: entry.backupId,
+      summary: `Imported and verified backup ${entry.backupId}`,
+      ipAddress: context.ipAddress,
+    });
+    return entry;
   },
 
   async schedule(context: Context, input: z.input<typeof backupsSchemas.schedule.input>) {
@@ -186,6 +210,23 @@ export const backupsService = {
       failAt,
     }).catch(() => releaseLock(context.db, owner));
     return { started: true as const };
+  },
+
+  /** Leaves maintenance mode after an interrupted or failed restore has been checked. */
+  async endMaintenance(context: Context) {
+    const user = requireBackupAdmin(context);
+    if ((await restoreStatus(context)).status === "running")
+      throw new ApiError("CONFLICT", { message: "A restore is still running." });
+    await setMaintenance(context.db, false);
+    await writeAudit(context.db, {
+      actor: user,
+      action: "backups.maintenance",
+      entity: "backup",
+      entityId: "maintenance",
+      summary: "Ended maintenance mode manually",
+      ipAddress: context.ipAddress,
+    });
+    return { ok: true as const };
   },
 
   async restoreStatus(context: Context) {

@@ -109,6 +109,7 @@ export const usersService = {
       if (!row) throw new ApiError("NOT_FOUND", { message: "User not found." });
       const current = toEntity(row);
       const roles = await loadUserRoles(tx, input.id);
+      let nextRolesForAudit = roles;
       assertRoleScope(actor, roles);
       if (input.roleIds) {
         if (roles.some((role) => role.key === "super_admin"))
@@ -116,6 +117,7 @@ export const usersService = {
             message: "Super administrator role assignments are protected.",
           });
         const nextRoles = await validateRoleIds(tx, actor, input.roleIds);
+        nextRolesForAudit = nextRoles;
         const currentKeys = roles.map((role) => role.key);
         const nextKeys = nextRoles.map((role) => role.key);
         if (
@@ -166,7 +168,7 @@ export const usersService = {
         action: "users.update",
         entity: "user",
         entityId: input.id,
-        summary: `Updated account ${JSON.stringify(current.name)} (${current.email}): ${describeAuditChanges({ ...current, roleIds: roles.map((role) => role.id).sort() }, { ...names, ...(input.roleIds ? { roleIds: [...input.roleIds].sort() } : {}) })}${passwordHash ? "; changed password (value omitted)" : ""}`,
+        summary: `Updated account ${JSON.stringify(current.name)} (${current.email}): ${describeAuditChanges({ ...current, roleNames: roles.map((role) => role.name).sort() }, { ...names, ...(input.roleIds ? { roleNames: nextRolesForAudit.map((role) => role.name).sort() } : {}) })}${passwordHash ? "; changed password (value omitted)" : ""}`,
         ipAddress: context.ipAddress,
       });
       return publicUser(tx, input.id);

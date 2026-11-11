@@ -42,7 +42,11 @@ jobs:
       - run: pnpm check:secrets
       - run: pnpm audit --audit-level=moderate
       - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm tools:mongodb
+      - run: pnpm db:local
       - run: pnpm test:completion-db
+      - run: pnpm test:backup-local
+      - run: pnpm test:integrations-local
       - run: pnpm test:browser
       - run: pnpm build
       - run: pnpm check:production-build

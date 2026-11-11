@@ -98,9 +98,11 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 
   // Backups
   "backups.create": "Created backup",
+  "backups.import": "Imported backup",
   "backups.failed": "Backup failed",
   "backups.schedule": "Changed backup schedule",
   "backups.restore": "Restored backup",
+  "backups.maintenance": "Ended maintenance mode",
 };
 
 /**
@@ -147,6 +149,7 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   status: "Status",
   notes: "Notes",
   roleIds: "Roles",
+  roleNames: "Roles",
   permissionKeys: "Permissions",
   enabled: "Enabled",
   alumniId: "Alumni",
@@ -401,7 +404,9 @@ function renderJSONValue(
   }
   if (Array.isArray(value)) {
     if (field === "roleIds") {
-      return (value as string[]).map((id) => names.roles[id] ?? id).join(", ");
+      return (value as string[])
+        .map((id) => names.roles[id] ?? "Unknown or retired role")
+        .join(", ");
     }
     if (field === "permissionKeys") {
       return (value as string[]).map((key) => names.permissions[key] ?? key).join(", ");

@@ -89,7 +89,10 @@ globalThis.fetch = async (input, init) => {
   return nativeFetch(input, init);
 };
 function createTestApplication() {
-  const toolsDir = path.resolve(".tools/mongodb-database-tools-windows-x86_64-100.20.1/bin");
+  const toolsDir = path.resolve(
+    process.env.MONGODB_TOOLS_DIR ??
+      `.tools/mongodb-database-tools-${process.platform === "win32" ? "windows" : "ubuntu2204"}-x86_64-100.20.1/bin`,
+  );
   const toolsExist = existsSync(toolsDir);
   const backupDir = path.resolve(".tools/browser-backups", databaseName);
   const backupConfig = toolsExist

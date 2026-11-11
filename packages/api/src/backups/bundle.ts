@@ -88,6 +88,26 @@ async function readExactly(handle: FileHandle, length: number, position: number)
   return bytesRead === length ? buffer : null;
 }
 
+export async function readBundleHeader(path: string) {
+  const handle = await open(path, "r");
+  try {
+    const magic = await readExactly(handle, MAGIC.length + 2, 0);
+    if (!magic || !magic.subarray(0, MAGIC.length).equals(MAGIC))
+      throw new Error("Not a backup file.");
+    const headerLength = magic.readUInt16BE(MAGIC.length);
+    const headerBytes = await readExactly(handle, headerLength, MAGIC.length + 2);
+    if (!headerBytes) throw new Error("Backup file is truncated.");
+    const header = JSON.parse(headerBytes.toString("utf8")) as {
+      backupId?: string;
+      createdAt?: string;
+    };
+    if (!header.backupId || !header.createdAt) throw new Error("Backup header is incomplete.");
+    return { backupId: header.backupId, createdAt: header.createdAt };
+  } finally {
+    await handle.close();
+  }
+}
+
 /** Streams authenticated records to `onRecord`; throws on any integrity failure. */
 export async function readBundle(
   path: string,

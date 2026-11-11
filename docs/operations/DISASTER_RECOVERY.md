@@ -2,17 +2,18 @@
 
 This is a bounded development rehearsal, not a production backup service. `pnpm test:recovery-local` generates new `collab_recovery_source_<random>` and `collab_recovery_target_<random>` databases on loopback 27018 / `rs0`; it accepts no caller-supplied database name. It refuses NODE_ENV=production, verifies the target has no collections and never uses `--drop`, an existing application database or private environment files.
 
-Install reviewed compatible MongoDB Database Tools from the [official archive](https://www.mongodb.com/try/download/database-tools/releases/archive). The PowerShell example below expects the portable 100.19.1 package under ignored `.tools/database-tools-100.19.1/`; adjust that path for your approved installation. Verify the download and compatibility with your MongoDB version before running it.
+Install the pinned official MongoDB Database Tools 100.20.1 package with `pnpm tools:mongodb`. The installer supports Windows and Ubuntu x64, verifies the platform archive against the reviewed SHA-256 before extraction under ignored `.tools/`, prints the tool version and exports `MONGODB_TOOLS_DIR` in GitHub Actions.
 
-Reproduce in PowerShell after dependency installation, environment type generation and a local build:
+Reproduce after dependency installation, environment type generation and a local build:
 
 ```powershell
+pnpm tools:mongodb
 pnpm build
-$env:MONGODB_TOOLS_DIR = (Get-ChildItem .tools/database-tools-100.19.1 -Recurse -Filter mongodump.exe | Select-Object -First 1).DirectoryName
+$env:MONGODB_TOOLS_DIR = (Resolve-Path .tools/mongodb-database-tools-windows-x86_64-100.20.1/bin)
 pnpm test:recovery-local
 ```
 
-For another OS, install reviewed compatible Database Tools through its approved workflow and set MONGODB_TOOLS_DIR to its bin directory. Validate the chosen OS/tool combination independently. Read the [official restore documentation](https://www.mongodb.com/docs/database-tools/mongorestore/) before adapting commands; an archive restore can report success with zero documents if namespace filtering is wrong.
+For another OS/architecture, install reviewed compatible Database Tools through its approved workflow and set `MONGODB_TOOLS_DIR` to its bin directory. Validate the chosen OS/tool combination independently. Read the [official restore documentation](https://www.mongodb.com/docs/database-tools/mongorestore/) before adapting commands; an archive restore can report success with zero documents if namespace filtering is wrong.
 
 The script:
 
@@ -48,20 +49,23 @@ Server configuration (private environment only, never in the database or a backu
 
 - `BACKUP_ENCRYPTION_KEY`: 64 hex characters (`openssl rand -hex 32`), different from `MFA_ENCRYPTION_KEY`, `SESSION_SECRET` and `INTEGRATION_ENCRYPTION_KEY`.
 - `BACKUP_DIR`: absolute directory outside `UPLOAD_DIR` and the web build. It holds `<id>.atsbak` (encrypted), `<id>.json` (catalog: dates, counts, versions, key fingerprints; no data) and the append-only `restore-log.jsonl`.
-- `MONGODB_TOOLS_DIR`: the MongoDB Database Tools `bin` directory (`mongodump`, `mongorestore`). Locally: `.tools/mongodb-database-tools-windows-x86_64-100.20.1/bin` (official zip, SHA-256 checked against `downloads.mongodb.org/tools/db/release.json`).
+- `MONGODB_TOOLS_DIR`: the MongoDB Database Tools `bin` directory (`mongodump`, `mongorestore`). Run `pnpm tools:mongodb` to install and verify the pinned official 100.20.1 package on Windows or Ubuntu x64.
 
 What a backup contains: a gzip `mongodump` archive of the application database (except the `BackupState` collection), every regular file under `UPLOAD_DIR` (evidence and account photos stored locally; files kept in Google Drive or ImgBB are not copied), and a manifest (collection counts, file hashes, app version, `SCHEMA_VERSION`, fingerprints of the MFA and integration keys). Environment files, `.tools/` and key material are never included. The file is sealed in 1 MiB AES-256-GCM chunks whose AAD binds the backup ID, chunk index and final flag, so tampering, reordering or truncation is detected before any data is used. Every backup is decrypted and its hashes re-checked right after it is written ("Verified").
 
-Schedule: off, daily or weekly at a time in Asia/Manila (UTC+8), keeping the newest N scheduled backups (manual and pre-restore backups are never pruned). The schedule lives in the database; each server instance checks it every minute, but a slot claim and a lock in `BackupState` make sure only one instance runs a given backup. Failures notify every active Super Admin and are audited.
+Schedule: off, daily or weekly at a time in Asia/Manila (UTC+8), keeping the newest N scheduled backups (manual and pre-restore backups are never pruned). The schedule lives in the database; each server instance checks it every minute, but a slot claim and a lock in `BackupState` make sure only one instance runs a given backup. Scheduled and manual failures notify every active Super Admin and are audited.
+
+Off-host copy: when Google Drive is enabled with readable credentials, the server uploads the already-encrypted `.atsbak` file to the configured folder using a resumable Drive upload. The catalog records `copied`, `failed` or `skipped`, and Settings shows that result. A Drive failure never converts a verified local backup into a failed backup; operators must monitor the off-host status.
 
 Restore (Super Admin with an MFA-verified session):
 
 1. Pick a verified backup. The dialog shows its manifest and versions. A backup with a newer schema version, or one made with a different `MFA_ENCRYPTION_KEY` or `INTEGRATION_ENCRYPTION_KEY`, is refused (restored authenticators or credentials would be unreadable).
 2. Enter a current authenticator code (a fresh step-up check; recovery codes are not accepted) and type `RESTORE`.
-3. The server makes and verifies a pre-restore backup, turns on maintenance mode (every non-Super-Admin API request gets 503; sign-in stays reachable), runs `mongorestore --drop --stopOnError`, restores files into a staging directory and swaps it in, runs pending migrations, deletes every session, and turns maintenance off. Everyone, including the operator, signs in again.
+3. The server makes and verifies a pre-restore backup, turns on maintenance mode (every non-Super-Admin API request gets 503 except the password/Google sign-in, MFA verification, session check and sign-out routes), runs `mongorestore --drop --stopOnError`, restores files into a staging directory and swaps it in, runs pending migrations, deletes every session, and turns maintenance off. Everyone, including the operator, signs in again.
 4. If any step fails, the pre-restore backup is restored the same way. If that also fails, maintenance mode stays on and the status shows the failed step; fix the cause and restore the pre-restore backup again.
-5. The restore is written to `restore-log.jsonl` and, because the audit log itself was replaced, re-recorded in the audit log afterwards.
+5. If the server process stops during a restore, the next startup marks the restore failed, expires its stale restore lock and deliberately leaves maintenance mode on. After inspecting the database/files or running another restore, a verified Super Admin can use **End maintenance mode**; that action is audited.
+6. The restore is written to `restore-log.jsonl` and, because the audit log itself was replaced, re-recorded in the audit log afterwards.
 
-Check it locally with `pnpm test:backup-local` (generated databases on rs0/27018 only: backup, change data, restore, compare; corrupted file; forced mid-restore failure and rollback; two scheduler instances; 403 for non-admins and unverified MFA).
+Check it locally with `pnpm test:backup-local` (generated databases on rs0/27018 only: backup, change data, restore, compare; corrupted file; forced mid-restore failure and rollback; interrupted-process recovery; two scheduler instances; 403/503 access; and a real HTTP restore submitted with a generated TOTP). CI runs this on Windows and Ubuntu.
 
-Limits: backups are copied off-host only when you copy `BACKUP_DIR` elsewhere (the Google Drive copy is not implemented yet); `BACKUP_DIR` on the same host does not protect against host loss. No point-in-time/oplog consistency is claimed; writes during a backup may or may not be included. RPO/RTO targets are still to be agreed.
+Limits: restore currently selects a backup already present in the server catalog; uploading an `.atsbak` from another host is not implemented. `BACKUP_DIR` on the same host does not protect against host loss unless the Google Drive copy succeeds. No point-in-time/oplog consistency is claimed; writes during a backup may or may not be included. RPO/RTO targets are still to be agreed.

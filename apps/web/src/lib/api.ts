@@ -276,12 +276,30 @@ export const client = {
   backups: {
     overview: endpoint(backupsSchemas.overview, "GET", "/api/backups"),
     create: endpoint(backupsSchemas.create, "POST", "/api/backups"),
+    import: uploadBackupFile,
     schedule: endpoint(backupsSchemas.schedule, "PUT", "/api/backups/schedule"),
     restore: endpoint(backupsSchemas.restore, "POST", "/api/backups/:id/restore"),
     restoreStatus: endpoint(backupsSchemas.restoreStatus, "GET", "/api/backups/restore"),
+    endMaintenance: endpoint(backupsSchemas.endMaintenance, "POST", "/api/backups/maintenance/end"),
   },
 };
 export const api = client;
+
+export async function uploadBackupFile(file: File) {
+  if (!file.name.toLowerCase().endsWith(".atsbak"))
+    throw new Error("Select an .atsbak backup file.");
+  const data = new FormData();
+  data.append("backup", file);
+  return readJson(
+    await fetch(`${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/api/backups/import`, {
+      method: "POST",
+      credentials: "include",
+      body: data,
+    }),
+    backupsSchemas.import.output,
+  );
+}
+
 export async function uploadProfileFile(options: {
   file: File;
   kind: "image" | "evidence";

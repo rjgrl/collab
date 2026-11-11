@@ -79,3 +79,10 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Format: chunked AES-256-GCM (1 MiB chunks, AAD binds backup ID, index and final flag) with `BACKUP_ENCRYPTION_KEY` from the environment only. Catalog, lock, schedule and maintenance state live outside the restored data (`BACKUP_DIR` files and the excluded `BackupState` collection), so a restore cannot roll them back.
 - Tools: MongoDB Database Tools 100.20.1 (official zip, SHA-256 verified) in ignored `.tools/`, used through `MONGODB_TOOLS_DIR`.
 - Deferred: the optional off-host copy to Google Drive and restoring from an uploaded file.
+
+## 2026-11-11: Worker safety guardrails after the five-unit implementation
+
+- Decision: builders may use only read-only git commands. They must report test-count changes and new test names, and may call a failure pre-existing only after reproducing it on an unmodified checkout.
+- Decision: worker briefs stay to one concern and about three files. Cryptography, restore/migration, and authorization-guard code remains with the orchestrator; workers may handle bounded UI and tests around it.
+- Decision: replacing a guard, route, or compatibility path requires a negative grep in the acceptance check so the removed path cannot survive beside the replacement.
+- Reason: this session had one destructive reset, test claims without added tests, unproved "pre-existing" failures, a dropped reCAPTCHA guard, and an old integration route that bypassed credential requirements. The user approved applying every `/reflect` proposal.

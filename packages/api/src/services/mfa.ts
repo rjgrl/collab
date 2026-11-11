@@ -181,7 +181,7 @@ export async function reverifyMfaCode(context: Context, code: string) {
     secret: decrypt(context, row.secretCipher),
     token: code,
     epochTolerance: 30,
-    afterTimeStep: row.lastStep,
+    ...(row.lastStep >= 0 ? { afterTimeStep: row.lastStep } : {}),
   });
   if (!result.valid || !("timeStep" in result) || typeof result.timeStep !== "number")
     throw failed();
@@ -222,7 +222,7 @@ export async function verifyMfa(context: Context, code: string) {
         secret: decrypt(context, row.secretCipher),
         token: code,
         epochTolerance: 30,
-        afterTimeStep: row.lastStep,
+        ...(row.lastStep >= 0 ? { afterTimeStep: row.lastStep } : {}),
       });
   const usedStep =
     result && "timeStep" in result && typeof result.timeStep === "number" ? result.timeStep : null;

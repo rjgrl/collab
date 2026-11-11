@@ -64,7 +64,9 @@ export const restoreInputSchema = z
 export const backupsSchemas = {
   overview: { input: z.void(), output: backupOverviewSchema },
   create: { input: z.void(), output: backupEntrySchema },
+  import: { input: z.void(), output: backupEntrySchema },
   schedule: { input: backupScheduleSchema, output: backupScheduleSchema },
   restore: { input: restoreInputSchema, output: z.object({ started: z.literal(true) }) },
   restoreStatus: { input: z.void(), output: restoreStatusSchema },
+  endMaintenance: { input: z.void(), output: z.object({ ok: z.literal(true) }) },
 };

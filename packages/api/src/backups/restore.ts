@@ -169,3 +169,22 @@ export async function runRestore(input: {
   await releaseLock(db, input.lockOwner);
   return { result, failedStep, preRestoreId };
 }
+
+/**
+ * Called once at server start: a restore that was "running" cannot still be running in a fresh
+ * process, so mark it failed, release the lock, and leave maintenance mode exactly as it was.
+ */
+export async function recoverInterruptedRestore(db: Database) {
+  const row = await db.BackupState.findById("restore").lean().exec();
+  if (row?.status !== "running") return false;
+  await setStatus(db, {
+    status: "failed",
+    error: `The server stopped during the restore (step: ${row.step ?? "unknown"}). Check the data, then restore the pre-restore backup or end maintenance mode.`,
+    finishedAt: new Date(),
+  });
+  await db.BackupState.updateOne(
+    { _id: "lock", kind: "restore" },
+    { $set: { lockedUntil: new Date(0) } },
+  ).exec();
+  return true;
+}

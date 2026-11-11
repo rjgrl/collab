@@ -28,6 +28,8 @@ const role = {
 function fixture(count = 1, failure = false) {
   const f = modelFixture({
     Role: [{ ...role, updatedAt: count ? role.updatedAt : new Date("2026-01-03T00:00:00.000Z") }],
+    UserRole: [{ roleId: role.id, userId: "member" }],
+    Session: [{ userId: "member", token: "session" }],
   });
   if (failure) f.failWrite("RolePermission", "deleteMany", new Error("Write failed"));
   const context = {
@@ -40,6 +42,7 @@ function fixture(count = 1, failure = false) {
   } as Context;
   return {
     context,
+    rawOperations: f.operations,
     get operations() {
       return f.operations.flatMap((op) => {
         if (op.model === "Database" && op.method === "transaction") return ["transaction"];
@@ -138,6 +141,20 @@ it("claims the expected role version before replacing permissions and auditing i
   const result = await update(f.context);
   assert.equal(result.id, role.id);
   assert.deepEqual(f.operations, ["transaction", "claim", "replace", "audit"]);
+});
+it("does not revoke member sessions for a role note-only edit", async () => {
+  const f = fixture();
+  await rolesService.update(f.context, {
+    id: role.id,
+    expectedUpdatedAt: role.updatedAt.toISOString(),
+    description: "Internal note only",
+  });
+  assert.equal(
+    f.rawOperations.some(
+      (operation) => operation.model === "Session" && operation.method === "deleteMany",
+    ),
+    false,
+  );
 });
 it("rejects stale saves before any permission assignments are deleted", async () => {
   const f = fixture(0);

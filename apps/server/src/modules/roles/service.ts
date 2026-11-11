@@ -89,11 +89,24 @@ export const rolesService = {
           );
       }
       const role = (await loadRoles(tx, [input.id]))[0]!;
-      const assigned = await tx.UserRole.find({ roleId: input.id }).lean().exec();
-      if (assigned.length)
-        await tx.Session.deleteMany({
-          userId: { $in: assigned.map((link) => link.userId) },
-        }).exec();
+      const beforePermissionKeys = current.rolePermissions
+        .map(({ permission }) => permission.key)
+        .sort();
+      const afterPermissionKeys = role.rolePermissions
+        .map(({ permission }) => permission.key)
+        .sort();
+      const permissionsChanged =
+        beforePermissionKeys.length !== afterPermissionKeys.length ||
+        beforePermissionKeys.some((key, index) => key !== afterPermissionKeys[index]);
+      // Role notes and names do not affect authorization. Revoke sessions only when the effective
+      // permission set changes, so an editorial update does not sign out every assigned member.
+      if (permissionsChanged) {
+        const assigned = await tx.UserRole.find({ roleId: input.id }).lean().exec();
+        if (assigned.length)
+          await tx.Session.deleteMany({
+            userId: { $in: assigned.map((link) => link.userId) },
+          }).exec();
+      }
       await writeAudit(tx, {
         actor,
         action: "roles.update",

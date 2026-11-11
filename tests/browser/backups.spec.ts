@@ -5,7 +5,10 @@ import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
 
 const toolsPresent = existsSync(
-  path.resolve(".tools/mongodb-database-tools-windows-x86_64-100.20.1/bin"),
+  path.resolve(
+    process.env.MONGODB_TOOLS_DIR ??
+      `.tools/mongodb-database-tools-${process.platform === "win32" ? "windows" : "ubuntu2204"}-x86_64-100.20.1/bin`,
+  ),
 );
 const axe = async (page: Page, scope?: string) => {
   const builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]);
@@ -39,11 +42,13 @@ test("Super Admins manage backups", async ({ page, request }) => {
   await expect(page.getByLabel("Backups to keep")).toHaveValue("6");
   expect(await axe(page)).toEqual([]);
 
-  test.skip(!toolsPresent, "MongoDB Database Tools are not installed under .tools/");
+  test.skip(!toolsPresent, "Run pnpm tools:mongodb before the backup browser test.");
   await page.getByRole("button", { name: "Back up now" }).click();
   const row = page.getByRole("row").filter({ hasText: "Manual" });
   await expect(row).toContainText("Succeeded", { timeout: 60_000 });
   await expect(row).toContainText("Yes");
+  await expect(page.getByLabel("Import encrypted backup")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import and verify" })).toBeDisabled();
   await row.getByRole("button", { name: /^Restore backup from/ }).click();
   const dialog = page.getByRole("dialog", { name: "Restore backup", exact: true });
   await expect(dialog).toBeVisible();

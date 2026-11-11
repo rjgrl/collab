@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import request from "supertest";
+import { generate } from "otplib";
 import { createDatabase } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
@@ -18,6 +19,7 @@ import {
 import { runSchedulerTick } from "@Alumni-Tracking-Ss/api/backups/scheduler";
 import {
   maintenanceState,
+  recoverInterruptedRestore,
   runRestore,
   setMaintenance,
 } from "@Alumni-Tracking-Ss/api/backups/restore";
@@ -162,7 +164,7 @@ try {
   const app = createApp({
     db,
     config: { nodeEnv: "test", origin: "http://localhost:3001" },
-    integrationEnv: {},
+    integrationEnv: { mfaEncryptionKey: config.mfaEncryptionKey },
     backup: config,
   });
   const faculty = await db.User.findOne({ email: "faculty.it@collab.test" }).orFail().lean();
@@ -186,7 +188,33 @@ try {
   assert.equal(overview.status, 200);
   assert.ok(!JSON.stringify(overview.body).includes(keyHex));
 
-  // 7. Maintenance mode: non-Super-Admin API requests get 503; administrators and sign-in pass.
+  // 7. A backup exported from another server/catalog can be uploaded, verified and catalogued.
+  const exportConfig = { ...config, dir: path.join(root, "exported-backups") };
+  const exported = await createBackup({
+    db,
+    config: exportConfig,
+    type: "manual",
+    createdBy: actor.name,
+  });
+  const exportedPath = bundlePath(exportConfig.dir, exported.backupId);
+  const imported = await request(app)
+    .post("/api/backups/import")
+    .set("Cookie", verified)
+    .set("Origin", "http://localhost:3001")
+    .attach("backup", exportedPath, `${exported.backupId}.atsbak`);
+  assert.equal(imported.status, 201, JSON.stringify(imported.body));
+  assert.equal(imported.body.backupId, exported.backupId);
+  assert.equal(imported.body.verified, true);
+  assert.ok((await listBackups(config)).some((entry) => entry.backupId === exported.backupId));
+  const duplicate = await request(app)
+    .post("/api/backups/import")
+    .set("Cookie", verified)
+    .set("Origin", "http://localhost:3001")
+    .attach("backup", exportedPath, `${exported.backupId}.atsbak`);
+  assert.equal(duplicate.status, 409);
+  assert.equal((await verifyBackup(config, exported.backupId)).backupId, exported.backupId);
+
+  // 8. Maintenance mode: non-Super-Admin API requests get 503; administrators and sign-in pass.
   await setMaintenance(db, true);
   const blocked = await request(app).get("/api/dashboard").set("Cookie", facultyCookie);
   assert.equal(blocked.status, 503);
@@ -196,11 +224,86 @@ try {
     200,
   );
   assert.notEqual((await request(app).get("/api/auth/config")).status, 503);
-  await setMaintenance(db, false);
+  for (const route of ["/api/auth/signup", "/api/auth/password-reset-requests"])
+    assert.equal((await request(app).post(route).send({})).status, 503, route);
+
+  // A fresh server recognizes a restore left running by a dead process, releases the stale lock,
+  // keeps maintenance on, and lets a verified Super Admin end it after checking the database.
+  await db.BackupState.updateOne(
+    { _id: "restore" },
+    { $set: { status: "running", step: "database" } },
+    { upsert: true },
+  ).exec();
+  await db.BackupState.updateOne(
+    { _id: "lock" },
+    {
+      $set: {
+        kind: "restore",
+        owner: "dead-instance",
+        lockedUntil: new Date(Date.now() + 60 * 60_000),
+      },
+    },
+    { upsert: true },
+  ).exec();
+  assert.equal(await recoverInterruptedRestore(db), true);
+  assert.equal((await maintenanceState(db)).active, true);
+  assert.equal(
+    (
+      await request(app)
+        .post("/api/backups/maintenance/end")
+        .set("Cookie", verified)
+        .set("Origin", "http://localhost:3001")
+    ).status,
+    200,
+  );
+  assert.equal((await maintenanceState(db)).active, false);
   assert.notEqual(
     (await request(app).get("/api/dashboard").set("Cookie", facultyCookie)).status,
     503,
   );
+
+  // 9. Submit a real restore through HTTP with a freshly generated authenticator code.
+  await db.MfaCredential.deleteMany({ userId: admin._id }).exec();
+  await db.Session.deleteMany({ userId: admin._id }).exec();
+  const enrollmentCookie = `ats_session=${(await createSession(db, String(admin._id), {})).token}`;
+  const enrollment = await request(app)
+    .post("/api/auth/mfa/enrollments")
+    .set("Cookie", enrollmentCookie)
+    .set("Origin", "http://localhost:3001")
+    .send({ password: process.env.SEED_ADMIN_PASSWORD });
+  assert.equal(enrollment.status, 200, JSON.stringify(enrollment.body));
+  const secret = String(enrollment.body.secret);
+  const confirmation = await request(app)
+    .post("/api/auth/mfa/confirmations")
+    .set("Cookie", enrollmentCookie)
+    .set("Origin", "http://localhost:3001")
+    .send({ code: await generate({ secret }) });
+  assert.equal(confirmation.status, 200, JSON.stringify(confirmation.body));
+  const setCookie = confirmation.headers["set-cookie"];
+  assert.ok(Array.isArray(setCookie) && setCookie[0]);
+  const restoreCookie = String(setCookie[0]).split(";", 1)[0]!;
+  // Enrollment consumed the current TOTP time step. Reset only the replay marker so this test can
+  // exercise a fresh step-up without sleeping for the next 30-second window.
+  await db.MfaCredential.updateOne({ userId: admin._id }, { $set: { lastStep: -1 } }).exec();
+  const httpBackup = await createBackup({ db, config, type: "manual", createdBy: actor.name });
+  const beforeHttpRestore = await db.User.findById(admin._id).lean().orFail();
+  await db.User.updateOne({ _id: admin._id }, { $set: { name: "HTTP restore mutation" } }).exec();
+  const submission = await request(app)
+    .post(`/api/backups/${httpBackup.backupId}/restore`)
+    .set("Cookie", restoreCookie)
+    .set("Origin", "http://localhost:3001")
+    .send({ confirmation: "RESTORE", code: await generate({ secret }) });
+  assert.equal(submission.status, 202, JSON.stringify(submission.body));
+  const deadline = Date.now() + 120_000;
+  let terminal = "running";
+  while (Date.now() < deadline) {
+    terminal = String((await db.BackupState.findById("restore").lean())?.status ?? "missing");
+    if (terminal !== "running") break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(terminal, "succeeded");
+  assert.equal((await db.User.findById(admin._id).lean().orFail()).name, beforeHttpRestore.name);
+  assert.equal(await db.Session.countDocuments().exec(), 0);
   console.log(
     "PASS backups: verified encrypted backup with no plaintext or key, corrupted copy rejected, restore matches backup and invalidates sessions, failed restore rolls back, one scheduled run across two instances, 403 for non-admin and unverified MFA.",
   );

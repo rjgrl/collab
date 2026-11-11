@@ -80,7 +80,7 @@ export async function storeCredentials(
 
   return tx.IntegrationSetting.findOneAndUpdate({ key: integration }, update, {
     upsert: true,
-    new: true,
+    returnDocument: "after",
   }).exec();
 }
 
@@ -100,7 +100,7 @@ export async function eraseCredentials(
       },
       $unset: { credentials: "", credentialHints: "", keyFingerprint: "" },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: "after" },
   ).exec();
 }
 

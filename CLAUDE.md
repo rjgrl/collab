@@ -20,6 +20,9 @@ on local port 27018. Tooling via `vp` (vite-plus). Active branch line: phase 6, 
 - The main session is the orchestrator. It plans, writes briefs and checks results.
   It does not do bulk work when a worker can do it.
 - Workers are subagents on Haiku: `builder` (writes code) and `reviewer` (checks a diff against a brief).
+- Keep each brief to one concern and at most about three files. The orchestrator writes
+  cryptography, restore/migration and authorization-guard code itself and uses workers for bounded
+  UI and tests around it.
 - Every brief uses this shape:
 
   ```
@@ -31,6 +34,8 @@ on local port 27018. Tooling via `vp` (vite-plus). Active branch line: phase 6, 
 
 - Before accepting any worker output, the orchestrator runs the "Done when" check itself.
   If it fails, send the work back to the same worker with the failing output.
+- When a brief removes or replaces a guard, route or compatibility path, its `Done when` includes a
+  grep that must find nothing (for example, the removed route string).
 - Never pass a worker's report to the user unchecked.
 - (added) Diffs touching auth, RBAC/scope (`packages/api/src/scope.ts`, `access.ts`,
   `packages/contracts/src/permission-groups.ts`), MFA, file access or migrations: the
@@ -38,14 +43,14 @@ on local port 27018. Tooling via `vp` (vite-plus). Active branch line: phase 6, 
 
 ## Checks
 
-| Command                                                                  | What it covers                                    |
-| ------------------------------------------------------------------------ | ------------------------------------------------- |
-| `pnpm check`                                                             | format/lint (`vp check`) + typecheck all packages |
-| `pnpm lint`                                                              | lint only                                         |
-| `pnpm test`                                                              | local test suite (`scripts/test-local.mjs`)       |
-| `pnpm test:browser`                                                      | Playwright suites in `tests/browser`              |
-| `pnpm test:scope-local`, `test:faculty-local`, `test:reports-local`, ... | focused server checks against local DB            |
-| `pnpm run doctor`                                                        | local environment health                          |
+| Command                                                                  | What it covers                                                                                                                                      |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm check`                                                             | format/lint (`vp check`) + typecheck all packages                                                                                                   |
+| `pnpm lint`                                                              | lint only                                                                                                                                           |
+| `pnpm test`                                                              | local suite; only `packages/*/src/**/*.test.ts` and top-level `apps/server/src/*.test.ts` (put server-module tests in `packages/api/src/services/`) |
+| `pnpm test:browser`                                                      | Playwright suites in `tests/browser`                                                                                                                |
+| `pnpm test:scope-local`, `test:faculty-local`, `test:reports-local`, ... | focused server checks against local DB                                                                                                              |
+| `pnpm run doctor`                                                        | local environment health                                                                                                                            |
 
 ## Folder map
 

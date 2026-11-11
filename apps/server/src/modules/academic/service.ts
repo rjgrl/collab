@@ -236,7 +236,7 @@ export const departmentsService = {
       const row = await tx.Department.findOneAndUpdate(
         { _id: id, ...active },
         { $set: data },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       ).lean();
       if (!row) throw new ApiError("NOT_FOUND");
       await audit(
@@ -350,7 +350,7 @@ export const programsService = {
       const row = await tx.Program.findOneAndUpdate(
         { _id: id, ...active },
         { $set: data },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       ).lean();
       if (!row) throw new ApiError("NOT_FOUND");
       await audit(
@@ -375,7 +375,7 @@ export const programsService = {
       const row = await tx.Program.findOneAndUpdate(
         { _id: id, ...active },
         { $set: { deletedAt: new Date() } },
-        { new: true },
+        { returnDocument: "after" },
       ).lean();
       if (!row) throw new ApiError("NOT_FOUND");
       await audit(
