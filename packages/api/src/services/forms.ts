@@ -52,8 +52,8 @@ export async function acceptFormsSubmission(
     try {
       return await db.transaction(async (tx) => {
         const importJobId = randomBytes(12).toString("hex");
-        await tx.FormsReceipt.create({ keyHash, payloadHash, importJobId });
-        await upsertImportedAlumni(tx, row, true);
+        // The job exists before the receipt that refers to it (reference integrity). All three
+        // writes share this transaction, so a failed import still leaves none of them.
         await tx.ImportJob.create({
           _id: importJobId,
           source: "google_forms",
@@ -64,6 +64,8 @@ export async function acceptFormsSubmission(
           errors: [],
           completedAt: new Date(),
         });
+        await tx.FormsReceipt.create({ keyHash, payloadHash, importJobId });
+        await upsertImportedAlumni(tx, row, true);
         return response(importJobId, false);
       });
     } catch (error) {

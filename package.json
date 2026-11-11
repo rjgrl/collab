@@ -43,6 +43,7 @@
     "db:migrate": "node scripts/local-workflow.mjs db:migrate",
     "db:verify-transactions": "node scripts/local-workflow.mjs db:verify-transactions",
     "db:rotate-integration-key": "node scripts/local-workflow.mjs db:rotate-integration-key",
+    "db:check-references": "node scripts/local-workflow.mjs db:check-references",
     "test:mongoose-db": "tsx scripts/mongoose-db-check.ts",
     "test:org-migration": "tsx scripts/org-migration-check.ts",
     "test:scope-local": "tsx apps/server/test/local/scope-local.ts",
@@ -52,6 +53,7 @@
     "test:roles-local": "tsx scripts/check-local-roles.ts",
     "test:integrations-local": "tsx apps/server/test/local/integrations-local.ts",
     "test:backup-local": "tsx apps/server/test/local/backup-local.ts",
+    "test:integrity-local": "tsx apps/server/test/local/integrity-local.ts",
     "tools:mongodb": "node scripts/install-mongodb-tools.mjs",
     "openapi": "tsx packages/contracts/src/cli/openapi.ts"
   },

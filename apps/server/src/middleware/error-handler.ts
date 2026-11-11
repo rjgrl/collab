@@ -39,6 +39,11 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _request, resp
     status = 413;
     code = "PAYLOAD_TOO_LARGE";
     message = "Request body is too large.";
+  } else if (error instanceof Error && error.name === "MissingReferenceError") {
+    // A write pointed at a record that does not exist (deleted meanwhile, or a forged ID).
+    status = 409;
+    code = "CONFLICT";
+    message = "A linked record no longer exists. Reload and try again.";
   } else if (typeof error === "object" && error && "code" in error && error.code === 11000) {
     status = 409;
     code = "CONFLICT";

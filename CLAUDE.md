@@ -51,6 +51,7 @@ on local port 27018. Tooling via `vp` (vite-plus). Active branch line: phase 6, 
 | `pnpm openapi`                                                           | regenerate `docs/api/openapi.json` after changing `packages/contracts/src/api-routes.ts` or a contract (`pnpm test` fails while it is stale)        |
 | `pnpm test:browser`                                                      | Playwright suites in `tests/browser`                                                                                                                |
 | `pnpm test:scope-local`, `test:faculty-local`, `test:reports-local`, ... | focused server checks against local DB                                                                                                              |
+| `pnpm db:check-references`                                               | read-only scan for references to missing records; exits 1 if any                                                                                    |
 | `pnpm run doctor`                                                        | local environment health                                                                                                                            |
 
 ## Folder map

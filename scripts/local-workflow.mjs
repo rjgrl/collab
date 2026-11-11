@@ -14,6 +14,7 @@ async function main() {
       "db:seed",
       "db:local",
       "db:rotate-integration-key",
+      "db:check-references",
     ].includes(command)
   )
     throw new Error("Unsupported local workflow command.");

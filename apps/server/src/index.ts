@@ -9,6 +9,7 @@ import { staffEmailDomains } from "@Alumni-Tracking-Ss/api/services/staff-domain
 import { readFileSync } from "node:fs";
 import type { BackupConfig } from "@Alumni-Tracking-Ss/api/backups/backup-service";
 import { startBackupScheduler } from "@Alumni-Tracking-Ss/api/backups/scheduler";
+import { startIntegrityScheduler } from "@Alumni-Tracking-Ss/api/integrity";
 import { recoverInterruptedRestore } from "@Alumni-Tracking-Ss/api/backups/restore";
 const integrationEnv = readIntegrationEnv();
 // Fails fast in production when STAFF_EMAIL_DOMAINS is missing or malformed.
@@ -58,6 +59,8 @@ await db.ready();
 await recoverInterruptedRestore(db).catch(() => false);
 setInterval(() => void recoverInterruptedRestore(db).catch(() => false), 60_000).unref();
 startBackupScheduler({ db, config: backup });
+// Nightly (03:30 Asia/Manila) scan for references to missing records; notifies Super Admins.
+startIntegrityScheduler(db);
 const server = app.listen(
   Number(process.env.PORT) || 3000,
   process.env.HOST?.trim() || "127.0.0.1",

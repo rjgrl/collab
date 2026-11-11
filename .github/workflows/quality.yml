@@ -46,6 +46,7 @@ jobs:
       - run: pnpm test:completion-db
       - run: pnpm test:backup-local
       - run: pnpm test:integrations-local
+      - run: pnpm test:integrity-local
       - run: pnpm test:browser
       - run: pnpm build
       - run: pnpm check:production-build

@@ -1,3 +1,4 @@
+import { referenceIntegrity } from "./reference-integrity";
 import { Schema, type Connection, type Model, type SchemaDefinition, Types } from "mongoose";
 import { CONTACT_TYPES, type ContactType } from "@Alumni-Tracking-Ss/contracts/contacts";
 
@@ -303,7 +304,7 @@ function schema<T>(
   definition: SchemaDefinition<T>,
   timestamps: boolean | { createdAt: boolean; updatedAt: boolean } = true,
 ) {
-  return new Schema<T>(definition, {
+  const created = new Schema<T>(definition, {
     collection,
     timestamps,
     autoCreate: false,
@@ -313,6 +314,8 @@ function schema<T>(
     // ImportJob intentionally uses the domain field name `errors`; Mongoose only warns about it.
     suppressReservedKeysWarning: true,
   });
+  created.plugin(referenceIntegrity);
+  return created;
 }
 const createdOnly = { createdAt: true, updatedAt: false };
 const updatedOnly = { createdAt: false, updatedAt: true };
@@ -501,7 +504,8 @@ export const schemas = {
   AuditLog: schema<AuditLogRecord>(
     "AuditLog",
     {
-      actorId: ref("User", false),
+      // Historical: the actor may not exist in a restored database, so no integrity check.
+      actorId: { ...ref("User", false), integrity: false },
       action: requiredString,
       entity: requiredString,
       entityId: String,
