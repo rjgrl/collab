@@ -80,6 +80,8 @@ function fixture(
     AuditLog: { create: async () => ({ _id: otherId }) },
     IntegrationSetting: { findOne: () => query({ enabled: true }) },
     EvidenceFile: { findOne: () => query(null) },
+    UserRole: { find: () => query([]) },
+    Role: { find: () => query([]) },
     ...options.db,
   } as unknown as Database;
   return createApp({

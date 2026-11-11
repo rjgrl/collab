@@ -11,6 +11,12 @@ it("hides unexpected database errors from import results", async () => {
         throw new Error("synthetic-database-private-path-and-query");
       },
     },
+    UserRole: {
+      find: () => ({ exec: async () => [] }),
+    },
+    Role: {
+      find: () => ({ exec: async () => [] }),
+    },
     transaction: async <T>(work: (tx: Database) => Promise<T>) => work(db as unknown as Database),
   };
   const result = await importAlumniRows(db as unknown as Database, [
@@ -26,6 +32,12 @@ it("hides unexpected database errors from import results", async () => {
 it("preserves actionable domain and schema validation errors in import results", async () => {
   const db = {
     Department: { find: () => ({ limit: () => query([]) }) },
+    UserRole: {
+      find: () => ({ exec: async () => [] }),
+    },
+    Role: {
+      find: () => ({ exec: async () => [] }),
+    },
     transaction: async <T>(work: (tx: Database) => Promise<T>) => work(db as unknown as Database),
   };
   const originalRow = { ...row, departmentName: "COT" };
@@ -41,7 +53,13 @@ const alumniId = "111111111111111111111111",
   programId = "222222222222222222222222",
   departmentId = "333333333333333333333333";
 function query<T>(value: T) {
-  return { lean: async () => value };
+  const promise = Promise.resolve(value);
+  return Object.assign(promise, {
+    lean() {
+      return this;
+    },
+    exec: () => promise,
+  });
 }
 const row = alumniImportRowSchema.parse({
   studentNumber: "SYN-1",
@@ -95,6 +113,12 @@ function fixture(existing: object | null = null) {
       create: async (data: unknown) => {
         audits.push(data);
       },
+    },
+    UserRole: {
+      find: () => query([]),
+    },
+    Role: {
+      find: () => query([]),
     },
     transaction: async <T>(work: (tx: Database) => Promise<T>) => {
       transactions++;

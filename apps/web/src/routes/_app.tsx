@@ -13,7 +13,9 @@ export const Route = createFileRoute("/_app")({
     if (user.mfaRequired && !user.mfaVerified) throw redirect({ to: "/security" });
     if (
       isAlumniAccount(user) &&
-      !["/my-profile", "/statistics", "/settings", "/settings/"].includes(location.pathname)
+      !["/my-profile", "/statistics", "/settings", "/settings/", "/audit"].includes(
+        location.pathname,
+      )
     )
       throw redirect({ to: "/my-profile" });
     return { user };

@@ -164,3 +164,38 @@ test("signing into another account clears the prior private profile cache before
   }
   await expect(page.getByRole("heading", { name: "Second Graduate", exact: true })).toBeVisible();
 });
+
+test("Alumni see only their own entries in the audit log", async ({ page, request }, testInfo) => {
+  await request.post("http://127.0.0.1:3100/__test/reset");
+  await request.post("http://127.0.0.1:3100/__test/alumni");
+  await signIn(page, "alumni@example.test");
+  await page.waitForURL("**/my-profile");
+  const mobile = testInfo.project.name === "mobile";
+  if (mobile) await page.getByRole("button", { name: "Open menu" }).click();
+  // The mobile navigation is a dropdown menu; desktop uses sidebar links.
+  const link = page.getByRole(mobile ? "menuitem" : "link", { name: "Audit log", exact: true });
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page).toHaveURL(/\/audit$/);
+  const signedIn = page.getByRole("row").filter({ hasText: "Signed in with password" });
+  await expect(signedIn.first()).toContainText("Test Alumni");
+  await expect(page.getByRole("columnheader", { name: "Record" })).toHaveCount(0);
+  const me = await (await page.request.get("/api/auth/me")).json();
+  const response = await page.request.get("/api/audit?page=1&pageSize=50");
+  expect(response.status()).toBe(200);
+  const rows: { actorId: string | null; entity: string; entityId: string | null }[] =
+    await response.json();
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows)
+    expect(
+      row.actorId === me.id || (row.entity === "alumni" && row.entityId === me.alumniId),
+      JSON.stringify(row),
+    ).toBe(true);
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+});

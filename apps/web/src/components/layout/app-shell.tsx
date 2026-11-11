@@ -61,7 +61,7 @@ const STAFF_SECTIONS = [
 ] as const;
 
 const ALUMNI_SECTIONS = [
-  { label: "My account", paths: ["/my-profile", "/settings"] },
+  { label: "My account", paths: ["/my-profile", "/settings", "/audit"] },
   { label: "University", paths: ["/statistics"] },
 ] as const;
 
@@ -86,7 +86,7 @@ export function AppShell() {
   const alumniAccount = session.data ? isAlumniAccount(session.data) : false;
   const items = NAV.filter((item) =>
     alumniAccount
-      ? ["/my-profile", "/statistics", "/settings"].includes(item.to)
+      ? ["/my-profile", "/statistics", "/settings", "/audit"].includes(item.to)
       : !["/my-profile", "/statistics"].includes(item.to) &&
         (item.permission === null ||
           (item.permission === "faculty"

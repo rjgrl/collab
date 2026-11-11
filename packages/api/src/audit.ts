@@ -78,7 +78,7 @@ export function describeAuditChanges(before: object, after: Record<string, unkno
 }
 
 export async function writeAudit(
-  db: Pick<Database, "AuditLog">,
+  db: Pick<Database, "AuditLog" | "UserRole" | "Role">,
   input: {
     actor?: { id: string; name: string; email: string } | null;
     actorId?: string | null;
@@ -90,6 +90,19 @@ export async function writeAudit(
     ipAddress?: string | null;
   },
 ) {
+  let actorRoles: string[] = [];
+  if (input.actor) {
+    // Load actor's role names at event time
+    const userRoles = await db.UserRole.find({ userId: input.actor.id }).lean().exec();
+    const roleIds = userRoles.map((ur) => (ur as unknown as { roleId: string }).roleId);
+    if (roleIds.length > 0) {
+      const roles = await db.Role.find({ _id: { $in: roleIds } })
+        .lean()
+        .exec();
+      actorRoles = (roles as unknown as { name: string }[]).map((r) => r.name).sort();
+    }
+  }
+
   await db.AuditLog.create({
     actorId: input.actor?.id ?? input.actorId ?? undefined,
     action: input.action,
@@ -99,7 +112,12 @@ export async function writeAudit(
     metadata: input.actor
       ? {
           ...input.metadata,
-          actorSnapshot: { id: input.actor.id, name: input.actor.name, email: input.actor.email },
+          actorSnapshot: {
+            id: input.actor.id,
+            name: input.actor.name,
+            email: input.actor.email,
+            roles: actorRoles,
+          },
         }
       : (input.metadata ?? undefined),
     ipAddress: input.ipAddress ?? undefined,

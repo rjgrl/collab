@@ -9,6 +9,9 @@ import { api } from "@/lib/api";
 import { TablePagination } from "@/components/data/table-pagination";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { auditOutputSchema } from "@Alumni-Tracking-Ss/contracts/audit";
+import { auditActionLabel } from "@Alumni-Tracking-Ss/contracts/audit-labels";
+import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { useSession } from "@/lib/session";
 import type { z } from "zod";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
@@ -21,17 +24,19 @@ function AuditPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<z.infer<typeof auditOutputSchema> | null>(null);
+  const session = useSession();
   const logs = useQuery(api.audit.list.queryOptions({ input: { search, page, pageSize: 20 } }));
+  const isAlumni = session.data ? isAlumniAccount(session.data) : false;
+  const description = isAlumni
+    ? "Your sign-ins and the changes made to your profile. Select an event to view its full summary."
+    : "Recorded account, alumni, and integration actions. Select an event to view its full summary.";
 
   return (
     <PageShell>
-      <PageHeader
-        title="Audit log"
-        description="Recorded account, alumni, and integration actions. Select an event to view its full summary."
-      />
+      <PageHeader title="Audit log" description={description} />
       {logs.isError ? <ErrorAlert>{logs.error.message}</ErrorAlert> : null}
       <DataTable
-        headers={["When", "Actor", "Action", "Record", "Summary"]}
+        headers={["When", "Actor", "Role", "Action", "Summary"]}
         search={search}
         onSearch={(value) => {
           setSearch(value);
@@ -60,7 +65,7 @@ function AuditPage() {
             </TableCell>
             <TableCell>
               <div className="font-medium">
-                {row.actor?.email ?? (row.actorId ? "Unavailable account" : "System")}
+                {row.actor?.name ?? (row.actorId ? "Unavailable account" : "System")}
               </div>
               {row.actor && !row.actorIsSnapshot ? (
                 <div className="mt-1 text-xs text-muted-foreground">
@@ -69,23 +74,20 @@ function AuditPage() {
               ) : null}
             </TableCell>
             <TableCell>
-              <span className="whitespace-nowrap font-medium">{row.action}</span>
+              <ActorRoles row={row} />
             </TableCell>
             <TableCell>
-              <div>{row.entity}</div>
-              <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                {row.entityId ?? "—"}
-              </div>
+              <span className="whitespace-nowrap font-medium">{auditActionLabel(row.action)}</span>
             </TableCell>
             <TableCell>
               <div className="flex w-64 items-center gap-2 text-sm text-muted-foreground">
                 <span className="line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap break-all">
-                  {row.summary || "No summary was recorded for this event."}
+                  {row.displaySummary || "No summary was recorded for this event."}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={`View audit details for ${row.action} at ${row.createdAt.toISOString()}`}
+                  aria-label={`View audit details for ${auditActionLabel(row.action)} at ${row.createdAt.toISOString()}`}
                   aria-haspopup="dialog"
                   aria-expanded={selected?.id === row.id}
                   className="shrink-0"
@@ -123,9 +125,14 @@ function AuditPage() {
             </div>
             <div>
               <dt className="text-muted-foreground">Actor</dt>
-              <dd className="mt-1 break-all">
-                {selected.actor?.email ?? (selected.actorId ? "Unavailable account" : "System")}
+              <dd className="mt-1 break-all font-medium">
+                {selected.actor?.name ?? (selected.actorId ? "Unavailable account" : "System")}
               </dd>
+              {selected.actor ? (
+                <dd className="mt-1 break-all text-xs text-muted-foreground">
+                  {selected.actor.email}
+                </dd>
+              ) : null}
               {selected.actor && !selected.actorIsSnapshot ? (
                 <dd className="mt-1 text-xs text-muted-foreground">
                   Current identity; not recorded at event time
@@ -133,15 +140,14 @@ function AuditPage() {
               ) : null}
             </div>
             <div>
-              <dt className="text-muted-foreground">Action</dt>
-              <dd className="mt-1 break-all font-medium">{selected.action}</dd>
+              <dt className="text-muted-foreground">Role</dt>
+              <dd className="mt-1">
+                <ActorRoles row={selected} />
+              </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Record</dt>
-              <dd className="mt-1 break-all">
-                {selected.entity}
-                {selected.entityId ? ` · ${selected.entityId}` : ""}
-              </dd>
+              <dt className="text-muted-foreground">Action</dt>
+              <dd className="mt-1 break-all font-medium">{auditActionLabel(selected.action)}</dd>
             </div>
           </dl>
           <section
@@ -153,11 +159,22 @@ function AuditPage() {
               Full summary
             </h2>
             <p className="mt-3 whitespace-pre-wrap break-all text-sm leading-6">
-              {selected.summary || "No summary was recorded for this event."}
+              {selected.displaySummary || "No summary was recorded for this event."}
             </p>
           </section>
         </FormDialog>
       ) : null}
     </PageShell>
   );
+}
+
+/** Role names recorded at event time; never the actor's current roles. */
+function ActorRoles({ row }: { row: z.infer<typeof auditOutputSchema> }) {
+  if (row.actorRoles === null)
+    return row.actor || row.actorId ? (
+      <span className="text-xs text-muted-foreground">Not recorded</span>
+    ) : (
+      <>—</>
+    );
+  return <span>{row.actorRoles.length ? row.actorRoles.join(", ") : "No role"}</span>;
 }

@@ -44,25 +44,31 @@ test("departments have no code fields and audit summaries preserve each individu
     .getByRole("textbox", { name: "Search audit log", exact: true })
     .fill("departments.update");
   const firstChange = page.getByRole("row").filter({ hasText: "Audit Science" });
-  await expect(firstChange).toContainText('name: "Audit Science" → "Natural Sciences"');
+  await expect(firstChange).toContainText('Name: "Audit Science" → "Natural Sciences"');
   await expect(firstChange).toContainText(
-    'description: "First description" → "Second description"',
+    'Description: "First description" → "Second description"',
   );
-  await expect(firstChange).toContainText("admin@example.test");
+  await expect(firstChange).toContainText("Test Administrator");
+  await expect(firstChange).not.toContainText("admin@example.test");
   await expect(firstChange).not.toContainText("Current identity");
   await expect(firstChange).not.toContainText("Final Sciences");
+  await expect(firstChange).toContainText("Updated department");
   const recordedTime = await firstChange.locator("time").getAttribute("datetime");
   expect(Number.isNaN(Date.parse(recordedTime!))).toBe(false);
   const secondChange = page.getByRole("row").filter({ hasText: "Final Sciences" });
-  await expect(secondChange).toContainText('name: "Natural Sciences" → "Final Sciences"');
+  await expect(secondChange).toContainText('Name: "Natural Sciences" → "Final Sciences"');
+  await expect(secondChange).toContainText("Test Administrator");
+  await expect(secondChange).not.toContainText("admin@example.test");
   const details = firstChange.getByRole("button", { name: /^View audit details/ });
   await details.focus();
   await page.keyboard.press("Enter");
   const event = page.getByRole("dialog", { name: "Audit event details", exact: true });
-  await expect(event).toContainText('name: "Audit Science" → "Natural Sciences"');
-  await expect(event).toContainText('description: "First description" → "Second description"');
+  await expect(event).toContainText('Name: "Audit Science" → "Natural Sciences"');
+  await expect(event).toContainText('Description: "First description" → "Second description"');
+  await expect(event).toContainText("admin@example.test");
   await expect(event).not.toContainText("Final Sciences");
   await expect(event.locator("time")).toHaveAttribute("datetime", recordedTime!);
+  await expect(page.getByRole("columnheader", { name: "Record" })).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: info.outputPath("audit-event-details.png"), fullPage: true });
   await page.keyboard.press("Escape");

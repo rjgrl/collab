@@ -15,7 +15,9 @@ export const auditOutputSchema = z.object({
   createdAt: dateSchema,
   actorId: objectIdSchema.nullable().optional(),
   actorIsSnapshot: z.boolean().default(false),
-  actor: auditActorSchema.nullable(),
+  actor: auditActorSchema.nullable().optional(),
+  actorRoles: z.array(z.string()).nullable(),
+  displaySummary: z.string(),
 });
 export const auditListOutputSchema = z.array(auditOutputSchema);
 export const auditSchemas = {
