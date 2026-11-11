@@ -15,6 +15,7 @@ function fixture(roles: string[]) {
     User: [{ id: userId, alumniId, firstName: "Existing", lastName: "Owner" }],
     Alumni: [{ id: alumniId, studentNumber: "HISTORICAL", programId }],
     IntegrationSetting: [],
+    BackupState: [],
   });
   const actor: AuthUser = {
     id: userId,
@@ -50,9 +51,11 @@ it("POST users denies Faculty and custom actors holding legacy users.write grant
         password: "Synthetic managed passphrase 123!",
       });
     assert.equal(response.status, 403, JSON.stringify(response.body));
-    // Every request now reads IntegrationSetting to build the env; ignore that operation
+    // Every request reads IntegrationSetting (env) and BackupState (maintenance); both are reads.
     const relevantOps = f.operations.filter(
-      (op) => !(op.model === "IntegrationSetting" && op.method === "find"),
+      (op) =>
+        !(op.model === "IntegrationSetting" && op.method === "find") &&
+        !(op.model === "BackupState" && op.method === "findById"),
     );
     assert.equal(relevantOps.length, 0);
     assert.deepEqual(f.tables, before);
@@ -84,9 +87,11 @@ it("legacy manual Alumni create/link HTTP endpoints reject all management actors
       .send({ alumniId });
     assert.equal(link.status, 403, JSON.stringify(link.body));
     assert.match(link.body.error, /own registration/);
-    // Every request now reads IntegrationSetting to build the env; ignore those operations
+    // Every request reads IntegrationSetting (env) and BackupState (maintenance); both are reads.
     const relevantOps = f.operations.filter(
-      (op) => !(op.model === "IntegrationSetting" && op.method === "find"),
+      (op) =>
+        !(op.model === "IntegrationSetting" && op.method === "find") &&
+        !(op.model === "BackupState" && op.method === "findById"),
     );
     assert.equal(relevantOps.length, 0);
     assert.deepEqual(f.tables, before);

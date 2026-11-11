@@ -70,3 +70,12 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Requests build `IntegrationEnv` from the database through a 5-second in-process cache (invalidated on writes in the same process), so another server instance may use the old credentials for up to 5 seconds.
 - Rotation: `pnpm db:rotate-integration-key` (see `docs/operations/INTEGRATIONS.md`) re-seals everything in one transaction.
 - Not done: the email gateway URL is an administrator-supplied HTTPS URL fetched by the server (admin-only, HTTPS-only; no allowlist).
+
+## 2026-11-09: In-app backup and restore over the live database (supersedes "never overwrite a real database")
+
+- Decision: the owner approved restoring over the live database from Settings › Backups. This supersedes the rule in `docs/operations/DISASTER_RECOVERY.md` for this one guarded path; the procedure is documented there.
+- Guards: Super Admin with an MFA-verified session (server-enforced on every backup endpoint), a fresh authenticator code plus typing `RESTORE`, only verified backups, schema version not newer than the server, matching MFA and integration key fingerprints, one lock for backups and restores across instances.
+- Safety net: a verified pre-restore backup first; maintenance mode (non-Super-Admin API → 503) during the restore; any failure restores the pre-restore backup, and maintenance stays on only if that also fails. Sessions are invalidated after a restore.
+- Format: chunked AES-256-GCM (1 MiB chunks, AAD binds backup ID, index and final flag) with `BACKUP_ENCRYPTION_KEY` from the environment only. Catalog, lock, schedule and maintenance state live outside the restored data (`BACKUP_DIR` files and the excluded `BackupState` collection), so a restore cannot roll them back.
+- Tools: MongoDB Database Tools 100.20.1 (official zip, SHA-256 verified) in ignored `.tools/`, used through `MONGODB_TOOLS_DIR`.
+- Deferred: the optional off-host copy to Google Drive and restoring from an uploaded file.

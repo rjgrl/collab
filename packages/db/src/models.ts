@@ -174,8 +174,8 @@ export interface AccountPhotoRecord extends Timestamped {
 }
 export interface NotificationRecord extends Created {
   recipientId: Types.ObjectId;
-  alumniId: Types.ObjectId;
-  evidenceId: Types.ObjectId;
+  alumniId?: Types.ObjectId | null;
+  evidenceId?: Types.ObjectId | null;
   summary: string;
   readAt?: Date | null;
 }
@@ -257,6 +257,31 @@ export interface FormsReceiptRecord extends Created {
   keyHash: string;
   payloadHash: string;
   importJobId: Types.ObjectId;
+}
+export type BackupFrequency = "off" | "daily" | "weekly";
+/**
+ * Singleton documents for backups ("schedule", "lock", "maintenance", "restore"). The collection
+ * is excluded from every dump and restore, so a restore cannot roll these back.
+ */
+export interface BackupStateRecord {
+  _id: string;
+  frequency?: BackupFrequency;
+  time?: string;
+  weekday?: number;
+  retention?: number;
+  lastSlot?: string;
+  owner?: string;
+  kind?: "backup" | "restore";
+  lockedUntil?: Date;
+  active?: boolean;
+  message?: string;
+  status?: string;
+  step?: string;
+  error?: string;
+  backupId?: string;
+  startedAt?: Date;
+  finishedAt?: Date;
+  updatedAt?: Date;
 }
 
 const requiredString = { type: String, required: true } as const;
@@ -462,8 +487,8 @@ export const schemas = {
     "Notification",
     {
       recipientId: ref("User"),
-      alumniId: ref("Alumni"),
-      evidenceId: ref("EvidenceFile"),
+      alumniId: ref("Alumni", false),
+      evidenceId: ref("EvidenceFile", false),
       summary: requiredString,
       readAt: { type: Date, default: null },
     },
@@ -565,6 +590,29 @@ export const schemas = {
     "FormsReceipt",
     { keyHash: requiredString, payloadHash: requiredString, importJobId: ref("ImportJob") },
     createdOnly,
+  ),
+  BackupState: schema<BackupStateRecord>(
+    "BackupState",
+    {
+      _id: { type: String, required: true },
+      frequency: String,
+      time: String,
+      weekday: Number,
+      retention: Number,
+      lastSlot: String,
+      owner: String,
+      kind: String,
+      lockedUntil: Date,
+      active: Boolean,
+      message: String,
+      status: String,
+      step: String,
+      error: String,
+      backupId: String,
+      startedAt: Date,
+      finishedAt: Date,
+    },
+    updatedOnly,
   ),
 };
 
@@ -670,6 +718,7 @@ schemas.FormsReceipt.index({ keyHash: 1 }, { unique: true, name: "FormsReceipt_k
 
 export function createModels(connection: Connection) {
   return {
+    BackupState: connection.model("BackupState", schemas.BackupState),
     User: connection.model("User", schemas.User),
     Session: connection.model("Session", schemas.Session),
     Role: connection.model("Role", schemas.Role),
@@ -700,3 +749,6 @@ export function createModels(connection: Connection) {
 }
 export type DatabaseModels = ReturnType<typeof createModels>;
 export type ModelRecord<T> = T extends Model<infer R> ? R : never;
+
+// BackupState must be excluded from all dumps and restores.
+export const BACKUP_STATE_COLLECTION = "BackupState";

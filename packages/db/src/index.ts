@@ -53,6 +53,8 @@ export function createDatabase(env: DatabaseConfig): Database {
 export { toEntity } from "./serialization";
 export type { Entity } from "./serialization";
 export type * from "./models";
+export { BACKUP_STATE_COLLECTION } from "./models";
+export { SCHEMA_VERSION } from "./migration";
 
 export {
   PERMISSIONS,

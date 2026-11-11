@@ -12,6 +12,7 @@ function SettingsLayout() {
     { to: "/settings/users", label: "Members", permission: "users.read" },
     { to: "/settings/roles", label: "Roles and permissions", permission: "roles.read" },
     { to: "/settings/integrations", label: "Integrations", permission: "integrations.read" },
+    { to: "/settings/backups", label: "Backups", permission: null },
   ] as const;
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-6">
@@ -22,7 +23,7 @@ function SettingsLayout() {
         {sections
           .filter(
             (item) =>
-              (item.to !== "/settings/integrations" ||
+              (!/^\/(integrations|backups)$/.test(item.to.replace(/^\/settings/, "")) ||
                 (session.data && isAdministrator(session.data))) &&
               (item.permission === null || can(session.data?.permissions, item.permission)),
           )

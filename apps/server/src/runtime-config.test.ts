@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import { it } from "node:test";
 import {
   validateRuntimeConfig,
@@ -94,4 +95,27 @@ it("requires a distinct 64-hex INTEGRATION_ENCRYPTION_KEY in production without 
   assert.deepEqual(validateRuntimeConfig({ ...valid, integrationEncryptionKey: key }, {}), {
     trustedProxyIps: [],
   });
+});
+it("validates an optional BACKUP_ENCRYPTION_KEY and BACKUP_DIR in production without echoing them", () => {
+  const backupKey = "16".repeat(32);
+  const outside = path.resolve(valid.uploadDir, "..", "synthetic-backups");
+  assert.deepEqual(
+    validateRuntimeConfig(valid, { BACKUP_ENCRYPTION_KEY: backupKey, BACKUP_DIR: outside }),
+    { trustedProxyIps: [] },
+  );
+  for (const settings of [
+    { BACKUP_ENCRYPTION_KEY: "short" },
+    { BACKUP_ENCRYPTION_KEY: valid.mfaEncryptionKey.toUpperCase() },
+    { BACKUP_ENCRYPTION_KEY: valid.integrationEncryptionKey },
+    { BACKUP_DIR: "relative/backups" },
+    { BACKUP_DIR: path.join(valid.uploadDir, "backups") },
+  ])
+    assert.throws(
+      () => validateRuntimeConfig(valid, settings),
+      (error: Error) => {
+        assert.match(error.message, /BACKUP_/);
+        assert.ok(!error.message.includes(valid.mfaEncryptionKey));
+        return true;
+      },
+    );
 });

@@ -6,6 +6,9 @@ import { db } from "./services";
 import { drainAndDisconnect } from "./shutdown";
 import { validateRuntimeConfig } from "./runtime-config";
 import { staffEmailDomains } from "@Alumni-Tracking-Ss/api/services/staff-domain";
+import { readFileSync } from "node:fs";
+import type { BackupConfig } from "@Alumni-Tracking-Ss/api/backups/backup-service";
+import { startBackupScheduler } from "@Alumni-Tracking-Ss/api/backups/scheduler";
 const integrationEnv = readIntegrationEnv();
 // Fails fast in production when STAFF_EMAIL_DOMAINS is missing or malformed.
 if (!staffEmailDomains())
@@ -23,7 +26,23 @@ const runtime = validateRuntimeConfig({
   uploadDir: integrationEnv.uploadDir,
 });
 
+const backup: BackupConfig = {
+  encryptionKey: process.env.BACKUP_ENCRYPTION_KEY?.trim() || undefined,
+  dir: process.env.BACKUP_DIR?.trim() || undefined,
+  toolsDir: process.env.MONGODB_TOOLS_DIR?.trim() || undefined,
+  databaseUrl: ENV.DATABASE_URL,
+  uploadDir: integrationEnv.uploadDir ?? "./uploads",
+  appVersion:
+    (
+      JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+        version?: string;
+      }
+    ).version ?? "unknown",
+  mfaEncryptionKey: integrationEnv.mfaEncryptionKey,
+  integrationEncryptionKey: integrationEnv.integrationEncryptionKey,
+};
 const app = createApp({
+  backup,
   db,
   config: {
     nodeEnv: ENV.NODE_ENV,
@@ -33,6 +52,7 @@ const app = createApp({
   integrationEnv,
 });
 await db.ready();
+startBackupScheduler({ db, config: backup });
 const server = app.listen(
   Number(process.env.PORT) || 3000,
   process.env.HOST?.trim() || "127.0.0.1",

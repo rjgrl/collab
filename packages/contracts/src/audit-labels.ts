@@ -95,6 +95,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 
   // Faculty
   "faculty.update": "Updated faculty member",
+
+  // Backups
+  "backups.create": "Created backup",
+  "backups.failed": "Backup failed",
+  "backups.schedule": "Changed backup schedule",
+  "backups.restore": "Restored backup",
 };
 
 /**

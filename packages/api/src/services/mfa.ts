@@ -161,6 +161,37 @@ export async function confirmMfa(context: Context, code: string) {
       : { sessionToken: rotated.token, expiresAt: rotated.expiresAt.toISOString() }),
   };
 }
+/**
+ * Step-up check for a destructive action (backup restore): a current authenticator code is
+ * required even when the session is already MFA-verified. Shares the per-account code budget,
+ * rejects reused time steps, and does not rotate the session. Recovery codes are not accepted.
+ */
+export async function reverifyMfaCode(context: Context, code: string) {
+  if (!/^[0-9]{6}$/.test(code)) throw failed();
+  await consumeAuthAttempt(context.db, "mfa-code", context.user!.id);
+  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+    .lean()
+    .exec()
+    .then((found) => (found ? toEntity(found) : null));
+  if (!row?.secretCipher)
+    throw new ApiError("FORBIDDEN", {
+      message: "Set up an authenticator before restoring a backup.",
+    });
+  const result = await verify({
+    secret: decrypt(context, row.secretCipher),
+    token: code,
+    epochTolerance: 30,
+    afterTimeStep: row.lastStep,
+  });
+  if (!result.valid || !("timeStep" in result) || typeof result.timeStep !== "number")
+    throw failed();
+  const claimed = await context.db.MfaCredential.updateOne(
+    { _id: row.id, version: row.version, lastStep: row.lastStep },
+    { $set: { lastStep: result.timeStep } },
+  ).exec();
+  if (claimed.modifiedCount !== 1) throw failed();
+}
+
 export async function verifyMfa(context: Context, code: string) {
   await consumeAuthAttempt(context.db, "mfa-code", context.user!.id);
   const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })

@@ -57,6 +57,30 @@ export function validateRuntimeConfig(
     );
   if (input.nodeEnv !== "production") return { trustedProxyIps };
   const encKeyPattern = /^[a-f0-9]{64}$/i;
+  // Backups are optional, but when configured their key and directory must be safe.
+  const backupKey = settings.BACKUP_ENCRYPTION_KEY?.trim();
+  if (backupKey) {
+    if (!encKeyPattern.test(backupKey))
+      throw Error("BACKUP_ENCRYPTION_KEY must be 64 hexadecimal characters.");
+    if (
+      [input.mfaEncryptionKey, input.verificationSecret, input.integrationEncryptionKey].some(
+        (other) => other && other.toLowerCase() === backupKey.toLowerCase(),
+      )
+    )
+      throw Error(
+        "BACKUP_ENCRYPTION_KEY must be different from MFA_ENCRYPTION_KEY, SESSION_SECRET and INTEGRATION_ENCRYPTION_KEY.",
+      );
+  }
+  const backupDir = settings.BACKUP_DIR?.trim();
+  if (backupDir) {
+    const uploads = path.resolve(input.uploadDir ?? "./uploads");
+    const inside = (parent: string) => {
+      const relative = path.relative(parent, path.resolve(backupDir));
+      return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+    };
+    if (!path.isAbsolute(backupDir) || inside(uploads) || inside(path.resolve("apps/web/dist")))
+      throw Error("BACKUP_DIR must be an absolute directory outside UPLOAD_DIR and the web build.");
+  }
   if (!encKeyPattern.test(input.integrationEncryptionKey ?? ""))
     throw Error(
       "Production requires valid INTEGRATION_ENCRYPTION_KEY (64 hexadecimal characters).",

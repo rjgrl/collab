@@ -27,6 +27,7 @@ import {
 import { integrationsSchemas } from "@Alumni-Tracking-Ss/contracts/integrations";
 import { auditSchemas } from "@Alumni-Tracking-Ss/contracts/audit";
 import { notificationsSchemas } from "@Alumni-Tracking-Ss/contracts/notifications";
+import { backupsSchemas } from "@Alumni-Tracking-Ss/contracts/backups";
 import { ENV } from "@/env";
 
 export class RestError extends Error {
@@ -272,6 +273,13 @@ export const client = {
   },
   audit: { list: endpoint(auditSchemas.list, "GET", "/api/audit") },
   files: { remove: endpoint(filesSchemas.remove, "DELETE", "/api/files/:id") },
+  backups: {
+    overview: endpoint(backupsSchemas.overview, "GET", "/api/backups"),
+    create: endpoint(backupsSchemas.create, "POST", "/api/backups"),
+    schedule: endpoint(backupsSchemas.schedule, "PUT", "/api/backups/schedule"),
+    restore: endpoint(backupsSchemas.restore, "POST", "/api/backups/:id/restore"),
+    restoreStatus: endpoint(backupsSchemas.restoreStatus, "GET", "/api/backups/restore"),
+  },
 };
 export const api = client;
 export async function uploadProfileFile(options: {

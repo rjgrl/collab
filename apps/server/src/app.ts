@@ -31,6 +31,11 @@ import { integrationsRoutes } from "./modules/integrations/routes";
 import { formsWebhookController } from "./modules/integrations/webhook.controller";
 import { auditRoutes } from "./modules/audit/routes";
 import { notificationsRoutes } from "./modules/notifications/routes";
+import { backupsRoutes } from "./modules/backups/routes";
+import type { BackupConfig } from "@Alumni-Tracking-Ss/api/backups/backup-service";
+import { maintenanceState } from "@Alumni-Tracking-Ss/api/backups/restore";
+import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
+import { requestContext } from "./middleware/request-context";
 import { filesRoutes, ownFilesRoutes } from "./modules/files/routes";
 import { accountPhotoRoutes, ownPhotoRoutes } from "./modules/account-photos/routes";
 import { employmentController } from "./modules/alumni/employment.controller";
@@ -47,9 +52,11 @@ export type AppOptions = {
   config: { nodeEnv: string; origin: string; trustedProxyIps?: readonly string[] };
   integrationEnv: IntegrationEnv;
   sessionLoader?: typeof loadAuthUserFromToken;
+  /** Server-only backup settings (BACKUP_ENCRYPTION_KEY, BACKUP_DIR, MONGODB_TOOLS_DIR). */
+  backup?: BackupConfig;
 };
 
-export function createApp({ db, config, integrationEnv, sessionLoader }: AppOptions) {
+export function createApp({ db, config, integrationEnv, sessionLoader, backup }: AppOptions) {
   const app = express();
   const secureCookies = config.nodeEnv === "production";
   app.disable("x-powered-by");
@@ -208,6 +215,14 @@ export function createApp({ db, config, integrationEnv, sessionLoader }: AppOpti
     );
     next();
   });
+  // During a restore every API request except sign-in and Super Admin work gets 503.
+  app.use(async (request, response, next) => {
+    if (!request.path.startsWith("/api/") || request.path.startsWith("/api/auth/")) return next();
+    const state = await maintenanceState(db).catch(() => ({ active: false, message: "" }));
+    const user = requestContext(request).user;
+    if (!state.active || (user && isAdministrator(user))) return next();
+    response.status(503).json({ error: state.message, code: "SERVICE_UNAVAILABLE" });
+  });
   const google = googleController(config.origin, secureCookies);
   app.get("/api/auth/google", google.start);
   app.get("/api/auth/google/callback", google.callback);
@@ -264,6 +279,7 @@ export function createApp({ db, config, integrationEnv, sessionLoader }: AppOpti
   app.use("/api/integrations", integrationsRoutes);
   app.use("/api/audit", auditRoutes);
   app.use("/api/notifications", notificationsRoutes);
+  app.use("/api/backups", backupsRoutes(backup));
   app.use("/api/files", filesRoutes);
   app.use("/api/me/files", ownFilesRoutes);
   app.use("/api/me/photo", ownPhotoRoutes);

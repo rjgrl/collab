@@ -9,6 +9,9 @@ import {
 } from "./org-migration";
 import { createIntegrationDefaults, type IntegrationDefaultsReport } from "./integration-defaults";
 
+/** Schema version; must be incremented whenever a migration step is added. */
+export const SCHEMA_VERSION = 1;
+
 export type MigrationMode = "dry-run" | "apply" | "rollback";
 export interface ExistingIndex {
   name?: string;

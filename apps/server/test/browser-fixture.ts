@@ -1,4 +1,5 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 // Isolated browser-test server. Never imported by the production entrypoint.
 import express from "express";
 import { randomBytes } from "node:crypto";
@@ -88,10 +89,26 @@ globalThis.fetch = async (input, init) => {
   return nativeFetch(input, init);
 };
 function createTestApplication() {
+  const toolsDir = path.resolve(".tools/mongodb-database-tools-windows-x86_64-100.20.1/bin");
+  const toolsExist = existsSync(toolsDir);
+  const backupDir = path.resolve(".tools/browser-backups", databaseName);
+  const backupConfig = toolsExist
+    ? {
+        encryptionKey: "56".repeat(32),
+        dir: backupDir,
+        toolsDir,
+        databaseUrl: process.env.DATABASE_URL!,
+        uploadDir: verificationEnv.uploadDir!,
+        appVersion: "1.0.0-test",
+        mfaEncryptionKey: verificationEnv.mfaEncryptionKey!,
+        integrationEncryptionKey: verificationEnv.integrationEncryptionKey!,
+      }
+    : undefined;
   return createApp({
     db,
     config: { nodeEnv: "test", origin: "http://127.0.0.1:3101" },
     integrationEnv: verificationEnv,
+    backup: backupConfig,
   });
 }
 async function reset() {
@@ -100,6 +117,14 @@ async function reset() {
     throw new Error("Refusing to reset a non-fixture database.");
   for (const collection of Object.values(db.connection.collections))
     await collection.deleteMany({});
+  // Clear backup directory if it exists
+  const backupDir = path.resolve(".tools/browser-backups", databaseName);
+  const fs = await import("fs/promises");
+  try {
+    await fs.rm(backupDir, { recursive: true, force: true });
+  } catch {
+    // Directory may not exist yet
+  }
   process.env.NODE_ENV = "test";
   process.env.LOCAL_DISABLE_MFA = "false";
   process.env.LOCAL_REQUIRE_EMAIL_VERIFICATION = "true";
