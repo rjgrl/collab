@@ -49,7 +49,8 @@ test("departments have no code fields and audit summaries preserve each individu
     'Description: "First description" → "Second description"',
   );
   await expect(firstChange).toContainText("Test Administrator");
-  await expect(firstChange).not.toContainText("admin@example.test");
+  // The user's email recorded at event time shows under their name.
+  await expect(firstChange).toContainText("admin@example.test");
   await expect(firstChange).not.toContainText("Current identity");
   await expect(firstChange).not.toContainText("Final Sciences");
   await expect(firstChange).toContainText("Updated department");
@@ -58,7 +59,7 @@ test("departments have no code fields and audit summaries preserve each individu
   const secondChange = page.getByRole("row").filter({ hasText: "Final Sciences" });
   await expect(secondChange).toContainText('Name: "Natural Sciences" → "Final Sciences"');
   await expect(secondChange).toContainText("Test Administrator");
-  await expect(secondChange).not.toContainText("admin@example.test");
+  await expect(secondChange).toContainText("admin@example.test");
   const details = firstChange.getByRole("button", { name: /^View audit details/ });
   await details.focus();
   await page.keyboard.press("Enter");

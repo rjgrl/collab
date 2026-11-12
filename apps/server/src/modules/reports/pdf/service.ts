@@ -12,6 +12,7 @@ import { renderPdf } from "./render";
 import { alumniList } from "./templates/alumni-list";
 import { assignmentReport, type AssignmentGroup } from "./templates/assignments";
 import { profileSheet } from "./templates/profile-sheet";
+import { profilePhotoDataUrl } from "./profile-photo";
 
 // PDFs are heavier than CSV rows; larger lists should be exported as CSV.
 export const PDF_ROW_LIMIT = 2000;
@@ -69,7 +70,8 @@ export const pdfReportsService = {
     // alumniService.get applies the caller's scope (out-of-scope ids are 404).
     // Parsing through the public output contract types the record and drops private fields.
     const record = alumniSchemas.get.output.parse(await alumniService.get(context, { id }));
-    const buffer = await renderPdf(profileSheet(record, meta(context)));
+    const photo = await profilePhotoDataUrl(context, record);
+    const buffer = await renderPdf(profileSheet(record, { ...meta(context), photo }));
     await audited(
       context,
       "reports.pdf.profile",

@@ -191,7 +191,16 @@ function AlumniDetailPage() {
           <DetailRow label="Batch" value={record.batch || "Not recorded"} />
           <DetailRow label="Employment" value={record.employmentStatus} />
         </SummaryCard>
-        <ContactsPanel alumniId={id} contacts={record.contacts} canWrite={canWrite} />
+        <ContactsPanel
+          alumniId={id}
+          contacts={record.contacts}
+          canWrite={canWrite}
+          signup={{
+            email: record.personalEmail,
+            phone: record.mobileNumber,
+            facebook: record.facebookAccount,
+          }}
+        />
       </div>
 
       {editingPhoto ? (

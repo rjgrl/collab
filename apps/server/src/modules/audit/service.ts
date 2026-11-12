@@ -9,6 +9,11 @@ import {
   AUDIT_ACTION_LABELS,
   renderAuditSummary,
 } from "@Alumni-Tracking-Ss/contracts/audit-labels";
+import {
+  describeHistoryEntry,
+  type HistoryChange,
+  type TrackingDetails,
+} from "@Alumni-Tracking-Ss/contracts/alumni-history";
 import type { z } from "zod";
 import { management, escapeRegex } from "../academic/service";
 /**
@@ -62,6 +67,27 @@ export async function headAuditFilter(
   };
 }
 
+/** Entries about one alumnus (profile, contacts, employment, files, tracking). */
+function alumniRelated(row: { entity: string }, metadata: Record<string, unknown> | null): boolean {
+  return row.entity === "alumni" || typeof metadata?.alumniId === "string";
+}
+/** Same plain language as the alumni Change history: values, not `none → "x"` pairs or IDs. */
+function readableAlumniSummary(
+  row: { action: string; entity: string; summary: string },
+  metadata: Record<string, unknown> | null,
+) {
+  const described = describeHistoryEntry({
+    action: row.action,
+    entity: row.entity,
+    summary: row.summary,
+    changes: (Array.isArray(metadata?.changes) ? metadata.changes : []) as HistoryChange[],
+    tracking:
+      metadata?.tracking && typeof metadata.tracking === "object"
+        ? (metadata.tracking as TrackingDetails)
+        : null,
+  });
+  return described.details.length ? described.details.join("; ") : described.title;
+}
 export const auditService = {
   async list(context: Context, input?: z.input<typeof auditSchemas.list.input>) {
     const scope = await auditScope(context);
@@ -132,7 +158,9 @@ export const auditService = {
           actorIsSnapshot: recorded.success,
           actor: recorded.success ? recorded.data : actor ? toEntity(actor) : null,
           actorRoles,
-          displaySummary: renderAuditSummary(row as { entity: string; summary: string }, names),
+          displaySummary: alumniRelated(row, metadata)
+            ? readableAlumniSummary(row, metadata)
+            : renderAuditSummary(row as { entity: string; summary: string }, names),
         };
       }),
     );

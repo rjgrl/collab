@@ -2,6 +2,11 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-12 (sign-up contacts, audit User column, photo editor, PDF photo)
+
+- Contacts card shows sign-up email, phone and Facebook (read-only). Audit log column "User" with email under the name; alumni-related audit summaries use the same plain language as Change history; "tracking.create" reads "Recorded tracking". Photo dialogs: large centered preview, live preview of the chosen file with zoom and drag, saved only on Upload (cropped to 512×512 in the browser). Profile PDF prints the current photo (64pt, rounded) beside the name.
+- Verified: `pnpm check` 7/7; `pnpm test` 404/404; browser specs profile-tables, alumni-photo-tracking, account-system, department-audit, compact-ui, ownership, alumni-account, notifications pass on desktop and mobile.
+
 ## 2026-11-12 (profile polish: notifications, staff-only tracking, readable history, paginated tables)
 
 - Notifications bottom-right (max 3, close button inside); local-testing banner removed; alumni header shows status under the program with a larger photo, Contacts beside Student details; Alumni no longer see or receive tracking status; employment, change history and faculty tables paginate (10/25/50); change history is plain language and fixes the "null →" employment entries; fixed phone pages widening to 597px when a table had hidden button labels.

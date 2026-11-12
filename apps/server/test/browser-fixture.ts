@@ -371,6 +371,10 @@ async function ensureAcademicFixtures() {
           programId: ids.program,
           isTracked: true,
           employmentStatus: "unknown",
+          // Contact details as registration stores them.
+          ...(id === ids.alumniProfile
+            ? { personalEmail: "alumni@example.test", mobileNumber: "+639171234567" }
+            : {}),
         },
       },
       { upsert: true },

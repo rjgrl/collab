@@ -48,11 +48,21 @@ export function ContactsPanel({
   alumniId,
   contacts,
   canWrite,
+  signup,
 }: {
   alumniId: string;
   contacts: Contact[];
   canWrite: boolean;
+  /** Contact details the alumnus entered at sign-up; they edit these in their own Settings. */
+  signup?: { email?: string | null; phone?: string | null; facebook?: string | null };
 }) {
+  const signupRows: [string, string][] = [];
+  for (const [label, value] of [
+    ["Email", signup?.email],
+    ["Phone", signup?.phone],
+    ["Facebook", signup?.facebook],
+  ] as const)
+    if (value?.trim()) signupRows.push([label, value]);
   // null: closed. "choose": step 1 (pick a kind). Draft: step 2 (fields).
   const confirmAction = useConfirm();
   const [dialog, setDialog] = useState<null | "choose" | Draft>(null);
@@ -116,11 +126,49 @@ export function ContactsPanel({
           <PrimaryButton onClick={() => setDialog("choose")}>Add contact</PrimaryButton>
         ) : null}
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
+        {signupRows.length ? (
+          <section aria-label="Sign-up contacts">
+            <h3 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              From sign-up
+            </h3>
+            <dl className="divide-y text-sm">
+              {signupRows.map(([label, value]) => (
+                <div key={label} className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:gap-4">
+                  <dt className="font-medium sm:w-20 sm:shrink-0">{label}</dt>
+                  <dd className="min-w-0 break-all text-muted-foreground">
+                    {label === "Facebook" ? (
+                      <a
+                        href={value}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="underline underline-offset-2"
+                      >
+                        {value}
+                      </a>
+                    ) : (
+                      value
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The alumnus updates these in their account settings.
+            </p>
+          </section>
+        ) : null}
+        {signupRows.length && contacts.length ? (
+          <h3 className="-mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Added contacts
+          </h3>
+        ) : null}
         {contacts.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            No contacts yet.
-          </p>
+          signupRows.length ? null : (
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              No contacts yet.
+            </p>
+          )
         ) : (
           <ul className="divide-y text-sm">
             {contacts.map((contact) => (

@@ -36,7 +36,7 @@ function AuditPage() {
       <PageHeader title="Audit log" description={description} />
       {logs.isError ? <ErrorAlert>{logs.error.message}</ErrorAlert> : null}
       <DataTable
-        headers={["When", "Actor", "Role", "Action", "Summary"]}
+        headers={["When", "User", "Role", "Action", "Summary"]}
         search={search}
         onSearch={(value) => {
           setSearch(value);
@@ -67,6 +67,9 @@ function AuditPage() {
               <div className="font-medium">
                 {row.actor?.name ?? (row.actorId ? "Unavailable account" : "System")}
               </div>
+              {row.actor?.email ? (
+                <div className="break-all text-xs text-muted-foreground">{row.actor.email}</div>
+              ) : null}
               {row.actor && !row.actorIsSnapshot ? (
                 <div className="mt-1 text-xs text-muted-foreground">
                   Current identity; not recorded at event time
@@ -124,7 +127,7 @@ function AuditPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Actor</dt>
+              <dt className="text-muted-foreground">User</dt>
               <dd className="mt-1 break-all font-medium">
                 {selected.actor?.name ?? (selected.actorId ? "Unavailable account" : "System")}
               </dd>

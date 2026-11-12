@@ -11,7 +11,7 @@ const date = (value?: Date | null) => (value ? new Date(value).toISOString().sli
 
 export function profileSheet(
   data: ProfileSheetData,
-  meta: { generatedBy: string; generatedAt: Date },
+  meta: { generatedBy: string; generatedAt: Date; photo?: string | null },
 ) {
   return frame({
     title: `Alumni profile: ${formatDisplayName(data)}`,

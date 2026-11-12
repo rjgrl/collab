@@ -16,7 +16,13 @@ export function frame(input: {
   generatedAt: Date;
   content: object[];
   landscape?: boolean;
+  /** Small square image (data URL) printed beside the title. */
+  photo?: string | null;
 }) {
+  const heading = [
+    { text: input.title, style: "title" },
+    { text: input.subtitle, style: "subtitle" },
+  ];
   return {
     info: { title: input.title, creator: "Alumni Tracking System" },
     pageSize: "A4",
@@ -25,8 +31,17 @@ export function frame(input: {
     defaultStyle: { font: "Roboto", fontSize: 9 },
     styles,
     content: [
-      { text: input.title, style: "title" },
-      { text: input.subtitle, style: "subtitle" },
+      ...(input.photo
+        ? [
+            {
+              columns: [
+                { image: input.photo, width: 64, height: 64 },
+                { stack: heading, margin: [0, 14, 0, 0] },
+              ],
+              columnGap: 12,
+            },
+          ]
+        : heading),
       ...input.content,
     ],
     footer: (current: number, total: number) => ({

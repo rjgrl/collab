@@ -6,7 +6,7 @@ import roboto from "pdfmake/fonts/Roboto.js";
 // fonts do not embed glyphs outside WinAnsi.
 const fontDirectory = path.dirname(roboto.Roboto!.normal!);
 pdfmake.setFonts(roboto);
-// Templates never reference images or URLs; refuse any network fetch and any file
+// Templates reference no URLs (the profile photo is a server-made data URL); refuse any network fetch and any file
 // outside the bundled font directory, so user data in a document cannot pull resources.
 pdfmake.setUrlAccessPolicy(() => false);
 pdfmake.setLocalAccessPolicy((file) => {

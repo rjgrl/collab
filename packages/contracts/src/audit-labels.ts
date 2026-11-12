@@ -77,7 +77,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "alumni.photo.remove": "Removed alumni profile photo",
 
   // Tracking
-  "tracking.create": "Started tracking alumni",
+  "tracking.create": "Recorded tracking",
 
   // Integrations
   "integrations.import": "Ran import",

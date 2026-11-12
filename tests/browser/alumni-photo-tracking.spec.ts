@@ -20,9 +20,26 @@ async function signIn(page: Page, email: string) {
 async function uploadPhoto(page: Page) {
   await page.getByRole("button", { name: "Change photo", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });
+  const before = (await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json())
+    .photoUrl;
   await dialog
     .getByLabel("Choose profile photo", { exact: true })
     .setInputFiles({ name: "Graduate.png", mimeType: "image/png", buffer: png });
+  // The chosen photo previews immediately, can be zoomed and moved, and is not saved yet.
+  await expect(dialog.getByRole("img", { name: /Preview of the chosen photo/ })).toBeVisible();
+  await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(dialog.getByRole("slider", { name: "Zoom" })).toHaveValue("1.25");
+  const frame = dialog.getByRole("group", { name: /Photo preview/ });
+  await frame.focus();
+  await page.keyboard.press("ArrowLeft");
+  expect(
+    (await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json()).photoUrl,
+  ).toBe(before);
+  // Preview is centered above the controls.
+  const box = (await frame.boundingBox())!;
+  const dialogBox = (await dialog.boundingBox())!;
+  expect(Math.abs(box.x + box.width / 2 - (dialogBox.x + dialogBox.width / 2))).toBeLessThan(4);
+  expect(box.width).toBeGreaterThanOrEqual(200);
   await dialog.getByRole("button", { name: /Upload photo|Replace photo/ }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Test Alumni's profile photo" })).toBeVisible();
@@ -61,6 +78,10 @@ test("only Super Admins and the assigned faculty tracker change an alumnus photo
   await request.post(`${FIXTURE}/assign-staff`, { data: { assigned: true } });
   await page.reload();
   await uploadPhoto(page);
+  // The Profile PDF now carries the current photo beside the name.
+  const pdf = await page.request.get("/api/v1/reports/alumni/000000000000000000000201/profile.pdf");
+  expect(pdf.status()).toBe(200);
+  expect((await pdf.body()).toString("latin1")).toMatch(/\/Subtype \/Image/);
   await uploadPhoto(page);
   await page.getByRole("button", { name: "Change photo", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });

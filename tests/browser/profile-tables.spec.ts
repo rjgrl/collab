@@ -39,6 +39,12 @@ test("staff see a tidy profile with paginated employment and change history", as
     expect(Math.abs(b!.y - a!.y)).toBeLessThan(40);
   } else expect(b!.y).toBeGreaterThan(a!.y);
 
+  // Sign-up contact details show in Contacts even before staff add any.
+  const signup = page.getByRole("region", { name: "Sign-up contacts" });
+  await expect(signup).toContainText("alumni@example.test");
+  await expect(signup).toContainText("+639171234567");
+  await expect(page.getByText("No contacts yet.")).toHaveCount(0);
+
   // Phones emulate a wider layout when anything overflows, so compare with the device width.
   expect(await page.evaluate(() => innerWidth)).toBe(page.viewportSize()!.width);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
@@ -88,7 +94,7 @@ test("staff see a tidy profile with paginated employment and change history", as
   await expect(history.first()).toContainText("Marked tracked");
   await expect(history.first()).toContainText("Notes: Called graduate");
 
-  // Toasts appear at the bottom-right with the close button inside (two saves above made two).
+  // The "Tracking updated" toast sits bottom-right with its close button inside.
   if (info.project.name === "desktop") {
     const toasts = page.locator("[data-sonner-toast]");
     await expect(toasts.first()).toBeVisible();
@@ -101,6 +107,15 @@ test("staff see a tidy profile with paginated employment and change history", as
     expect(close.x + close.width).toBeLessThanOrEqual(toast.x + toast.width);
     expect(close.y).toBeGreaterThanOrEqual(toast.y);
   }
+
+  // Audit log names the user, with their email underneath, and reads like Change history.
+  await page.goto("/audit");
+  await expect(page.getByRole("columnheader", { name: "User", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Actor" })).toHaveCount(0);
+  const entry = page.getByRole("row").filter({ hasText: "Readable Corp" }).first();
+  await expect(entry).toContainText("staff@example.test");
+  await expect(entry).toContainText("Employer: Readable Corp");
+  await expect(entry).not.toContainText(/none →|T00:00|[a-f\d]{24}/);
 });
 
 test("faculty list defaults to 10 rows with a rows-per-page choice", async ({ page, request }) => {
