@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account/account-avatar";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { ModeToggle } from "@/components/layout/mode-toggle";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { queryClient } from "@/lib/api";
@@ -131,12 +132,10 @@ export function AppShell() {
       </a>
       <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col overflow-y-auto bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border">
-            <GraduationCap className="size-5" aria-hidden="true" />
-          </span>
+          <BrandMark className="size-9" />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-sidebar-accent-foreground">
-              Alumni Tracking
+              Alumni tracking
             </p>
             <p className="truncate text-xs text-sidebar-muted">University registry</p>
           </div>
@@ -195,7 +194,7 @@ export function AppShell() {
                 <span className="truncate font-medium text-foreground">{current.item.label}</span>
               </>
             ) : (
-              <span className="font-medium text-foreground">Alumni Tracking</span>
+              <span className="font-medium text-foreground">Alumni tracking</span>
             )}
           </p>
           <div className="flex min-w-0 items-center gap-2 md:hidden">
@@ -228,9 +227,7 @@ export function AppShell() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar text-sidebar-accent-foreground">
-              <GraduationCap className="size-4" aria-hidden="true" />
-            </span>
+            <BrandMark className="size-8" />
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ModeToggle />
