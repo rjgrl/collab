@@ -585,7 +585,6 @@
                         "type": "boolean"
                       },
                       "isTracked": {
-                        "default": false,
                         "type": "boolean"
                       },
                       "employments": {
@@ -887,7 +886,6 @@
                       "assignedFacultyId",
                       "assignedFaculty",
                       "needsReassignment",
-                      "isTracked",
                       "employments",
                       "trackingEvents",
                       "evidenceFiles",
@@ -2445,7 +2443,6 @@
                       "type": "boolean"
                     },
                     "isTracked": {
-                      "default": false,
                       "type": "boolean"
                     },
                     "employments": {
@@ -2747,7 +2744,6 @@
                     "assignedFacultyId",
                     "assignedFaculty",
                     "needsReassignment",
-                    "isTracked",
                     "employments",
                     "trackingEvents",
                     "evidenceFiles",
@@ -3201,7 +3197,6 @@
                       "type": "boolean"
                     },
                     "isTracked": {
-                      "default": false,
                       "type": "boolean"
                     },
                     "employments": {
@@ -3503,7 +3498,6 @@
                     "assignedFacultyId",
                     "assignedFaculty",
                     "needsReassignment",
-                    "isTracked",
                     "employments",
                     "trackingEvents",
                     "evidenceFiles",
@@ -3701,6 +3695,16 @@
                           ],
                           "additionalProperties": false
                         }
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "details": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": [
@@ -3710,7 +3714,9 @@
                       "summary",
                       "createdAt",
                       "actor",
-                      "changes"
+                      "changes",
+                      "title",
+                      "details"
                     ],
                     "additionalProperties": false
                   }
@@ -12466,7 +12472,6 @@
                       "type": "boolean"
                     },
                     "isTracked": {
-                      "default": false,
                       "type": "boolean"
                     },
                     "employments": {
@@ -12768,7 +12773,6 @@
                     "assignedFacultyId",
                     "assignedFaculty",
                     "needsReassignment",
-                    "isTracked",
                     "employments",
                     "trackingEvents",
                     "evidenceFiles",
@@ -13151,7 +13155,6 @@
                       "type": "boolean"
                     },
                     "isTracked": {
-                      "default": false,
                       "type": "boolean"
                     },
                     "employments": {
@@ -13453,7 +13456,6 @@
                     "assignedFacultyId",
                     "assignedFaculty",
                     "needsReassignment",
-                    "isTracked",
                     "employments",
                     "trackingEvents",
                     "evidenceFiles",

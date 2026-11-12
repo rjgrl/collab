@@ -15,6 +15,12 @@ import { FormCard, FormField, PrimaryButton } from "@/components/forms/form-layo
 import { CheckboxRow } from "@/components/forms/checkbox-row";
 import { BriefcaseBusiness } from "lucide-react";
 import { useConfirm } from "@/components/feedback/confirm-provider";
+import { DataTable, TableCell, TableRow } from "@/components/data/data-table";
+import { PageControls, usePagedRows } from "@/components/data/page-controls";
+
+const Muted = ({ children }: { children: string }) => (
+  <span className="text-muted-foreground">{children}</span>
+);
 
 type Employment = z.infer<typeof employmentOutputSchema>;
 const emptyJob = {
@@ -38,6 +44,7 @@ export function EmploymentPanel({
   canWrite?: boolean;
 }) {
   const confirmAction = useConfirm();
+  const paged = usePagedRows(jobs);
   const [editing, setEditing] = useState<Employment | null | undefined>();
   const [draft, setDraft] = useState(emptyJob);
   function edit(job: Employment | null) {
@@ -87,10 +94,7 @@ export function EmploymentPanel({
     },
   });
   return (
-    <FormCard
-      title="Employment"
-      description="Keep your job history current. Employment is self-reported; tracking is a separate staff decision."
-    >
+    <FormCard title="Employment" description="Keep your job history current.">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {jobs.length} {jobs.length === 1 ? "job" : "jobs"} recorded
@@ -115,63 +119,82 @@ export function EmploymentPanel({
           </div>
         </div>
       ) : (
-        <ul className="divide-y">
-          {jobs.map((job) => (
-            <li
-              key={job.id}
-              className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:justify-between"
-            >
-              <div className="min-w-0">
-                <h3 className="break-words text-sm font-medium">
-                  {job.employer}
+        <div className="flex flex-col gap-3">
+          <DataTable
+            label="Employment history"
+            headers={[
+              "Employer",
+              "Position",
+              "Industry / location",
+              "Period",
+              ...(canWrite ? ["Actions"] : []),
+            ]}
+          >
+            {paged.rows.map((job) => (
+              <TableRow key={job.id}>
+                <TableCell className="min-w-40">
+                  <span className="break-words font-medium">{job.employer}</span>
                   {job.isCurrent ? (
                     <Badge variant="secondary" className="ml-2 align-middle font-medium">
                       Current
                     </Badge>
                   ) : null}
-                </h3>
-                <p className="mt-1 text-sm">{job.jobTitle || "Position not recorded"}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {[job.industry, job.location].filter(Boolean).join(" · ") ||
-                    "Industry and location not recorded"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {dateValue(job.startDate) || "Start date not recorded"} —{" "}
-                  {job.isCurrent ? "Present" : dateValue(job.endDate) || "End date not recorded"}
-                </p>
-                {job.notes ? (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm">{job.notes}</p>
+                  {job.notes ? (
+                    <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                      {job.notes}
+                    </p>
+                  ) : null}
+                </TableCell>
+                <TableCell>{job.jobTitle || <Muted>Not recorded</Muted>}</TableCell>
+                <TableCell>
+                  {[job.industry, job.location].filter(Boolean).join(" · ") || (
+                    <Muted>Not recorded</Muted>
+                  )}
+                </TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">
+                  {dateValue(job.startDate) || "—"} –{" "}
+                  {job.isCurrent ? "Present" : dateValue(job.endDate) || "—"}
+                </TableCell>
+                {canWrite ? (
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => edit(job)}>
+                        Edit<span className="sr-only"> {job.employer}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={remove.isPending}
+                        onClick={async () => {
+                          if (
+                            await confirmAction({
+                              title: `Remove employment at ${job.employer}?`,
+                              description:
+                                "This removes the job history entry; attached evidence stays on the profile.",
+                              confirmLabel: "Remove",
+                              destructive: true,
+                            })
+                          )
+                            remove.mutate(job.id);
+                        }}
+                      >
+                        Remove<span className="sr-only"> {job.employer}</span>
+                      </Button>
+                    </div>
+                  </TableCell>
                 ) : null}
-              </div>
-              {canWrite ? (
-                <div className="flex shrink-0 gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => edit(job)}>
-                    Edit<span className="sr-only"> {job.employer}</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={remove.isPending}
-                    onClick={async () => {
-                      if (
-                        await confirmAction({
-                          title: `Remove employment at ${job.employer}?`,
-                          description:
-                            "This removes the job history entry; attached evidence stays on the profile.",
-                          confirmLabel: "Remove",
-                          destructive: true,
-                        })
-                      )
-                        remove.mutate(job.id);
-                    }}
-                  >
-                    Remove<span className="sr-only"> {job.employer}</span>
-                  </Button>
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+              </TableRow>
+            ))}
+          </DataTable>
+          <PageControls
+            label="Employment pages"
+            page={paged.page}
+            pageSize={paged.pageSize}
+            total={paged.total}
+            onPage={paged.setPage}
+            onPageSize={paged.setPageSize}
+          />
+        </div>
       )}
       {remove.error ? (
         <p role="alert" className="text-sm text-destructive">

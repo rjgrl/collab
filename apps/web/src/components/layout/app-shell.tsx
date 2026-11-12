@@ -29,7 +29,6 @@ import {
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account/account-avatar";
-import { LocalVerificationNotice } from "@/components/layout/local-verification-notice";
 import { ModeToggle } from "@/components/layout/mode-toggle";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { queryClient } from "@/lib/api";
@@ -280,7 +279,6 @@ export function AppShell() {
           tabIndex={-1}
           className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-6 outline-none sm:px-6 md:px-8 md:py-8"
         >
-          <LocalVerificationNotice />
           <Outlet />
         </main>
       </div>

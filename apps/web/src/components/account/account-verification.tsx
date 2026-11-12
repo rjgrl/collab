@@ -1,6 +1,5 @@
 import { completionProfileSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import { AcademicProfileFields, emptyAcademic } from "@/components/forms/academic-profile-fields";
-import { LocalVerificationNotice } from "@/components/layout/local-verification-notice";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -139,7 +138,6 @@ export function AccountVerification() {
         }
       />
       <div className="flex flex-col gap-6">
-        <LocalVerificationNotice />
         {status.isPending ? (
           <p className="text-sm text-muted-foreground" role="status">
             Loading account verification...

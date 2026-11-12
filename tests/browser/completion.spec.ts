@@ -135,7 +135,7 @@ test("local Alumni registration persists academic identity, employment and owned
   await page.getByRole("button", { name: "Save employment", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("heading", { name: /Synthetic University/ })).toBeVisible();
+  await expect(page.getByRole("cell", { name: /^Synthetic University/ })).toBeVisible();
   await expect(page.getByText("Graduate researcher", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /Edit Synthetic University/ }).click();
   await page

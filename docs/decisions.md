@@ -136,3 +136,11 @@ Append-only. Format: date, decision, why, alternatives rejected.
 
 - Decision: staging and production use Atlas through the existing `DATABASE_URL`; local development and every automated test keep the native `rs0` replica set, so tests stay offline and isolated. No Atlas-specific code was needed.
 - The presentation data will be migrated later from another device with the commands in `docs/operations/MONGODB_ATLAS.md` (config files instead of URIs on the command line; the same encryption keys and `UPLOAD_DIR` must move with the data).
+
+## 2026-11-12: Tracking status is staff-only; history is plain language
+
+- Decision: Alumni never see or receive their tracking state. `/me/profile` omits `isTracked` and `lastTrackedAt` and returns no tracking events; the My Profile page and panel texts no longer mention tracking. Staff still see the status, now under the program in the alumni header.
+- Decision: Change history is rendered server-side by `describeHistoryEntry` (`packages/contracts/src/alumni-history.ts`) into a title and plain detail lines. New records show their values (not `null → value`), dates read as "Jul 7, 2023", program and faculty IDs are resolved to names, and any remaining database ID shows as "a linked record". Tracking events now store `metadata.tracking` (status, source, notes); older tracking summaries are parsed for their notes and source.
+- Pagination: tracking is paged on the server; employment and change history are paged in the browser (already loaded; history is capped at the 200 newest entries); faculty keeps server paging, now 10/25/50 rows.
+- Notifications: bottom-right, at most 3 visible, close button inside on the right.
+- Removed the dev-only "Local functionality testing" banner; the local verification setting itself is unchanged.

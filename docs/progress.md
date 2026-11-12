@@ -2,6 +2,11 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-12 (profile polish: notifications, staff-only tracking, readable history, paginated tables)
+
+- Notifications bottom-right (max 3, close button inside); local-testing banner removed; alumni header shows status under the program with a larger photo, Contacts beside Student details; Alumni no longer see or receive tracking status; employment, change history and faculty tables paginate (10/25/50); change history is plain language and fixes the "null →" employment entries; fixed phone pages widening to 597px when a table had hidden button labels.
+- Verified: `pnpm check` 7/7; `pnpm test` 403/403; affected browser specs (profile-tables, alumni-photo-tracking, completion, notifications, ownership, account-system, settings) pass on desktop and mobile.
+
 ## 2026-11-12 (alumni photos, paginated tracking, Atlas runbook)
 
 - Alumni detail header shows the profile photo; Super Admins and the directly assigned faculty tracker can upload, replace or remove it (audited `alumni.photo.remove`). Others who can view the alumnus only see it. Cross-user account-photo reads now require alumni scope.

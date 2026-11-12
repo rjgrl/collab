@@ -25,6 +25,7 @@ import { DetailRow, SummaryCard } from "@/components/account/summary-card";
 import { AccountAvatar } from "@/components/account/account-avatar";
 import { AlumniPhotoDialog } from "@/components/alumni/alumni-photo-dialog";
 import { TrackingTable } from "@/components/alumni/tracking-table";
+import { ChangeHistoryTable } from "@/components/alumni/change-history-table";
 
 export const Route = createFileRoute("/_app/alumni/$id")({
   component: AlumniDetailPage,
@@ -48,10 +49,6 @@ function AlumniDetailPage() {
     programId: "",
   });
   const showHistory = managesFaculty(session.data);
-  const history = useQuery({
-    ...api.alumni.history.queryOptions({ input: { id } }),
-    enabled: showHistory,
-  });
   const [trackingNotes, setTrackingNotes] = useState("");
   const [editingDetails, setEditingDetails] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState(false);
@@ -139,12 +136,12 @@ function AlumniDetailPage() {
           <AccountAvatar
             image={record.photoUrl}
             name={formatDisplayName(record)}
-            className="size-16 sm:size-20"
+            className="size-20 sm:size-28"
           />
         }
+        meta={<StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
             {record.canManagePhoto ? (
               <QuietButton onClick={() => setEditingPhoto(true)}>Change photo</QuietButton>
             ) : null}
@@ -162,37 +159,40 @@ function AlumniDetailPage() {
           </div>
         }
       />
-      <SummaryCard
-        title="Student details"
-        actionLabel={canWrite ? "Edit details" : undefined}
-        onAction={
-          canWrite
-            ? () => {
-                setForm({
-                  firstName: record.firstName,
-                  middleName: record.middleName ?? "",
-                  lastName: record.lastName,
-                  suffix: record.suffix ?? "",
-                  gender: record.gender ?? "",
-                  batch: record.batch ?? "",
-                  studentNumber: record.studentNumber,
-                  graduationYear: record.graduationYear ? String(record.graduationYear) : "",
-                  programId: record.programId,
-                });
-                setEditingDetails(true);
-              }
-            : undefined
-        }
-      >
-        <DetailRow label="Full name" value={formatDisplayName(record)} />
-        <DetailRow label="Student number" value={record.studentNumber} />
-        <DetailRow label="Program" value={`${record.program.code} — ${record.program.name}`} />
-        <DetailRow label="Department" value={record.program.department.name} />
-        <DetailRow label="Graduation year" value={record.graduationYear ?? "Not recorded"} />
-        <DetailRow label="Gender" value={record.gender || "Not recorded"} />
-        <DetailRow label="Batch" value={record.batch || "Not recorded"} />
-        <DetailRow label="Employment" value={record.employmentStatus} />
-      </SummaryCard>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <SummaryCard
+          title="Student details"
+          actionLabel={canWrite ? "Edit details" : undefined}
+          onAction={
+            canWrite
+              ? () => {
+                  setForm({
+                    firstName: record.firstName,
+                    middleName: record.middleName ?? "",
+                    lastName: record.lastName,
+                    suffix: record.suffix ?? "",
+                    gender: record.gender ?? "",
+                    batch: record.batch ?? "",
+                    studentNumber: record.studentNumber,
+                    graduationYear: record.graduationYear ? String(record.graduationYear) : "",
+                    programId: record.programId,
+                  });
+                  setEditingDetails(true);
+                }
+              : undefined
+          }
+        >
+          <DetailRow label="Full name" value={formatDisplayName(record)} />
+          <DetailRow label="Student number" value={record.studentNumber} />
+          <DetailRow label="Program" value={`${record.program.code} — ${record.program.name}`} />
+          <DetailRow label="Department" value={record.program.department.name} />
+          <DetailRow label="Graduation year" value={record.graduationYear ?? "Not recorded"} />
+          <DetailRow label="Gender" value={record.gender || "Not recorded"} />
+          <DetailRow label="Batch" value={record.batch || "Not recorded"} />
+          <DetailRow label="Employment" value={record.employmentStatus} />
+        </SummaryCard>
+        <ContactsPanel alumniId={id} contacts={record.contacts} canWrite={canWrite} />
+      </div>
 
       {editingPhoto ? (
         <AlumniPhotoDialog
@@ -311,8 +311,6 @@ function AlumniDetailPage() {
         </FormDialog>
       ) : null}
 
-      <ContactsPanel alumniId={id} contacts={record.contacts} canWrite={canWrite} />
-
       <EmploymentPanel jobs={record.employments} alumniId={id} canWrite={canWrite} />
 
       <Card>
@@ -359,43 +357,7 @@ function AlumniDetailPage() {
             <CardTitle>Change history</CardTitle>
           </CardHeader>
           <CardContent>
-            {history.isError ? (
-              <p role="alert" className="text-sm">
-                {history.error.message}
-              </p>
-            ) : !history.data?.length ? (
-              <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                {history.isPending ? "Loading history…" : "No recorded changes."}
-              </p>
-            ) : (
-              <ul className="divide-y text-sm">
-                {history.data.map((entry) => (
-                  <li key={entry.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-                    <p className="text-xs text-muted-foreground">
-                      <time dateTime={new Date(entry.createdAt).toISOString()}>
-                        {new Date(entry.createdAt).toLocaleString()}
-                      </time>{" "}
-                      · {entry.actor?.name ?? "System"} · {entry.action}
-                    </p>
-                    {entry.changes.length ? (
-                      <ul className="flex flex-col gap-0.5">
-                        {entry.changes.map((change) => (
-                          <li key={change.field} className="break-words">
-                            <span className="font-medium">{change.field}</span>:{" "}
-                            <span className="text-muted-foreground">
-                              {JSON.stringify(change.old ?? null)}
-                            </span>{" "}
-                            → {JSON.stringify(change.new ?? null)}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="break-words">{entry.summary}</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ChangeHistoryTable alumniId={id} />
           </CardContent>
         </Card>
       ) : null}

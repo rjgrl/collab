@@ -185,7 +185,8 @@ export const alumniOutputSchema = z.object({
   assignedFacultyId: objectIdSchema.nullable().default(null),
   assignedFaculty: z.object({ id: objectIdSchema, name: z.string() }).nullable().default(null),
   needsReassignment: z.boolean().default(false),
-  isTracked: z.boolean().default(false),
+  // Omitted from an alumnus's own profile: tracking is visible to staff only.
+  isTracked: z.boolean().optional(),
   employments: z.array(employmentOutputSchema).default([]),
   trackingEvents: z.array(trackingOutputSchema).default([]),
   evidenceFiles: z.array(evidenceOutputSchema).default([]),
@@ -200,6 +201,9 @@ export const alumniHistoryEntrySchema = z.object({
   createdAt: dateSchema,
   actor: z.object({ id: z.string(), name: z.string(), email: z.string() }).nullable(),
   changes: z.array(z.object({ field: z.string(), old: z.unknown(), new: z.unknown() })).default([]),
+  // Plain-language rendering of this entry (no field keys, database IDs or raw values).
+  title: z.string(),
+  details: z.array(z.string()).default([]),
 });
 export const alumniSchemas = {
   pendingAccounts: {

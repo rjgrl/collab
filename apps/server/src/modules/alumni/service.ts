@@ -31,6 +31,11 @@ import {
 } from "@Alumni-Tracking-Ss/api/scope";
 import { assignSchemas } from "@Alumni-Tracking-Ss/contracts/faculty";
 import { auditActorSchema } from "@Alumni-Tracking-Ss/contracts/audit";
+import {
+  describeHistoryEntry,
+  type HistoryChange,
+  type TrackingDetails,
+} from "@Alumni-Tracking-Ss/contracts/alumni-history";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { alumniContacts } from "./contacts.service";
 import type { z } from "zod";
@@ -63,9 +68,10 @@ async function detail(context: Context, id: string, db = context.db, self = fals
   const employments = await db.Employment.find({ alumniId: id })
     .sort({ isCurrent: -1, createdAt: -1 })
     .lean();
-  const events = await db.TrackingEvent.find({ alumniId: id })
-    .sort({ recordedAt: -1, _id: -1 })
-    .lean();
+  // Tracking is a staff decision: an alumnus's own profile never carries tracking state.
+  const events = self
+    ? []
+    : await db.TrackingEvent.find({ alumniId: id }).sort({ recordedAt: -1, _id: -1 }).lean();
   const files =
     self || context.user!.permissions.includes("files.read")
       ? await db.EvidenceFile.find({ alumniId: id, ...active })
@@ -73,8 +79,10 @@ async function detail(context: Context, id: string, db = context.db, self = fals
           .sort({ createdAt: -1, _id: -1 })
           .lean()
       : [];
+  const { isTracked, lastTrackedAt, ...profile } = a;
   return {
-    ...a,
+    ...profile,
+    ...(self ? {} : { isTracked, lastTrackedAt }),
     assignedFaculty: await assignedFacultyName(db, a.assignedFacultyId),
     contacts: await alumniContacts(db, [a.id]),
     isRegistered: Boolean(await db.User.findOne({ alumniId: a.id }).select("_id").lean()),
@@ -319,8 +327,16 @@ export const alumniService = {
         "tracking.create",
         "alumni",
         data.alumniId,
-        `Recorded tracking for ${JSON.stringify(formatDisplayName(before))} (${before.studentNumber}): ${describeAuditChanges(before, { isTracked: data.isTracked })}; source ${JSON.stringify(data.source ?? "")}; notes ${JSON.stringify(data.notes ?? "")}`,
-        { alumniId: data.alumniId, changes: fieldChanges(before, { isTracked: data.isTracked }) },
+        `Marked ${JSON.stringify(formatDisplayName(before))} (${before.studentNumber}) ${data.isTracked ? "tracked" : "untracked"}; source ${JSON.stringify(data.source ?? "")}; notes ${JSON.stringify(data.notes ?? "")}`,
+        {
+          alumniId: data.alumniId,
+          changes: fieldChanges(before, { isTracked: data.isTracked }),
+          tracking: {
+            isTracked: data.isTracked,
+            source: data.source ?? "manual",
+            notes: data.notes ?? "",
+          },
+        },
       );
       return event;
     });
@@ -472,10 +488,54 @@ export const alumniService = {
       .sort({ createdAt: -1, _id: -1 })
       .limit(200)
       .lean();
-    return rows.map((raw) => {
+    const entries = rows.map((raw) => {
       const row = toEntity(raw);
       const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+      const changes = (Array.isArray(metadata.changes) ? metadata.changes : []) as HistoryChange[];
+      return { row, metadata, changes };
+    });
+    // Resolve the record IDs a reader would recognise by name.
+    const idsOf = (field: string) => [
+      ...new Set(
+        entries.flatMap(({ changes }) =>
+          changes
+            .filter((change) => change.field === field)
+            .flatMap((change) => [change.old, change.new])
+            .filter(
+              (value): value is string => typeof value === "string" && /^[a-f\d]{24}$/i.test(value),
+            ),
+        ),
+      ),
+    ];
+    const programIds = idsOf("programId");
+    const facultyIds = idsOf("assignedFacultyId");
+    const programs = programIds.length
+      ? await context.db.Program.find({ _id: { $in: programIds } })
+          .select("code name")
+          .lean()
+      : [];
+    const faculty = facultyIds.length
+      ? await context.db.Faculty.find({ _id: { $in: facultyIds } })
+          .select("firstName lastName")
+          .lean()
+      : [];
+    const names = new Map<string, string>([
+      ...programs.map((p): [string, string] => [String(p._id), `${p.code} — ${p.name}`]),
+      ...faculty.map((f): [string, string] => [String(f._id), `${f.firstName} ${f.lastName}`]),
+    ]);
+    const named = (value: unknown) =>
+      typeof value === "string" ? (names.get(value) ?? value) : value;
+    return entries.map(({ row, metadata, changes }) => {
       const actor = auditActorSchema.safeParse(metadata.actorSnapshot);
+      const readable = changes.map((change) => ({
+        ...change,
+        old: named(change.old),
+        new: named(change.new),
+      }));
+      const tracking =
+        metadata.tracking && typeof metadata.tracking === "object"
+          ? (metadata.tracking as TrackingDetails)
+          : null;
       return {
         id: row.id,
         action: row.action,
@@ -483,7 +543,14 @@ export const alumniService = {
         summary: row.summary,
         createdAt: row.createdAt,
         actor: actor.success ? actor.data : null,
-        changes: Array.isArray(metadata.changes) ? metadata.changes : [],
+        changes,
+        ...describeHistoryEntry({
+          action: row.action,
+          entity: row.entity,
+          summary: row.summary,
+          changes: readable,
+          tracking,
+        }),
       };
     });
   },

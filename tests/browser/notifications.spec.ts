@@ -49,7 +49,10 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
     await expect(
       page.getByRole("link", { name: "Preview Tracking proof.png", exact: true }),
     ).toBeVisible();
-    expect((await (await page.request.get("/api/me/profile")).json()).isTracked).toBe(false);
+    // Alumni never receive their tracking state.
+    expect(await (await page.request.get("/api/me/profile")).json()).not.toHaveProperty(
+      "isTracked",
+    );
     expect((await (await page.request.get("/api/notifications")).json()).items).toEqual([]);
     const headers = { Origin: "http://127.0.0.1:3101" };
     const photo = await page.request.post("/api/me/files", {

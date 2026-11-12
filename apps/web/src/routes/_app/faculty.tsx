@@ -1,4 +1,5 @@
 import { TablePagination } from "@/components/data/table-pagination";
+import type { PageSize } from "@/components/data/page-controls";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import {
@@ -50,12 +51,13 @@ function FacultyPage() {
   const user = session.data;
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(10);
   const [status, setStatus] = useState<"" | "true" | "false">("true");
   const [draft, setDraft] = useState<Draft | null>(null);
   const departments = useDepartmentOptions();
   const list = useQuery(
     api.faculty.list.queryOptions({
-      input: { search, page, pageSize: 20, active: status || undefined },
+      input: { search, page, pageSize, active: status || undefined },
     }),
   );
   const canManage = managesFaculty(user);
@@ -333,7 +335,12 @@ function FacultyPage() {
       <TablePagination
         page={page}
         onPage={setPage}
-        hasNext={list.data?.length === 20}
+        hasNext={list.data?.length === pageSize}
+        pageSize={pageSize}
+        onPageSize={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
         pending={list.isFetching}
       />
     </PageShell>

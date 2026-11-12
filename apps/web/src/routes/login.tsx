@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { AccountProfileFields } from "@/components/forms/account-profile-fields";
 import { NameFields, emptyName } from "@/components/forms/name-fields";
 import { AcademicProfileFields, emptyAcademic } from "@/components/forms/academic-profile-fields";
-import { LocalVerificationNotice } from "@/components/layout/local-verification-notice";
 import { PasswordChecklist } from "@/components/forms/password-checklist";
 import { CheckboxRow } from "@/components/forms/checkbox-row";
 import { Recaptcha } from "@/components/forms/recaptcha";
@@ -155,7 +154,6 @@ function LoginPage() {
         className={signup ? "mb-4" : undefined}
       />
       <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
-        <LocalVerificationNotice />
         {signup ? (
           <>
             {google ? (

@@ -49,14 +49,7 @@ function RootComponent() {
         <ConfirmProvider>
           <Outlet />
         </ConfirmProvider>
-        <Toaster
-          richColors
-          expand
-          closeButton
-          position="top-center"
-          offset={{ top: 80 }}
-          mobileOffset={{ top: 80 }}
-        />
+        <Toaster richColors closeButton visibleToasts={3} position="bottom-right" />
       </ThemeProvider>
       {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-left" /> : null}
       {import.meta.env.DEV ? (

@@ -468,6 +468,20 @@ app.post("/__test/tracking-events", async (request, response) => {
   );
   response.json({ ok: true });
 });
+app.post("/__test/employments", async (request, response) => {
+  const count = Math.min(Number(request.body?.count ?? 0), 100);
+  await db.Employment.deleteMany({ alumniId: ids.alumniProfile }).exec();
+  await db.Employment.insertMany(
+    Array.from({ length: count }, (_, index) => ({
+      alumniId: ids.alumniProfile,
+      employer: `Synthetic Employer ${String(index + 1).padStart(2, "0")}`,
+      jobTitle: "Analyst",
+      isCurrent: index === count - 1,
+      status: "employed",
+    })),
+  );
+  response.json({ ok: true });
+});
 app.post("/__test/alumni", async (request, response) => {
   await ensureAcademicFixtures();
   await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);

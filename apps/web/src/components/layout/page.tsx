@@ -15,11 +15,14 @@ export function PageHeader({
   description,
   actions,
   leading,
+  meta,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
   leading?: ReactNode;
+  /** Shown under the description, e.g. a status badge. */
+  meta?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -32,6 +35,7 @@ export function PageHeader({
           {description ? (
             <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
           ) : null}
+          {meta ? <div className="flex flex-wrap items-center gap-2">{meta}</div> : null}
         </div>
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}

@@ -62,7 +62,7 @@ export function DataTable({
         role="region"
         aria-label={label}
         tabIndex={0}
-        className="overflow-x-auto rounded-xl border border-border bg-card shadow-card focus-visible:outline-2 focus-visible:outline-ring"
+        className="relative overflow-x-auto rounded-xl border border-border bg-card shadow-card focus-visible:outline-2 focus-visible:outline-ring"
       >
         <table className="w-full min-w-[32rem] text-left text-sm md:min-w-0">
           <thead className="bg-muted/70 text-[0.6875rem] tracking-wider text-muted-foreground uppercase">

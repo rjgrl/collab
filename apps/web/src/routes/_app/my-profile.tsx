@@ -8,7 +8,6 @@ import { FormCard } from "@/components/forms/form-layout";
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { QuietButton } from "@/components/data/data-table";
 import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
-import { StatusBadge } from "@/components/data/status-badge";
 import {
   Card,
   CardContent,
@@ -81,12 +80,6 @@ function MyProfile() {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs text-muted-foreground">Tracking status</span>
-                  <StatusBadge tone={profile.data.isTracked ? "tracked" : "untracked"}>
-                    {profile.data.isTracked ? "Tracked" : "Not yet tracked"}
-                  </StatusBadge>
-                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -111,8 +104,7 @@ function MyProfile() {
                 </div>
               </dl>
               <p className="mt-5 max-w-3xl text-xs leading-5 text-muted-foreground">
-                Academic records and tracking decisions are maintained by authorized university
-                staff.
+                Academic records are maintained by authorized university staff.
               </p>
             </CardContent>
           </Card>
