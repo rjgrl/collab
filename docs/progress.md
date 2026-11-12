@@ -2,6 +2,14 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-12 (decluttered sign-up, Account and edit-heavy surfaces)
+
+- Sign-up is now a calm single page with four numbered groups, optional middle name/suffix/Facebook disclosures, compact live password chips, and unavailable Google authentication omitted instead of disabled.
+- Settings › Account is read-first: photo and account identity at the top, summary cards for personal details, contact, and sign-in/security, with each edit in a focused dialog. Alumni use the same account surface without changing existing security, verification, or ownership rules.
+- The managed Alumni detail page now shows student details as a summary and moves editing into a dialog. A shared accessible `FilePicker` styles account-photo, evidence, and encrypted-backup inputs without replacing the native file control.
+- The recurring `rate_limit_error` came from the external Anthropic model quota during rapid retries, not the application's authentication throttle. Production/default application limits were never disabled; temporary higher limits were scoped to individual development test processes only.
+- Verified with default application limits: `pnpm check` 7/7; `pnpm test` 398/398; `pnpm test:browser` 87 passed, 1 skipped across desktop/mobile, light/dark, viewport and axe coverage; `pnpm check:secrets` clean; `pnpm audit --audit-level=moderate` found no known vulnerabilities; `git diff --check` clean.
+
 ## 2026-11-11 (close remaining gaps from the five-unit session)
 
 - Backups: maintenance mode now allows only the sign-in essentials (config, me, login, logout, MFA status/verification, Google start/callback) plus Super Admin traffic; sign-up, password reset and profile writes get 503. Backups never copy `.env*`, `.tools`, `.git`, `node_modules` or key files even if `UPLOAD_DIR` is misconfigured. Manual backup failures notify all Super Admins. Optional off-host copy: with Google Drive enabled, the encrypted `.atsbak` is uploaded to the Drive folder (result shown per backup; a failed copy never fails the local backup). Restore from an uploaded `.atsbak` (Import and verify; must decrypt with this server's key). A server crash mid-restore is detected at startup: restore marked failed, stale lock released, maintenance kept on until a Super Admin ends it (audited).

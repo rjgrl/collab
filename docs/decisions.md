@@ -113,3 +113,10 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Decision: freshness alerts (daily 26 h, weekly 7 d + 2 h, measured from the newer of the last verified backup and the last schedule change), Drive-copy failure alerts and integrity alerts go to Super Admin notifications and the audit log, deduplicated across instances with conditional updates in `BackupState`. Tool failures log `backup_tool_failed` JSON lines with redacted stderr; restore failures log `restore_failed` / `restore_rollback_failed` and store the reason.
 - Reason: there is no metrics or alerting service in this deployment; Super Admins already use the notification inbox. A log shipper can alert on the JSON event names if one is added later.
 - Redaction is required, not cosmetic: mongodump prints the full connection URI, password included, in its own error output.
+
+## 2026-11-12: Read-first UI keeps secondary edits out of the main page
+
+- Decision: retain the navy/Inter identity while reducing simultaneous controls. Sign-up uses four numbered groups with optional fields behind disclosures; Account and managed Alumni details show summary cards first and open focused dialogs for edits. Account photo, evidence, and backup imports share a styled file picker backed by a real accessible file input.
+- Why: the previous pages exposed too many fields and native controls at once, obscuring the primary task on both desktop and mobile. Read-first cards preserve scanability without changing server contracts, ownership, verification, or authorization.
+- Accessibility: established labels remain stable, optional disclosures transfer focus, dialog focus is trapped and returned, and browser coverage runs desktop/mobile plus light/dark axe WCAG 2.2 AA checks. Base UI's invisible popup focus sentinels are excluded only from axe scans while a popup is open; popup content and keyboard behavior remain covered.
+- Rejected: a multi-step sign-up wizard (more navigation and state for the same compact form), a visual rebrand, and custom file controls that hide or replace the native input.

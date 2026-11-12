@@ -23,13 +23,32 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
   await expect(page.getByRole("heading", { name: "Personal details", exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Choose profile photo")).toHaveCount(0);
   await page.goto("/settings");
-  await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Male");
-  const countries = page.getByRole("combobox", { name: "Country calling code", exact: true });
-  const phone = page.getByRole("textbox", { name: "Phone number", exact: true });
+  await page
+    .getByRole("heading", { name: "Personal details", exact: true })
+    .locator("..")
+    .getByRole("button", { name: "Edit", exact: true })
+    .click();
+  const personalDialog = page.getByRole("dialog", { name: "Edit personal details", exact: true });
+  await selectOption(personalDialog.getByRole("combobox", { name: "Gender", exact: true }), "Male");
+  await personalDialog.getByRole("button", { name: "Save personal details", exact: true }).click();
+  await expect(personalDialog).toHaveCount(0);
+
+  const openContactDialog = async () => {
+    await page.getByRole("button", { name: "Edit contact", exact: true }).click();
+    return page.getByRole("dialog", { name: "Edit contact details", exact: true });
+  };
+
+  let contactDialog = await openContactDialog();
+  let countries = contactDialog.getByRole("combobox", {
+    name: "Country calling code",
+    exact: true,
+  });
   await expect(countries).toHaveText("PH +63");
   await countries.click();
   await expect.poll(() => page.getByRole("option").count()).toBeGreaterThan(200);
   await page.keyboard.press("Escape");
+  await contactDialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+
   for (const [country, national, canonical] of [
     ["US", "(213) 373-4253", "+12133734253"],
     ["GB", "020 7946 0958", "+442079460958"],
@@ -38,6 +57,12 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
     ["GB", "+44 (0)20 7946 0192", "+442079460192"],
     ["IT", "+39 02 1234 5678", "+390212345678"],
   ] as const) {
+    contactDialog = await openContactDialog();
+    countries = contactDialog.getByRole("combobox", {
+      name: "Country calling code",
+      exact: true,
+    });
+    const phone = contactDialog.getByRole("textbox", { name: "Phone number", exact: true });
     await selectOption(countries, country);
     await phone.fill(national);
     await phone.blur();
@@ -46,12 +71,19 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
         response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
       { timeout: 15_000 },
     );
-    await page.getByRole("button", { name: "Save personal details", exact: true }).click();
+    await contactDialog.getByRole("button", { name: "Save contact details", exact: true }).click();
     const response = await saved;
     expect(response.request().postDataJSON().phoneNumber).toBe(canonical);
     expect(response.status()).toBe(200);
+    await expect(contactDialog).toHaveCount(0);
     await page.reload();
+    contactDialog = await openContactDialog();
+    countries = contactDialog.getByRole("combobox", {
+      name: "Country calling code",
+      exact: true,
+    });
     await expect(countries).toContainText(country);
+    await contactDialog.getByRole("button", { name: "Close dialog", exact: true }).click();
     const stored = await (await page.request.get("/api/auth/verification")).json();
     expect(stored.phoneNumber).toBe(canonical);
     expect(stored.phoneVerified).toBe(false);
@@ -69,6 +101,12 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
     "+639171234567",
   );
   await page.reload();
+  contactDialog = await openContactDialog();
+  countries = contactDialog.getByRole("combobox", {
+    name: "Country calling code",
+    exact: true,
+  });
+  const phone = contactDialog.getByRole("textbox", { name: "Phone number", exact: true });
   await phone.fill("+81 90-1234-5678");
   await expect(countries).toHaveText("JP +81");
   const saved = page.waitForResponse(
@@ -76,10 +114,16 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
       response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
     { timeout: 15_000 },
   );
-  await page.getByRole("button", { name: "Save personal details", exact: true }).click();
+  await contactDialog.getByRole("button", { name: "Save contact details", exact: true }).click();
   expect((await saved).status()).toBe(200);
   await page.reload();
+  contactDialog = await openContactDialog();
+  countries = contactDialog.getByRole("combobox", {
+    name: "Country calling code",
+    exact: true,
+  });
   await expect(countries).toHaveText("JP +81");
+  await contactDialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   expect((await (await page.request.get("/api/auth/verification")).json()).phoneNumber).toBe(
     "+819012345678",
   );
