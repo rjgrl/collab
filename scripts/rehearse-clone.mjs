@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -26,6 +26,10 @@ Object.assign(env, {
   PHASE6_CLONE_REHEARSAL: "true",
 });
 const steps = [];
+const currentBranch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+  cwd: projectRoot,
+  encoding: "utf8",
+}).trim();
 async function run(command, args, cwd, label) {
   const start = performance.now();
   const log = path.join(projectRoot, ".tools", path.basename(root) + "-" + label + ".log");
@@ -62,7 +66,8 @@ try {
       "--no-hardlinks",
       "--single-branch",
       "--branch",
-      "development/phase6-cross-device-testing",
+      // The rehearsal clones whatever branch is checked out here.
+      currentBranch,
       projectRoot,
       root,
     ],

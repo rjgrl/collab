@@ -2,7 +2,7 @@
 
 A role-based Alumni tracking application built with React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. The academic structure is **College → Department → Program**. Alumni register and maintain their academic/employment profile; faculty trackers follow the alumni assigned to them; department and college heads manage faculty and assignments in their scope and review evidence and the audit log for it; Super Admins manage accounts, permissions, the full audit log and integrations.
 
-The team setup runs a separate database on each laptop/desktop. No Atlas account, shared database password, Docker, or Google credentials are required for local functionality testing.
+Each laptop/desktop runs its own local MongoDB; no Atlas account, shared database password, Docker or Google credentials are needed for local work. Hosted deployments use MongoDB Atlas (see [Setup options](#setup-options-clean-or-seeded)).
 
 ## Install once on each device
 
@@ -25,11 +25,11 @@ Restart your terminal after installing Node/pnpm or changing PATH. Initial depen
 
 Pick one row. **Clean** starts with only roles, permissions and one Super Admin. **Seeded** also adds synthetic demo colleges, programs, four alumni and a demo login for every role (all sharing the admin's password).
 
-| Where                       | Clean                                                                                                                                   | Seeded (demo data)                            |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Local MongoDB | `pnpm setup:local --no-demo`                                                                                                            | `pnpm setup:local`                            |
-| Hosted, e.g. MongoDB Atlas  | `pnpm deploy:init`                                                                                                                      | `pnpm deploy:init --demo` (not in production) |
-| Hosted, with existing data  | Copy it with the migration commands in [MongoDB Atlas](docs/operations/MONGODB_ATLAS.md#3-later-migrate-the-presentation-data-to-atlas) |                                               |
+| Where                      | Clean                                                                                                                                   | Seeded (demo data)                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Local MongoDB              | `pnpm setup:local --no-demo`                                                                                                            | `pnpm setup:local`                            |
+| Hosted, e.g. MongoDB Atlas | `pnpm deploy:init`                                                                                                                      | `pnpm deploy:init --demo` (not in production) |
+| Hosted, with existing data | Copy it with the migration commands in [MongoDB Atlas](docs/operations/MONGODB_ATLAS.md#3-later-migrate-the-presentation-data-to-atlas) |                                               |
 
 ### Local
 
@@ -43,7 +43,7 @@ Follow [First run after cloning](#first-run-after-cloning) below. Swap in `pnpm 
 2. On the server, clone and install:
 
    ```sh
-   git clone --branch development/phase6-cross-device-testing --single-branch https://github.com/rjgrl/collab.git
+   git clone https://github.com/rjgrl/collab.git
    cd collab
    pnpm install --frozen-lockfile
    pnpm tools:mongodb            # mongodump/mongorestore, for in-app backups
@@ -72,7 +72,7 @@ Follow [First run after cloning](#first-run-after-cloning) below. Swap in `pnpm 
 ## First run after cloning
 
 ```sh
-git clone --branch development/phase6-cross-device-testing --single-branch https://github.com/rjgrl/collab.git
+git clone https://github.com/rjgrl/collab.git
 cd collab
 pnpm install --frozen-lockfile
 pnpm setup:local
@@ -91,7 +91,7 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 5. Initializes a new, randomly named database for this checkout, adds missing Mongoose collections/indexes without removing records or indexes, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
-**Demo data is on by default during the development/testing phase.** `pnpm setup:local` adds two colleges (College of Technologies with Information Technology and Automotive Technology; College of Education with Secondary Education), one program each, four synthetic alumni, and demo logins for every role. It does this on new databases and, as additive `@collab.test`-only upserts, on existing ones. Every demo login uses the administrator's initial password and is listed in `.tools/local-login.txt`:
+**Demo data is on by default for local setup.** `pnpm setup:local` adds two colleges (College of Technologies with Information Technology and Automotive Technology; College of Education with Secondary Education), one program each, four synthetic alumni, and demo logins for every role. It does this on new databases and, as additive `@collab.test`-only upserts, on existing ones. Every demo login uses the administrator's initial password and is listed in `.tools/local-login.txt`:
 
 | Email                                                     | Signs in as                                            |
 | --------------------------------------------------------- | ------------------------------------------------------ |
@@ -101,7 +101,7 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 | `faculty.education@collab.test`                           | Faculty (Secondary Education), assigned Graduate Three |
 | `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles               |
 
-Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or every demo login is refused. Remove the demo seed and this section before deployment.
+Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or every demo login is refused. Hosted deployments get demo data only from `pnpm deploy:init --demo`, which is refused when `NODE_ENV=production`.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 
@@ -211,7 +211,7 @@ Run everything, including the real-database suites, with one command (MongoDB is
 pnpm test:all
 ```
 
-Add `-- --browser` to include the Playwright suite (`pnpm exec playwright install chromium` once first). The real-database suites can also be run individually: `pnpm test:org-migration`, `pnpm test:scope-local`, `pnpm test:faculty-local`, `pnpm test:contacts-local`, `pnpm test:reports-local`. Each creates and drops its own random loopback database.
+Add `-- --browser` to include the Playwright suite (`pnpm exec playwright install chromium` once first). The real-database suites can also be run individually: `pnpm test:org-migration`, `pnpm test:scope-local`, `pnpm test:faculty-local`, `pnpm test:contacts-local`, `pnpm test:reports-local`, `pnpm test:integrity-local`, `pnpm test:deploy-init-local`. Each creates and drops its own random loopback database.
 
 Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
 
@@ -219,7 +219,7 @@ The web build always uses production mode without editing your local `.env`; dev
 
 Optional real-database security checks: `pnpm test:security-db`. This creates a fresh random loopback test database and rolls back synthetic account records; it does not touch the working application database. Tests use local mocks and send no real verification messages. See the security operations guide for the exact scope and retained test artifacts.
 
-Settings contains Account, Members, Roles and permissions, and Integrations. Older `/users`, `/roles`, and `/integrations` links redirect to Settings. Production hosting, private storage, backups, and provider credentials are covered separately in [deployment.md](docs/deployment.md); local usability does not certify production readiness.
+Settings contains Account, Members, Roles and permissions, Integrations and Backups (Super Admin). Older `/users`, `/roles`, and `/integrations` links redirect to Settings. Production hosting, private storage, backups, and provider credentials are covered separately in [deployment.md](docs/deployment.md); local usability does not certify production readiness.
 
 ## Google login and signup
 
@@ -251,17 +251,19 @@ Follow the [migration and rollback runbook](docs/migrations/MONGOOSE_REST.md) be
 
 Graduation year is required for registration, academic saves and imports (1950–2100). Existing records with unknown years remain readable until corrected. Form dropdowns use the shared themed controls; suffix suggestions still allow custom text.
 
-**Settings > Account** is the single place for personal details: structured name, profile photo, email, country-selectable phone, gender and Facebook contact. Photo controls sit inside Personal details for every role. The header and Alumni My Profile show the account photo. Photos use authenticated private delivery; replacing/removing one archives its metadata and does not delete historical evidence.
+**Settings > Account** is a read-first summary (Personal details, Contact, Sign-in & security); each Edit button opens a focused dialog. It is the single place for personal details: structured name, profile photo, email, country-selectable phone, gender and Facebook contact. Photos use authenticated private delivery; replacing/removing one archives its metadata and does not delete historical evidence.
+
+**Profile photos** open in a photo editor: the chosen file (or the current photo, when re-opened) previews immediately and can be zoomed and moved. Nothing is saved until **Upload photo** / **Save changes**; **Remove photo** is likewise applied only on save, and **Discard changes** restores the current photo. On an alumni profile, only a Super Admin or the faculty member assigned to that alumnus can change the photo; everyone else who can view the profile only sees it.
 
 Phone numbers are cleaned on blur and validated on submission/API input using country numbering metadata. Redundant trunk zeros after international calling codes are removed where applicable; significant zeros, including Italian numbers, are preserved. Stored international numbers contain only `+` and digits.
 
 Changing email requires the current password and a code delivered to the new address, even when local signup verification is relaxed. The old address remains active until confirmation succeeds. Confirmation verifies the new address, synchronizes the linked Alumni contact, invalidates password-reset links and signs out other sessions while preserving the current session's MFA proof. Live email changes need the enabled HTTPS mail gateway described above.
 
-**My Profile** contains Alumni academic identity, employment and supporting evidence. Administrators and in-scope faculty maintain student numbers, academic assignments and tracking decisions. Employment/file edits do not automatically mark a record tracked. Alumni evidence uploads notify the assigned faculty member and the heads of that alumnus's department and college through the header bell between the theme control and account menu. Admin Alumni detail shows profile photo and supporting evidence separately.
+**My Profile** contains Alumni academic identity, employment and supporting evidence. Tracking status is staff-only: Alumni never see whether they are tracked, and their own profile API omits it. Administrators and in-scope faculty maintain student numbers, academic assignments and tracking decisions. Employment/file edits do not automatically mark a record tracked. Alumni evidence uploads notify the assigned faculty member and the heads of that alumnus's department and college through the header bell.
 
 **Members > Add user** creates Super Admin accounts only; faculty and heads are created on the **Faculty** page. Manual Alumni creation, account conversion to Alumni and manual linking are retired at the API boundary as well as in the UI. Alumni self-register; existing/imported historical records remain available for authorized review. Names and email matches never establish account ownership automatically.
 
-**Departments** use names without codes. **Audit logs** show compact summaries with a clickable detail dialog containing the full recorded summary for that event. **Integrations** are restricted to administrators, including for accounts with historical grants; enabled status is green and disabled status is red. Settings also contains Roles and permissions.
+**Departments** use names without codes. **Audit logs** show the **User** (name, with the email recorded at the time underneath), role, action and a plain-language summary; each row opens a detail dialog. **Integrations** are restricted to administrators, including for accounts with historical grants; enabled status is green and disabled status is red. Settings also contains Roles and permissions.
 
 Faculty and Alumni do not require MFA, including accounts with saved enrollment. Administrator roles (`super_admin` or `admin`) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
 
@@ -288,7 +290,7 @@ Out-of-scope records return **404**, the same as missing ones. Heads edit only l
 
 Faculty are created on the **Faculty** page with an institutional email; the password is optional because faculty can sign in with institutional Google. **Colleges**, **Departments** and **Programs** cannot be archived while they still hold departments, programs, active faculty or alumni; the error says what blocks it.
 
-Alumni detail pages hold the full profile edit (names sync to the alumnus's own account when registered), **Contacts** (Add contact → Phone number / Email / Social media, with edit, delete and make-primary) and, for Admins and heads, **Change history** with field, old value and new value for every alumni, contact, assignment, tracking and employment change.
+Alumni detail pages show the photo, name, program and Tracked/Untracked status at the top, then **Student details** with **Contacts** beside it. Contacts lists the email, phone and Facebook the alumnus gave at sign-up, plus any contacts staff add (Add contact → Phone number / Email / Social media, with edit, delete and make-primary). Below are **Employment**, **Tracking** (history table plus Mark tracked / untracked), supporting evidence and, for Admins and heads, **Change history** in plain language (for example "Added employment — Employer: Acme · Start date: Jul 7, 2023"). Employment, tracking, change history and the Faculty list are tables with 10/25/50 rows per page.
 
 ## BukSU institutional email
 
@@ -304,7 +306,7 @@ Google sign-in verifies Google's signed ID token on the server (signature agains
 
 **Alumni profile photos** are resized to fit 1024×1024, re-encoded as WebP and stripped of metadata (including GPS location) before upload. `IMAGE_HOST_PROVIDER` picks the host (`imgbb`, `google_drive` or `local`; blank means ImgBB when `IMGBB_API_KEY` is set). **ImgBB image URLs are public: anyone with the link can view the photo.** ImgBB has no documented delete API; the response's delete page URL is stored server-side so an operator can remove an image by hand. Account avatars (Settings → Account) are also resized but always stay on private storage.
 
-**PDF reports** (Reports page and the Profile PDF button on an alumni page) are generated server-side with pdfmake, using the bundled Roboto font, from templates in `apps/server/src/modules/reports/pdf/templates/`: an alumni list filtered by college, department, program, graduation year, batch and tracking (up to 2,000 rows; use CSV for more), a single alumnus profile sheet, and a faculty assignment report. Every export respects the caller's scope and is audit-logged.
+**PDF reports** (Reports page and the Profile PDF button on an alumni page) are generated server-side with pdfmake, using the bundled Roboto font, from templates in `apps/server/src/modules/reports/pdf/templates/`: an alumni list filtered by college, department, program, graduation year, batch and tracking (up to 2,000 rows; use CSV for more), a single alumnus profile sheet (with their current photo, 2 × 2 inches, beside the name), and a faculty assignment report. Every export respects the caller's scope and is audit-logged.
 
 ## Environment variables (apps/server/.env)
 
@@ -328,7 +330,8 @@ All values are secrets or deployment settings: keep them in the private `.env` o
 - The program list's alumni counts are institution-wide (totals only, no records).
 - PDF alumni lists stop at 2,000 rows; the CSV export allows 10,000.
 - Migrated programs start in "– Unsorted" placeholder departments until an administrator reorganizes them.
-- `pnpm test:forms-db` fails at `apps/server/test/local/forms-local.ts:283` (403 instead of 409); this predates the College/Faculty work.
+- Change history on an alumni profile shows the newest 200 entries.
+- Re-saving a repositioned photo re-crops the stored 512×512 image; choose the original file again for full quality.
 
 ## Isolated accounts for role demonstrations
 

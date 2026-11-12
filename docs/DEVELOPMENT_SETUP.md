@@ -11,14 +11,13 @@ Corepack is not bundled starting with Node 25 ([Node documentation](https://node
 ```sh
 git clone https://github.com/rjgrl/collab.git
 cd collab
-git switch development/phase6-cross-device-testing
 pnpm install --frozen-lockfile
-pnpm setup:local --demo
+pnpm setup:local            # seeded with demo data; use --no-demo for a clean database
 pnpm run doctor
 pnpm dev
 ```
 
-Open http://localhost:3001; API port 3000, loopback MongoDB port 27018, replica set rs0. Initial downloads need network access. Default setup omits demo records; `--demo` adds clearly synthetic records when initializing a fresh database. No SMS, mail or Google credentials are required for the seeded local administrator.
+Open http://localhost:3001; API port 3000, loopback MongoDB port 27018, replica set rs0. Initial downloads need network access. Setup adds clearly synthetic demo records by default; `--no-demo` skips them. For hosted deployments see the README's "Setup options". No SMS, mail or Google credentials are required for the seeded local administrator.
 
 Setup creates only missing private environment values and chooses a random `collab_dev_...` database per checkout. Do not copy another checkout's environment, credentials, data directory, node_modules or build artifacts. Existing custom/remote database URLs and production environments are refused. A shared local MongoDB process can host distinct checkout databases; never reconfigure another replica set to make setup work.
 
