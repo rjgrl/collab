@@ -27,7 +27,7 @@ Pick one row. **Clean** starts with only roles, permissions and one Super Admin.
 
 | Where                       | Clean                                                                                                                                   | Seeded (demo data)                            |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| This laptop (local MongoDB) | `pnpm setup:local --no-demo`                                                                                                            | `pnpm setup:local`                            |
+| Local MongoDB | `pnpm setup:local --no-demo`                                                                                                            | `pnpm setup:local`                            |
 | Hosted, e.g. MongoDB Atlas  | `pnpm deploy:init`                                                                                                                      | `pnpm deploy:init --demo` (not in production) |
 | Hosted, with existing data  | Copy it with the migration commands in [MongoDB Atlas](docs/operations/MONGODB_ATLAS.md#3-later-migrate-the-presentation-data-to-atlas) |                                               |
 
