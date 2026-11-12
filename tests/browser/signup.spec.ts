@@ -8,6 +8,32 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto("/login");
 });
 
+test("signed-out branding uses the university seal and tinted building", async ({
+  page,
+}, testInfo) => {
+  const seal = page.locator('img[src="/brand/buksu-cot-seal.webp"]:visible');
+  await expect(seal).toHaveCount(1);
+  expect(await seal.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+
+  const building = page.locator('img[src="/brand/cot-building.webp"]');
+  if (testInfo.project.name === "desktop") {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload();
+    await expect(building).toBeVisible();
+    expect(
+      await building.evaluate((image: HTMLImageElement) => image.naturalWidth),
+    ).toBeGreaterThan(0);
+    await expect(
+      page.getByText("Keep every graduate connected to Bukidnon State University."),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Academic leaders monitor progress across their scope"),
+    ).toBeVisible();
+  } else {
+    await expect(building).toBeHidden();
+  }
+});
+
 test("signup collects contact details and rejects an existing email", async ({ page }) => {
   await page.getByRole("button", { name: "Need an account? Sign up" }).click();
   await page.getByRole("textbox", { name: "First name", exact: true }).fill("Duplicate");
