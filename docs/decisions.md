@@ -167,3 +167,9 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - `pnpm db:seed` stays development-only and still refuses production. Both commands share `seedInTransaction`, so they write identical roles and permissions.
 - The README has a "Setup options" table: local clean (`setup:local --no-demo`), local seeded (`setup:local`), hosted clean (`deploy:init`), hosted seeded (`deploy:init --demo`), and hosted with copied data (Atlas runbook).
 - Status: the app is not on Atlas yet. Hosted environments switch by setting `DATABASE_URL`; no Atlas cluster or migration exists yet.
+
+## BukSU-aligned theme and official College of Technologies logo
+
+- The brand mark is the official `cot-logo.webp` from buksu.edu.ph, cropped to its transparent circular boundary and rendered in a clipped circle.
+- Light mode follows the buksu.edu.ph palette: navy `#001C38`, gold `#D7953E`, blue `#0070BA`, light blue `#8FC3DD`, warm neutrals.
+- Dark mode uses charcoal surfaces (`#17191C`/`#22262B`) with BukSU gold as the primary accent; blue is a supporting/chart color only. Colors change only through semantic tokens in `packages/ui/src/styles/globals.css`.

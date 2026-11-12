@@ -6,6 +6,10 @@ const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWMwTptpnDaTAUIBAB/uBMm6iK1UAAAAAElFTkSuQmCC",
   "base64",
 );
+function accountAvatar(page: Page) {
+  return page.locator('header img:not([src="/brand/buksu-cot-seal.webp"])');
+}
+
 async function signIn(page: Page, email: string) {
   await page.goto("/login");
   await page.locator("#email").fill(email);
@@ -29,12 +33,12 @@ async function upload(page: Page, filename: string) {
   await expect
     .poll(() => photo.locator("img").evaluate((img: HTMLImageElement) => img.naturalWidth))
     .toBeGreaterThan(0);
-  await expect(page.locator("header img")).toBeVisible();
-  const image = await page.locator("header img").getAttribute("src");
+  await expect(accountAvatar(page)).toBeVisible();
+  const image = await accountAvatar(page).getAttribute("src");
   await expect(photo.getByRole("button", { name: "Remove photo", exact: true })).toBeEnabled();
   await photoDialog.getByRole("button", { name: "Close dialog" }).click();
   await page.reload();
-  await expect(page.locator("header img")).toHaveAttribute("src", image!);
+  await expect(accountAvatar(page)).toHaveAttribute("src", image!);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   return image!;
 }
@@ -120,7 +124,7 @@ test("all account roles share personal photo controls and email changes require 
     const alumniPhoto = await upload(member, "Alumni photo.png");
     await member.goto("/my-profile");
     await expect(member.getByRole("img", { name: /profile photo$/ })).toBeVisible();
-    await expect(member.locator("header img")).toHaveAttribute("src", alumniPhoto);
+    await expect(accountAvatar(member)).toHaveAttribute("src", alumniPhoto);
     await member.screenshot({ path: info.outputPath("alumni-profile-avatar.png"), fullPage: true });
     await page.goto("/alumni/000000000000000000000201");
     // The alumnus's own photo shows in the detail header; a Super Admin may change it.
@@ -150,7 +154,7 @@ test("all account roles share personal photo controls and email changes require 
     // Removal waits for Save; the photo is still stored until then.
     expect((await member.request.get(alumniPhoto)).status()).toBe(200);
     await settingsPhoto.getByRole("button", { name: "Save changes", exact: true }).click();
-    await expect(member.locator("header img")).toHaveCount(0);
+    await expect(accountAvatar(member)).toHaveCount(0);
     expect((await member.request.get(alumniPhoto)).status()).toBe(404);
     expect((await (await member.request.get("/api/me/profile")).json()).photoUrl).toBeNull();
   } finally {
