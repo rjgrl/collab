@@ -29,6 +29,13 @@ alumniRoutes.post(
   authorize("alumni.write"),
   alumniController.addEmployment,
 );
+alumniRoutes.get(
+  "/:alumniId/tracking-events",
+  authorize("alumni.read"),
+  alumniController.trackingEvents,
+);
+// files.write, then the service narrows to Super Admins and the directly assigned faculty tracker.
+alumniRoutes.delete("/:alumniId/photo", authorize("files.write"), alumniController.removePhoto);
 alumniRoutes.post(
   "/:alumniId/tracking-events",
   authorize("tracking.write"),

@@ -24,6 +24,13 @@ export const alumniController = {
     201,
   ),
   addTracking: controller(alumniSchemas.addTracking, alumniService.addTracking, "combined", 201),
+  trackingEvents: controller(
+    alumniSchemas.trackingEvents,
+    alumniService.trackingEvents,
+    "paramsQuery",
+    200,
+  ),
+  removePhoto: controller(alumniSchemas.removePhoto, alumniService.removePhoto, "params", 200),
   assign: controller(assignSchemas.assign, alumniService.assign, "body", 200),
   history: controller(alumniSchemas.history, alumniService.history, "params", 200),
   addContact: controller(contactsSchemas.create, contactsService.create, "combined", 201),

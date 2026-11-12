@@ -123,7 +123,10 @@ test("all account roles share personal photo controls and email changes require 
     await expect(member.locator("header img")).toHaveAttribute("src", alumniPhoto);
     await member.screenshot({ path: info.outputPath("alumni-profile-avatar.png"), fullPage: true });
     await page.goto("/alumni/000000000000000000000201");
-    await expect(page.getByRole("heading", { name: "Profile photo", exact: true })).toBeVisible();
+    // The alumnus's own photo shows in the detail header; a Super Admin may change it.
+    await expect(page.getByRole("img", { name: "Test Alumni's profile photo" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Change photo", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Profile photo", exact: true })).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "Supporting evidence", exact: true }),
     ).toBeVisible();

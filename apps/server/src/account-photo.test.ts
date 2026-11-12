@@ -165,11 +165,23 @@ it("enforces owner and management access and blocks Alumni with legacy managemen
       /Missing permission|only access My Profile/,
     );
   }
-  for (const permissions of [["users.read"], ["alumni.read"]]) {
+  // alumni.read alone is not enough: the viewer must also have the alumnus in scope, like the detail page.
+  await assert.rejects(
+    downloadAccountPhoto(
+      { ...f.context, user: viewer({ id: otherId, permissions: ["alumni.read"] }) },
+      userId,
+      id,
+    ),
+    /Alumni record not found/,
+  );
+  for (const access of [
+    { permissions: ["users.read"] },
+    { permissions: ["alumni.read"], roles: ["admin"] },
+  ]) {
     assert.deepEqual(
       (
         await downloadAccountPhoto(
-          { ...f.context, user: viewer({ id: otherId, permissions }) },
+          { ...f.context, user: viewer({ id: otherId, ...access }) },
           userId,
           id,
         )

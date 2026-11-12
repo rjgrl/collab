@@ -9,6 +9,7 @@ import {
   validateEvidence,
 } from "@Alumni-Tracking-Ss/api/integrations/files";
 import { isIntegrationEnabled } from "@Alumni-Tracking-Ss/api/integrations/registry";
+import { scopedAlumni } from "@Alumni-Tracking-Ss/api/scope";
 import {
   ACCOUNT_PHOTO_TYPES,
   MAX_ACCOUNT_PHOTO_BYTES,
@@ -126,11 +127,9 @@ export async function downloadAccountPhoto(context: Context, userId: string, id:
   if (!owner) throw new ApiError("NOT_FOUND", { message: "Photo not found." });
   if (viewer.id !== userId && !viewer.permissions.includes("users.read")) {
     requireAccess(context, "alumni.read");
-    if (
-      !owner.alumniId ||
-      !(await context.db.Alumni.exists({ _id: owner.alumniId, deletedAt: null }))
-    )
-      throw new ApiError("FORBIDDEN");
+    if (!owner.alumniId) throw new ApiError("FORBIDDEN");
+    // Same alumni scope as the detail page: faculty see only photos of alumni they may view.
+    await scopedAlumni(context, String(owner.alumniId));
   }
   const photo = await context.db.AccountPhoto.findOne({ _id: id, userId, deletedAt: null }).lean();
   if (!photo) throw new ApiError("NOT_FOUND", { message: "Photo not found." });

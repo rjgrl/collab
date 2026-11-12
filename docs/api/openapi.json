@@ -261,6 +261,10 @@
                         "default": false,
                         "type": "boolean"
                       },
+                      "canManagePhoto": {
+                        "default": false,
+                        "type": "boolean"
+                      },
                       "id": {
                         "type": "string",
                         "pattern": "^[a-f\\d]{24}$"
@@ -872,6 +876,7 @@
                     },
                     "required": [
                       "isRegistered",
+                      "canManagePhoto",
                       "id",
                       "studentNumber",
                       "firstName",
@@ -1664,6 +1669,74 @@
         }
       }
     },
+    "/alumni/{alumniId}/photo": {
+      "delete": {
+        "operationId": "alumni.removePhoto",
+        "summary": "Alumni: remove photo",
+        "tags": [
+          "alumni"
+        ],
+        "parameters": [
+          {
+            "name": "alumniId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/E400",
+            "description": "Invalid input"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401",
+            "description": "Sign-in required"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403",
+            "description": "Not allowed (permission, scope, MFA or origin)"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404",
+            "description": "Not found"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409",
+            "description": "Conflict (stale version, duplicate or wrong state)"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429",
+            "description": "Too many requests"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503",
+            "description": "Unavailable (maintenance mode, or a required service is not configured)"
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/alumni/{alumniId}/tracking-events": {
       "post": {
         "operationId": "alumni.addTracking",
@@ -1810,6 +1883,185 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "alumni.trackingEvents",
+        "summary": "Alumni: tracking events",
+        "tags": [
+          "alumni"
+        ],
+        "parameters": [
+          {
+            "name": "alumniId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/E400",
+            "description": "Invalid input"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401",
+            "description": "Sign-in required"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403",
+            "description": "Not allowed (permission, scope, MFA or origin)"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404",
+            "description": "Not found"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409",
+            "description": "Conflict (stale version, duplicate or wrong state)"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429",
+            "description": "Too many requests"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503",
+            "description": "Unavailable (maintenance mode, or a required service is not configured)"
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f\\d]{24}$"
+                          },
+                          "alumniId": {
+                            "type": "string",
+                            "pattern": "^[a-f\\d]{24}$"
+                          },
+                          "isTracked": {
+                            "type": "boolean"
+                          },
+                          "notes": {
+                            "default": "",
+                            "type": "string"
+                          },
+                          "source": {
+                            "default": "manual",
+                            "type": "string"
+                          },
+                          "recordedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdById": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[a-f\\d]{24}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "trackerName": {
+                            "default": null,
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "alumniId",
+                          "isTracked",
+                          "notes",
+                          "source",
+                          "trackerName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "pageSize": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page",
+                    "pageSize",
+                    "total"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/alumni/{id}": {
@@ -1866,6 +2118,10 @@
                   "type": "object",
                   "properties": {
                     "isRegistered": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "canManagePhoto": {
                       "default": false,
                       "type": "boolean"
                     },
@@ -2480,6 +2736,7 @@
                   },
                   "required": [
                     "isRegistered",
+                    "canManagePhoto",
                     "id",
                     "studentNumber",
                     "firstName",
@@ -2620,6 +2877,10 @@
                       "default": false,
                       "type": "boolean"
                     },
+                    "canManagePhoto": {
+                      "default": false,
+                      "type": "boolean"
+                    },
                     "id": {
                       "type": "string",
                       "pattern": "^[a-f\\d]{24}$"
@@ -3231,6 +3492,7 @@
                   },
                   "required": [
                     "isRegistered",
+                    "canManagePhoto",
                     "id",
                     "studentNumber",
                     "firstName",
@@ -11880,6 +12142,10 @@
                       "default": false,
                       "type": "boolean"
                     },
+                    "canManagePhoto": {
+                      "default": false,
+                      "type": "boolean"
+                    },
                     "id": {
                       "type": "string",
                       "pattern": "^[a-f\\d]{24}$"
@@ -12491,6 +12757,7 @@
                   },
                   "required": [
                     "isRegistered",
+                    "canManagePhoto",
                     "id",
                     "studentNumber",
                     "firstName",
@@ -12560,6 +12827,10 @@
                       "default": false,
                       "type": "boolean"
                     },
+                    "canManagePhoto": {
+                      "default": false,
+                      "type": "boolean"
+                    },
                     "id": {
                       "type": "string",
                       "pattern": "^[a-f\\d]{24}$"
@@ -13171,6 +13442,7 @@
                   },
                   "required": [
                     "isRegistered",
+                    "canManagePhoto",
                     "id",
                     "studentNumber",
                     "firstName",

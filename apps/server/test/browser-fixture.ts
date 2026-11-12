@@ -442,6 +442,32 @@ app.post("/__test/staff", async (request, response) => {
     alumniId: ids.alumniProfile,
   });
 });
+// Directly assigns (or unassigns) the synthetic alumni profile to the staff user's faculty record.
+app.post("/__test/assign-staff", async (request, response) => {
+  const faculty = await db.Faculty.findOne({ userId: ids.staff }).select("_id").lean();
+  await db.Alumni.updateOne(
+    { _id: ids.alumniProfile },
+    {
+      $set: { assignedFacultyId: request.body?.assigned === false ? null : (faculty?._id ?? null) },
+    },
+  ).exec();
+  response.json({ ok: true });
+});
+app.post("/__test/tracking-events", async (request, response) => {
+  const count = Math.min(Number(request.body?.count ?? 0), 200);
+  await db.TrackingEvent.deleteMany({ alumniId: ids.alumniProfile }).exec();
+  await db.TrackingEvent.insertMany(
+    Array.from({ length: count }, (_, index) => ({
+      alumniId: ids.alumniProfile,
+      isTracked: index % 2 === 0,
+      notes: `Synthetic tracking note ${index + 1}`,
+      source: "manual",
+      recordedAt: new Date(Date.UTC(2025, 0, 1 + index)),
+      createdById: ids.staff,
+    })),
+  );
+  response.json({ ok: true });
+});
 app.post("/__test/alumni", async (request, response) => {
   await ensureAcademicFixtures();
   await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);

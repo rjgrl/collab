@@ -142,6 +142,8 @@ export const API_ROUTES = {
     deleteEmployment: route(alumniSchemas.deleteEmployment, "DELETE", "/employments/:id"),
     updateEmployment: route(alumniSchemas.updateEmployment, "PATCH", "/employments/:id"),
     addTracking: route(alumniSchemas.addTracking, "POST", "/alumni/:alumniId/tracking-events"),
+    trackingEvents: route(alumniSchemas.trackingEvents, "GET", "/alumni/:alumniId/tracking-events"),
+    removePhoto: route(alumniSchemas.removePhoto, "DELETE", "/alumni/:alumniId/photo"),
   },
   me: {
     statistics: route(aggregateSchemas.summary, "GET", "/me/statistics"),

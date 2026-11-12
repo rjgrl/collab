@@ -74,6 +74,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // Files
   "files.upload": "Uploaded file",
   "files.delete": "Deleted file",
+  "alumni.photo.remove": "Removed alumni profile photo",
 
   // Tracking
   "tracking.create": "Started tracking alumni",

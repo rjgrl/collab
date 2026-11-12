@@ -1,4 +1,9 @@
-import { activeAlumni, linkedAlumni } from "./access";
+import {
+  activeAlumni,
+  assertCanManageAlumniPhoto,
+  canManageAlumniPhoto,
+  linkedAlumni,
+} from "./access";
 export { activeAlumni } from "./access";
 import { employmentService } from "./employment.service";
 import { toEntity } from "@Alumni-Tracking-Ss/db";
@@ -73,6 +78,7 @@ async function detail(context: Context, id: string, db = context.db, self = fals
     assignedFaculty: await assignedFacultyName(db, a.assignedFacultyId),
     contacts: await alumniContacts(db, [a.id]),
     isRegistered: Boolean(await db.User.findOne({ alumniId: a.id }).select("_id").lean()),
+    canManagePhoto: self ? false : await canManageAlumniPhoto(context, a, db),
     program,
     employments: employments.map(toEntity),
     trackingEvents: events.map(toEntity),
@@ -319,6 +325,83 @@ export const alumniService = {
       return event;
     });
   },
+  async trackingEvents(
+    context: Context,
+    input: z.input<typeof alumniSchemas.trackingEvents.input>,
+  ) {
+    management(context, "alumni.read");
+    const { alumniId, page, pageSize } = alumniSchemas.trackingEvents.input.parse(input);
+    await scopedAlumni(context, alumniId);
+    const filter = { alumniId };
+    const total = await context.db.TrackingEvent.countDocuments(filter);
+    const rows = await context.db.TrackingEvent.find(filter)
+      .sort({ recordedAt: -1, _id: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
+    const trackerIds = [
+      ...new Set(rows.flatMap((row) => (row.createdById ? [row.createdById] : []))),
+    ];
+    const trackers = trackerIds.length
+      ? await context.db.User.find({ _id: { $in: trackerIds } })
+          .select("_id name firstName lastName middleName suffix")
+          .lean()
+      : [];
+    // Only a display name leaves the server; historical events may predate actor recording.
+    const names = new Map(
+      trackers.map((tracker) => [
+        String(tracker._id),
+        tracker.firstName && tracker.lastName ? formatDisplayName(tracker) : tracker.name,
+      ]),
+    );
+    return {
+      items: rows.map((row) => ({
+        ...toEntity(row),
+        trackerName: row.createdById ? (names.get(String(row.createdById)) ?? null) : null,
+      })),
+      page,
+      pageSize,
+      total,
+    };
+  },
+  async removePhoto(context: Context, input: z.input<typeof alumniSchemas.removePhoto.input>) {
+    management(context, "files.write");
+    const { alumniId } = alumniSchemas.removePhoto.input.parse(input);
+    return context.db.transaction(async (tx) => {
+      const alumni = await scopedAlumni(context, alumniId, tx);
+      await assertCanManageAlumniPhoto(context, alumni, tx);
+      const photoUrl = alumni.photoUrl;
+      if (!photoUrl) return { ok: true };
+      const evidenceId = photoUrl.match(/^\/api\/(?:me\/)?files\/([a-f\d]{24})$/i)?.[1];
+      await tx.EvidenceFile.updateMany(
+        {
+          alumniId,
+          kind: "image",
+          ...active,
+          $or: [...(evidenceId ? [{ _id: evidenceId }] : []), { url: photoUrl }],
+        },
+        { $set: { deletedAt: new Date() } },
+      );
+      const accountPhoto = photoUrl.match(/^\/api\/account-photos\/([a-f\d]{24})\/([a-f\d]{24})$/i);
+      if (accountPhoto)
+        await tx.AccountPhoto.updateOne(
+          { _id: accountPhoto[2], userId: accountPhoto[1], deletedAt: null },
+          { $set: { deletedAt: new Date() } },
+        );
+      await tx.User.updateOne({ alumniId, image: photoUrl }, { $set: { image: null } });
+      await tx.Alumni.updateOne({ _id: alumniId, photoUrl }, { $set: { photoUrl: null } });
+      await audit(
+        tx,
+        context,
+        "alumni.photo.remove",
+        "alumni",
+        alumniId,
+        `Removed the profile photo of ${JSON.stringify(formatDisplayName(alumni))} (${alumni.studentNumber})`,
+        { alumniId },
+      );
+      return { ok: true };
+    });
+  },
   async assign(context: Context, input: z.input<typeof assignSchemas.assign.input>) {
     management(context, "alumni.write");
     const { alumniIds, facultyId } = assignSchemas.assign.input.parse(input);
@@ -453,7 +536,10 @@ export const filesService = {
       if (self && (await linkedAlumni(context, tx)).id !== String(file.alumniId))
         throw new ApiError("FORBIDDEN", { message: "You may only remove your own files." });
       if (self) await activeAlumni(tx, String(file.alumniId));
-      else await scopedAlumni(context, String(file.alumniId), tx);
+      else {
+        const alumni = await scopedAlumni(context, String(file.alumniId), tx);
+        if (file.kind === "image") await assertCanManageAlumniPhoto(context, alumni, tx);
+      }
       await tx.EvidenceFile.updateOne({ _id: id, ...active }, { $set: { deletedAt: new Date() } });
       if (file.kind === "image") {
         const imageUrls = [

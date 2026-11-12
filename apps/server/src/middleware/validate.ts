@@ -2,7 +2,7 @@ import type { Request } from "express";
 import { z } from "zod";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 
-export type InputSource = "body" | "query" | "params" | "combined" | "none";
+export type InputSource = "body" | "query" | "params" | "combined" | "paramsQuery" | "none";
 export function validatedInput<T>(request: Request, schema: z.ZodType<T>, source: InputSource): T {
   let value: unknown;
   if (source === "none") value = undefined;
@@ -15,6 +15,13 @@ export function validatedInput<T>(request: Request, schema: z.ZodType<T>, source
         message: "Record IDs must be supplied in the URL only.",
       });
     value = { ...body, ...request.params };
+  } else if (source === "paramsQuery") {
+    const query = request.query as Record<string, unknown>;
+    if (Object.keys(request.params).some((key) => key in query))
+      throw new ApiError("BAD_REQUEST", {
+        message: "Record IDs must be supplied in the URL only.",
+      });
+    value = { ...query, ...request.params };
   } else value = request[source];
   return schema.parse(value);
 }

@@ -22,6 +22,9 @@ import { StatusBadge } from "@/components/data/status-badge";
 import { can, managesFaculty, useSession } from "@/lib/session";
 import { client, api, downloadPdf, queryClient } from "@/lib/api";
 import { DetailRow, SummaryCard } from "@/components/account/summary-card";
+import { AccountAvatar } from "@/components/account/account-avatar";
+import { AlumniPhotoDialog } from "@/components/alumni/alumni-photo-dialog";
+import { TrackingTable } from "@/components/alumni/tracking-table";
 
 export const Route = createFileRoute("/_app/alumni/$id")({
   component: AlumniDetailPage,
@@ -51,6 +54,8 @@ function AlumniDetailPage() {
   });
   const [trackingNotes, setTrackingNotes] = useState("");
   const [editingDetails, setEditingDetails] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState(false);
+  const [trackingPage, setTrackingPage] = useState(1);
 
   useEffect(() => {
     if (!record) {
@@ -96,6 +101,7 @@ function AlumniDetailPage() {
     onSuccess: async () => {
       toast.success("Tracking updated");
       setTrackingNotes("");
+      setTrackingPage(1);
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -129,9 +135,19 @@ function AlumniDetailPage() {
       <PageHeader
         title={formatDisplayName(record)}
         description={`${record.program.department.name} / ${record.program.code}`}
+        leading={
+          <AccountAvatar
+            image={record.photoUrl}
+            name={formatDisplayName(record)}
+            className="size-16 sm:size-20"
+          />
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
+            {record.canManagePhoto ? (
+              <QuietButton onClick={() => setEditingPhoto(true)}>Change photo</QuietButton>
+            ) : null}
             {can(session.data?.permissions, "reports.export") ? (
               <QuietButton
                 onClick={() =>
@@ -177,6 +193,15 @@ function AlumniDetailPage() {
         <DetailRow label="Batch" value={record.batch || "Not recorded"} />
         <DetailRow label="Employment" value={record.employmentStatus} />
       </SummaryCard>
+
+      {editingPhoto ? (
+        <AlumniPhotoDialog
+          alumniId={id}
+          name={formatDisplayName(record)}
+          photoUrl={record.photoUrl}
+          onClose={() => setEditingPhoto(false)}
+        />
+      ) : null}
 
       {editingDetails ? (
         <FormDialog
@@ -299,41 +324,7 @@ function AlumniDetailPage() {
             <span className="text-muted-foreground">Current status</span>
             <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
           </div>
-          {record.trackingEvents.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              No tracking events found.
-            </p>
-          ) : (
-            <ul className="divide-y text-sm">
-              {record.trackingEvents.map((event) => (
-                <li
-                  key={event.id}
-                  className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:gap-5"
-                >
-                  <div className="shrink-0 text-xs leading-6 text-muted-foreground sm:w-44">
-                    {event.recordedAt ? (
-                      <time dateTime={new Date(event.recordedAt).toISOString()}>
-                        {new Date(event.recordedAt).toLocaleString()}
-                      </time>
-                    ) : (
-                      "Date not recorded"
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium">
-                      {event.isTracked ? "Tracked" : "Untracked"}{" "}
-                      <span className="font-normal text-muted-foreground">· {event.source}</span>
-                    </p>
-                    {event.notes ? (
-                      <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">
-                        {event.notes}
-                      </p>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <TrackingTable alumniId={id} page={trackingPage} onPageChange={setTrackingPage} />
           {canTrack ? (
             <div className="flex flex-col gap-3 border-t pt-4">
               <Textarea
@@ -353,25 +344,14 @@ function AlumniDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid items-start gap-6 xl:grid-cols-2">
-        <EvidencePanel
-          kind="image"
-          files={record.evidenceFiles}
-          jobs={record.employments}
-          alumniId={id}
-          photoUrl={record.photoUrl}
-          canUpload={canUpload}
-          canDelete={can(session.data?.permissions, "files.delete")}
-        />
-        <EvidencePanel
-          kind="evidence"
-          files={record.evidenceFiles}
-          jobs={record.employments}
-          alumniId={id}
-          canUpload={canUpload}
-          canDelete={can(session.data?.permissions, "files.delete")}
-        />
-      </div>
+      <EvidencePanel
+        kind="evidence"
+        files={record.evidenceFiles}
+        jobs={record.employments}
+        alumniId={id}
+        canUpload={canUpload}
+        canDelete={can(session.data?.permissions, "files.delete")}
+      />
 
       {showHistory ? (
         <Card>

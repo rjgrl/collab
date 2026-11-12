@@ -14,7 +14,7 @@ import {
 import { objectIdSchema } from "@Alumni-Tracking-Ss/contracts/common";
 import { z } from "zod";
 import { assertEvidenceReadAccess } from "../alumni/service";
-import { linkedAlumni } from "../alumni/access";
+import { assertCanManageAlumniPhoto, linkedAlumni } from "../alumni/access";
 import { scopedAlumni } from "@Alumni-Tracking-Ss/api/scope";
 import { isAlumniAccount, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { notifyStaffOfEvidence } from "../notifications/service";
@@ -42,7 +42,8 @@ export async function uploadEvidence(
     if ((await linkedAlumni(context)).id !== input.alumniId) throw new ApiError("FORBIDDEN");
   } else {
     rejectAlumniManagement(context);
-    await scopedAlumni(context, input.alumniId);
+    const alumni = await scopedAlumni(context, input.alumniId);
+    if (input.kind === "image") await assertCanManageAlumniPhoto(context, alumni);
   }
   if (!file) throw new ApiError("BAD_REQUEST", { message: "Alumni and file are required." });
   if (
@@ -106,6 +107,12 @@ export async function uploadEvidence(
       throw new ApiError("NOT_FOUND", { message: "Alumni record not found." });
     if (self && (await linkedAlumni(context, db)).id !== input.alumniId)
       throw new ApiError("FORBIDDEN");
+    if (!self && input.kind === "image")
+      await assertCanManageAlumniPhoto(
+        context,
+        await scopedAlumni(context, input.alumniId, db),
+        db,
+      );
     if (
       input.employmentId &&
       !(await db.Employment.exists({ _id: input.employmentId, alumniId: input.alumniId }))

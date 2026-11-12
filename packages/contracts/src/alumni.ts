@@ -157,8 +157,12 @@ export const trackingOutputSchema = z.object({
   createdAt: date,
   createdById: objectIdSchema.nullable().optional(),
 });
+export const TRACKING_PAGE_SIZES = [10, 25, 50] as const;
+export type TrackingPageSize = (typeof TRACKING_PAGE_SIZES)[number];
 export const alumniOutputSchema = z.object({
   isRegistered: z.boolean().default(false),
+  // Whether the signed-in staff member may upload, replace or remove this profile photo.
+  canManagePhoto: z.boolean().default(false),
   id: objectIdSchema,
   studentNumber: z.string(),
   firstName: z.string(),
@@ -221,6 +225,30 @@ export const alumniSchemas = {
     output: employmentOutputSchema,
   },
   addTracking: { input: trackingInputSchema, output: trackingOutputSchema },
+  trackingEvents: {
+    input: z
+      .object({
+        alumniId: objectIdSchema,
+        page: z.coerce.number().int().min(1).max(100000).default(1),
+        pageSize: z.coerce
+          .number()
+          .int()
+          .refine((size) => TRACKING_PAGE_SIZES.includes(size as TrackingPageSize), {
+            message: "Choose 10, 25 or 50 rows per page.",
+          })
+          .default(10),
+      })
+      .strict(),
+    output: z.object({
+      items: z.array(
+        trackingOutputSchema.extend({ trackerName: z.string().nullable().default(null) }),
+      ),
+      page: z.number().int(),
+      pageSize: z.number().int(),
+      total: z.number().int(),
+    }),
+  },
+  removePhoto: { input: z.object({ alumniId: objectIdSchema }).strict(), output: okSchema },
   linkAlumni: { input: linkAlumniInputSchema, output: okSchema },
   history: { input: idInputSchema, output: z.array(alumniHistoryEntrySchema) },
 };
