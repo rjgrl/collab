@@ -27,27 +27,35 @@ test("Alumni with historical MFA enrollment edit personal details only in Settin
   await expect(page.getByRole("link", { name: "Members", exact: true })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "First name", exact: true })).toHaveCount(0);
   await page.goto("/settings");
-  await page.getByRole("textbox", { name: "First name", exact: true }).fill("María José");
-  await page.getByRole("textbox", { name: "Middle name (optional)", exact: true }).fill("");
-  await page.getByRole("textbox", { name: "Last name", exact: true }).fill("Dela Cruz-O’Neill");
-  await page
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const personal = page.getByRole("dialog", { name: "Edit personal details", exact: true });
+  await personal.getByRole("textbox", { name: "First name", exact: true }).fill("María José");
+  await personal.getByRole("textbox", { name: "Middle name (optional)", exact: true }).fill("");
+  await personal.getByRole("textbox", { name: "Last name", exact: true }).fill("Dela Cruz-O’Neill");
+  await personal
     .getByRole("combobox", { name: "Name extension / suffix (optional)", exact: true })
     .fill("de la Casa");
-  await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234567");
-  await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
+  await selectOption(personal.getByRole("combobox", { name: "Gender", exact: true }), "Female");
   const saved = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
   );
-  await page.getByRole("button", { name: "Save personal details", exact: true }).click();
+  await personal.getByRole("button", { name: "Save personal details", exact: true }).click();
   expect((await saved).status()).toBe(200);
   await page.reload();
-  await expect(page.getByRole("textbox", { name: "First name", exact: true })).toHaveValue(
+  await expect(page.getByText("María José", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const savedPersonal = page.getByRole("dialog", { name: "Edit personal details", exact: true });
+  await expect(savedPersonal.getByRole("textbox", { name: "First name", exact: true })).toHaveValue(
     "María José",
   );
   await expect(
-    page.getByRole("combobox", { name: "Name extension / suffix (optional)", exact: true }),
+    savedPersonal.getByRole("combobox", {
+      name: "Name extension / suffix (optional)",
+      exact: true,
+    }),
   ).toHaveValue("de la Casa");
+  await savedPersonal.getByRole("button", { name: "Close dialog" }).click();
   const me = await (await page.request.get("/api/auth/me")).json();
   expect(me.name).toBe("María José Dela Cruz-O’Neill de la Casa");
   expect(me.mfaRequired).toBe(false);

@@ -102,6 +102,7 @@ test("local Alumni registration persists academic identity, employment and owned
   await page.getByRole("button", { name: "Need an account? Sign up" }).click();
   await page.getByRole("textbox", { name: "First name", exact: true }).fill("María José");
   await page.getByRole("textbox", { name: "Last name", exact: true }).fill("Dela Cruz");
+  await page.getByRole("button", { name: "Add middle name or suffix", exact: true }).click();
   await page.getByLabel("Name extension / suffix (optional)").fill("de la Casa");
   await page
     .getByRole("textbox", { name: "Email", exact: true })
@@ -159,10 +160,9 @@ test("local Alumni registration persists academic identity, employment and owned
   await expect(page.getByLabel("File purpose")).toHaveCount(0);
   await expect(page.getByLabel("Choose profile photo")).toHaveCount(0);
   await page.goto("/settings");
-  const personal = page
-    .locator('[data-slot="card"]')
-    .filter({ has: page.getByRole("heading", { name: "Personal details", exact: true }) });
-  const photo = personal.getByRole("region", { name: "Profile photo", exact: true });
+  await page.getByRole("button", { name: "Change photo", exact: true }).click();
+  const photoDialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });
+  const photo = photoDialog.getByRole("region", { name: "Profile photo", exact: true });
   await expect(photo).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Preview Employment proof.png", exact: true }),
@@ -183,6 +183,7 @@ test("local Alumni registration persists academic identity, employment and owned
         .evaluate((image: HTMLImageElement) => image.naturalWidth),
     )
     .toBeGreaterThan(0);
+  await photoDialog.getByRole("button", { name: "Close dialog" }).click();
   await page.mouse.move(0, 0);
   // Audit a stable frame after the transient success toast has finished fading.
   await expect(page.getByText("Profile photo updated", { exact: true })).toHaveCount(0, {
@@ -195,7 +196,12 @@ test("local Alumni registration persists academic identity, employment and owned
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("account-profile-photo.png"), fullPage: true });
   await page.reload();
-  await expect(photo.getByRole("img", { name: /profile photo$/ })).toBeVisible();
+  await page.getByRole("button", { name: "Change photo", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Change profile photo", exact: true })
+      .getByRole("img", { name: /profile photo$/ }),
+  ).toBeVisible();
   await page.goto("/my-profile");
   await expect(page.getByRole("img", { name: /profile photo$/ })).toHaveCount(1);
   await expect(page.locator("header img")).toBeVisible();

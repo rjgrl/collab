@@ -14,10 +14,9 @@ async function signIn(page: Page, email: string) {
 }
 async function upload(page: Page, filename: string) {
   await page.goto("/settings");
-  const personal = page
-    .locator('[data-slot="card"]')
-    .filter({ has: page.getByRole("heading", { name: "Personal details", exact: true }) });
-  const photo = personal.getByRole("region", { name: "Profile photo", exact: true });
+  await page.getByRole("button", { name: "Change photo", exact: true }).click();
+  const photoDialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });
+  const photo = photoDialog.getByRole("region", { name: "Profile photo", exact: true });
   await photo
     .getByLabel("Profile photo", { exact: true })
     .setInputFiles({ name: filename, mimeType: "image/png", buffer: png });
@@ -33,6 +32,7 @@ async function upload(page: Page, filename: string) {
   await expect(page.locator("header img")).toBeVisible();
   const image = await page.locator("header img").getAttribute("src");
   await expect(photo.getByRole("button", { name: "Remove photo", exact: true })).toBeEnabled();
+  await photoDialog.getByRole("button", { name: "Close dialog" }).click();
   await page.reload();
   await expect(page.locator("header img")).toHaveAttribute("src", image!);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -95,7 +95,9 @@ test("all account roles share personal photo controls and email changes require 
   expect(updated.mfaVerified).toBe(true);
   expect(await (await request.get("http://127.0.0.1:3101/api/auth/me")).json()).toBeNull();
   await page.reload();
-  await expect(page.getByText("renamed.admin@example.test", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("definition").filter({ hasText: "renamed.admin@example.test" }),
+  ).toBeVisible();
 
   const roles = await browser.newContext({
     baseURL: "http://127.0.0.1:3101",
@@ -139,7 +141,11 @@ test("all account roles share personal photo controls and email changes require 
       fullPage: true,
     });
     await member.goto("/settings");
-    await member.getByRole("button", { name: "Remove photo", exact: true }).click();
+    await member.getByRole("button", { name: "Change photo", exact: true }).click();
+    await member
+      .getByRole("dialog", { name: "Change profile photo", exact: true })
+      .getByRole("button", { name: "Remove photo", exact: true })
+      .click();
     await expect(member.locator("header img")).toHaveCount(0);
     expect((await member.request.get(alumniPhoto)).status()).toBe(404);
     expect((await (await member.request.get("/api/me/profile")).json()).photoUrl).toBeNull();

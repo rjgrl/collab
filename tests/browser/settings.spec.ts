@@ -227,15 +227,14 @@ test("account controls remain reachable and role dialogs scroll internally", asy
   await expect(save).toBeInViewport();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.goto("/settings");
-  await expect(page.getByRole("textbox", { name: "First name", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Personal details", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Toggle theme", exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const personal = page.getByRole("dialog", { name: "Edit personal details", exact: true });
+  await expect(personal.getByRole("textbox", { name: "First name", exact: true })).toBeVisible();
+  await expect(personal.getByRole("button", { name: "Save personal details" })).toBeInViewport();
+  await personal.getByRole("button", { name: "Close dialog" }).click();
   if (testInfo.project.name === "desktop") {
-    await page
-      .getByRole("button", { name: "Save personal details", exact: true })
-      .scrollIntoViewIfNeeded();
-    await expect(
-      page.getByRole("button", { name: "Save personal details", exact: true }),
-    ).toBeInViewport();
     await page
       .getByRole("button", { name: "Change password", exact: true })
       .scrollIntoViewIfNeeded();

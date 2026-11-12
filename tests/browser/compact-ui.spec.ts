@@ -137,15 +137,16 @@ test("audit details, integration statuses and account controls remain compact an
       expect(red[0]!).toBeGreaterThan(red[1]!);
       await inspect(`integrations-${theme}-${width}`);
       await page.goto("/settings");
-      const personal = page
-        .locator('[data-slot="card"]')
-        .filter({ has: page.getByRole("heading", { name: "Personal details", exact: true }) });
-      const header = personal.locator('[data-slot="card-header"]');
       await expect(
-        header.getByRole("status", { name: "Email verification", exact: true }),
+        page.getByRole("status", { name: "Email verification", exact: true }),
       ).toHaveText("Verified");
-      const country = page.getByRole("combobox", { name: "Country calling code", exact: true });
-      const phone = page.getByRole("textbox", { name: "Phone number", exact: true });
+      await page.getByRole("button", { name: "Edit contact", exact: true }).click();
+      const contact = page.getByRole("dialog", { name: "Edit contact details", exact: true });
+      const country = contact.getByRole("combobox", {
+        name: "Country calling code",
+        exact: true,
+      });
+      const phone = contact.getByRole("textbox", { name: "Phone number", exact: true });
       const left = (await country.boundingBox())!;
       const right = (await phone.boundingBox())!;
       expect(Math.abs(left.y - right.y)).toBeLessThanOrEqual(1);
@@ -156,22 +157,14 @@ test("audit details, integration statuses and account controls remain compact an
         await phone.locator("..").evaluate((element) => getComputedStyle(element).boxShadow),
       ).not.toBe("none");
       await inspect(`account-verified-${theme}-${width}`);
+      await contact.getByRole("button", { name: "Close dialog" }).click();
     }
   }
   await request.post("http://127.0.0.1:3100/__test/legacy-unverified-email");
   await page.goto("/settings");
-  const personal = page
-    .locator('[data-slot="card"]')
-    .filter({ has: page.getByRole("heading", { name: "Personal details", exact: true }) });
-  await expect(
-    personal.locator('[data-slot="card-header"]').getByText("Not verified", { exact: true }),
-  ).toBeVisible();
-  const verify = personal.getByRole("button", { name: "Verify recovery email", exact: true });
-  await expect(
-    personal
-      .locator('[data-slot="card-header"]')
-      .getByRole("button", { name: "Verify recovery email", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("Not verified", { exact: true })).toBeVisible();
+  const verify = page.getByRole("button", { name: "Verify recovery email", exact: true });
+  await expect(verify).toBeVisible();
   await inspect(`account-unverified-${info.project.name}`);
   await verify.click();
   await expect(

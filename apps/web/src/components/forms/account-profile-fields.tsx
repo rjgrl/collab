@@ -10,11 +10,17 @@ export function AccountProfileFields({
   value,
   onChange,
   compact = false,
+  showPhone = true,
+  showGender = true,
+  showFacebook = true,
 }: {
   value: AccountProfile;
   onChange: (value: AccountProfile) => void;
   /** Sign-up layout: phone hint for assistive tech only, Facebook behind "+ Add". */
   compact?: boolean;
+  showPhone?: boolean;
+  showGender?: boolean;
+  showFacebook?: boolean;
 }) {
   const facebook = (
     <FormField id="facebook-profile" label="Facebook profile link (optional)">
@@ -30,51 +36,57 @@ export function AccountProfileFields({
   );
   return (
     <>
-      <div className={compact ? "sm:col-span-2" : undefined}>
-        <FormField id="phone-number" label="Phone number" required>
-          <PhoneInput
-            id="phone-number"
-            type="tel"
-            autoComplete="tel"
+      {showPhone ? (
+        <div className={compact ? "sm:col-span-2" : undefined}>
+          <FormField id="phone-number" label="Phone number" required>
+            <PhoneInput
+              id="phone-number"
+              type="tel"
+              autoComplete="tel"
+              required
+              minLength={7}
+              maxLength={30}
+              value={value.phoneNumber}
+              onChange={(phoneNumber) => onChange({ ...value, phoneNumber })}
+              aria-describedby="phone-number-hint"
+            />
+          </FormField>
+          <p
+            id="phone-number-hint"
+            className={compact ? "sr-only" : "mt-2 text-xs text-muted-foreground"}
+          >
+            Select a country or paste an international number.
+          </p>
+        </div>
+      ) : null}
+      {showGender ? (
+        <FormField id="account-gender" label="Gender" required>
+          <FormSelect
+            id="account-gender"
             required
-            minLength={7}
-            maxLength={30}
-            value={value.phoneNumber}
-            onChange={(phoneNumber) => onChange({ ...value, phoneNumber })}
-            aria-describedby="phone-number-hint"
+            value={value.gender}
+            onValueChange={(selected) => onChange({ ...value, gender: selected })}
+            items={[
+              { value: "", label: "Select gender" },
+              { value: "Male", label: "Male" },
+              { value: "Female", label: "Female" },
+            ]}
           />
         </FormField>
-        <p
-          id="phone-number-hint"
-          className={compact ? "sr-only" : "mt-2 text-xs text-muted-foreground"}
-        >
-          Select a country or paste an international number.
-        </p>
-      </div>
-      <FormField id="account-gender" label="Gender" required>
-        <FormSelect
-          id="account-gender"
-          required
-          value={value.gender}
-          onValueChange={(selected) => onChange({ ...value, gender: selected })}
-          items={[
-            { value: "", label: "Select gender" },
-            { value: "Male", label: "Male" },
-            { value: "Female", label: "Female" },
-          ]}
-        />
-      </FormField>
-      {compact ? (
-        <OptionalFields
-          label="Add Facebook profile"
-          defaultOpen={Boolean(value.facebookAccount)}
-          className="sm:col-span-2"
-        >
-          <div className="sm:col-span-2">{facebook}</div>
-        </OptionalFields>
-      ) : (
-        facebook
-      )}
+      ) : null}
+      {showFacebook ? (
+        compact ? (
+          <OptionalFields
+            label="Add Facebook profile"
+            defaultOpen={Boolean(value.facebookAccount)}
+            className="sm:col-span-2"
+          >
+            <div className="sm:col-span-2">{facebook}</div>
+          </OptionalFields>
+        ) : (
+          facebook
+        )
+      ) : null}
     </>
   );
 }
