@@ -3,6 +3,7 @@ import { EvidencePanel } from "@/components/alumni/evidence-panel";
 import { ContactsPanel } from "@/components/alumni/contacts-panel";
 import { useProgramOptions } from "@/lib/academic-options";
 import { Card, CardContent, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
+import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -14,12 +15,13 @@ import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { QuietButton } from "@/components/data/data-table";
 import Loader from "@/components/layout/loader";
 import { FormSelect } from "@/components/forms/form-select";
-import { FormActions, FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { StatusBadge } from "@/components/data/status-badge";
 import { can, managesFaculty, useSession } from "@/lib/session";
 import { client, api, downloadPdf, queryClient } from "@/lib/api";
+import { DetailRow, SummaryCard } from "@/components/account/summary-card";
 
 export const Route = createFileRoute("/_app/alumni/$id")({
   component: AlumniDetailPage,
@@ -48,6 +50,7 @@ function AlumniDetailPage() {
     enabled: showHistory,
   });
   const [trackingNotes, setTrackingNotes] = useState("");
+  const [editingDetails, setEditingDetails] = useState(false);
 
   useEffect(() => {
     if (!record) {
@@ -76,6 +79,7 @@ function AlumniDetailPage() {
       }),
     onSuccess: async () => {
       toast.success("Alumni profile saved");
+      setEditingDetails(false);
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -142,11 +146,46 @@ function AlumniDetailPage() {
           </div>
         }
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>Student details</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <SummaryCard
+        title="Student details"
+        actionLabel={canWrite ? "Edit details" : undefined}
+        onAction={
+          canWrite
+            ? () => {
+                setForm({
+                  firstName: record.firstName,
+                  middleName: record.middleName ?? "",
+                  lastName: record.lastName,
+                  suffix: record.suffix ?? "",
+                  gender: record.gender ?? "",
+                  batch: record.batch ?? "",
+                  studentNumber: record.studentNumber,
+                  graduationYear: record.graduationYear ? String(record.graduationYear) : "",
+                  programId: record.programId,
+                });
+                setEditingDetails(true);
+              }
+            : undefined
+        }
+      >
+        <DetailRow label="Full name" value={formatDisplayName(record)} />
+        <DetailRow label="Student number" value={record.studentNumber} />
+        <DetailRow label="Program" value={`${record.program.code} — ${record.program.name}`} />
+        <DetailRow label="Department" value={record.program.department.name} />
+        <DetailRow label="Graduation year" value={record.graduationYear ?? "Not recorded"} />
+        <DetailRow label="Gender" value={record.gender || "Not recorded"} />
+        <DetailRow label="Batch" value={record.batch || "Not recorded"} />
+        <DetailRow label="Employment" value={record.employmentStatus} />
+      </SummaryCard>
+
+      {editingDetails ? (
+        <FormDialog
+          open
+          title="Edit student details"
+          description="Update the alumni record. Employment status remains derived from job history."
+          pending={save.isPending}
+          onOpenChange={setEditingDetails}
+        >
           <form
             className="grid gap-4 md:grid-cols-2"
             onSubmit={(event) => {
@@ -160,7 +199,6 @@ function AlumniDetailPage() {
                 required
                 value={form.firstName}
                 onChange={(event) => setForm({ ...form, firstName: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
             <FormField id="middleName" label="Middle name">
@@ -168,7 +206,6 @@ function AlumniDetailPage() {
                 id="middleName"
                 value={form.middleName}
                 onChange={(event) => setForm({ ...form, middleName: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
             <FormField id="lastName" label="Last name" required>
@@ -177,7 +214,6 @@ function AlumniDetailPage() {
                 required
                 value={form.lastName}
                 onChange={(event) => setForm({ ...form, lastName: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
             <FormField id="suffix" label="Suffix">
@@ -185,7 +221,6 @@ function AlumniDetailPage() {
                 id="suffix"
                 value={form.suffix}
                 onChange={(event) => setForm({ ...form, suffix: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
             <FormField id="gender" label="Gender">
@@ -193,7 +228,6 @@ function AlumniDetailPage() {
                 id="gender"
                 value={form.gender}
                 onValueChange={(selected) => setForm({ ...form, gender: selected })}
-                disabled={!canWrite}
                 items={[
                   { value: "", label: "Not specified" },
                   { value: "Female", label: "Female" },
@@ -207,7 +241,6 @@ function AlumniDetailPage() {
                 maxLength={40}
                 value={form.batch}
                 onChange={(event) => setForm({ ...form, batch: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
             <FormField id="programId" label="Program">
@@ -215,8 +248,6 @@ function AlumniDetailPage() {
                 id="programId"
                 value={form.programId}
                 onValueChange={(selected) => setForm({ ...form, programId: selected })}
-                disabled={!canWrite}
-
                 items={
                   programs.data?.map((program) => ({
                     value: program.id,
@@ -230,11 +261,7 @@ function AlumniDetailPage() {
                 id="studentNumber"
                 value={form.studentNumber}
                 onChange={(event) => setForm({ ...form, studentNumber: event.target.value })}
-                disabled={!canWrite}
               />
-            </FormField>
-            <FormField id="employmentStatus" label="Employment status (derived from job history)">
-              <Input id="employmentStatus" value={record.employmentStatus} readOnly />
             </FormField>
             <FormField id="graduationYear" label="Graduation year" required>
               <Input
@@ -245,19 +272,19 @@ function AlumniDetailPage() {
                 max={2100}
                 value={form.graduationYear}
                 onChange={(event) => setForm({ ...form, graduationYear: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
-            {canWrite ? (
-              <FormActions>
-                <PrimaryButton type="submit" pending={save.isPending}>
-                  Save
-                </PrimaryButton>
-              </FormActions>
+            {save.error ? (
+              <ErrorAlert className="md:col-span-2">{save.error.message}</ErrorAlert>
             ) : null}
+            <div className="md:col-span-2">
+              <PrimaryButton type="submit" pending={save.isPending}>
+                Save student details
+              </PrimaryButton>
+            </div>
           </form>
-        </CardContent>
-      </Card>
+        </FormDialog>
+      ) : null}
 
       <ContactsPanel alumniId={id} contacts={record.contacts} canWrite={canWrite} />
 

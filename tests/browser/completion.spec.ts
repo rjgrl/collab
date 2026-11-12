@@ -242,6 +242,14 @@ test("Staff persist employment edits and archives and can open Faculty", async (
   await expect(page.getByTestId("account-role")).toHaveText("Faculty");
   expect((await page.request.get("/api/faculty")).status()).toBe(200);
   await page.goto("/alumni/000000000000000000000201");
+  await expect(page.getByRole("textbox", { name: "Student number", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Edit details", exact: true }).click();
+  const details = page.getByRole("dialog", { name: "Edit student details", exact: true });
+  await details.getByRole("textbox", { name: "Batch", exact: true }).fill("Updated batch");
+  await details.getByRole("spinbutton", { name: "Graduation year", exact: true }).fill("2020");
+  await details.getByRole("button", { name: "Save student details", exact: true }).click();
+  await expect(details).toHaveCount(0);
+  await expect(page.getByRole("definition").filter({ hasText: "Updated batch" })).toBeVisible();
   await page.getByRole("button", { name: "Add employment", exact: true }).click();
   await page
     .getByRole("dialog")

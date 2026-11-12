@@ -2,7 +2,6 @@ import { useId, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
-import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import {
   ACCOUNT_PHOTO_TYPES,
   MAX_ACCOUNT_PHOTO_BYTES,
@@ -10,6 +9,7 @@ import {
 import { queryClient } from "@/lib/api";
 import { removeAccountPhoto, uploadAccountPhoto } from "@/lib/account-photo";
 import { AccountAvatar } from "@/components/account/account-avatar";
+import { FilePicker } from "@/components/forms/file-picker";
 
 export function AccountPhotoControls({ image, name }: { image?: string | null; name: string }) {
   const id = useId();
@@ -41,15 +41,17 @@ export function AccountPhotoControls({ image, name }: { image?: string | null; n
           <label className="text-sm font-medium" htmlFor={id}>
             Profile photo
           </label>
-          <Input
+          <FilePicker
             key={inputKey}
             id={id}
-            type="file"
+            file={file}
             accept={ACCOUNT_PHOTO_TYPES.join(",")}
             disabled={mutation.isPending}
-            aria-describedby={`${id}-help`}
-            onChange={(event) => {
-              setFile(event.target.files?.[0]);
+            accessibleLabel="Profile photo"
+            describedBy={`${id}-help`}
+            chooseLabel={image ? "Choose replacement" : "Choose photo"}
+            onChange={(selected) => {
+              setFile(selected);
               mutation.reset();
             }}
           />

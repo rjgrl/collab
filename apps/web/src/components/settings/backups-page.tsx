@@ -21,6 +21,7 @@ import type {
 
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { FormSelect } from "@/components/forms/form-select";
+import { FilePicker } from "@/components/forms/file-picker";
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { DataTable } from "@/components/data/data-table";
@@ -354,12 +355,14 @@ export function BackupsPage() {
             Back up now
           </PrimaryButton>
           <FormField id="backup-import" label="Import encrypted backup">
-            <Input
+            <FilePicker
               key={importInputKey}
               id="backup-import"
-              type="file"
+              file={importFile}
               accept=".atsbak,application/octet-stream"
-              onChange={(event) => setImportFile(event.currentTarget.files?.[0] ?? null)}
+              accessibleLabel="Import encrypted backup"
+              chooseLabel="Choose backup"
+              onChange={(file) => setImportFile(file ?? null)}
               disabled={!isConfigured || importBackup.isPending}
             />
           </FormField>

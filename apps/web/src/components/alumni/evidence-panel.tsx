@@ -4,7 +4,6 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { evidenceOutputSchema, employmentOutputSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
 import { Button, buttonVariants } from "@Alumni-Tracking-Ss/ui/components/button";
-import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { toast } from "sonner";
 import { client, queryClient, uploadProfileFile } from "@/lib/api";
 import { ENV } from "@/env";
@@ -12,6 +11,7 @@ import { FormCard, FormField, PrimaryButton } from "@/components/forms/form-layo
 import { FormSelect } from "@/components/forms/form-select";
 import { FileCheck2, ImagePlus } from "lucide-react";
 import { useConfirm } from "@/components/feedback/confirm-provider";
+import { FilePicker } from "@/components/forms/file-picker";
 
 export function EvidencePanel({
   files,
@@ -223,17 +223,19 @@ export function EvidencePanel({
               label={kind === "image" ? "Choose profile photo" : "Choose evidence file"}
               required
             >
-              <Input
+              <FilePicker
                 key={inputKey}
                 id={`${fieldId}-file`}
-                type="file"
+                file={file}
                 accept={
                   kind === "image"
                     ? "image/jpeg,image/png,image/webp"
                     : "image/jpeg,image/png,image/webp,application/pdf"
                 }
                 required
-                onChange={(e) => setFile(e.target.files?.[0])}
+                accessibleLabel={kind === "image" ? "Choose profile photo" : "Choose evidence file"}
+                chooseLabel={kind === "image" ? "Choose photo" : "Choose evidence"}
+                onChange={setFile}
               />
             </FormField>
             <p className="mt-2 text-xs text-muted-foreground">
