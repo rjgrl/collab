@@ -13,7 +13,7 @@ import { PasswordChecklist } from "@/components/forms/password-checklist";
 import { CheckboxRow } from "@/components/forms/checkbox-row";
 import { Recaptcha } from "@/components/forms/recaptcha";
 import { ErrorAlert } from "@/components/feedback/error-alert";
-import { FormField, PrimaryButton, SECTION_LEGEND } from "@/components/forms/form-layout";
+import { FormField, NumberedLegend, PrimaryButton } from "@/components/forms/form-layout";
 import { AuthHeader, AuthLayout } from "@/components/layout/auth-layout";
 import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import {
@@ -94,22 +94,12 @@ function LoginPage() {
 
   const signup = mode === "signup";
   const googleLabel = signup ? "Sign up with Google" : "Sign in with Google";
+  // Google sign-in only appears when it is configured and enabled; no disabled placeholder.
   const google = config.data?.google.enabled ? (
     <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
       {googleLabel}
     </Button>
-  ) : (
-    <div className="flex flex-col gap-2">
-      <Button type="button" variant="outline" disabled>
-        {googleLabel}
-      </Button>
-      {!config.isPending ? (
-        <p className="text-center text-xs text-muted-foreground">
-          Google sign-in is currently unavailable.
-        </p>
-      ) : null}
-    </div>
-  );
+  ) : null;
   const divider = (
     <div
       aria-hidden="true"
@@ -129,10 +119,8 @@ function LoginPage() {
         onChange={(event) => setEmail(event.target.value)}
         required
       />
-      <p id="email-hint" className="text-xs text-muted-foreground">
-        {signup
-          ? "Use your BukSU institutional email."
-          : "Use your BukSU institutional email. Personal email addresses are not accepted."}
+      <p id="email-hint" className={signup ? "sr-only" : "text-xs text-muted-foreground"}>
+        Use your BukSU institutional email. Personal email addresses are not accepted.
       </p>
     </FormField>
   );
@@ -158,10 +146,10 @@ function LoginPage() {
   return (
     <AuthLayout wide={signup}>
       <AuthHeader
-        title={signup ? "Create an account" : "Sign in"}
+        title={signup ? "Create your alumni account" : "Sign in"}
         description={
           signup
-            ? "Register as a BukSU graduate to keep your profile and employment up to date."
+            ? "Use the BukSU email you will sign in with. It takes about two minutes."
             : "Sign in to manage academic structure, alumni profiles, and graduate tracking."
         }
         className={signup ? "mb-4" : undefined}
@@ -170,27 +158,39 @@ function LoginPage() {
         <LocalVerificationNotice />
         {signup ? (
           <>
-            {google}
-            {divider}
-            <fieldset className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,9rem)] lg:items-end">
-              <legend className={SECTION_LEGEND}>Personal</legend>
-              <NameFields value={names} onChange={setNames} prefix="signup" compact />
-            </fieldset>
-            <fieldset className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.75fr)]">
-              <legend className={SECTION_LEGEND}>Contact</legend>
-              {emailField}
-              <AccountProfileFields value={profile} onChange={setProfile} compact />
-            </fieldset>
-            <AcademicProfileFields value={academic} onChange={setAcademic} compact />
-            <fieldset className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-              <legend className={SECTION_LEGEND}>Account</legend>
-              {passwordField}
-              <PasswordChecklist
-                id="signup-password-guidance"
-                value={password}
-                serverError={screeningError}
-              />
-            </fieldset>
+            {google ? (
+              <>
+                {google}
+                {divider}
+              </>
+            ) : null}
+            <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
+              <fieldset className="grid content-start gap-3 sm:grid-cols-2">
+                <NumberedLegend step={1}>About you</NumberedLegend>
+                <NameFields
+                  value={names}
+                  onChange={setNames}
+                  prefix="signup"
+                  compact
+                  optionalBehindLink
+                />
+              </fieldset>
+              <fieldset className="grid content-start gap-3 sm:grid-cols-2">
+                <NumberedLegend step={2}>Contact</NumberedLegend>
+                <div className="sm:col-span-2">{emailField}</div>
+                <AccountProfileFields value={profile} onChange={setProfile} compact />
+              </fieldset>
+              <AcademicProfileFields value={academic} onChange={setAcademic} compact />
+              <fieldset className="grid content-start gap-3">
+                <NumberedLegend step={4}>Password</NumberedLegend>
+                {passwordField}
+                <PasswordChecklist
+                  id="signup-password-guidance"
+                  value={password}
+                  serverError={screeningError}
+                />
+              </fieldset>
+            </div>
           </>
         ) : (
           <>
@@ -226,7 +226,7 @@ function LoginPage() {
           {signup ? "Create account" : "Sign in"}
         </PrimaryButton>
         {formError ? <ErrorAlert>{formError}</ErrorAlert> : null}
-        {signup ? null : (
+        {signup || !google ? null : (
           <>
             {divider}
             {google}

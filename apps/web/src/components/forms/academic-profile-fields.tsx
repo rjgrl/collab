@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { api } from "@/lib/api";
 import { collectOptionPages } from "@/lib/pagination";
-import { FormField, SECTION_LEGEND } from "@/components/forms/form-layout";
+import { FormField, NumberedLegend } from "@/components/forms/form-layout";
 import { FormSelect } from "@/components/forms/form-select";
 
 export const emptyAcademic = { studentNumber: "", programId: "", graduationYear: "" };
@@ -13,7 +13,10 @@ export function AcademicProfileFields({
 }: {
   value: typeof emptyAcademic;
   onChange: (value: typeof emptyAcademic) => void;
-  /** Sign-up layout: short legend, one row on desktop, one-line note. */
+  /**
+   * Sign-up layout: numbered "Your studies" group (step 3), program on its own row, no
+   * explanatory note (the review rule is explained after registration).
+   */
   compact?: boolean;
 }) {
   const programs = useQuery({
@@ -25,17 +28,40 @@ export function AcademicProfileFields({
           .queryFn({ signal }),
       ),
   });
+  const program = (
+    <div className={compact ? "sm:col-span-2" : undefined}>
+      <FormField id="registration-program" label="Degree program" required>
+        <FormSelect
+          id="registration-program"
+          value={value.programId}
+          disabled={programs.isPending || programs.isError}
+          required
+          onValueChange={(selected) => onChange({ ...value, programId: selected })}
+
+          items={[
+            {
+              value: "",
+              label: programs.isPending ? "Loading programs…" : "Select degree program",
+            },
+            ...(programs.data?.map((p) => ({
+              value: p.id,
+              label: `${p.department.name} / ${p.code} — ${p.name}`,
+            })) ?? []),
+          ]}
+        />
+      </FormField>
+    </div>
+  );
   return (
     <fieldset
-      className={
-        compact
-          ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,8rem)]"
-          : "grid gap-4 sm:col-span-2"
-      }
+      className={compact ? "grid content-start gap-3 sm:grid-cols-2" : "grid gap-4 sm:col-span-2"}
     >
-      <legend className={compact ? SECTION_LEGEND : "mb-3 text-sm font-medium"}>
-        {compact ? "Academic" : "Academic information"}
-      </legend>
+      {compact ? (
+        <NumberedLegend step={3}>Your studies</NumberedLegend>
+      ) : (
+        <legend className="mb-3 text-sm font-medium">Academic information</legend>
+      )}
+      {compact ? program : null}
       <FormField id="registration-student" label="Student number" required>
         <Input
           id="registration-student"
@@ -45,28 +71,7 @@ export function AcademicProfileFields({
           onChange={(e) => onChange({ ...value, studentNumber: e.target.value })}
         />
       </FormField>
-      <div className={compact ? "sm:col-span-2 lg:col-span-1" : undefined}>
-        <FormField id="registration-program" label="Degree program" required>
-          <FormSelect
-            id="registration-program"
-            value={value.programId}
-            disabled={programs.isPending || programs.isError}
-            required
-            onValueChange={(selected) => onChange({ ...value, programId: selected })}
-
-            items={[
-              {
-                value: "",
-                label: programs.isPending ? "Loading programs…" : "Select degree program",
-              },
-              ...(programs.data?.map((p) => ({
-                value: p.id,
-                label: `${p.department.name} / ${p.code} — ${p.name}`,
-              })) ?? []),
-            ]}
-          />
-        </FormField>
-      </div>
+      {compact ? null : program}
       <FormField id="registration-year" label="Graduation year" required>
         <Input
           id="registration-year"
@@ -97,11 +102,7 @@ export function AcademicProfileFields({
           one.
         </p>
       ) : null}
-      {compact ? (
-        <p className="text-xs text-muted-foreground sm:col-span-full">
-          Existing alumni records are matched only after university review.
-        </p>
-      ) : (
+      {compact ? null : (
         <p className="text-xs text-muted-foreground">
           If your student number already has an alumni record, ask the university to review it.
           Registration never claims a record automatically.

@@ -2,6 +2,14 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { selectOption } from "./select-helper";
 
+// Base UI renders invisible focus sentinels (aria-hidden, tabindex 0, data-base-ui-focus-guard)
+// around an open popup; they only catch Tab and return focus to the popup. axe flags them
+// depending on layout alone (identical DOM passes or fails), so open-popup scans exclude them.
+const axeWithOpenPopup = (page: import("@playwright/test").Page) =>
+  new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .exclude("[data-base-ui-focus-guard]");
+
 test("styled dropdowns support keyboard, custom suffixes and both themes", async ({
   page,
   request,
@@ -12,6 +20,9 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
     await page.evaluate((value) => localStorage.setItem("vite-ui-theme", value), theme);
     await page.reload();
     await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+    // Optional name parts sit behind a disclosure; opening it focuses the middle name.
+    await page.getByRole("button", { name: "Add middle name or suffix", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Middle name (optional)" })).toBeFocused();
     const suffix = page.getByRole("combobox", {
       name: "Name extension / suffix (optional)",
       exact: true,
@@ -76,10 +87,7 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
     await expect(
       page.getByRole("option", { name: "United States (+1)", exact: true }),
     ).toHaveAttribute("aria-selected", "true");
-    expect(
-      (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
-        .violations,
-    ).toEqual([]);
+    expect((await axeWithOpenPopup(page).analyze()).violations).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -90,10 +98,7 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
     await page.keyboard.press("Escape");
     await suffix.fill("");
     await suffix.click();
-    expect(
-      (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
-        .violations,
-    ).toEqual([]);
+    expect((await axeWithOpenPopup(page).analyze()).violations).toEqual([]);
     await page.screenshot({
       path: info.outputPath(`suffix-dropdown-${theme}.png`),
       fullPage: true,

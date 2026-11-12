@@ -68,6 +68,24 @@ export function FormField({
 export const SECTION_LEGEND =
   "mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase";
 
+/**
+ * Legend for a numbered form group ("1  About you"). The number is decorative; the group's
+ * accessible name is the text alone.
+ */
+export function NumberedLegend({ step, children }: { step: number; children: ReactNode }) {
+  return (
+    <legend className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+      <span
+        aria-hidden="true"
+        className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
+      >
+        {step}
+      </span>
+      {children}
+    </legend>
+  );
+}
+
 export function FormActions({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-center gap-2 pt-2 md:col-span-2">{children}</div>;
 }

@@ -2,6 +2,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { FormSelect } from "@/components/forms/form-select";
 import { FormField } from "@/components/forms/form-layout";
 import { PhoneInput } from "@/components/forms/phone-input";
+import { OptionalFields } from "@/components/forms/optional-fields";
 
 export type AccountProfile = { phoneNumber: string; gender: string; facebookAccount: string };
 
@@ -12,11 +13,24 @@ export function AccountProfileFields({
 }: {
   value: AccountProfile;
   onChange: (value: AccountProfile) => void;
+  /** Sign-up layout: phone hint for assistive tech only, Facebook behind "+ Add". */
   compact?: boolean;
 }) {
+  const facebook = (
+    <FormField id="facebook-profile" label="Facebook profile link (optional)">
+      <Input
+        id="facebook-profile"
+        type="url"
+        maxLength={2048}
+        placeholder="https://www.facebook.com/username"
+        value={value.facebookAccount}
+        onChange={(event) => onChange({ ...value, facebookAccount: event.target.value })}
+      />
+    </FormField>
+  );
   return (
     <>
-      <div>
+      <div className={compact ? "sm:col-span-2" : undefined}>
         <FormField id="phone-number" label="Phone number" required>
           <PhoneInput
             id="phone-number"
@@ -30,10 +44,11 @@ export function AccountProfileFields({
             aria-describedby="phone-number-hint"
           />
         </FormField>
-        <p id="phone-number-hint" className="mt-2 text-xs text-muted-foreground">
-          {compact
-            ? "Pick a country or paste an international number."
-            : "Select a country or paste an international number."}
+        <p
+          id="phone-number-hint"
+          className={compact ? "sr-only" : "mt-2 text-xs text-muted-foreground"}
+        >
+          Select a country or paste an international number.
         </p>
       </div>
       <FormField id="account-gender" label="Gender" required>
@@ -49,16 +64,17 @@ export function AccountProfileFields({
           ]}
         />
       </FormField>
-      <FormField id="facebook-profile" label="Facebook profile link (optional)">
-        <Input
-          id="facebook-profile"
-          type="url"
-          maxLength={2048}
-          placeholder="https://www.facebook.com/username"
-          value={value.facebookAccount}
-          onChange={(event) => onChange({ ...value, facebookAccount: event.target.value })}
-        />
-      </FormField>
+      {compact ? (
+        <OptionalFields
+          label="Add Facebook profile"
+          defaultOpen={Boolean(value.facebookAccount)}
+          className="sm:col-span-2"
+        >
+          <div className="sm:col-span-2">{facebook}</div>
+        </OptionalFields>
+      ) : (
+        facebook
+      )}
     </>
   );
 }

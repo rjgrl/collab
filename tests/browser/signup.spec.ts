@@ -22,7 +22,9 @@ test("signup collects contact details and rejects an existing email", async ({ p
   await expect(page.getByRole("option")).toHaveText(["Select gender", "Male", "Female"]);
   await page.keyboard.press("Escape");
   await selectOption(gender, "Female");
+  await page.getByRole("button", { name: "Add Facebook profile", exact: true }).click();
   const facebook = page.getByRole("textbox", { name: "Facebook profile link (optional)" });
+  await expect(facebook).toBeFocused();
   await expect(facebook).toHaveAttribute("type", "url");
   await expect(facebook).not.toHaveAttribute("required");
   await page.getByRole("textbox", { name: "Student number", exact: true }).fill("NEW-SYNTHETIC");
@@ -52,7 +54,11 @@ test("signup collects contact details and rejects an existing email", async ({ p
 });
 
 test("Google is available in both modes when configured and enabled", async ({ page, request }) => {
-  await expect(page.getByRole("button", { name: "Sign in with Google" })).toBeDisabled();
+  // Hidden (not a disabled placeholder) while Google sign-in is off, in both modes.
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in with Google" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+  await expect(page.getByRole("button", { name: "Sign up with Google" })).toHaveCount(0);
   await request.post("http://127.0.0.1:3100/__test/google");
   await page.reload();
   await expect(page.getByRole("button", { name: "Sign in with Google" })).toHaveAttribute(
@@ -70,6 +76,8 @@ test("signup stores separated compound names and the actual custom suffix", asyn
   await page.getByRole("button", { name: "Need an account? Sign up" }).click();
   await page.getByRole("textbox", { name: "First name", exact: true }).fill("  María José  ");
   await page.getByRole("textbox", { name: "Last name", exact: true }).fill("Dela Cruz-O’Neill");
+  await expect(page.getByRole("textbox", { name: "Middle name (optional)" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Add middle name or suffix", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Name extension / suffix (optional)", exact: true })
     .fill("de la Casa");
