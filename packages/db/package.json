@@ -12,7 +12,8 @@
     "db:migrate": "tsx src/cli/migrate.ts",
     "db:verify-transactions": "tsx src/cli/verify-transactions.ts",
     "db:rotate-integration-key": "tsx src/cli/rotate-integration-key.ts",
-    "db:check-references": "tsx src/cli/check-references.ts"
+    "db:check-references": "tsx src/cli/check-references.ts",
+    "db:deploy-init": "tsx src/cli/deploy-init.ts"
   },
   "dependencies": {
     "@Alumni-Tracking-Ss/contracts": "workspace:*",

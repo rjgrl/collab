@@ -30,68 +30,95 @@ export async function seedDatabase(db: Database) {
     throw new Error(
       "Configure private bootstrap administrator credentials with a password of at least 12 characters.",
     );
-  await db.transaction(async (tx) => {
-    for (const permission of PERMISSIONS)
-      await tx.Permission.updateOne(
-        { key: permission.key },
-        { $set: permission },
-        { upsert: true },
-      );
-    const permissions = await tx.Permission.find().lean();
-    const permissionByKey = new Map(permissions.map((item) => [item.key, item]));
-    for (const preset of Object.values(ROLE_PRESETS)) {
-      const existing = await tx.Role.findOne({ key: preset.key }).lean();
-      const role = await tx.Role.findOneAndUpdate(
-        { key: preset.key },
-        { $set: { name: preset.name, description: preset.description, isSystem: true } },
-        { upsert: true, returnDocument: "after" },
-      ).orFail();
-      if (existing && preset.key !== "super_admin") continue;
-      for (const key of preset.permissions) {
-        const permission = permissionByKey.get(key);
-        if (permission)
-          await tx.RolePermission.updateOne(
-            { roleId: role._id, permissionId: permission._id },
-            { $setOnInsert: { roleId: role._id, permissionId: permission._id } },
-            { upsert: true },
-          );
-      }
-    }
-    const retired = await retireRoles(tx);
-    if (retired.accounts)
-      console.warn(
-        `Removed the retired Staff role from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
-      );
-    const existingAdmin = await tx.User.findOne({ email }).lean();
-    if (!existingAdmin) {
-      const role = await tx.Role.findOne({ key: "super_admin" }).orFail();
-      const user = await new tx.User({
-        name: "System Administrator",
-        email,
-        emailVerified: true,
-        passwordHash: await hashPassword(password),
-        status: "active",
-      }).save();
-      await new tx.UserRole({ userId: user._id, roleId: role._id }).save();
-    }
-    for (const key of integrationKeys)
-      await tx.IntegrationSetting.updateOne(
-        { key },
-        {
-          $setOnInsert: {
-            key,
-            // New installs start disabled; a Super Admin enables each one with tested credentials.
-            enabled: false,
-            notes:
-              "Modular integration. Enable it in Settings with credentials; they are tested before saving.",
-          },
-        },
-        { upsert: true },
-      );
-    if (process.env.SEED_DEMO_DATA === "true") await seedDemo(tx, password);
-  });
+  await db.transaction((tx) =>
+    seedInTransaction(tx, { email, password, demo: process.env.SEED_DEMO_DATA === "true" }),
+  );
   // Seed integration credentials from environment variables (runs after transaction)
   await seedIntegrationCredentials(db);
+}
+
+export class DatabaseNotEmptyError extends Error {}
+
+/**
+ * First-time setup of a hosted database (for example a new Atlas cluster): permissions, roles,
+ * integration rows and one Super Admin, plus demo data on request. It refuses any database that
+ * already has a user account, so it can never alter an existing deployment. Unlike the dev seed it
+ * is allowed in production, except for demo data, whose logins share the administrator password.
+ */
+export async function initializeEmptyDatabase(
+  db: Database,
+  input: { email: string; password: string; demo: boolean },
+) {
+  if (input.demo && process.env.NODE_ENV === "production")
+    throw new Error("Demo data is refused in production: its logins share the admin password.");
+  const email = input.email.trim().toLowerCase();
+  await db.transaction(async (tx) => {
+    if (await tx.User.countDocuments({}))
+      throw new DatabaseNotEmptyError(
+        "This database already has user accounts; deploy:init only initializes an empty database.",
+      );
+    await seedInTransaction(tx, { email, password: input.password, demo: input.demo });
+  });
+}
+
+async function seedInTransaction(
+  tx: Database,
+  { email, password, demo }: { email: string; password: string; demo: boolean },
+) {
+  for (const permission of PERMISSIONS)
+    await tx.Permission.updateOne({ key: permission.key }, { $set: permission }, { upsert: true });
+  const permissions = await tx.Permission.find().lean();
+  const permissionByKey = new Map(permissions.map((item) => [item.key, item]));
+  for (const preset of Object.values(ROLE_PRESETS)) {
+    const existing = await tx.Role.findOne({ key: preset.key }).lean();
+    const role = await tx.Role.findOneAndUpdate(
+      { key: preset.key },
+      { $set: { name: preset.name, description: preset.description, isSystem: true } },
+      { upsert: true, returnDocument: "after" },
+    ).orFail();
+    if (existing && preset.key !== "super_admin") continue;
+    for (const key of preset.permissions) {
+      const permission = permissionByKey.get(key);
+      if (permission)
+        await tx.RolePermission.updateOne(
+          { roleId: role._id, permissionId: permission._id },
+          { $setOnInsert: { roleId: role._id, permissionId: permission._id } },
+          { upsert: true },
+        );
+    }
+  }
+  const retired = await retireRoles(tx);
+  if (retired.accounts)
+    console.warn(
+      `Removed the retired Staff role from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
+    );
+  const existingAdmin = await tx.User.findOne({ email }).lean();
+  if (!existingAdmin) {
+    const role = await tx.Role.findOne({ key: "super_admin" }).orFail();
+    const user = await new tx.User({
+      name: "System Administrator",
+      email,
+      emailVerified: true,
+      passwordHash: await hashPassword(password),
+      status: "active",
+    }).save();
+    await new tx.UserRole({ userId: user._id, roleId: role._id }).save();
+  }
+  for (const key of integrationKeys)
+    await tx.IntegrationSetting.updateOne(
+      { key },
+      {
+        $setOnInsert: {
+          key,
+          // New installs start disabled; a Super Admin enables each one with tested credentials.
+          enabled: false,
+          notes:
+            "Modular integration. Enable it in Settings with credentials; they are tested before saving.",
+        },
+      },
+      { upsert: true },
+    );
+  if (demo) await seedDemo(tx, password);
 }
 
 async function upsertUnit<T>(find: () => Promise<T | null>, create: () => Promise<T>) {

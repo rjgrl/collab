@@ -159,3 +159,11 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Smoother editing: the preview moves with a GPU `translate3d/scale` transform written straight to the image during a drag (one frame at a time), and React updates only on release, instead of re-laying out the image and re-rendering the dialog on every pointer move.
 - Re-saving a repositioned photo re-crops the stored 512×512 image, so zooming far in on an old photo loses some sharpness; choosing the original file again gives full quality.
 - Profile PDF photo is now 2 × 2 inches (144pt), rendered at 432px.
+
+## 2026-11-12: `pnpm deploy:init` for empty hosted databases
+
+- Decision (owner-approved): a new command initializes an empty hosted database (for example a new Atlas cluster) with collections, indexes, roles, permissions and the first Super Admin, from `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` in the environment. It runs in production because it refuses any database that already has a user account (checked inside the transaction), so it cannot alter a live deployment. The password must meet the app's password policy.
+- `--demo` adds the synthetic demo data and is refused when `NODE_ENV=production`, because demo logins share the administrator's password.
+- `pnpm db:seed` stays development-only and still refuses production. Both commands share `seedInTransaction`, so they write identical roles and permissions.
+- The README has a "Setup options" table: local clean (`setup:local --no-demo`), local seeded (`setup:local`), hosted clean (`deploy:init`), hosted seeded (`deploy:init --demo`), and hosted with copied data (Atlas runbook).
+- Status: the app is not on Atlas yet. Hosted environments switch by setting `DATABASE_URL`; no Atlas cluster or migration exists yet.

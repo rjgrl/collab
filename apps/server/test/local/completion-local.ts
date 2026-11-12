@@ -75,7 +75,9 @@ try {
   const profile = await agent.get("/api/me/profile");
   assert.equal(profile.status, 200);
   assert.equal(profile.body.studentNumber, "SYN-001");
-  assert.equal(profile.body.isTracked, false);
+  // Alumni never receive their tracking state (staff-only); the stored value is checked below.
+  assert.equal("isTracked" in profile.body, false);
+  assert.deepEqual(profile.body.trackingEvents, []);
   const job = {
     employer: "Synthetic University",
     jobTitle: "Research assistant",

@@ -21,6 +21,54 @@ On Windows, MongoDB's standard installation directory is detected automatically,
 
 Restart your terminal after installing Node/pnpm or changing PATH. Initial dependency installation needs internet access. Native MongoDB binaries are installed per device and are not committed to Git.
 
+## Setup options: clean or seeded
+
+Pick one row. **Clean** starts with only roles, permissions and one Super Admin. **Seeded** also adds synthetic demo colleges, programs, four alumni and a demo login for every role (all sharing the admin's password).
+
+| Where                       | Clean                                                                                                                                   | Seeded (demo data)                            |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| This laptop (local MongoDB) | `pnpm setup:local --no-demo`                                                                                                            | `pnpm setup:local`                            |
+| Hosted, e.g. MongoDB Atlas  | `pnpm deploy:init`                                                                                                                      | `pnpm deploy:init --demo` (not in production) |
+| Hosted, with existing data  | Copy it with the migration commands in [MongoDB Atlas](docs/operations/MONGODB_ATLAS.md#3-later-migrate-the-presentation-data-to-atlas) |                                               |
+
+### Local
+
+Follow [First run after cloning](#first-run-after-cloning) below. Swap in `pnpm setup:local --no-demo` for a clean database.
+
+### Hosted (deployment)
+
+`pnpm deploy:init` sets up an **empty** database once: collections, indexes, roles and the first Super Admin. It refuses any database that already has user accounts, so it cannot overwrite a live deployment. `--demo` is refused when `NODE_ENV=production`.
+
+1. Create the Atlas cluster, a `readWrite` database user and a network rule for the server ([MongoDB Atlas guide](docs/operations/MONGODB_ATLAS.md), steps 1–2).
+2. On the server, clone and install:
+
+   ```sh
+   git clone --branch development/phase6-cross-device-testing --single-branch https://github.com/rjgrl/collab.git
+   cd collab
+   pnpm install --frozen-lockfile
+   pnpm tools:mongodb            # mongodump/mongorestore, for in-app backups
+   ```
+
+3. Create `apps/server/.env` from `apps/server/.env.example` and fill it privately. At minimum: `NODE_ENV=production`, `DATABASE_URL=mongodb+srv://...` (Atlas, with the database name in the path) and the encryption keys listed in the [deployment guide](docs/deployment.md#environment-inventory).
+4. Put the first Super Admin in `packages/db/.env` (or the shell environment; never on the command line):
+
+   ```dotenv
+   SEED_ADMIN_EMAIL=you@your-institution.edu
+   SEED_ADMIN_PASSWORD=<15+ characters with upper, lower, number and a special character or space>
+   ```
+
+5. Initialize, check, build and start:
+
+   ```sh
+   pnpm deploy:init              # clean; or: pnpm deploy:init --demo  (staging/presentation only)
+   pnpm db:verify-transactions   # rollback-only transaction probe
+   pnpm build
+   ```
+
+   Run the API with `pnpm --filter server start` under a process manager, behind HTTPS, and serve the built web app from the same origin ([HTTPS and process configuration](docs/deployment.md#https-and-process-configuration)).
+
+6. Delete `SEED_ADMIN_PASSWORD` from `packages/db/.env`, sign in, enroll an authenticator, and enable integrations in Settings.
+
 ## First run after cloning
 
 ```sh

@@ -55,6 +55,17 @@ pnpm --filter @Alumni-Tracking-Ss/db db:verify-transactions   # rollback-only pr
 pnpm --filter @Alumni-Tracking-Ss/db db:migrate --dry-run     # reports, writes nothing
 ```
 
+## Fresh database (no data to copy)
+
+With `DATABASE_URL` pointing at the empty Atlas database and the first Super Admin in `packages/db/.env` (`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`):
+
+```bash
+pnpm deploy:init          # clean: roles, permissions, one Super Admin
+pnpm deploy:init --demo   # seeded: also demo colleges, alumni and logins (refused when NODE_ENV=production)
+```
+
+It refuses a database that already has user accounts, so it is safe to run against the wrong target by mistake. Remove `SEED_ADMIN_PASSWORD` afterwards. Use section 3 instead when you are copying existing data.
+
 ## 3. Later: migrate the presentation data to Atlas
 
 Run this on the device that holds the presentation data. It copies the database as-is; nothing is
