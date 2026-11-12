@@ -2,6 +2,13 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-12 (alumni photos, paginated tracking, Atlas runbook)
+
+- Alumni detail header shows the profile photo; Super Admins and the directly assigned faculty tracker can upload, replace or remove it (audited `alumni.photo.remove`). Others who can view the alumnus only see it. Cross-user account-photo reads now require alumni scope.
+- Tracking history is a server-paginated table (Date, Status, Tracker, Source, Notes; 10/25/50 rows; numbered pages; total count).
+- Atlas: `docs/operations/MONGODB_ATLAS.md` covers hosted setup and the later presentation-data migration. Nothing was connected or migrated from this device.
+- Note: this checkout had been reset to `2820a1d` (17 commits behind); it was fast-forwarded to `d83726d` before the work.
+
 ## 2026-11-12 (decluttered sign-up, Account and edit-heavy surfaces)
 
 - Sign-up is now a calm single page with four numbered groups, optional middle name/suffix/Facebook disclosures, compact live password chips, and unavailable Google authentication omitted instead of disabled.

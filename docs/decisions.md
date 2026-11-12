@@ -120,3 +120,19 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Why: the previous pages exposed too many fields and native controls at once, obscuring the primary task on both desktop and mobile. Read-first cards preserve scanability without changing server contracts, ownership, verification, or authorization.
 - Accessibility: established labels remain stable, optional disclosures transfer focus, dialog focus is trapped and returned, and browser coverage runs desktop/mobile plus light/dark axe WCAG 2.2 AA checks. Base UI's invisible popup focus sentinels are excluded only from axe scans while a popup is open; popup content and keyboard behavior remain covered.
 - Rejected: a multi-step sign-up wizard (more navigation and state for the same compact form), a visual rebrand, and custom file controls that hide or replace the native input.
+
+## 2026-11-12: Alumni photos are changed only by Super Admins and the assigned tracker
+
+- Decision: the alumni detail header shows the profile photo to anyone who may view that alumnus. Uploading, replacing or removing it from the staff side is limited to Super Admins and the faculty member whose record is the alumnus's `assignedFacultyId` (`canManageAlumniPhoto` in `apps/server/src/modules/alumni/access.ts`); department/college heads and other faculty can only view. Alumni keep their own photo controls.
+- Enforcement is server-side on both write paths (image upload via `POST /files/evidence` and the new `DELETE /alumni/:alumniId/photo`), on top of the existing permission and scope checks. The new delete route exists because Faculty do not hold `files.delete`; granting it would also allow deleting evidence.
+- Also tightened: `GET /account-photos/...` for another user now requires the alumnus to be in the viewer's alumni scope; `alumni.read` alone no longer suffices.
+
+## 2026-11-12: Tracking history is paginated on the server
+
+- Decision: `GET /alumni/:alumniId/tracking-events?page&pageSize` returns `{ items, page, pageSize, total }`, newest first, page sizes 10/25/50 only, with the tracker's display name. The detail page renders it as a table with numbered pages.
+- Kept: the alumni detail response still embeds `trackingEvents` for API compatibility (Profile PDF and older clients). Removing it is a later, versioned change.
+
+## 2026-11-12: MongoDB Atlas for hosted environments only
+
+- Decision: staging and production use Atlas through the existing `DATABASE_URL`; local development and every automated test keep the native `rs0` replica set, so tests stay offline and isolated. No Atlas-specific code was needed.
+- The presentation data will be migrated later from another device with the commands in `docs/operations/MONGODB_ATLAS.md` (config files instead of URIs on the command line; the same encryption keys and `UPLOAD_DIR` must move with the data).

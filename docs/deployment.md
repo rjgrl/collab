@@ -6,7 +6,7 @@ Use an isolated staging environment before releasing private alumni data. Local 
 
 ## Hosting layout
 
-Use one Node service and the built static web application behind one HTTPS origin, with a private persistent upload directory and a MongoDB replica set. This fits the existing session cookies, proxy paths, and local-storage fallback without adding provider-specific infrastructure. A managed MongoDB replica set or an operator-maintained replica set works; a standalone MongoDB server does not support the transactions used by Mongoose. Keep one application instance until shared file storage and distributed rate limiting are provisioned.
+Use one Node service and the built static web application behind one HTTPS origin, with a private persistent upload directory and a MongoDB replica set. This fits the existing session cookies, proxy paths, and local-storage fallback without adding provider-specific infrastructure. Hosted environments use MongoDB Atlas; see `docs/operations/MONGODB_ATLAS.md` for cluster, user and network setup and the later data-migration commands. Local development and tests stay on the native `rs0` replica set. A standalone MongoDB server does not support the transactions used by Mongoose. Keep one application instance until shared file storage and distributed rate limiting are provisioned.
 
 The Mongoose application requires no generated Prisma client or native query engine. Use the pinned Node 26.10.0 and pnpm 12.5.1 toolchain. Supported Node ranges are 22.18+, 24.11+, or 26+; verify a different runtime before adopting it.
 
