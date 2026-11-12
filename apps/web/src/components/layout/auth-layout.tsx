@@ -5,9 +5,9 @@ import type { ReactNode } from "react";
 import { BrandMark } from "@/components/layout/brand-mark";
 
 const HIGHLIGHTS = [
-  "Alumni keep their own profile and employment current",
+  "Alumni keep their profiles and employment records current",
   "Faculty follow up with the alumni assigned to them",
-  "Heads see tracking progress across their departments",
+  "Academic leaders monitor progress across their scope",
 ];
 
 /**
@@ -22,15 +22,15 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
           src="/brand/cot-building.webp"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 size-full object-cover object-center"
+          className="pointer-events-none absolute inset-0 size-full object-cover object-center opacity-55 saturate-75"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-sidebar/75"
+          className="pointer-events-none absolute inset-0 bg-sidebar/65 mix-blend-color"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-linear-to-b from-sidebar/35 via-sidebar/65 to-sidebar"
+          className="pointer-events-none absolute inset-0 bg-linear-to-b from-sidebar/45 via-sidebar/70 to-sidebar"
         />
         <div
           aria-hidden="true"
@@ -40,16 +40,20 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
           aria-hidden="true"
           className="pointer-events-none absolute -right-24 -bottom-40 size-[28rem] rounded-full bg-sidebar-accent blur-3xl"
         />
-        <p className="relative z-10 flex items-center gap-3 text-sm font-semibold text-sidebar-accent-foreground">
-          <BrandMark />
-          Alumni tracking system
-        </p>
+        <div className="relative z-10 flex items-center gap-3 text-sidebar-accent-foreground">
+          <BrandMark className="size-12" />
+          <div className="min-w-0 leading-tight">
+            <p className="text-sm font-semibold">Bukidnon State University</p>
+            <p className="mt-0.5 text-xs text-sidebar-foreground">Alumni tracking system</p>
+          </div>
+        </div>
         <div className="relative z-10 mt-auto max-w-md">
           <p className="text-3xl leading-tight font-semibold tracking-tight text-balance text-sidebar-accent-foreground">
-            Keep every graduate&apos;s story connected to the university.
+            Keep every graduate connected to Bukidnon State University.
           </p>
-          <p className="mt-3 text-base text-sidebar-foreground">
-            One registry for alumni profiles, employment and evidence across every college.
+          <p className="mt-3 text-base leading-relaxed text-sidebar-foreground">
+            A secure university registry for alumni profiles, employment records and supporting
+            evidence across every college.
           </p>
           <ul className="mt-8 flex flex-col gap-3 text-sm">
             {HIGHLIGHTS.map((item) => (
