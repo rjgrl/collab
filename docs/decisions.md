@@ -150,7 +150,7 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Contacts: the alumni profile shows the email, phone and Facebook the alumnus entered at sign-up (`Alumni.personalEmail/mobileNumber/facebookAccount`, kept in sync with their account) as a read-only "From sign-up" group above staff-added contacts. Staff don't edit them; the alumnus does, in Settings.
 - Audit log: the column is "User", with the user's email (recorded at event time) under the name. This supersedes the earlier "email only in details" choice at the owner's request.
 - Photos: one editor (`apps/web/src/components/account/photo-editor.tsx`) for Settings and the staff alumni dialog. A large centered preview, choose/upload below, live preview of the chosen file with zoom (slider, buttons, wheel, +/-) and drag (pointer or arrow keys). The crop is drawn in the browser to a 512×512 image and uploaded only on Upload; the server still validates, resizes and strips metadata. GIFs are saved as a still frame.
-- Profile PDF: the current photo is printed at 64pt beside the name, made on the server as a small rounded PNG data URL from this app's stored files only. pdfmake still refuses every URL and file. If the photo can't be read, the PDF renders without it.
+- Profile PDF: the current photo is printed at 64pt beside the name, made on the server as a small square PNG data URL from this app's stored files only. pdfmake still refuses every URL and file. If the photo can't be read, the PDF renders without it.
 
 ## 2026-11-12: Photo editing is staged until Save
 

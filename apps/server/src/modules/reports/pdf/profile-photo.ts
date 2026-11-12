@@ -10,7 +10,7 @@ async function toBuffer(data: Awaited<ReturnType<typeof readPrivateFile>>) {
 }
 
 /**
- * The alumnus's current photo as a small rounded PNG data URL for pdfmake, or null when there is
+ * The alumnus's current photo as a small square PNG data URL for pdfmake, or null when there is
  * no photo or it cannot be read. Only this app's stored photos are read; never an arbitrary URL.
  */
 export async function profilePhotoDataUrl(
@@ -46,12 +46,9 @@ export async function profilePhotoDataUrl(
     const source = await toBuffer(
       await readPrivateFile(context.integrationEnv, { ...record, url: record.url ?? null }),
     );
-    const mask = Buffer.from(
-      `<svg width="${EDGE}" height="${EDGE}"><rect width="${EDGE}" height="${EDGE}" rx="${EDGE / 6}" ry="${EDGE / 6}"/></svg>`,
-    );
+    // Square corners, like an ID photo.
     const png = await sharp(source, { limitInputPixels: 40_000_000, animated: false })
       .resize(EDGE, EDGE, { fit: "cover" })
-      .composite([{ input: mask, blend: "dest-in" }])
       .png()
       .toBuffer();
     return `data:image/png;base64,${png.toString("base64")}`;
