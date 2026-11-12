@@ -42,7 +42,7 @@ export function RolesPage() {
                 setCreating(true);
               }}
             >
-              Add Role
+              Add role
             </PrimaryButton>
           ) : null
         }

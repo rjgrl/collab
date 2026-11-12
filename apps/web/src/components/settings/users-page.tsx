@@ -115,7 +115,7 @@ export function UsersPage() {
             </>
           }
           title="Add user"
-          description="Create Super Admin accounts. Add faculty and heads from the Faculty page; alumni register themselves."
+          description="Create super admin accounts. Add faculty and heads from the faculty page; alumni register themselves."
         >
           <form
             id="create-user"
@@ -168,7 +168,7 @@ export function UsersPage() {
                     })
                   }
                 >
-                  {role.key === "super_admin" ? "Super Admin" : role.name}
+                  {role.key === "super_admin" ? "Super admin" : role.name}
                 </CheckboxRow>
               ))}
             </div>

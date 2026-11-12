@@ -37,7 +37,7 @@ import { can, canAssignFaculty, managesFaculty, useSession } from "@/lib/session
 import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 
 const NAV = [
-  { to: "/my-profile", label: "My Profile", permission: null, icon: UserRound },
+  { to: "/my-profile", label: "My profile", permission: null, icon: UserRound },
   { to: "/statistics", label: "University statistics", permission: null, icon: BarChart3 },
   { to: "/dashboard", label: "Dashboard", permission: "dashboard.read", icon: LayoutDashboard },
   { to: "/colleges", label: "Colleges", permission: "departments.read", icon: Landmark },

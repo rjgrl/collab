@@ -342,7 +342,7 @@ export function ContactsPanel({
             <FormField id="contact-label" label="Label">
               <Input
                 id="contact-label"
-                placeholder="Work, Personal…"
+                placeholder="Work, personal…"
                 maxLength={60}
                 value={dialog.label}
                 onChange={(event) => setDialog({ ...dialog, label: event.target.value })}

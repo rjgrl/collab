@@ -22,7 +22,7 @@ test("Alumni with historical MFA enrollment edit personal details only in Settin
   });
   await signIn(page, "alumni@example.test");
   await expect(page).toHaveURL(/\/my-profile$/);
-  await expect(page.getByRole("heading", { name: "My Profile", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My profile", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Alumni", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Members", exact: true })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "First name", exact: true })).toHaveCount(0);

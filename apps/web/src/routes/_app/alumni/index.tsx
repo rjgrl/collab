@@ -379,7 +379,7 @@ function AlumniPage() {
           Accounts awaiting profile completion
         </h2>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-          These Alumni accounts still need student and program details. They appear here until their
+          These alumni accounts still need student and program details. They appear here until their
           owners complete their profile through their own account. They are not included in graduate
           statistics yet. Department and tracking filters apply to completed profiles above.
         </p>
@@ -394,7 +394,7 @@ function AlumniPage() {
           loading={pendingAccounts.isPending}
           isEmpty={pendingAccounts.data?.length === 0}
           emptyTitle="No accounts awaiting profile completion"
-          emptyDescription="All matching Alumni accounts have a linked registry profile."
+          emptyDescription="All matching alumni accounts have a linked registry profile."
         >
           {pendingAccounts.data?.map((account) => (
             <TableRow key={account.id}>
@@ -411,7 +411,7 @@ function AlumniPage() {
           ))}
         </DataTable>
         <TablePagination
-          label="Pending Alumni accounts pagination"
+          label="Pending alumni accounts pagination"
           page={pendingPage}
           onPage={setPendingPage}
           hasNext={pendingAccounts.data?.length === 20}

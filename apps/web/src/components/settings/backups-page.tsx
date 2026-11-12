@@ -478,13 +478,13 @@ export function BackupsPage() {
               {restoreDialog.manifest && (
                 <>
                   <p>
-                    <strong>App Version:</strong> {restoreDialog.manifest.appVersion}
+                    <strong>App version:</strong> {restoreDialog.manifest.appVersion}
                     {restoreDialog.manifest.appVersion !== running.appVersion && (
                       <span className="ml-1 text-amber-600">(Current: {running.appVersion})</span>
                     )}
                   </p>
                   <p>
-                    <strong>Schema Version:</strong> {restoreDialog.manifest.schemaVersion}
+                    <strong>Schema version:</strong> {restoreDialog.manifest.schemaVersion}
                     {restoreDialog.manifest.schemaVersion !== running.schemaVersion && (
                       <span className="ml-1 text-amber-600">
                         (Current: {running.schemaVersion})

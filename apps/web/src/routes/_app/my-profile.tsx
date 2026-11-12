@@ -26,7 +26,7 @@ function MyProfile() {
   return (
     <PageShell>
       <PageHeader
-        title="My Profile"
+        title="My profile"
         description="Your academic record, employment history and supporting evidence."
         actions={
           <>

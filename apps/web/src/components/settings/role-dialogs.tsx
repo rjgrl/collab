@@ -149,7 +149,7 @@ export function AddRoleDialog({
       open
       onOpenChange={onClose}
       pending={create.isPending}
-      title="Add Role"
+      title="Add role"
       description="All permissions start off. Enable only the access this role needs."
       footer={
         <PrimaryButton form="create-role" type="submit" pending={create.isPending}>

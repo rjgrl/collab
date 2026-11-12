@@ -26,7 +26,7 @@ test("managed members are Super Admins while Alumni self-register and legacy rec
   );
   await page.getByRole("button", { name: "Add user", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add user", exact: true });
-  await expect(dialog.getByRole("checkbox", { name: "Super Admin", exact: true })).toBeChecked();
+  await expect(dialog.getByRole("checkbox", { name: "Super admin", exact: true })).toBeChecked();
   await expect(dialog.getByRole("checkbox")).toHaveCount(1);
   for (const name of ["Alumni", "Viewer"])
     await expect(dialog.getByRole("checkbox", { name, exact: true })).toHaveCount(0);

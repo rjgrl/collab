@@ -169,8 +169,8 @@ test("new roles show the full catalog switched off and persist without grants", 
   page,
 }) => {
   await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.getByRole("button", { name: "Add Role", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Add Role", exact: true });
+  await page.getByRole("button", { name: "Add role", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add role", exact: true });
   expect(await dialog.getByRole("switch").count()).toBeGreaterThan(25);
   await expect(dialog.getByRole("switch", { checked: true })).toHaveCount(0);
   await expect(dialog.getByText(/facult/i)).toHaveCount(0);
@@ -250,8 +250,8 @@ test("account controls remain reachable and role dialogs scroll internally", asy
 
 test("role notes show on cards and can be edited", async ({ page }) => {
   await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.getByRole("button", { name: "Add Role", exact: true }).click();
-  const addDialog = page.getByRole("dialog", { name: "Add Role", exact: true });
+  await page.getByRole("button", { name: "Add role", exact: true }).click();
+  const addDialog = page.getByRole("dialog", { name: "Add role", exact: true });
 
   // Check that the Note field exists and Description does not
   await expect(addDialog.getByRole("textbox", { name: "Note", exact: true })).toBeVisible();
@@ -294,9 +294,9 @@ test("role notes show on cards and can be edited", async ({ page }) => {
   const newCardText = await page.getByRole("button", { name: /Note Probe/ }).innerText();
   expect(newCardText).toContain("Second note");
 
-  // Open Add Role again and verify duplicate name warning appears
-  await page.getByRole("button", { name: "Add Role", exact: true }).click();
-  const newAddDialog = page.getByRole("dialog", { name: "Add Role", exact: true });
+  // Open Add role again and verify duplicate name warning appears
+  await page.getByRole("button", { name: "Add role", exact: true }).click();
+  const newAddDialog = page.getByRole("dialog", { name: "Add role", exact: true });
   await newAddDialog.getByRole("textbox", { name: "Name", exact: true }).fill("Note Probe");
   await expect(
     newAddDialog
@@ -367,7 +367,7 @@ test("Super Admins edit a member's role through exact permission matching", asyn
   ).toEqual([]);
 
   await dialog.getByRole("button", { name: "Create a new role with these permissions" }).click();
-  const add = page.getByRole("dialog", { name: "Add Role", exact: true });
+  const add = page.getByRole("dialog", { name: "Add role", exact: true });
   await add.getByRole("textbox", { name: "Key", exact: true }).fill("probe_writer");
   await add.getByRole("textbox", { name: "Name", exact: true }).fill("Probe Writer");
   await add.getByRole("button", { name: "Create role", exact: true }).click();
