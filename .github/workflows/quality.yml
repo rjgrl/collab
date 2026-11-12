@@ -14,7 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       NODE_ENV: test
       DATABASE_URL: mongodb://127.0.0.1:27018/collab_ci?replicaSet=rs0

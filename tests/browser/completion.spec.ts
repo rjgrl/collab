@@ -207,7 +207,7 @@ test("local Alumni registration persists academic identity, employment and owned
   ).toBeVisible();
   await page.goto("/my-profile");
   await expect(page.getByRole("img", { name: /profile photo$/ })).toHaveCount(1);
-  await expect(page.locator("header img")).toBeVisible();
+  await expect(page.locator('header img:not([src="/brand/buksu-cot-seal.webp"])')).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Preview Profile photo.png", exact: true }),
   ).toHaveCount(0);
