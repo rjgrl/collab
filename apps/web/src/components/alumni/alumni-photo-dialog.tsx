@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { PhotoEditorView, usePhotoEditor } from "@/components/account/photo-editor";
-import { useConfirm } from "@/components/feedback/confirm-provider";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { PrimaryButton } from "@/components/forms/form-layout";
 import { client, queryClient, uploadProfileFile } from "@/lib/api";
@@ -21,48 +20,43 @@ export function AlumniPhotoDialog({
   onClose: () => void;
 }) {
   const id = useId();
-  const confirmAction = useConfirm();
-  const editor = usePhotoEditor();
+  const editor = usePhotoEditor(photoUrl);
   const [progress, setProgress] = useState(0);
-  const upload = useMutation({
+  // One save applies whatever is pending: a removal, a new photo, or a repositioned one.
+  const save = useMutation({
     mutationFn: async () => {
-      if (!editor.loaded) throw new Error("Choose a photo before uploading.");
+      if (editor.removed)
+        return { removed: true, result: await client.alumni.removePhoto({ alumniId }) };
       setProgress(0);
-      return uploadProfileFile({
-        file: await editor.crop(),
-        kind: "image",
-        alumniId,
-        onProgress: setProgress,
-      });
+      return {
+        removed: false,
+        result: await uploadProfileFile({
+          file: await editor.crop(),
+          kind: "image",
+          alumniId,
+          onProgress: setProgress,
+        }),
+      };
     },
-    onSuccess: async () => {
-      toast.success("Profile photo updated");
+    onSuccess: async ({ removed }) => {
+      toast.success(removed ? "Profile photo removed" : "Profile photo saved");
       await queryClient.invalidateQueries();
       onClose();
     },
   });
-  const remove = useMutation({
-    mutationFn: () => client.alumni.removePhoto({ alumniId }),
-    onSuccess: async () => {
-      toast.success("Profile photo removed");
-      await queryClient.invalidateQueries();
-      onClose();
-    },
-  });
-  const pending = upload.isPending || remove.isPending;
   return (
     <FormDialog
       open
       onOpenChange={(open) => !open && onClose()}
-      pending={pending}
+      pending={save.isPending}
       title="Change profile photo"
-      description={`Set, replace or remove the photo shown for ${name}.`}
+      description={`Set, adjust or remove the photo shown for ${name}.`}
     >
       <form
         className="flex flex-col items-center gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          upload.mutate();
+          save.mutate();
         }}
       >
         <PhotoEditorView
@@ -72,45 +66,40 @@ export function AlumniPhotoDialog({
           inputId={`${id}-photo`}
           accessibleLabel="Choose profile photo"
           accept="image/jpeg,image/png,image/webp"
-          disabled={pending}
+          disabled={save.isPending}
           help="JPEG, PNG or WebP, up to 10 MB."
         />
-        {upload.isPending ? (
+        {save.isPending && !editor.removed ? (
           <p role="status" className="text-sm">
             Uploading {progress}%
           </p>
         ) : null}
-        {upload.error ? <ErrorAlert>{upload.error.message}</ErrorAlert> : null}
-        {remove.error ? <ErrorAlert>{remove.error.message}</ErrorAlert> : null}
+        {save.error ? <ErrorAlert>{save.error.message}</ErrorAlert> : null}
         <div className="flex flex-wrap justify-center gap-2">
           <PrimaryButton
             type="submit"
-            pending={upload.isPending}
-            pendingLabel="Uploading"
-            disabled={!editor.loaded}
+            pending={save.isPending}
+            pendingLabel="Saving"
+            disabled={!editor.dirty}
           >
-            {photoUrl ? "Replace photo" : "Upload photo"}
+            {editor.isNewFile ? "Upload photo" : "Save changes"}
           </PrimaryButton>
-          {editor.file ? (
-            <Button type="button" variant="outline" disabled={pending} onClick={editor.reset}>
-              Discard
+          {editor.dirty ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={save.isPending}
+              onClick={editor.discard}
+            >
+              Discard changes
             </Button>
-          ) : photoUrl ? (
+          ) : null}
+          {photoUrl && !editor.removed ? (
             <Button
               type="button"
               variant="destructive"
-              disabled={pending}
-              onClick={async () => {
-                if (
-                  await confirmAction({
-                    title: "Remove profile photo?",
-                    description: `${name} will show a placeholder until a new photo is added.`,
-                    confirmLabel: "Remove photo",
-                    destructive: true,
-                  })
-                )
-                  remove.mutate();
-              }}
+              disabled={save.isPending}
+              onClick={editor.remove}
             >
               Remove photo
             </Button>

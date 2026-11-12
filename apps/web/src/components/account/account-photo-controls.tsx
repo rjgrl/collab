@@ -12,27 +12,33 @@ import { PhotoEditorView, usePhotoEditor } from "@/components/account/photo-edit
 
 export function AccountPhotoControls({ image, name }: { image?: string | null; name: string }) {
   const id = useId();
-  const editor = usePhotoEditor();
+  const editor = usePhotoEditor(image);
   const [progress, setProgress] = useState(0);
-  const mutation = useMutation({
-    mutationFn: async (action: "upload" | "remove") => {
-      if (action === "remove") return removeAccountPhoto();
-      if (!editor.file) throw new Error("Choose a photo before uploading.");
-      if (!(ACCOUNT_PHOTO_TYPES as readonly string[]).includes(editor.file.type))
-        throw new Error("Choose a JPEG, PNG, WebP, or GIF photo.");
-      if (editor.file.size > MAX_ACCOUNT_PHOTO_BYTES)
-        throw new Error("Photo must be 10 MB or smaller.");
+  // One save applies whatever is pending: a removal, a new photo, or a repositioned one.
+  const save = useMutation({
+    mutationFn: async () => {
+      if (editor.removed) {
+        await removeAccountPhoto();
+        return "removed" as const;
+      }
+      if (editor.file) {
+        if (!(ACCOUNT_PHOTO_TYPES as readonly string[]).includes(editor.file.type))
+          throw new Error("Choose a JPEG, PNG, WebP, or GIF photo.");
+        if (editor.file.size > MAX_ACCOUNT_PHOTO_BYTES)
+          throw new Error("Photo must be 10 MB or smaller.");
+      }
       setProgress(0);
-      return uploadAccountPhoto(await editor.crop(), setProgress);
+      await uploadAccountPhoto(await editor.crop(), setProgress);
+      return "saved" as const;
     },
-    onSuccess: async (_result, action) => {
-      editor.reset();
-      toast.success(action === "remove" ? "Profile photo removed" : "Profile photo updated");
+    onSuccess: async (outcome) => {
+      toast.success(outcome === "removed" ? "Profile photo removed" : "Profile photo saved");
       await queryClient.invalidateQueries();
+      editor.discard();
     },
   });
   return (
-    <div className="flex flex-col items-center gap-4" aria-busy={mutation.isPending}>
+    <div className="flex flex-col items-center gap-4" aria-busy={save.isPending}>
       <PhotoEditorView
         editor={editor}
         currentImage={image}
@@ -40,42 +46,34 @@ export function AccountPhotoControls({ image, name }: { image?: string | null; n
         inputId={id}
         accessibleLabel="Profile photo"
         accept={ACCOUNT_PHOTO_TYPES.join(",")}
-        disabled={mutation.isPending}
+        disabled={save.isPending}
         help="JPEG, PNG, WebP, or GIF. Maximum 10 MB."
       />
       <div className="flex flex-wrap justify-center gap-2">
         <Button
           type="button"
-          disabled={!editor.loaded || mutation.isPending}
-          onClick={() => mutation.mutate("upload")}
+          disabled={!editor.dirty || save.isPending}
+          onClick={() => save.mutate()}
         >
-          {mutation.isPending && mutation.variables === "upload"
-            ? "Uploading…"
-            : image
-              ? "Replace photo"
-              : "Upload photo"}
+          {save.isPending ? "Saving…" : editor.isNewFile ? "Upload photo" : "Save changes"}
         </Button>
-        {editor.file ? (
+        {editor.dirty ? (
           <Button
             type="button"
             variant="outline"
-            disabled={mutation.isPending}
-            onClick={editor.reset}
+            disabled={save.isPending}
+            onClick={editor.discard}
           >
-            Discard
+            Discard changes
           </Button>
-        ) : image ? (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={mutation.isPending}
-            onClick={() => mutation.mutate("remove")}
-          >
-            {mutation.isPending && mutation.variables === "remove" ? "Removing…" : "Remove photo"}
+        ) : null}
+        {image && !editor.removed ? (
+          <Button type="button" variant="outline" disabled={save.isPending} onClick={editor.remove}>
+            Remove photo
           </Button>
         ) : null}
       </div>
-      {mutation.isPending && mutation.variables === "upload" ? (
+      {save.isPending && !editor.removed ? (
         <div role="status" className="w-full max-w-xs space-y-1 text-xs text-muted-foreground">
           <progress
             className="h-2 w-full"
@@ -86,9 +84,9 @@ export function AccountPhotoControls({ image, name }: { image?: string | null; n
           <p>{progress === 100 ? "Saving photo…" : `Uploading photo: ${progress}%`}</p>
         </div>
       ) : null}
-      {mutation.error ? (
+      {save.error ? (
         <p role="alert" className="text-sm text-destructive">
-          {mutation.error.message}
+          {save.error.message}
         </p>
       ) : null}
     </div>

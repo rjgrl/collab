@@ -2,8 +2,8 @@ import sharp from "sharp";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { readPrivateFile } from "@Alumni-Tracking-Ss/api/integrations/files";
 
-/** Edge of the embedded photo in pixels (printed at 72pt, so it stays sharp but small). */
-const EDGE = 192;
+/** Edge of the embedded photo in pixels: printed at 2 × 2 inches, about 216 dpi. */
+const EDGE = 432;
 
 async function toBuffer(data: Awaited<ReturnType<typeof readPrivateFile>>) {
   return Buffer.isBuffer(data) ? data : Buffer.from(await new Response(data).arrayBuffer());

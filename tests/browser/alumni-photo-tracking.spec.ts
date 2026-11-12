@@ -83,14 +83,50 @@ test("only Super Admins and the assigned faculty tracker change an alumnus photo
   expect(pdf.status()).toBe(200);
   expect((await pdf.body()).toString("latin1")).toMatch(/\/Subtype \/Image/);
   await uploadPhoto(page);
+
+  // Re-opening loads the current photo so it can be zoomed and moved, then saved.
+  const photoBefore = (
+    await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json()
+  ).photoUrl;
   await page.getByRole("button", { name: "Change photo", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });
+  const current = dialog.getByRole("group", { name: /Photo preview/ });
+  await expect(current.getByRole("img", { name: "Test Alumni's profile photo" })).toBeVisible();
+  const save = dialog.getByRole("button", { name: "Save changes", exact: true });
+  await expect(save).toBeDisabled();
+  await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
+  // Dragging moves the image with a transform, not by re-laying out the page.
+  const frameBox = (await current.boundingBox())!;
+  await page.mouse.move(frameBox.x + 120, frameBox.y + 120);
+  await page.mouse.down();
+  await page.mouse.move(frameBox.x + 150, frameBox.y + 130, { steps: 5 });
+  await page.mouse.up();
+  await expect(current.locator("img")).toHaveCSS("transform", /matrix/);
+  await save.click();
+  await expect(dialog).toHaveCount(0);
+  expect(
+    (await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json()).photoUrl,
+  ).not.toBe(photoBefore);
+
+  // Removing is staged: the dialog stays open and nothing changes until Save.
+  await page.getByRole("button", { name: "Change photo", exact: true }).click();
   await dialog.getByRole("button", { name: "Remove photo", exact: true }).click();
-  await page
-    .getByRole("alertdialog", { name: "Remove profile photo?" })
-    .getByRole("button", { name: "Remove photo", exact: true })
-    .click();
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText("Photo will be removed when you save.", { exact: false }),
+  ).toBeVisible();
+  expect(
+    (await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json()).photoUrl,
+  ).toBeTruthy();
+  await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Test Alumni's profile" })).toBeVisible();
+
+  // With no photo, there is nothing to reposition: just the placeholder and Choose photo.
+  await page.getByRole("button", { name: "Change photo", exact: true }).click();
+  await expect(dialog.getByRole("group", { name: /Photo preview/ })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Remove photo", exact: true })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   const audit = await (
     await page.request.get("/api/v1/alumni/000000000000000000000201/history")
   ).json();

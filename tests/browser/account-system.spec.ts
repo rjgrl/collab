@@ -145,10 +145,11 @@ test("all account roles share personal photo controls and email changes require 
     });
     await member.goto("/settings");
     await member.getByRole("button", { name: "Change photo", exact: true }).click();
-    await member
-      .getByRole("dialog", { name: "Change profile photo", exact: true })
-      .getByRole("button", { name: "Remove photo", exact: true })
-      .click();
+    const settingsPhoto = member.getByRole("dialog", { name: "Change profile photo", exact: true });
+    await settingsPhoto.getByRole("button", { name: "Remove photo", exact: true }).click();
+    // Removal waits for Save; the photo is still stored until then.
+    expect((await member.request.get(alumniPhoto)).status()).toBe(200);
+    await settingsPhoto.getByRole("button", { name: "Save changes", exact: true }).click();
     await expect(member.locator("header img")).toHaveCount(0);
     expect((await member.request.get(alumniPhoto)).status()).toBe(404);
     expect((await (await member.request.get("/api/me/profile")).json()).photoUrl).toBeNull();

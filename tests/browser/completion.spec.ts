@@ -52,7 +52,10 @@ test("managed members are Super Admins while Alumni self-register and legacy rec
     page.getByText(/Alumni self-register to create their account and profile/),
   ).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: "managed@example.test" })).toHaveCount(0);
-  const pending = page.getByRole("row").filter({ hasText: "alumni@example.test" });
+  const pending = page
+    .getByRole("row")
+    .filter({ hasText: "alumni@example.test" })
+    .filter({ hasText: "Awaiting profile completion" });
   await expect(pending.getByText("Awaiting profile completion", { exact: true })).toBeVisible();
   await page.goto("/alumni/new");
   await expect(page).toHaveURL(/\/alumni$/);

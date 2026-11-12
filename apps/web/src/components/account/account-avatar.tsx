@@ -3,6 +3,14 @@ import { UserRound } from "lucide-react";
 import { cn } from "@Alumni-Tracking-Ss/ui/lib/utils";
 import { ENV } from "@/env";
 
+/** Absolute, viewable URL for a stored photo path (or an external URL as-is). */
+export function photoSource(image?: string | null) {
+  if (!image) return undefined;
+  return image.startsWith("/api/")
+    ? `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${image}${/^\/api\/(?:me\/)?files\/[a-f\d]{24}$/i.test(image) ? "?preview=1" : ""}`
+    : image;
+}
+
 export function AccountAvatar({
   image,
   name,
@@ -13,9 +21,7 @@ export function AccountAvatar({
   className?: string;
 }) {
   const [failedImage, setFailedImage] = useState<string>();
-  const source = image?.startsWith("/api/")
-    ? `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}${image}${/^\/api\/(?:me\/)?files\/[a-f\d]{24}$/i.test(image) ? "?preview=1" : ""}`
-    : image;
+  const source = photoSource(image);
   return (
     <span
       className={cn(

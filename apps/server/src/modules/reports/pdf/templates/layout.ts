@@ -35,8 +35,9 @@ export function frame(input: {
         ? [
             {
               columns: [
-                { image: input.photo, width: 64, height: 64 },
-                { stack: heading, margin: [0, 14, 0, 0] },
+                // 2 × 2 inches (72 pt per inch).
+                { image: input.photo, width: 144, height: 144 },
+                { stack: heading, margin: [0, 52, 0, 0] },
               ],
               columnGap: 12,
             },

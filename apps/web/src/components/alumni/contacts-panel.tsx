@@ -153,9 +153,6 @@ export function ContactsPanel({
                 </div>
               ))}
             </dl>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The alumnus updates these in their account settings.
-            </p>
           </section>
         ) : null}
         {signupRows.length && contacts.length ? (

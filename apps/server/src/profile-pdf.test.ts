@@ -37,6 +37,6 @@ it("prints a small profile photo beside the name and still renders without one",
   const without = await renderPdf(profileSheet(record, meta));
   assert.match(withPhoto.toString("latin1"), /\/Subtype \/Image/);
   assert.doesNotMatch(without.toString("latin1"), /\/Subtype \/Image/);
-  // Still one page: the 64pt image does not push the layout around.
+  // Still one page: the 2 × 2 inch image does not push the layout around.
   assert.equal(withPhoto.toString("latin1").match(/\/Type \/Page\b/g)?.length, 1);
 });

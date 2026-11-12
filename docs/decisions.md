@@ -151,3 +151,11 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Audit log: the column is "User", with the user's email (recorded at event time) under the name. This supersedes the earlier "email only in details" choice at the owner's request.
 - Photos: one editor (`apps/web/src/components/account/photo-editor.tsx`) for Settings and the staff alumni dialog. A large centered preview, choose/upload below, live preview of the chosen file with zoom (slider, buttons, wheel, +/-) and drag (pointer or arrow keys). The crop is drawn in the browser to a 512×512 image and uploaded only on Upload; the server still validates, resizes and strips metadata. GIFs are saved as a still frame.
 - Profile PDF: the current photo is printed at 64pt beside the name, made on the server as a small rounded PNG data URL from this app's stored files only. pdfmake still refuses every URL and file. If the photo can't be read, the PDF renders without it.
+
+## 2026-11-12: Photo editing is staged until Save
+
+- Re-opening "Change profile photo" loads the current photo into the editor so it can be zoomed and moved. With no photo, only the placeholder and "Choose photo" show.
+- Remove no longer closes the dialog or deletes immediately: it stages the removal ("Photo will be removed when you save"), and "Save changes" applies it. One Save applies whatever is pending (removal, new photo or repositioned photo); "Discard changes" restores the current photo. The confirm prompt was dropped because Save is now the confirmation.
+- Smoother editing: the preview moves with a GPU `translate3d/scale` transform written straight to the image during a drag (one frame at a time), and React updates only on release, instead of re-laying out the image and re-rendering the dialog on every pointer move.
+- Re-saving a repositioned photo re-crops the stored 512×512 image, so zooming far in on an old photo loses some sharpness; choosing the original file again gives full quality.
+- Profile PDF photo is now 2 × 2 inches (144pt), rendered at 432px.
