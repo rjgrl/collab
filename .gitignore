@@ -123,3 +123,4 @@ playwright-report/
 !/docs/api/
 /docs/api/*
 !/docs/api/openapi.json
+/.thinkrail.zip
