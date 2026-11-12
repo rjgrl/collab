@@ -97,12 +97,17 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     );
   await fillMissingEnv(path.join(root, "apps/server/.env"), {
     NODE_ENV: "development",
+    LOCAL_DISABLE_MFA: "true",
+    ALLOW_PUBLIC_SIGNUP: "true",
+    LOCAL_REQUIRE_EMAIL_VERIFICATION: "false",
+    LOCAL_REQUIRE_PHONE_VERIFICATION: "false",
     CORS_ORIGIN: "http://localhost:3001",
     APP_URL: "http://localhost:3000",
     DATABASE_URL: databaseUrl,
     UPLOAD_DIR: "./uploads",
     SESSION_SECRET: randomBytes(32).toString("hex"),
     MFA_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
+    INTEGRATION_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
   });
   await fillMissingEnv(path.join(root, "apps/web/.env"), {
     NODE_ENV: "development",
@@ -126,6 +131,7 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     email,
     password,
     loginFile,
-    demo: demo || effective.SEED_DEMO_DATA === "true",
+    // The caller decides; a stale SEED_DEMO_DATA in packages/db/.env no longer overrides it.
+    demo,
   };
 }

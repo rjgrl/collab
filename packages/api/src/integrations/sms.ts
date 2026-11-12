@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/server";
+import { ApiError } from "../http-error";
 import type { IntegrationEnv } from "../context";
 
 // SMS delivery is deliberately unconnected. A real provider must be wired at
@@ -8,7 +8,7 @@ export function smsConfigured(env: IntegrationEnv) {
 }
 function provider(env: IntegrationEnv) {
   if (!env.smsProvider)
-    throw new ORPCError("SERVICE_UNAVAILABLE", {
+    throw new ApiError("SERVICE_UNAVAILABLE", {
       message: "SMS delivery is not connected yet. Phone verification cannot be completed.",
     });
   return env.smsProvider;

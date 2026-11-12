@@ -17,7 +17,8 @@ describe("alumni fields", () => {
     studentNumber: "2020-0001",
     firstName: "Ana",
     lastName: "Cruz",
-    programId: "program",
+    programId: "000000000000000000000301",
+    graduationYear: 2024,
   };
   it("requires Male or Female on creation and editing", () => {
     for (const gender of [undefined, "", "Other", "male"]) {
@@ -27,7 +28,7 @@ describe("alumni fields", () => {
       assert.equal(alumniInputSchema.safeParse({ ...profile, gender }).success, true);
     }
     assert.equal(
-      "batch" in alumniInputSchema.parse({ ...profile, gender: "Female", batch: "2020" }),
+      alumniInputSchema.safeParse({ ...profile, gender: "Female", batch: "2020" }).success,
       false,
     );
   });
@@ -51,7 +52,7 @@ describe("alumni fields", () => {
     }
   });
   it("applies the same gender and Facebook rules to imports", () => {
-    const row = { ...profile, programCode: "BSIT", departmentCode: "IT" };
+    const row = { ...profile, programCode: "BSIT", departmentName: "IT" };
     assert.equal(alumniImportRowSchema.safeParse(row).success, false);
     assert.equal(
       alumniImportRowSchema.safeParse({ ...row, gender: "Female", facebookAccount: "username" })
@@ -115,13 +116,15 @@ describe("google form mapping", () => {
       Gender: "Male",
       Program: "BSIT",
       Department: "IT",
+      "Graduation Year": "2024",
       Tracked: "yes",
       Email: "kai.lim@example.com",
     });
 
     assert.equal(row.studentNumber, "2021-0099");
     assert.equal(row.programCode, "BSIT");
-    assert.equal(row.departmentCode, "IT");
+    assert.equal(row.departmentName, "IT");
+    assert.equal(row.graduationYear, 2024);
     assert.equal(row.isTracked, true);
     assert.equal(row.personalEmail, "kai.lim@example.com");
   });

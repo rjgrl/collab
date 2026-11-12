@@ -1,22 +1,6 @@
 import type { Database } from "@Alumni-Tracking-Ss/db";
-import type { PermissionKey } from "@Alumni-Tracking-Ss/db";
-
-export type AuthUser = {
-  id: string;
-  name: string;
-  email: string;
-  image: string | null;
-  status: "active" | "disabled";
-  needsProfileCompletion?: boolean;
-  needsPassword?: boolean;
-  mfaRequired?: boolean;
-  mfaEnrolled?: boolean;
-  mfaVerified?: boolean;
-  mfaFresh?: boolean;
-  mfaVersion?: string;
-  roles: string[];
-  permissions: PermissionKey[];
-};
+import type { AuthUser } from "@Alumni-Tracking-Ss/contracts/auth";
+export type { AuthUser } from "@Alumni-Tracking-Ss/contracts/auth";
 
 export type IntegrationEnv = {
   recaptchaSecretKey?: string;
@@ -26,15 +10,19 @@ export type IntegrationEnv = {
   googleServiceAccountJson?: string;
   googleDriveFolderId?: string;
   googleSheetsSpreadsheetId?: string;
+  googleSheetsServiceAccountJson?: string;
   googleFormsWebhookSecret?: string;
   smtpUrl?: string;
   smtpFrom?: string;
+  emailApiKey?: string;
   verificationSecret?: string;
   mfaEncryptionKey?: string;
+  integrationEncryptionKey?: string;
   smsProvider?: {
     sendCode: (phone: string) => Promise<string>;
     checkCode: (sid: string, phone: string, code: string) => Promise<boolean>;
   };
+  connectionTester?: (key: string, values: Record<string, string>) => Promise<void>;
   imgbbApiKey?: string;
   imageHostProvider?: string;
   uploadDir?: string;

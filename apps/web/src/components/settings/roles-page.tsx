@@ -1,48 +1,33 @@
-import { Switch } from "@Alumni-Tracking-Ss/ui/components/switch";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
-import {
-  groupPermissions,
-  groupState,
-  togglePermissions,
-} from "@Alumni-Tracking-Ss/api/permission-groups";
-import type { PermissionItem } from "@Alumni-Tracking-Ss/api/permission-groups";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
+import type { PermissionItem } from "@Alumni-Tracking-Ss/contracts/permission-groups";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
+import { PermissionControls, AddRoleDialog, duplicateRoleName } from "./role-dialogs";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 const version = (role: { updatedAt: Date }) => new Date(role.updatedAt).toISOString();
 
 export function RolesPage() {
+  const confirmAction = useConfirm();
   const session = useSession();
-  const roles = useQuery(orpc.roles.list.queryOptions());
+  const roles = useQuery(api.roles.list.queryOptions());
   const catalogAllowed = can(session.data?.permissions, "permissions.read");
   const permissions = useQuery({
-    ...orpc.permissions.list.queryOptions(),
+    ...api.permissions.list.queryOptions(),
     enabled: catalogAllowed,
   });
   const [selected, setSelected] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newIds, setNewIds] = useState<string[]>([]);
-  const [newRole, setNewRole] = useState({ key: "", name: "", description: "" });
-  const create = useMutation({
-    mutationFn: () => client.roles.create({ ...newRole, permissionIds: newIds }),
-    onSuccess: async (created) => {
-      await queryClient.invalidateQueries();
-      setDirty(false);
-      setSelected(created.id);
-      setCreating(false);
-      setNewIds([]);
-      setNewRole({ key: "", name: "", description: "" });
-      toast.success("Role created");
-    },
-    onError: (error) => toast.error(error.message),
-  });
   const current = roles.data?.find((role) => role.id === selected);
   return (
     <PageShell>
@@ -54,104 +39,68 @@ export function RolesPage() {
             <PrimaryButton
               disabled={!permissions.data}
               onClick={() => {
-                create.reset();
-                setNewRole({ key: "", name: "", description: "" });
-                setNewIds([]);
                 setCreating(true);
               }}
             >
-              Add Role
+              Add role
             </PrimaryButton>
           ) : null
         }
       />
       {creating && permissions.data ? (
-        <FormDialog
-          open
-          onOpenChange={setCreating}
-          pending={create.isPending}
-          title="Add Role"
-          description="All permissions start off. Enable only the access this role needs."
-          footer={
-            <PrimaryButton form="create-role" type="submit" pending={create.isPending}>
-              Create role
-            </PrimaryButton>
-          }
-        >
-          <form
-            id="create-role"
-            className="grid gap-3 sm:grid-cols-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!dirty || window.confirm("Discard unsaved permission changes?")) {
-                create.mutate();
-              }
-            }}
-          >
-            <FormField id="role-key" label="Key" required>
-              <Input
-                id="role-key"
-                required
-                pattern="[a-z][a-z0-9_]{0,63}"
-                maxLength={64}
-                value={newRole.key}
-                onChange={(event) => setNewRole({ ...newRole, key: event.target.value })}
-              />
-            </FormField>
-            <FormField id="role-name" label="Name" required>
-              <Input
-                id="role-name"
-                required
-                maxLength={80}
-                value={newRole.name}
-                onChange={(event) => setNewRole({ ...newRole, name: event.target.value })}
-              />
-            </FormField>
-            <FormField id="role-description" label="Description">
-              <Input
-                id="role-description"
-                maxLength={400}
-                value={newRole.description}
-                onChange={(event) => setNewRole({ ...newRole, description: event.target.value })}
-              />
-            </FormField>
-            {create.isError ? <p role="alert">{create.error.message}</p> : null}
-            <div className="sm:col-span-2">
-              <PermissionControls
-                permissions={permissions.data}
-                ids={newIds}
-                setIds={setNewIds}
-                locked={create.isPending}
-              />
-            </div>
-          </form>
-        </FormDialog>
+        <AddRoleDialog
+          permissions={permissions.data}
+          roles={roles.data || []}
+          onClose={() => setCreating(false)}
+          onCreated={(created) => {
+            setSelected(created.id);
+            setDirty(false);
+            setCreating(false);
+          }}
+        />
       ) : null}
       {roles.isPending ? <p role="status">Loading roles...</p> : null}
       {roles.isError ? (
-        <div role="alert">
-          Unable to load roles. <button onClick={() => void roles.refetch()}>Retry</button>
-        </div>
+        <ErrorAlert onRetry={() => void roles.refetch()}>Unable to load roles.</ErrorAlert>
       ) : null}
       {roles.data?.length === 0 ? (
-        <p>No roles found. Initialize the role catalog before assigning access.</p>
+        <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+          No roles found. Initialize the role catalog before assigning access.
+        </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Roles">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Roles">
         {roles.data?.map((role) => (
           <button
             key={role.id}
             type="button"
             aria-pressed={selected === role.id}
-            className="rounded-lg border p-4 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-pressed:border-primary"
-            onClick={() => {
-              if (!dirty || window.confirm("Discard unsaved permission changes?")) {
+            className={`min-w-0 rounded-xl border bg-card p-5 text-left shadow-card transition-[border-color,box-shadow,background-color] hover:border-primary/40 hover:shadow-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-primary aria-pressed:bg-accent/50 aria-pressed:ring-2 aria-pressed:ring-primary/15${
+              role.description.trim() ? " group" : ""
+            }`}
+            onClick={async () => {
+              if (
+                !dirty ||
+                (await confirmAction({
+                  title: "Discard unsaved changes?",
+                  confirmLabel: "Discard changes",
+                  destructive: true,
+                }))
+              ) {
                 setSelected(role.id);
                 setDirty(false);
               }
             }}
           >
-            <span className="block font-medium">{role.name}</span>
-            <span className="mt-1 block text-sm text-muted-foreground">
+            <span className="block font-semibold">{role.name}</span>
+            {role.description.trim() ? (
+              <span
+                className="mt-1 block text-sm text-muted-foreground line-clamp-2 group-hover:line-clamp-none group-focus-visible:line-clamp-none"
+                title={role.description}
+              >
+                {role.description}
+              </span>
+            ) : null}
+            <span className="mt-2 block text-sm tabular-nums text-muted-foreground">
               {role._count.userRoles} members | {role.rolePermissions.length} permissions
               {role.key === "super_admin" ? " | Protected" : ""}
             </span>
@@ -164,19 +113,26 @@ export function RolesPage() {
         </p>
       ) : null}
       {permissions.isError ? (
-        <div role="alert">
-          Unable to load the permission catalog.{" "}
-          <button onClick={() => void permissions.refetch()}>Retry</button>
-        </div>
+        <ErrorAlert onRetry={() => void permissions.refetch()}>
+          Unable to load the permission catalog.
+        </ErrorAlert>
       ) : null}
       {current && permissions.data ? (
         <RoleEditor
           key={current.id}
           role={current}
           permissions={permissions.data}
+          allRoles={roles.data || []}
           onDirty={setDirty}
-          onClose={() => {
-            if (!dirty || window.confirm("Discard unsaved permission changes?")) {
+          onClose={async () => {
+            if (
+              !dirty ||
+              (await confirmAction({
+                title: "Discard unsaved changes?",
+                confirmLabel: "Discard changes",
+                destructive: true,
+              }))
+            ) {
               setSelected(null);
               setDirty(false);
             }
@@ -190,11 +146,13 @@ export function RolesPage() {
 function RoleEditor({
   role,
   permissions,
+  allRoles,
   onDirty,
   onClose,
 }: {
   role: Role;
   permissions: PermissionItem[];
+  allRoles: { id: string; name: string }[];
   onDirty: (dirty: boolean) => void;
   onClose: () => void;
 }) {
@@ -202,23 +160,45 @@ function RoleEditor({
   const [baseline, setBaseline] = useState(() => ({
     version: version(role),
     ids: role.rolePermissions.map((item) => item.permissionId),
+    name: role.name,
+    description: role.description,
   }));
   const [ids, setIds] = useState(baseline.ids);
-  const dirty = ids.length !== baseline.ids.length || ids.some((id) => !baseline.ids.includes(id));
+  const [name, setName] = useState(baseline.name);
+  const [description, setDescription] = useState(baseline.description);
+  const dirty =
+    ids.length !== baseline.ids.length ||
+    ids.some((id) => !baseline.ids.includes(id)) ||
+    name !== baseline.name ||
+    description !== baseline.description;
   const stale = version(role) > baseline.version;
   const editable =
     can(session.data?.permissions, "roles.write") &&
     role.key !== "super_admin" &&
     (!role.isSystem || session.data?.roles.includes("super_admin")) &&
     role.rolePermissions.every(({ permission }) => can(session.data?.permissions, permission.key));
+  const duplicateName = name !== baseline.name ? duplicateRoleName(name, allRoles, role.id) : null;
   const save = useMutation({
     mutationFn: () =>
-      client.roles.update({ id: role.id, expectedUpdatedAt: baseline.version, permissionIds: ids }),
+      client.roles.update({
+        id: role.id,
+        expectedUpdatedAt: baseline.version,
+        name: name !== baseline.name ? name : undefined,
+        description: description !== baseline.description ? description : undefined,
+        permissionIds: ids,
+      }),
     onSuccess: async (saved) => {
       const savedIds = saved.rolePermissions.map((item) => item.permissionId);
       setIds(savedIds);
-      setBaseline({ version: version(saved), ids: savedIds });
-      toast.success("Role permissions saved");
+      setName(saved.name);
+      setDescription(saved.description);
+      setBaseline({
+        version: version(saved),
+        ids: savedIds,
+        name: saved.name,
+        description: saved.description,
+      });
+      toast.success("Role saved");
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -250,7 +230,7 @@ function RoleEditor({
               disabled={!dirty || stale}
               onClick={() => save.mutate()}
             >
-              Save permissions
+              Save changes
             </PrimaryButton>
           ) : null}
           <PrimaryButton
@@ -258,8 +238,15 @@ function RoleEditor({
             disabled={save.isPending}
             onClick={() => {
               const currentIds = role.rolePermissions.map((item) => item.permissionId);
-              setBaseline({ version: version(role), ids: currentIds });
+              setBaseline({
+                version: version(role),
+                ids: currentIds,
+                name: role.name,
+                description: role.description,
+              });
               setIds(currentIds);
+              setName(role.name);
+              setDescription(role.description);
               save.reset();
             }}
           >
@@ -270,17 +257,17 @@ function RoleEditor({
       title={role.name}
       description={
         editable
-          ? "Enable access by group or permission, then save."
+          ? "Edit the name, note, and permissions, then save."
           : "This role is read-only for your account."
       }
     >
       <div className="flex flex-col gap-5">
-        <p role="status" aria-live="polite" className="text-sm">
+        <p role="status" aria-live="polite" className="rounded-lg bg-muted px-3 py-2 text-sm">
           {dirty ? "Unsaved changes" : "No unsaved changes"}
         </p>
         {stale ? (
           <p role="alert" className="text-sm text-destructive">
-            This role changed on the server. Your draft is preserved. Reload the latest permissions
+            This role changed on the server. Your draft is preserved. Reload the latest changes
             before saving.
           </p>
         ) : null}
@@ -289,91 +276,52 @@ function RoleEditor({
             {save.error.message} Your draft has been preserved.
           </p>
         ) : null}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FormField id="role-edit-name" label="Name" required>
+            {editable ? (
+              <>
+                <Input
+                  id="role-edit-name"
+                  required
+                  maxLength={80}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  disabled={locked}
+                />
+                {duplicateName ? (
+                  <p role="status" className="text-sm text-warning">
+                    Another role is already named "{duplicateName}". Add a note that tells them
+                    apart.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="py-2 text-sm">{role.name}</p>
+            )}
+          </FormField>
+          <FormField id="role-edit-note" label="Note">
+            {editable ? (
+              <>
+                <Textarea
+                  id="role-edit-note"
+                  rows={2}
+                  maxLength={400}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  disabled={locked}
+                  aria-describedby="role-edit-note-hint"
+                />
+                <p id="role-edit-note-hint" className="text-xs text-muted-foreground">
+                  Shown on the role card. Use it to tell roles with similar names apart.
+                </p>
+              </>
+            ) : (
+              <p className="py-2 text-sm">{description || "-"}</p>
+            )}
+          </FormField>
+        </div>
         <PermissionControls permissions={permissions} ids={ids} setIds={setIds} locked={locked} />
       </div>
     </FormDialog>
-  );
-}
-
-function PermissionControls({
-  permissions,
-  ids,
-  setIds,
-  locked,
-}: {
-  permissions: PermissionItem[];
-  ids: string[];
-  setIds: React.Dispatch<React.SetStateAction<string[]>>;
-  locked: boolean;
-}) {
-  const session = useSession();
-  const [search, setSearch] = useState("");
-  const matches = (permission: PermissionItem) =>
-    `${permission.name} ${permission.description} ${permission.key}`
-      .toLowerCase()
-      .includes(search.trim().toLowerCase());
-  return (
-    <div className="flex flex-col gap-3">
-      <Input
-        aria-label="Search permissions"
-        placeholder="Find a permission..."
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
-      <p className="text-xs text-muted-foreground">
-        {ids.length} permissions enabled. Group switches apply to all permissions in their group.
-      </p>
-      {groupPermissions(permissions)
-        .filter((group) => group.items.some(matches))
-        .map((group) => {
-          const applicable = group.items
-            .filter((permission) => can(session.data?.permissions, permission.key))
-            .map((permission) => permission.id);
-          const state = groupState(applicable, ids);
-          return (
-            <fieldset key={group.key} className="rounded-lg border p-3">
-              <legend className="px-1 text-sm font-medium">{group.label}</legend>
-              <label className="mb-2 flex min-h-10 items-center gap-3 text-sm">
-                <Switch
-                  checked={state.checked}
-                  disabled={locked || !applicable.length}
-                  aria-label={`Enable all ${group.label.toLowerCase()} permissions`}
-                  aria-describedby={`permission-group-${group.key}`}
-                  onCheckedChange={(checked) =>
-                    setIds((current) => togglePermissions(current, applicable, checked))
-                  }
-                />
-                <span>
-                  All applicable permissions{" "}
-                  <span id={`permission-group-${group.key}`} className="text-muted-foreground">
-                    ({state.count}/{applicable.length})
-                    {state.indeterminate ? " | Partially enabled" : ""}
-                  </span>
-                </span>
-              </label>
-              <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
-                {group.items.filter(matches).map((permission) => (
-                  <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
-                    <Switch
-                      className="mt-1"
-                      checked={ids.includes(permission.id)}
-                      disabled={locked || !can(session.data?.permissions, permission.key)}
-                      onCheckedChange={(checked) =>
-                        setIds((current) => togglePermissions(current, [permission.id], checked))
-                      }
-                    />
-                    <span>
-                      <span className="font-medium">{permission.name}</span>
-                      <span className="block text-muted-foreground">{permission.description}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          );
-        })}
-
-      {!permissions.some(matches) ? <p role="status">No matching permissions.</p> : null}
-    </div>
   );
 }

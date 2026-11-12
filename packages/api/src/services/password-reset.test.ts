@@ -5,8 +5,9 @@ import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "../context";
 import { requestPasswordReset, resetPassword } from "./password-reset";
 import { assertPasswordSafe } from "./password-security";
-import { newPasswordSchema } from "../password-policy";
+import { newPasswordSchema } from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { digest } from "./mfa";
+import { modelFixture } from "../test-utils/model-test-fixture";
 
 async function fixture() {
   const user = {
@@ -16,68 +17,35 @@ async function fixture() {
     emailVerified: true,
     passwordHash: await hashPassword("Previous private passphrase 12"),
   };
-  let reset: Record<string, unknown> | null = null;
-  let revoked = 0;
-  const tx = {
-    authThrottle: { upsert: async () => ({ count: 1 }) },
-    integrationSetting: { findUnique: async () => ({ enabled: true }) },
-    user: {
-      findUnique: async () => ({ ...user }),
-      updateMany: async ({
-        where,
-        data,
-      }: {
-        where: { passwordHash: string };
-        data: { passwordHash: string };
-      }) => {
-        if (where.passwordHash !== user.passwordHash) return { count: 0 };
-        Object.assign(user, data);
-        return { count: 1 };
-      },
-    },
-    passwordReset: {
-      create: async ({ data }: { data: object }) => {
-        reset = { id: "reset", consumedAt: null, ...data };
-        return reset;
-      },
-      findUnique: async ({ where }: { where: { tokenHash: string } }) =>
-        reset?.tokenHash === where.tokenHash ? { ...reset } : null,
-      updateMany: async ({ data }: { data: object }) => {
-        if (!reset || reset.consumedAt) return { count: 0 };
-        Object.assign(reset, data);
-        return { count: 1 };
-      },
-    },
-    session: {
-      deleteMany: async () => {
-        revoked++;
-      },
-    },
-    auditLog: { create: async () => ({ id: "audit" }) },
-  };
+  const f = modelFixture({ User: [user], IntegrationSetting: [{ key: "email", enabled: true }] });
   const context = {
-    db: { ...tx, $transaction: async (work: (db: typeof tx) => Promise<unknown>) => work(tx) },
+    db: f.db,
     user: null,
     sessionToken: null,
     ipAddress: null,
     userAgent: null,
     integrationEnv: { webOrigin: "https://app.example.test", smtpUrl: "https://mail.example.test" },
-  } as unknown as Context;
+  } as Context;
   return {
     context,
     user,
     get row() {
-      return reset;
+      return f.tables.PasswordReset?.[0] ?? null;
     },
     get revoked() {
-      return revoked;
+      return f.operations.filter((op) => op.model === "Session" && op.method === "deleteMany")
+        .length;
     },
   };
 }
-it("enforces long passphrases and screens common passwords without imposing composition", async () => {
+it("enforces length and character-type rules and screens common passwords", async () => {
   assert.equal(newPasswordSchema.safeParse("short").success, false);
-  await assertPasswordSafe("a quiet river carries seven blue boats");
-  await assertPasswordSafe("界".repeat(64));
+  await assertPasswordSafe("A quiet river carries 7 blue boats");
+  await assert.rejects(
+    () => assertPasswordSafe("a quiet river carries seven blue boats"),
+    /uppercase letter, a number/,
+  );
+  await assert.rejects(() => assertPasswordSafe("界".repeat(64)), /uppercase letter/);
   await assert.rejects(() => assertPasswordSafe("passwordpassword"), /commonly used|compromised/);
 });
 it("HIBP opt-in sends only a padded five-character hash prefix and fails closed", async () => {

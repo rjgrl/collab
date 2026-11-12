@@ -10,7 +10,6 @@ export default defineConfig({
   server: {
     port: 3001,
     proxy: {
-      "/rpc": apiOrigin,
       "/api": apiOrigin,
     },
   },

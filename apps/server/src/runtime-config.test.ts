@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import { it } from "node:test";
 import {
   validateRuntimeConfig,
@@ -18,17 +19,37 @@ const valid = {
   databaseUrl: syntheticDatabaseUrl("mongodb", "tls=true"),
   verificationSecret: "synthetic-local-only-".repeat(3),
   mfaEncryptionKey: "14".repeat(32),
+  integrationEncryptionKey: "15".repeat(32),
   uploadDir: process.platform === "win32" ? "C:/synthetic/uploads" : "/synthetic/uploads",
 };
 it("accepts explicit safe runtime settings without connecting to providers", () => {
   assert.deepEqual(validateRuntimeConfig(valid, {}), { trustedProxyIps: [] });
 });
-it("refuses the local authenticator bypass outside explicit development", () => {
+it("refuses the local authenticator bypass outside explicit local development", () => {
+  const loopback = "mongodb://127.0.0.1:27018/collab_dev?replicaSet=rs0";
   for (const nodeEnv of ["production", "staging", "preview", "test", "unknown"])
     assert.throws(
-      () => validateRuntimeConfig({ ...valid, nodeEnv }, { LOCAL_DISABLE_MFA: "true" }),
+      () =>
+        validateRuntimeConfig(
+          { ...valid, nodeEnv, databaseUrl: loopback },
+          { LOCAL_DISABLE_MFA: "true" },
+        ),
       /development-only/,
+      nodeEnv,
     );
+  // Development against a remote database is refused too.
+  assert.throws(
+    () =>
+      validateRuntimeConfig({ ...valid, nodeEnv: "development" }, { LOCAL_DISABLE_MFA: "true" }),
+    /development-only/,
+  );
+  assert.deepEqual(
+    validateRuntimeConfig(
+      { ...valid, nodeEnv: "development", databaseUrl: loopback },
+      { LOCAL_DISABLE_MFA: "true" },
+    ),
+    { trustedProxyIps: [] },
+  );
 });
 it("rejects production URL credential/path/query ambiguities and missing keys", () => {
   for (const origin of [
@@ -74,4 +95,47 @@ it("trusts only explicit peers and one overwritten forwarded IP", () => {
     assert.equal(resolveClientAddress("127.0.0.1", header, ["127.0.0.1"]), null);
   assert.throws(() => trustedProxyAddresses("0.0.0.0"));
   assert.throws(() => trustedProxyAddresses("127.0.0.0/8"));
+});
+it("requires a distinct 64-hex INTEGRATION_ENCRYPTION_KEY in production without echoing it", () => {
+  const key = "15".repeat(32);
+  for (const [input, settings] of [
+    [{ ...valid, integrationEncryptionKey: undefined }, {}],
+    [{ ...valid, integrationEncryptionKey: "short" }, {}],
+    [{ ...valid, integrationEncryptionKey: key, mfaEncryptionKey: key.toUpperCase() }, {}],
+    [{ ...valid, integrationEncryptionKey: key }, { BACKUP_ENCRYPTION_KEY: key }],
+  ] as const)
+    assert.throws(
+      () => validateRuntimeConfig(input, settings),
+      (error: Error) => {
+        assert.match(error.message, /INTEGRATION_ENCRYPTION_KEY/);
+        assert.ok(!error.message.toLowerCase().includes(key));
+        return true;
+      },
+    );
+  assert.deepEqual(validateRuntimeConfig({ ...valid, integrationEncryptionKey: key }, {}), {
+    trustedProxyIps: [],
+  });
+});
+it("validates an optional BACKUP_ENCRYPTION_KEY and BACKUP_DIR in production without echoing them", () => {
+  const backupKey = "16".repeat(32);
+  const outside = path.resolve(valid.uploadDir, "..", "synthetic-backups");
+  assert.deepEqual(
+    validateRuntimeConfig(valid, { BACKUP_ENCRYPTION_KEY: backupKey, BACKUP_DIR: outside }),
+    { trustedProxyIps: [] },
+  );
+  for (const settings of [
+    { BACKUP_ENCRYPTION_KEY: "short" },
+    { BACKUP_ENCRYPTION_KEY: valid.mfaEncryptionKey.toUpperCase() },
+    { BACKUP_ENCRYPTION_KEY: valid.integrationEncryptionKey },
+    { BACKUP_DIR: "relative/backups" },
+    { BACKUP_DIR: path.join(valid.uploadDir, "backups") },
+  ])
+    assert.throws(
+      () => validateRuntimeConfig(valid, settings),
+      (error: Error) => {
+        assert.match(error.message, /BACKUP_/);
+        assert.ok(!error.message.includes(valid.mfaEncryptionKey));
+        return true;
+      },
+    );
 });

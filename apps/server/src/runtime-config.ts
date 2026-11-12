@@ -1,6 +1,8 @@
 import { isIP } from "node:net";
 import path from "node:path";
 import { boundedSetting } from "@Alumni-Tracking-Ss/api/services/throttle";
+import { localMfaDisabled } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
+import { contactVerificationPolicy } from "@Alumni-Tracking-Ss/api/services/contact-policy";
 
 export const normalizeIp = (value: string) =>
   value.startsWith("::ffff:") && isIP(value.slice(7)) === 4 ? value.slice(7) : value;
@@ -31,20 +33,74 @@ export function validateRuntimeConfig(
     databaseUrl: string;
     verificationSecret: string | undefined;
     mfaEncryptionKey: string | undefined;
+    integrationEncryptionKey: string | undefined;
     uploadDir: string | undefined;
   },
   settings: NodeJS.ProcessEnv = process.env,
 ) {
+  contactVerificationPolicy({
+    ...settings,
+    NODE_ENV: input.nodeEnv,
+    DATABASE_URL: input.databaseUrl,
+  });
   const trustedProxyIps = trustedProxyAddresses(settings.TRUSTED_PROXY_IPS);
   boundedSetting(settings.AUTH_IP_LIMIT, 30, 1000);
   boundedSetting(settings.AUTH_IP_WINDOW_SECONDS, 900, 86400);
   boundedSetting(settings.AUTH_ACCOUNT_LIMIT, 5, 100);
   boundedSetting(settings.SESSION_IDLE_MINUTES, 30, 1440);
-  if (settings.LOCAL_DISABLE_MFA === "true" && input.nodeEnv !== "development")
+  if (
+    settings.LOCAL_DISABLE_MFA === "true" &&
+    !localMfaDisabled({ ...settings, NODE_ENV: input.nodeEnv, DATABASE_URL: input.databaseUrl })
+  )
     throw Error(
-      "LOCAL_DISABLE_MFA is development-only. Remove it before starting staging or production.",
+      "LOCAL_DISABLE_MFA is development-only and requires managed loopback MongoDB. Remove it before production.",
     );
   if (input.nodeEnv !== "production") return { trustedProxyIps };
+  const encKeyPattern = /^[a-f0-9]{64}$/i;
+  // Backups are optional, but when configured their key and directory must be safe.
+  const backupKey = settings.BACKUP_ENCRYPTION_KEY?.trim();
+  if (backupKey) {
+    if (!encKeyPattern.test(backupKey))
+      throw Error("BACKUP_ENCRYPTION_KEY must be 64 hexadecimal characters.");
+    if (
+      [input.mfaEncryptionKey, input.verificationSecret, input.integrationEncryptionKey].some(
+        (other) => other && other.toLowerCase() === backupKey.toLowerCase(),
+      )
+    )
+      throw Error(
+        "BACKUP_ENCRYPTION_KEY must be different from MFA_ENCRYPTION_KEY, SESSION_SECRET and INTEGRATION_ENCRYPTION_KEY.",
+      );
+  }
+  const backupDir = settings.BACKUP_DIR?.trim();
+  if (backupDir) {
+    const uploads = path.resolve(input.uploadDir ?? "./uploads");
+    const inside = (parent: string) => {
+      const relative = path.relative(parent, path.resolve(backupDir));
+      return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+    };
+    if (!path.isAbsolute(backupDir) || inside(uploads) || inside(path.resolve("apps/web/dist")))
+      throw Error("BACKUP_DIR must be an absolute directory outside UPLOAD_DIR and the web build.");
+  }
+  if (!encKeyPattern.test(input.integrationEncryptionKey ?? ""))
+    throw Error(
+      "Production requires valid INTEGRATION_ENCRYPTION_KEY (64 hexadecimal characters).",
+    );
+  // Check INTEGRATION_ENCRYPTION_KEY is distinct from other keys (case-insensitive comparison)
+  const integrationKeyNorm = (input.integrationEncryptionKey ?? "").toLowerCase();
+  const mfaKeyNorm = (input.mfaEncryptionKey ?? "").toLowerCase();
+  const sessionSecretNorm = (input.verificationSecret ?? "").toLowerCase();
+  const backupKeyNorm = (settings.BACKUP_ENCRYPTION_KEY ?? "").toLowerCase();
+
+  if (
+    integrationKeyNorm &&
+    ((input.mfaEncryptionKey && integrationKeyNorm === mfaKeyNorm) ||
+      (input.verificationSecret && integrationKeyNorm === sessionSecretNorm) ||
+      (settings.BACKUP_ENCRYPTION_KEY && integrationKeyNorm === backupKeyNorm))
+  ) {
+    throw Error(
+      "INTEGRATION_ENCRYPTION_KEY must be different from MFA_ENCRYPTION_KEY, SESSION_SECRET and BACKUP_ENCRYPTION_KEY.",
+    );
+  }
   for (const value of [input.origin, input.appUrl]) {
     let url: URL;
     try {

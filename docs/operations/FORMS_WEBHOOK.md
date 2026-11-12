@@ -1,10 +1,10 @@
 # Forms delivery, idempotency and retry contract
 
-Local security acceptance passed in Phase 4. **Default enablement remains off.** No real Forms sender, live setting or provider credential was changed. Test enablement occurred only in randomly named disposable databases, and was set back to false at the end.
+**Default enablement remains off.** Verify the sender contract and operational policy in isolated staging before enabling real deliveries. Local checks do not establish live provider acceptance.
 
 Prerequisites before any separately authorized enablement:
 
-1. Generate the Prisma client and apply the additive `FormsReceipt` collection with unique `keyHash` index to the intended database through the normal reviewed schema workflow. No existing application database was updated in this pass.
+1. Follow the [migration runbook](../migrations/MONGOOSE_REST.md): inspect `pnpm db:migrate --dry-run`, back up the intended database and uploads, then apply only the reviewed plan with target-specific authorization using `pnpm db:migrate --apply`. Confirm the `FormsReceipt_keyHash_key` unique index before enabling deliveries. Mongoose needs no generated client.
 2. Configure a high-entropy `GOOGLE_FORMS_WEBHOOK_SECRET`, sender identity, TLS, ingress limits and secret rotation process. A missing secret now rejects requests in development as well as production. Secret comparisons use equal-length timing-safe comparison.
 3. Implement the sender contract below and approve replay/retention/monitoring policy. Passing local tests does not configure Google or authorize provider traffic.
 
@@ -33,4 +33,4 @@ Receipts must be included in backups and restored with their import jobs and alu
 
 Compatibility: webhook senders without Idempotency-Key now receive 400; unconfigured-secret development requests now receive 401. CSV/Sheets batch imports retain their existing row-wise behavior and are not made atomic by this change. This design provides idempotent database effects for a retained submission ID, not global exactly-once provider delivery.
 
-Acceptance: `pnpm test:forms-db` uses real loopback TCP, two independent Prisma clients, disposable replica-set databases and fault injection. It checks disabled/missing-secret/invalid submissions, serial and concurrent duplicate delivery, changed payload conflict, complete rollback after writes, safe retries, distinct IDs for one student, archived-record rejection and stale replay after a newer update. Local restore acceptance also proves receipt replay protection survives backup/restoration. Frozen evidence: [Phase 4 report](../audits/PHASE4_VALIDATION.md).
+Acceptance: `pnpm test:forms-db` uses real loopback TCP, two independent Mongoose connections, disposable replica-set databases and fault injection. It checks disabled/missing-secret/invalid submissions, serial and concurrent duplicate delivery, changed payload conflict, complete rollback after writes, safe retries, distinct IDs for one student, archived-record rejection and stale replay after a newer update. Run the [local recovery rehearsal](DISASTER_RECOVERY.md) to check receipt replay protection after restoration. Live sender retries, retention and production recovery still require separate acceptance.

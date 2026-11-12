@@ -1,6 +1,9 @@
+import { toEntity } from "@Alumni-Tracking-Ss/db";
 // Operator-only helper; deliberately absent from every HTTP/oRPC router.
 import type { Database } from "@Alumni-Tracking-Ss/db";
+import { loadUserRoles } from "./authorization";
 import { verifyPassword } from "@Alumni-Tracking-Ss/db";
+import { writeAudit } from "../audit";
 export async function recoverLocalAdministrator(
   db: Database,
   email: string,
@@ -9,34 +12,38 @@ export async function recoverLocalAdministrator(
 ) {
   if (confirmation !== "RESET MY AUTHENTICATOR")
     throw new Error("Recovery cancelled. No records changed.");
-  const include = { userRoles: { include: { role: true } } } as const;
-  const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() }, include });
+  const user = await db.User.findOne({ email: email.trim().toLowerCase() })
+    .lean()
+    .exec()
+    .then((row) => (row ? toEntity(row) : null));
   if (
     !user?.passwordHash ||
     user.status !== "active" ||
-    !user.userRoles.some(({ role }) => role.key === "super_admin") ||
+    !(await loadUserRoles(db, user.id)).some((role) => role.key === "super_admin") ||
     !(await verifyPassword(password, user.passwordHash))
   )
     throw new Error("Local administrator verification failed.");
-  await db.$transaction(async (tx) => {
-    const current = await tx.user.findUnique({ where: { id: user.id }, include });
+  await db.transaction(async (tx) => {
+    const current = await tx.User.findOne({ _id: user.id })
+      .lean()
+      .exec()
+      .then((row) => (row ? toEntity(row) : null));
     if (
-      current?.passwordHash !== user.passwordHash ||
+      !current ||
+      current.passwordHash !== user.passwordHash ||
       current.status !== "active" ||
-      !current.userRoles.some(({ role }) => role.key === "super_admin")
+      !(await loadUserRoles(tx, user.id)).some((role) => role.key === "super_admin")
     )
       throw new Error("Account changed. Recovery cancelled.");
-    await tx.mfaCredential.deleteMany({ where: { userId: user.id } });
-    await tx.session.deleteMany({ where: { userId: user.id } });
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        action: "auth.mfa.local_recovery",
-        entity: "user",
-        entityId: user.id,
-        summary:
-          "Interactive local operator recovery after password verification; all sessions revoked",
-      },
+    await tx.MfaCredential.deleteMany({ userId: user.id }).exec();
+    await tx.Session.deleteMany({ userId: user.id }).exec();
+    await writeAudit(tx, {
+      actor: user,
+      action: "auth.mfa.local_recovery",
+      entity: "user",
+      entityId: user.id,
+      summary:
+        "Interactive local operator recovery after password verification; all sessions revoked",
     });
   });
 }

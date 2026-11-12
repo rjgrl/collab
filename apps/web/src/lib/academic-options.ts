@@ -1,0 +1,31 @@
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { collectOptionPages } from "@/lib/pagination";
+
+export function useCollegeOptions() {
+  return useQuery({
+    queryKey: ["rest", "college-options"],
+    queryFn: ({ signal }) =>
+      collectOptionPages((page) =>
+        api.colleges.list.queryOptions({ input: { page, pageSize: 100 } }).queryFn({ signal }),
+      ),
+  });
+}
+export function useDepartmentOptions() {
+  return useQuery({
+    queryKey: ["rest", "department-options"],
+    queryFn: ({ signal }) =>
+      collectOptionPages((page) =>
+        api.departments.list.queryOptions({ input: { page, pageSize: 100 } }).queryFn({ signal }),
+      ),
+  });
+}
+export function useProgramOptions() {
+  return useQuery({
+    queryKey: ["rest", "program-options"],
+    queryFn: ({ signal }) =>
+      collectOptionPages((page) =>
+        api.programs.list.queryOptions({ input: { page, pageSize: 100 } }).queryFn({ signal }),
+      ),
+  });
+}

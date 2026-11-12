@@ -1,0 +1,9 @@
+# The formatter (vp fmt) expects LF. Without this, Windows checkouts with core.autocrlf=true
+# get CRLF working files and `pnpm check` reports every file as unformatted.
+* text=auto eol=lf
+
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary

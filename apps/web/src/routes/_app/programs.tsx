@@ -1,3 +1,5 @@
+import { TablePagination } from "@/components/data/table-pagination";
+import { useDepartmentOptions } from "@/lib/academic-options";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -6,11 +8,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { NativeSelect } from "@/components/native-select";
-import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import {
+  DataTable,
+  QuietButton,
+  RowActions,
+  TableCell,
+  TableRow,
+} from "@/components/data/data-table";
+import { FormSelect } from "@/components/forms/form-select";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 export const Route = createFileRoute("/_app/programs")({
   component: ProgramsPage,
@@ -25,11 +36,13 @@ type Draft = {
 };
 
 function ProgramsPage() {
+  const confirmAction = useConfirm();
   const session = useSession();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const departments = useQuery(orpc.departments.list.queryOptions({ input: {} }));
-  const list = useQuery(orpc.programs.list.queryOptions({ input: { search } }));
+  const departments = useDepartmentOptions();
+  const list = useQuery(api.programs.list.queryOptions({ input: { search, page, pageSize: 20 } }));
   const canWrite = can(session.data?.permissions, "programs.write");
   const canDelete = can(session.data?.permissions, "programs.delete");
 
@@ -103,19 +116,19 @@ function ProgramsPage() {
             }}
           >
             <FormField id="department" label="Department" required>
-              <NativeSelect
+              <FormSelect
                 id="department"
                 value={draft.departmentId}
-                onChange={(event) => setDraft({ ...draft, departmentId: event.target.value })}
+                onValueChange={(selected) => setDraft({ ...draft, departmentId: selected })}
                 required
-              >
-                <option value="">Select department</option>
-                {departments.data?.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.code} — {department.name}
-                  </option>
-                ))}
-              </NativeSelect>
+                items={[
+                  { value: "", label: "Select department" },
+                  ...(departments.data?.map((department) => ({
+                    value: department.id,
+                    label: department.name,
+                  })) ?? []),
+                ]}
+              />
             </FormField>
             <FormField id="code" label="Code" required>
               <Input
@@ -145,10 +158,16 @@ function ProgramsPage() {
           </form>
         </FormDialog>
       ) : null}
+      {list.isError ? (
+        <ErrorAlert onRetry={() => void list.refetch()}>{list.error.message}</ErrorAlert>
+      ) : null}
       <DataTable
         headers={["Code", "Name", "Department", "Alumni", "Actions"]}
         search={search}
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         searchPlaceholder="Search programs"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
@@ -157,12 +176,16 @@ function ProgramsPage() {
       >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
-            <TableCell>{row.code}</TableCell>
-            <TableCell>{row.name}</TableCell>
             <TableCell>
-              {row.department.code} — {row.department.name}
+              <span className="font-medium">{row.code}</span>
             </TableCell>
-            <TableCell>{row._count.alumni}</TableCell>
+            <TableCell>
+              <span className="font-medium">{row.name}</span>
+            </TableCell>
+            <TableCell>{row.department.name}</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {row._count.alumni.toLocaleString()}
+            </TableCell>
             <TableCell>
               <RowActions>
                 {canWrite ? (
@@ -183,8 +206,15 @@ function ProgramsPage() {
                 {canDelete ? (
                   <QuietButton
                     variant="destructive"
-                    onClick={() => {
-                      if (confirm("Remove this program? This cannot be undone."))
+                    onClick={async () => {
+                      if (
+                        await confirmAction({
+                          title: "Remove this program?",
+                          description: "This cannot be undone.",
+                          confirmLabel: "Remove",
+                          destructive: true,
+                        })
+                      )
                         remove.mutate(row.id);
                     }}
                   >
@@ -196,6 +226,12 @@ function ProgramsPage() {
           </TableRow>
         ))}
       </DataTable>
+      <TablePagination
+        page={page}
+        onPage={setPage}
+        hasNext={list.data?.length === 20}
+        pending={list.isFetching}
+      />
     </PageShell>
   );
 }

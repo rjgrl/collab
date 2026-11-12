@@ -57,14 +57,16 @@ coverage
 # read by the build, the dev server, or the tests. Re-add individual entries
 # (e.g. !.mcp.json) if you want to share them with collaborators.
 .agents/
-.claude/
+# Share project agents and skills; keep local settings and state private.
+.claude/*
+!.claude/agents/
+!.claude/skills/
 .cursor/
 .kilo/
 .mcp.json
 skills-lock.json
 bts.jsonc
 AGENTS.md
-CLAUDE.md
 
 # Misc
 *.tgz
@@ -84,3 +86,41 @@ uploads
 .tools/
 test-results/
 playwright-report/
+
+# Local visual inspection state
+.taste-skill/
+
+# Local agent tooling and generated repository analysis
+/.21st/
+/.codex/
+/graphify-out/
+/tasks/
+/GLOSSARY.md
+
+# Retain only setup, migration, deployment and security/recovery instructions.
+# Historical guides/reports stay local; they are not application dependencies.
+/docs/*
+!/docs/DEVELOPMENT_SETUP.md
+!/docs/WINDOWS_SETUP.md
+!/docs/TROUBLESHOOTING.md
+!/docs/deployment.md
+!/docs/progress.md
+!/docs/decisions.md
+!/docs/known-issues.md
+!/docs/system/
+/docs/system/*
+!/docs/system/installation.md
+!/docs/migrations/
+/docs/migrations/*
+!/docs/migrations/MONGOOSE_REST.md
+!/docs/operations/
+/docs/operations/*
+!/docs/operations/ACCOUNT_SECURITY.md
+!/docs/operations/DISASTER_RECOVERY.md
+!/docs/operations/FORMS_WEBHOOK.md
+!/docs/operations/INTEGRATIONS.md
+!/docs/operations/MONGODB_ATLAS.md
+!/docs/api/
+/docs/api/*
+!/docs/api/openapi.json
+/.thinkrail.zip

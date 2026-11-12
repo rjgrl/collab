@@ -12,40 +12,6 @@ async function login(page: import("@playwright/test").Page, password = "BrowserT
 test.beforeEach(async ({ request }) => {
   await request.post("http://127.0.0.1:3100/__test/reset");
 });
-
-test("local MFA pause lets an enrolled administrator sign in and hides all MFA forms", async ({
-  page,
-  request,
-}) => {
-  await login(page);
-  await enrollAdministrator(page);
-  await page.goto("/security");
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await request.post("http://127.0.0.1:3100/__test/pause-mfa");
-  await page.goto("/login");
-  await page.locator("#email").fill("admin@example.test");
-  await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.waitForURL("**/dashboard");
-  expect(
-    (
-      await page.request.post("/rpc/dashboard/summary", {
-        headers: { Origin: "http://127.0.0.1:3101" },
-        data: { json: {} },
-      })
-    ).status(),
-  ).toBe(200);
-  await page.goto("/security");
-  await expect(page.getByText(/Authenticator checks are paused for local testing/)).toBeVisible();
-  await expect(page.locator("#mfa-code, #mfa-password")).toHaveCount(0);
-  await expect(
-    page.getByRole("button", {
-      name: /Verify authenticator|Set up authenticator|Replace authenticator/,
-    }),
-  ).toHaveCount(0);
-  await page.getByRole("link", { name: "Continue to application", exact: true }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-});
 test("legacy accounts can confirm a recovery email without losing app access", async ({
   page,
   request,
@@ -56,22 +22,28 @@ test("legacy accounts can confirm a recovery email without losing app access", a
   await page.goto("/settings");
   await page.getByRole("button", { name: "Verify recovery email", exact: true }).click();
   await page.getByRole("button", { name: "Send email code", exact: true }).click();
+  await expect
+    .poll(
+      async () => (await (await request.get("http://127.0.0.1:3100/__test/code")).json()).emailCode,
+    )
+    .toMatch(/^[0-9]{6}$/);
   const { emailCode } = await (await request.get("http://127.0.0.1:3100/__test/code")).json();
   await page.locator("#recovery-email-code").fill(emailCode);
   await page.getByRole("button", { name: "Confirm recovery email", exact: true }).click();
-  await expect(page.getByText("Recovery email confirmed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Email verification", exact: true })).toHaveText(
+    "Verified",
+  );
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 test("admin enrollment, backend gate, logout and single-use recovery work", async ({ page }) => {
   await login(page);
-  const denial = await page.request.post("/rpc/dashboard/summary", {
+  const denial = await page.request.get("/api/dashboard", {
     headers: { Origin: "http://127.0.0.1:3101" },
-    data: { json: {} },
   });
   expect(denial.status()).toBe(403);
   expect(await denial.text()).toContain("authenticator");
-  expect((await page.request.get("/api/files/synthetic")).status()).toBe(401);
+  expect((await page.request.get("/api/files/synthetic")).status()).toBe(403);
   await expect(page.locator('[data-sonner-toast][data-visible="true"]').first()).toHaveCSS(
     "opacity",
     "1",

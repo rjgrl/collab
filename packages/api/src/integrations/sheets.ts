@@ -2,11 +2,12 @@ import { googleAccessToken } from "./files";
 import type { IntegrationEnv } from "../context";
 
 export async function appendSheetRows(env: IntegrationEnv, values: string[][]) {
-  if (!env.googleServiceAccountJson || !env.googleSheetsSpreadsheetId) {
+  const accountJson = env.googleSheetsServiceAccountJson ?? env.googleServiceAccountJson;
+  if (!accountJson || !env.googleSheetsSpreadsheetId) {
     throw new Error("Google Sheets is not configured.");
   }
 
-  const token = await googleAccessToken(env.googleServiceAccountJson, [
+  const token = await googleAccessToken(accountJson, [
     "https://www.googleapis.com/auth/spreadsheets",
   ]);
 
@@ -29,11 +30,12 @@ export async function appendSheetRows(env: IntegrationEnv, values: string[][]) {
 }
 
 export async function readSheetRows(env: IntegrationEnv) {
-  if (!env.googleServiceAccountJson || !env.googleSheetsSpreadsheetId) {
+  const accountJson = env.googleSheetsServiceAccountJson ?? env.googleServiceAccountJson;
+  if (!accountJson || !env.googleSheetsSpreadsheetId) {
     throw new Error("Google Sheets is not configured.");
   }
 
-  const token = await googleAccessToken(env.googleServiceAccountJson, [
+  const token = await googleAccessToken(accountJson, [
     "https://www.googleapis.com/auth/spreadsheets.readonly",
   ]);
 

@@ -1,0 +1,450 @@
+import type { Types } from "mongoose";
+import { hashPassword, type Database } from "./index";
+import { PERMISSIONS, ROLE_PRESETS } from "./permissions";
+import { retireRoles } from "./retire-roles";
+import {
+  INTEGRATION_CREDENTIAL_FIELDS,
+  type IntegrationKey,
+  fieldRequired,
+} from "@Alumni-Tracking-Ss/contracts/integration-credentials";
+import { parseSecretKey } from "./secret-box";
+import { sealIntegrationCredentials } from "./integration-sealing";
+const integrationKeys = [
+  "recaptcha",
+  "google_auth",
+  "google_drive",
+  "email",
+  "image_host",
+  "google_forms",
+  "google_sheets",
+] as const;
+
+export async function seedDatabase(db: Database) {
+  if (process.env.NODE_ENV === "production")
+    throw new Error(
+      "Repository seeding is development/test only; use a reviewed production provisioning procedure.",
+    );
+  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.SEED_ADMIN_PASSWORD;
+  if (!email || !password || password.length < 12)
+    throw new Error(
+      "Configure private bootstrap administrator credentials with a password of at least 12 characters.",
+    );
+  await db.transaction((tx) =>
+    seedInTransaction(tx, { email, password, demo: process.env.SEED_DEMO_DATA === "true" }),
+  );
+  // Seed integration credentials from environment variables (runs after transaction)
+  await seedIntegrationCredentials(db);
+}
+
+export class DatabaseNotEmptyError extends Error {}
+
+/**
+ * First-time setup of a hosted database (for example a new Atlas cluster): permissions, roles,
+ * integration rows and one Super Admin, plus demo data on request. It refuses any database that
+ * already has a user account, so it can never alter an existing deployment. Unlike the dev seed it
+ * is allowed in production, except for demo data, whose logins share the administrator password.
+ */
+export async function initializeEmptyDatabase(
+  db: Database,
+  input: { email: string; password: string; demo: boolean },
+) {
+  if (input.demo && process.env.NODE_ENV === "production")
+    throw new Error("Demo data is refused in production: its logins share the admin password.");
+  const email = input.email.trim().toLowerCase();
+  await db.transaction(async (tx) => {
+    if (await tx.User.countDocuments({}))
+      throw new DatabaseNotEmptyError(
+        "This database already has user accounts; deploy:init only initializes an empty database.",
+      );
+    await seedInTransaction(tx, { email, password: input.password, demo: input.demo });
+  });
+}
+
+async function seedInTransaction(
+  tx: Database,
+  { email, password, demo }: { email: string; password: string; demo: boolean },
+) {
+  for (const permission of PERMISSIONS)
+    await tx.Permission.updateOne({ key: permission.key }, { $set: permission }, { upsert: true });
+  const permissions = await tx.Permission.find().lean();
+  const permissionByKey = new Map(permissions.map((item) => [item.key, item]));
+  for (const preset of Object.values(ROLE_PRESETS)) {
+    const existing = await tx.Role.findOne({ key: preset.key }).lean();
+    const role = await tx.Role.findOneAndUpdate(
+      { key: preset.key },
+      { $set: { name: preset.name, description: preset.description, isSystem: true } },
+      { upsert: true, returnDocument: "after" },
+    ).orFail();
+    if (existing && preset.key !== "super_admin") continue;
+    for (const key of preset.permissions) {
+      const permission = permissionByKey.get(key);
+      if (permission)
+        await tx.RolePermission.updateOne(
+          { roleId: role._id, permissionId: permission._id },
+          { $setOnInsert: { roleId: role._id, permissionId: permission._id } },
+          { upsert: true },
+        );
+    }
+  }
+  const retired = await retireRoles(tx);
+  if (retired.accounts)
+    console.warn(
+      `Removed the retired Staff role from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
+    );
+  const existingAdmin = await tx.User.findOne({ email }).lean();
+  if (!existingAdmin) {
+    const role = await tx.Role.findOne({ key: "super_admin" }).orFail();
+    const user = await new tx.User({
+      name: "System Administrator",
+      email,
+      emailVerified: true,
+      passwordHash: await hashPassword(password),
+      status: "active",
+    }).save();
+    await new tx.UserRole({ userId: user._id, roleId: role._id }).save();
+  }
+  for (const key of integrationKeys)
+    await tx.IntegrationSetting.updateOne(
+      { key },
+      {
+        $setOnInsert: {
+          key,
+          // New installs start disabled; a Super Admin enables each one with tested credentials.
+          enabled: false,
+          notes:
+            "Modular integration. Enable it in Settings with credentials; they are tested before saving.",
+        },
+      },
+      { upsert: true },
+    );
+  if (demo) await seedDemo(tx, password);
+}
+
+async function upsertUnit<T>(find: () => Promise<T | null>, create: () => Promise<T>) {
+  return (await find()) ?? create();
+}
+
+async function seedDemo(db: Database, password: string) {
+  const college = (name: string) =>
+    upsertUnit(
+      () => db.College.findOne({ name }).lean(),
+      async () =>
+        (await db.College.create({ name, description: "Synthetic testing college" })).toObject(),
+    );
+  const department = (collegeId: Types.ObjectId, name: string) =>
+    upsertUnit(
+      () => db.Department.findOne({ collegeId, name }).lean(),
+      async () =>
+        (
+          await db.Department.create({
+            collegeId,
+            name,
+            description: "Synthetic testing department",
+          })
+        ).toObject(),
+    );
+  const program = (departmentId: Types.ObjectId, code: string, name: string) =>
+    upsertUnit(
+      () => db.Program.findOne({ departmentId, code }).lean(),
+      async () => (await db.Program.create({ departmentId, code, name })).toObject(),
+    );
+  const cot = await college("College of Technologies");
+  const coe = await college("College of Education");
+  const it = await department(cot._id, "Information Technology");
+  const auto = await department(cot._id, "Automotive Technology");
+  const secEd = await department(coe._id, "Secondary Education");
+  const bsit = await program(it._id, "BSIT", "Bachelor of Science in Information Technology");
+  const bsat = await program(auto._id, "BSAT", "Bachelor of Science in Automotive Technology");
+  const bsed = await program(secEd._id, "BSED", "Bachelor of Secondary Education");
+  const samples = [
+    {
+      studentNumber: "2020-0001",
+      firstName: "Synthetic",
+      lastName: "Graduate One",
+      gender: "Female",
+      graduationYear: 2024,
+      personalEmail: "graduate.one@collab.test",
+      employmentStatus: "employed",
+      isTracked: true,
+      programId: bsit._id,
+      employer: "Synthetic Test Employer",
+      jobTitle: "Junior Developer",
+    },
+    {
+      studentNumber: "2020-0002",
+      firstName: "Synthetic",
+      lastName: "Graduate Two",
+      gender: "Male",
+      graduationYear: 2024,
+      personalEmail: "graduate.two@collab.test",
+      employmentStatus: "unknown",
+      isTracked: false,
+      programId: bsit._id,
+    },
+    {
+      studentNumber: "2019-0144",
+      firstName: "Synthetic",
+      lastName: "Graduate Three",
+      gender: "Female",
+      graduationYear: 2023,
+      personalEmail: "graduate.three@collab.test",
+      employmentStatus: "employed",
+      isTracked: true,
+      programId: bsed._id,
+      employer: "Synthetic Test School",
+      jobTitle: "Teacher I",
+    },
+    {
+      studentNumber: "2021-0210",
+      firstName: "Synthetic",
+      lastName: "Graduate Four",
+      gender: "Male",
+      graduationYear: 2025,
+      personalEmail: "graduate.four@collab.test",
+      employmentStatus: "unknown",
+      isTracked: false,
+      programId: bsat._id,
+    },
+  ];
+  for (const { employer, jobTitle, ...sample } of samples) {
+    if (await db.Alumni.exists({ studentNumber: sample.studentNumber })) continue;
+    const alumni = await new db.Alumni({
+      ...sample,
+      lastTrackedAt: sample.isTracked ? new Date() : null,
+    }).save();
+    if (employer)
+      await new db.Employment({
+        alumniId: alumni._id,
+        employer,
+        jobTitle,
+        isCurrent: true,
+        status: "employed",
+      }).save();
+    if (sample.isTracked)
+      await new db.TrackingEvent({
+        alumniId: alumni._id,
+        isTracked: true,
+        notes: "Seeded synthetic tracked graduate",
+        source: "seed",
+      }).save();
+  }
+  // One account per faculty role level; the shared password is the private bootstrap password.
+  const role = await db.Role.findOne({ key: "faculty" }).orFail().lean();
+  const faculty = [
+    {
+      email: "college.head@collab.test",
+      first: "Synthetic",
+      last: "College Head",
+      roleLevel: "college",
+      departmentId: it._id,
+    },
+    {
+      email: "department.head@collab.test",
+      first: "Synthetic",
+      last: "Department Head",
+      roleLevel: "department",
+      departmentId: it._id,
+    },
+    {
+      email: "faculty.it@collab.test",
+      first: "Synthetic",
+      last: "IT Faculty",
+      roleLevel: "faculty",
+      departmentId: it._id,
+      assign: "2020-0001",
+    },
+    {
+      email: "faculty.education@collab.test",
+      first: "Synthetic",
+      last: "Education Faculty",
+      roleLevel: "faculty",
+      departmentId: secEd._id,
+      assign: "2019-0144",
+    },
+  ] as const;
+  let employee = 0;
+  for (const account of faculty) {
+    employee++;
+    const user =
+      (await db.User.findOne({ email: account.email }).lean()) ??
+      (
+        await db.User.create({
+          name: `${account.first} ${account.last}`,
+          firstName: account.first,
+          lastName: account.last,
+          email: account.email,
+          emailVerified: true,
+          passwordHash: await hashPassword(password),
+          status: "active",
+        })
+      ).toObject();
+    await db.UserRole.updateOne(
+      { userId: user._id, roleId: role._id },
+      { $setOnInsert: { userId: user._id, roleId: role._id } },
+      { upsert: true },
+    );
+    const record = await db.Faculty.findOneAndUpdate(
+      { userId: user._id },
+      {
+        $setOnInsert: {
+          userId: user._id,
+          employeeNumber: `DEMO-${String(employee).padStart(4, "0")}`,
+          firstName: account.first,
+          lastName: account.last,
+          email: account.email,
+          departmentId: account.departmentId,
+          roleLevel: account.roleLevel,
+          active: true,
+        },
+      },
+      { upsert: true, returnDocument: "after" },
+    ).orFail();
+    if ("assign" in account)
+      await db.Alumni.updateOne(
+        { studentNumber: account.assign, assignedFacultyId: null },
+        { $set: { assignedFacultyId: record._id } },
+      );
+  }
+
+  // One Alumni login per demo profile.
+  const demoUser = async (input: {
+    email: string;
+    first: string;
+    last: string;
+    alumniId?: Types.ObjectId;
+  }) =>
+    (await db.User.findOne({ email: input.email }).lean()) ??
+    (
+      await db.User.create({
+        name: `${input.first} ${input.last}`,
+        firstName: input.first,
+        lastName: input.last,
+        email: input.email,
+        emailVerified: true,
+        passwordHash: await hashPassword(password),
+        status: "active",
+        ...(input.alumniId ? { alumniId: input.alumniId } : {}),
+      })
+    ).toObject();
+  const grant = async (userId: Types.ObjectId, key: string) => {
+    const roleRow = await db.Role.findOne({ key }).orFail().lean();
+    await db.UserRole.updateOne(
+      { userId, roleId: roleRow._id },
+      { $setOnInsert: { userId, roleId: roleRow._id } },
+      { upsert: true },
+    );
+  };
+  for (const sample of samples) {
+    const profile = await db.Alumni.findOne({ studentNumber: sample.studentNumber }).lean();
+    // Skip a profile that some other account already owns (User.alumniId is unique).
+    if (
+      !profile ||
+      (await db.User.exists({ alumniId: profile._id, email: { $ne: sample.personalEmail } }))
+    )
+      continue;
+    const user = await demoUser({
+      email: sample.personalEmail,
+      first: sample.firstName,
+      last: sample.lastName,
+      alumniId: profile._id,
+    });
+    await grant(user._id, "viewer");
+  }
+}
+
+/** Demo sign-ins, all sharing the bootstrap administrator password. Listed in .tools/local-login.txt. */
+export async function seedIntegrationCredentials(db: Database) {
+  if (process.env.NODE_ENV === "production") return;
+
+  let key: Buffer | null = null;
+  try {
+    key = parseSecretKey(process.env.INTEGRATION_ENCRYPTION_KEY, "INTEGRATION_ENCRYPTION_KEY");
+  } catch {
+    return; // Key not valid or missing, skip credential seeding
+  }
+
+  const seededKeys: string[] = [];
+  const integrationKeyList: IntegrationKey[] = [
+    "recaptcha",
+    "google_auth",
+    "google_drive",
+    "email",
+    "image_host",
+    "google_forms",
+    "google_sheets",
+  ];
+
+  for (const integrationKey of integrationKeyList) {
+    const row = await db.IntegrationSetting.findOne({ key: integrationKey }).exec();
+    // Upsert: always proceed even if row doesn't exist yet
+    if (row && row.credentials) continue; // Skip if credentials already exist
+
+    const fields = INTEGRATION_CREDENTIAL_FIELDS[integrationKey];
+    const envValues: Record<string, string> = {};
+    let allRequiredSet = true;
+
+    // For google_sheets, special handling for account field
+    if (integrationKey === "google_sheets") {
+      envValues["account"] = "own"; // Use own service account by default
+    }
+
+    for (const field of fields) {
+      if (!field.env) continue;
+      const envValue = process.env[field.env]?.trim();
+      if (envValue) {
+        envValues[field.name] = envValue;
+      } else if (fieldRequired(field, envValues)) {
+        allRequiredSet = false;
+        break;
+      }
+    }
+
+    // Special case: image_host provider from IMAGE_HOST_PROVIDER
+    if (integrationKey === "image_host" && envValues.apiKey && !envValues.provider) {
+      envValues.provider = process.env.IMAGE_HOST_PROVIDER?.trim() || "imgbb";
+    }
+
+    if (!allRequiredSet) continue;
+    if (Object.keys(envValues).length === 0) continue;
+
+    // Seal the credentials using the helper
+    const sealed = sealIntegrationCredentials(key, integrationKey, envValues);
+
+    // Upsert the row with sealed credentials
+    const now = new Date();
+    await db.IntegrationSetting.findOneAndUpdate(
+      { key: integrationKey },
+      {
+        $set: {
+          credentials: sealed.credentials,
+          credentialHints: sealed.credentialHints,
+          keyFingerprint: sealed.keyFingerprint,
+          credentialsUpdatedAt: now,
+          enabled: true,
+        },
+      },
+      { upsert: true },
+    ).exec();
+
+    seededKeys.push(integrationKey);
+  }
+
+  if (seededKeys.length > 0) {
+    console.log(`Seeded integration credentials: ${seededKeys.join(", ")}`);
+  }
+}
+
+export const DEMO_ACCOUNTS = [
+  { email: "college.head@collab.test", role: "College head (College of Technologies)" },
+  { email: "department.head@collab.test", role: "Department head (Information Technology)" },
+  { email: "faculty.it@collab.test", role: "Faculty, IT (assigned Graduate One)" },
+  {
+    email: "faculty.education@collab.test",
+    role: "Faculty, Secondary Education (assigned Graduate Three)",
+  },
+  { email: "graduate.one@collab.test", role: "Alumni, BSIT" },
+  { email: "graduate.two@collab.test", role: "Alumni, BSIT" },
+  { email: "graduate.three@collab.test", role: "Alumni, BSED" },
+  { email: "graduate.four@collab.test", role: "Alumni, BSAT" },
+] as const;

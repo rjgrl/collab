@@ -8,18 +8,20 @@
   "scripts": {
     "build": "tsc --noEmit",
     "check-types": "tsc --noEmit",
-    "db:push": "prisma db push",
-    "db:generate": "prisma generate",
-    "db:studio": "prisma studio",
-    "db:seed": "tsx src/seed.ts"
+    "db:seed": "tsx src/cli/seed.ts",
+    "db:migrate": "tsx src/cli/migrate.ts",
+    "db:verify-transactions": "tsx src/cli/verify-transactions.ts",
+    "db:rotate-integration-key": "tsx src/cli/rotate-integration-key.ts",
+    "db:check-references": "tsx src/cli/check-references.ts",
+    "db:deploy-init": "tsx src/cli/deploy-init.ts"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3",
+    "@Alumni-Tracking-Ss/contracts": "workspace:*",
+    "mongoose": "^9.11.4",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@Alumni-Tracking-Ss/config": "workspace:*",
-    "prisma": "6.19.3",
     "tsx": "^4.23.13",
     "typescript": "catalog:",
     "varlock": "catalog:"

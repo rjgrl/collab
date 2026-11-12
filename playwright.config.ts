@@ -12,7 +12,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `${bin("tsx")} apps/server/src/browser-fixture.ts`,
+      command: `${bin("tsx")} apps/server/test/browser-fixture.ts`,
       url: "http://127.0.0.1:3100/health/live",
       reuseExistingServer: false,
       env: { NODE_ENV: "test" },

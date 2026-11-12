@@ -1,8 +1,7 @@
 /** MongoDB omits optional null fields unless they are set explicitly. */
 export function notDeletedFilter() {
-  return {
-    OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }],
-  };
+  // Native Mongo equality to null matches both missing and explicitly null.
+  return { deletedAt: null };
 }
 
 export const notDeleted = notDeletedFilter();
@@ -14,6 +13,6 @@ export function withNotDeleted<T extends Record<string, unknown>>(where?: T) {
   }
 
   return {
-    AND: [base, where],
+    $and: [base, where],
   };
 }

@@ -1,5 +1,9 @@
-import { genderSchema, facebookSchema } from "@Alumni-Tracking-Ss/api/validation";
+import { EmploymentPanel } from "@/components/alumni/employment-panel";
+import { EvidencePanel } from "@/components/alumni/evidence-panel";
+import { ContactsPanel } from "@/components/alumni/contacts-panel";
+import { useProgramOptions } from "@/lib/academic-options";
 import { Card, CardContent, CardHeader, CardTitle } from "@Alumni-Tracking-Ss/ui/components/card";
+import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -7,19 +11,21 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { QuietButton } from "@/components/data-table";
-import Loader from "@/components/loader";
-import { NativeSelect } from "@/components/native-select";
-import {
-  FormActions,
-  FormField,
-  PageHeader,
-  PageShell,
-  PrimaryButton,
-} from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
-import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
+import { QuietButton } from "@/components/data/data-table";
+import Loader from "@/components/layout/loader";
+import { FormSelect } from "@/components/forms/form-select";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
+import { StatusBadge } from "@/components/data/status-badge";
+import { can, managesFaculty, useSession } from "@/lib/session";
+import { client, api, downloadPdf, queryClient } from "@/lib/api";
+import { DetailRow, SummaryCard } from "@/components/account/summary-card";
+import { AccountAvatar } from "@/components/account/account-avatar";
+import { AlumniPhotoDialog } from "@/components/alumni/alumni-photo-dialog";
+import { TrackingTable } from "@/components/alumni/tracking-table";
+import { ChangeHistoryTable } from "@/components/alumni/change-history-table";
 
 export const Route = createFileRoute("/_app/alumni/$id")({
   component: AlumniDetailPage,
@@ -28,42 +34,40 @@ export const Route = createFileRoute("/_app/alumni/$id")({
 function AlumniDetailPage() {
   const { id } = Route.useParams();
   const session = useSession();
-  const programs = useQuery(orpc.programs.list.queryOptions({ input: {} }));
-  const alumni = useQuery(orpc.alumni.get.queryOptions({ input: { id } }));
+  const programs = useProgramOptions();
+  const alumni = useQuery(api.alumni.get.queryOptions({ input: { id } }));
   const record = alumni.data;
   const [form, setForm] = useState({
-    studentNumber: "",
     firstName: "",
-    lastName: "",
     middleName: "",
+    lastName: "",
+    suffix: "",
     gender: "",
+    batch: "",
+    studentNumber: "",
     graduationYear: "",
-    mobileNumber: "",
-    personalEmail: "",
-    facebookAccount: "",
     programId: "",
-    employmentStatus: "unknown" as "employed" | "unemployed" | "unknown",
   });
-  const [job, setJob] = useState({ employer: "", jobTitle: "", notes: "" });
+  const showHistory = managesFaculty(session.data);
   const [trackingNotes, setTrackingNotes] = useState("");
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState(false);
+  const [trackingPage, setTrackingPage] = useState(1);
 
   useEffect(() => {
     if (!record) {
       return;
     }
-    const gender = genderSchema.safeParse(record.gender);
     setForm({
-      studentNumber: record.studentNumber,
       firstName: record.firstName,
-      lastName: record.lastName,
       middleName: record.middleName ?? "",
-      gender: gender.success ? gender.data : "",
+      lastName: record.lastName,
+      suffix: record.suffix ?? "",
+      gender: record.gender ?? "",
+      batch: record.batch ?? "",
+      studentNumber: record.studentNumber,
       graduationYear: record.graduationYear ? String(record.graduationYear) : "",
-      mobileNumber: record.mobileNumber ?? "",
-      personalEmail: record.personalEmail ?? "",
-      facebookAccount: record.facebookAccount ?? "",
       programId: record.programId,
-      employmentStatus: record.employmentStatus,
     });
   }, [record]);
 
@@ -72,29 +76,12 @@ function AlumniDetailPage() {
       client.alumni.update({
         id,
         ...form,
-        gender: genderSchema.parse(form.gender),
-        graduationYear: form.graduationYear ? Number(form.graduationYear) : undefined,
+        gender: form.gender === "Male" || form.gender === "Female" ? form.gender : undefined,
+        graduationYear: Number(form.graduationYear),
       }),
     onSuccess: async () => {
       toast.success("Alumni profile saved");
-      await queryClient.invalidateQueries();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const addJob = useMutation({
-    mutationFn: () =>
-      client.alumni.addEmployment({
-        alumniId: id,
-        employer: job.employer,
-        jobTitle: job.jobTitle,
-        notes: job.notes,
-        isCurrent: true,
-        status: "employed",
-      }),
-    onSuccess: async () => {
-      toast.success("Employment added");
-      setJob({ employer: "", jobTitle: "", notes: "" });
+      setEditingDetails(false);
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -111,28 +98,11 @@ function AlumniDetailPage() {
     onSuccess: async () => {
       toast.success("Tracking updated");
       setTrackingNotes("");
+      setTrackingPage(1);
       await queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
   });
-
-  async function uploadFile(file: File, kind: string) {
-    const body = new FormData();
-    body.set("alumniId", id);
-    body.set("kind", kind);
-    body.set("file", file);
-    const response = await fetch("/api/files/evidence", {
-      method: "POST",
-      credentials: "include",
-      body,
-    });
-    const payload = (await response.json()) as { error?: string };
-    if (!response.ok) {
-      throw new Error(payload.error || "Upload failed");
-    }
-    await queryClient.invalidateQueries();
-    toast.success("File uploaded");
-  }
 
   if (alumni.isPending) {
     return (
@@ -146,6 +116,9 @@ function AlumniDetailPage() {
     return (
       <PageShell>
         <PageHeader title="Alumni profile" description="This alumni record could not be found." />
+        {alumni.isError ? (
+          <ErrorAlert onRetry={() => void alumni.refetch()}>{alumni.error.message}</ErrorAlert>
+        ) : null}
       </PageShell>
     );
   }
@@ -157,15 +130,96 @@ function AlumniDetailPage() {
   return (
     <PageShell>
       <PageHeader
-        title={`${record.lastName}, ${record.firstName}`}
-        description={`${record.program.department.code} / ${record.program.code}`}
-        actions={<StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />}
+        title={formatDisplayName(record)}
+        description={`${record.program.department.name} / ${record.program.code}`}
+        leading={
+          <AccountAvatar
+            image={record.photoUrl}
+            name={formatDisplayName(record)}
+            className="size-20 sm:size-28"
+          />
+        }
+        meta={<StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {record.canManagePhoto ? (
+              <QuietButton onClick={() => setEditingPhoto(true)}>Change photo</QuietButton>
+            ) : null}
+            {can(session.data?.permissions, "reports.export") ? (
+              <QuietButton
+                onClick={() =>
+                  void downloadPdf(`/reports/alumni/${id}/profile.pdf`).catch((error: Error) =>
+                    toast.error(error.message),
+                  )
+                }
+              >
+                Profile PDF
+              </QuietButton>
+            ) : null}
+          </div>
+        }
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>Student details and contact info</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <SummaryCard
+          title="Student details"
+          actionLabel={canWrite ? "Edit details" : undefined}
+          onAction={
+            canWrite
+              ? () => {
+                  setForm({
+                    firstName: record.firstName,
+                    middleName: record.middleName ?? "",
+                    lastName: record.lastName,
+                    suffix: record.suffix ?? "",
+                    gender: record.gender ?? "",
+                    batch: record.batch ?? "",
+                    studentNumber: record.studentNumber,
+                    graduationYear: record.graduationYear ? String(record.graduationYear) : "",
+                    programId: record.programId,
+                  });
+                  setEditingDetails(true);
+                }
+              : undefined
+          }
+        >
+          <DetailRow label="Full name" value={formatDisplayName(record)} />
+          <DetailRow label="Student number" value={record.studentNumber} />
+          <DetailRow label="Program" value={`${record.program.code} — ${record.program.name}`} />
+          <DetailRow label="Department" value={record.program.department.name} />
+          <DetailRow label="Graduation year" value={record.graduationYear ?? "Not recorded"} />
+          <DetailRow label="Gender" value={record.gender || "Not recorded"} />
+          <DetailRow label="Batch" value={record.batch || "Not recorded"} />
+          <DetailRow label="Employment" value={record.employmentStatus} />
+        </SummaryCard>
+        <ContactsPanel
+          alumniId={id}
+          contacts={record.contacts}
+          canWrite={canWrite}
+          signup={{
+            email: record.personalEmail,
+            phone: record.mobileNumber,
+            facebook: record.facebookAccount,
+          }}
+        />
+      </div>
+
+      {editingPhoto ? (
+        <AlumniPhotoDialog
+          alumniId={id}
+          name={formatDisplayName(record)}
+          photoUrl={record.photoUrl}
+          onClose={() => setEditingPhoto(false)}
+        />
+      ) : null}
+
+      {editingDetails ? (
+        <FormDialog
+          open
+          title="Edit student details"
+          description="Update the alumni record. Employment status remains derived from job history."
+          pending={save.isPending}
+          onOpenChange={setEditingDetails}
+        >
           <form
             className="grid gap-4 md:grid-cols-2"
             onSubmit={(event) => {
@@ -173,42 +227,12 @@ function AlumniDetailPage() {
               save.mutate();
             }}
           >
-            <FormField id="programId" label="Program">
-              <NativeSelect
-                id="programId"
-                value={form.programId}
-                onChange={(event) => setForm({ ...form, programId: event.target.value })}
-                disabled={!canWrite}
-              >
-                {programs.data?.map((program) => (
-                  <option key={program.id} value={program.id}>
-                    {program.department.code} / {program.code} — {program.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            </FormField>
-            <FormField id="studentNumber" label="Student number">
-              <Input
-                id="studentNumber"
-                value={form.studentNumber}
-                onChange={(event) => setForm({ ...form, studentNumber: event.target.value })}
-                disabled={!canWrite}
-              />
-            </FormField>
-            <FormField id="firstName" label="First name">
+            <FormField id="firstName" label="First name" required>
               <Input
                 id="firstName"
+                required
                 value={form.firstName}
                 onChange={(event) => setForm({ ...form, firstName: event.target.value })}
-                disabled={!canWrite}
-              />
-            </FormField>
-            <FormField id="lastName" label="Last name">
-              <Input
-                id="lastName"
-                value={form.lastName}
-                onChange={(event) => setForm({ ...form, lastName: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
             <FormField id="middleName" label="Middle name">
@@ -216,168 +240,100 @@ function AlumniDetailPage() {
                 id="middleName"
                 value={form.middleName}
                 onChange={(event) => setForm({ ...form, middleName: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
-            <FormField id="gender" label="Gender" required>
-              <NativeSelect
+            <FormField id="lastName" label="Last name" required>
+              <Input
+                id="lastName"
+                required
+                value={form.lastName}
+                onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+              />
+            </FormField>
+            <FormField id="suffix" label="Suffix">
+              <Input
+                id="suffix"
+                value={form.suffix}
+                onChange={(event) => setForm({ ...form, suffix: event.target.value })}
+              />
+            </FormField>
+            <FormField id="gender" label="Gender">
+              <FormSelect
                 id="gender"
                 value={form.gender}
-                onChange={(event) => setForm({ ...form, gender: event.target.value })}
-                disabled={!canWrite}
-                required
-              >
-                <option value="">Select gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </NativeSelect>
+                onValueChange={(selected) => setForm({ ...form, gender: selected })}
+                items={[
+                  { value: "", label: "Not specified" },
+                  { value: "Female", label: "Female" },
+                  { value: "Male", label: "Male" },
+                ]}
+              />
             </FormField>
-            <FormField id="employmentStatus" label="Employment status">
-              <NativeSelect
-                id="employmentStatus"
-                value={form.employmentStatus}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    employmentStatus: event.target.value as typeof form.employmentStatus,
-                  })
+            <FormField id="batch" label="Batch">
+              <Input
+                id="batch"
+                maxLength={40}
+                value={form.batch}
+                onChange={(event) => setForm({ ...form, batch: event.target.value })}
+              />
+            </FormField>
+            <FormField id="programId" label="Program">
+              <FormSelect
+                id="programId"
+                value={form.programId}
+                onValueChange={(selected) => setForm({ ...form, programId: selected })}
+                items={
+                  programs.data?.map((program) => ({
+                    value: program.id,
+                    label: `${program.department.name} / ${program.code} — ${program.name}`,
+                  })) ?? []
                 }
-                disabled={!canWrite}
-              >
-                <option value="unknown">Unknown</option>
-                <option value="employed">Employed</option>
-                <option value="unemployed">Unemployed</option>
-              </NativeSelect>
-            </FormField>
-            <FormField id="mobileNumber" label="Mobile #">
-              <Input
-                id="mobileNumber"
-                value={form.mobileNumber}
-                onChange={(event) => setForm({ ...form, mobileNumber: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
-            <FormField id="personalEmail" label="Personal email">
+            <FormField id="studentNumber" label="Student number">
               <Input
-                id="personalEmail"
-                type="email"
-                value={form.personalEmail}
-                onChange={(event) => setForm({ ...form, personalEmail: event.target.value })}
-                disabled={!canWrite}
+                id="studentNumber"
+                value={form.studentNumber}
+                onChange={(event) => setForm({ ...form, studentNumber: event.target.value })}
               />
             </FormField>
-            <FormField id="facebookAccount" label="Facebook profile link">
-              <Input
-                id="facebookAccount"
-                type="url"
-                placeholder="https://www.facebook.com/username"
-                maxLength={2048}
-                value={form.facebookAccount}
-                onChange={(event) => setForm({ ...form, facebookAccount: event.target.value })}
-                disabled={!canWrite}
-              />
-              {form.facebookAccount && facebookSchema.safeParse(form.facebookAccount).success ? (
-                <a
-                  href={form.facebookAccount.trim()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary underline underline-offset-4"
-                >
-                  Open Facebook profile
-                </a>
-              ) : null}
-            </FormField>
-            <FormField id="graduationYear" label="Graduation year">
+            <FormField id="graduationYear" label="Graduation year" required>
               <Input
                 id="graduationYear"
                 type="number"
+                required
+                min={1950}
+                max={2100}
                 value={form.graduationYear}
                 onChange={(event) => setForm({ ...form, graduationYear: event.target.value })}
-                disabled={!canWrite}
               />
             </FormField>
-            {canWrite ? (
-              <FormActions>
-                <PrimaryButton type="submit" pending={save.isPending}>
-                  Save
-                </PrimaryButton>
-              </FormActions>
+            {save.error ? (
+              <ErrorAlert className="md:col-span-2">{save.error.message}</ErrorAlert>
             ) : null}
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Employment</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {record.employments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No employment records found.</p>
-          ) : (
-            <ul className="flex flex-col gap-2 text-sm">
-              {record.employments.map((item) => (
-                <li key={item.id} className="border-b pb-2 last:border-0">
-                  <strong>{item.employer}</strong>
-                  {item.jobTitle ? ` · ${item.jobTitle}` : ""}
-                  {item.isCurrent ? " · current" : ""}
-                </li>
-              ))}
-            </ul>
-          )}
-          {canWrite ? (
-            <form
-              className="grid gap-3 md:grid-cols-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                addJob.mutate();
-              }}
-            >
-              <Input
-                placeholder="Employer"
-                value={job.employer}
-                onChange={(event) => setJob({ ...job, employer: event.target.value })}
-                required
-                aria-label="Employer"
-              />
-              <Input
-                placeholder="Job title"
-                value={job.jobTitle}
-                onChange={(event) => setJob({ ...job, jobTitle: event.target.value })}
-                aria-label="Job title"
-              />
-              <PrimaryButton type="submit" pending={addJob.isPending} pendingLabel="Adding">
-                Add employment
+            <div className="md:col-span-2">
+              <PrimaryButton type="submit" pending={save.isPending}>
+                Save student details
               </PrimaryButton>
-            </form>
-          ) : null}
-        </CardContent>
-      </Card>
+            </div>
+          </form>
+        </FormDialog>
+      ) : null}
+
+      <EmploymentPanel jobs={record.employments} alumniId={id} canWrite={canWrite} />
 
       <Card>
         <CardHeader>
           <CardTitle>Tracking</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="text-muted-foreground">Current status</span>
             <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
           </div>
-          {record.trackingEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tracking events found.</p>
-          ) : (
-            <ul className="flex flex-col gap-2 text-sm">
-              {record.trackingEvents.map((event) => (
-                <li key={event.id}>
-                  {new Date(event.recordedAt).toLocaleString()} ·{" "}
-                  {event.isTracked ? "Tracked" : "Untracked"} · {event.source}
-                  {event.notes ? ` · ${event.notes}` : ""}
-                </li>
-              ))}
-            </ul>
-          )}
+          <TrackingTable alumniId={id} page={trackingPage} onPageChange={setTrackingPage} />
           {canTrack ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3 border-t pt-4">
               <Textarea
                 value={trackingNotes}
                 onChange={(event) => setTrackingNotes(event.target.value)}
@@ -395,61 +351,25 @@ function AlumniDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Evidence and images</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {record.evidenceFiles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No files uploaded.</p>
-          ) : (
-            <ul className="flex flex-col gap-2 text-sm">
-              {record.evidenceFiles.map((file) => (
-                <li key={file.id}>
-                  <a
-                    className="underline underline-offset-4"
-                    href={`/api/files/${file.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {file.originalName}
-                  </a>{" "}
-                  · {file.provider} · {file.kind}
-                </li>
-              ))}
-            </ul>
-          )}
-          {canUpload ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField id="evidence" label="Upload evidence">
-                <Input
-                  id="evidence"
-                  type="file"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file)
-                      void uploadFile(file, "evidence").catch((error) =>
-                        toast.error(error.message),
-                      );
-                  }}
-                />
-              </FormField>
-              <FormField id="image" label="Upload image">
-                <Input
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file)
-                      void uploadFile(file, "image").catch((error) => toast.error(error.message));
-                  }}
-                />
-              </FormField>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+      <EvidencePanel
+        kind="evidence"
+        files={record.evidenceFiles}
+        jobs={record.employments}
+        alumniId={id}
+        canUpload={canUpload}
+        canDelete={can(session.data?.permissions, "files.delete")}
+      />
+
+      {showHistory ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Change history</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChangeHistoryTable alumniId={id} />
+          </CardContent>
+        </Card>
+      ) : null}
     </PageShell>
   );
 }

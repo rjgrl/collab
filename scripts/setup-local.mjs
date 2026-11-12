@@ -1,14 +1,16 @@
 import { prepareLocalEnv } from "./local-env.mjs";
-import { projectRoot, runTool, runTsx, runWorkspace } from "./local-tools.mjs";
+import { projectRoot, runTool, runTsx } from "./local-tools.mjs";
 import { checkToolchain } from "./development.mjs";
 
 async function main() {
   checkToolchain();
   const unknown = process.argv
     .slice(2)
-    .filter((arg) => !["--demo", "--update-existing"].includes(arg));
-  if (unknown.length) throw new Error("Usage: pnpm setup:local [--demo] [--update-existing]");
-  const config = await prepareLocalEnv(projectRoot, { demo: process.argv.includes("--demo") });
+    .filter((arg) => !["--demo", "--no-demo", "--update-existing"].includes(arg));
+  if (unknown.length) throw new Error("Usage: pnpm setup:local [--no-demo] [--update-existing]");
+  // Development/testing phase: demo data and demo logins are on unless --no-demo. (--demo is
+  // accepted for older instructions.) Remove before deployment, along with the demo seed.
+  const config = await prepareLocalEnv(projectRoot, { demo: !process.argv.includes("--no-demo") });
   const env = {
     ...process.env,
     NODE_ENV: "development",
@@ -23,12 +25,16 @@ async function main() {
   );
   for (const directory of ["apps/web", "apps/server", "packages/db"])
     await runTool("varlock", "varlock", ["codegen", "--path", directory], { env });
-  await runWorkspace(["--filter", "@Alumni-Tracking-Ss/db", "db:generate"], { env });
   await runTsx("local-mongo.ts", { env });
   await runTsx("initialize-local-db.ts", { env });
   await runTsx("verify-local-setup.ts", { env });
   console.log("Local setup complete. Open http://localhost:3001 after running pnpm dev.");
-  console.log("Your private initial login is in " + config.loginFile);
+  console.log(
+    "Your private initial login" +
+      (config.demo ? " and demo logins are" : " is") +
+      " in " +
+      config.loginFile,
+  );
   console.log("Compass connection: mongodb://127.0.0.1:27018/?replicaSet=rs0");
 }
 main().catch((error) => {

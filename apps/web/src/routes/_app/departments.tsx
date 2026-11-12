@@ -1,3 +1,6 @@
+import { TablePagination } from "@/components/data/table-pagination";
+import { FormSelect } from "@/components/forms/form-select";
+import { useCollegeOptions } from "@/lib/academic-options";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -6,24 +9,36 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DataTable, QuietButton, RowActions, TableCell, TableRow } from "@/components/data-table";
-import { FormField, PageHeader, PageShell, PrimaryButton } from "@/components/page-header";
+import {
+  DataTable,
+  QuietButton,
+  RowActions,
+  TableCell,
+  TableRow,
+} from "@/components/data/data-table";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
+import { PageHeader, PageShell } from "@/components/layout/page";
+import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, api, queryClient } from "@/lib/api";
+import { useConfirm } from "@/components/feedback/confirm-provider";
 
 export const Route = createFileRoute("/_app/departments")({
   component: DepartmentsPage,
 });
 
-type Draft = { id?: string; code: string; name: string; description: string };
-
-const emptyDraft: Draft = { code: "", name: "", description: "" };
+type Draft = { id?: string; collegeId: string; name: string; description: string };
 
 function DepartmentsPage() {
+  const confirmAction = useConfirm();
   const session = useSession();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const list = useQuery(orpc.departments.list.queryOptions({ input: { search } }));
+  const colleges = useCollegeOptions();
+  const list = useQuery(
+    api.departments.list.queryOptions({ input: { search, page, pageSize: 20 } }),
+  );
   const canWrite = can(session.data?.permissions, "departments.write");
   const canDelete = can(session.data?.permissions, "departments.delete");
 
@@ -32,13 +47,13 @@ function DepartmentsPage() {
       if (value.id) {
         return client.departments.update({
           id: value.id,
-          code: value.code,
+          collegeId: value.collegeId,
           name: value.name,
           description: value.description,
         });
       }
       return client.departments.create({
-        code: value.code,
+        collegeId: value.collegeId,
         name: value.name,
         description: value.description,
       });
@@ -67,7 +82,13 @@ function DepartmentsPage() {
         description="Organize alumni programs by department."
         actions={
           canWrite ? (
-            <PrimaryButton onClick={() => setDraft(emptyDraft)}>Add department</PrimaryButton>
+            <PrimaryButton
+              onClick={() =>
+                setDraft({ collegeId: colleges.data?.[0]?.id ?? "", name: "", description: "" })
+              }
+            >
+              Add department
+            </PrimaryButton>
           ) : null
         }
       />
@@ -98,12 +119,19 @@ function DepartmentsPage() {
               save.mutate(draft);
             }}
           >
-            <FormField id="code" label="Code" required>
-              <Input
-                id="code"
-                value={draft.code}
-                onChange={(event) => setDraft({ ...draft, code: event.target.value })}
+            <FormField id="college" label="College" required>
+              <FormSelect
+                id="college"
+                value={draft.collegeId}
+                onValueChange={(selected) => setDraft({ ...draft, collegeId: selected })}
                 required
+                items={[
+                  { value: "", label: "Select college" },
+                  ...(colleges.data?.map((college) => ({
+                    value: college.id,
+                    label: college.name,
+                  })) ?? []),
+                ]}
               />
             </FormField>
             <FormField id="name" label="Name" required>
@@ -126,10 +154,16 @@ function DepartmentsPage() {
           </form>
         </FormDialog>
       ) : null}
+      {list.isError ? (
+        <ErrorAlert onRetry={() => void list.refetch()}>{list.error.message}</ErrorAlert>
+      ) : null}
       <DataTable
-        headers={["Code", "Name", "Programs", "Actions"]}
+        headers={["Name", "College", "Programs", "Actions"]}
         search={search}
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         searchPlaceholder="Search departments"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
@@ -138,9 +172,13 @@ function DepartmentsPage() {
       >
         {list.data?.map((row) => (
           <TableRow key={row.id}>
-            <TableCell>{row.code}</TableCell>
-            <TableCell>{row.name}</TableCell>
-            <TableCell>{row._count.programs}</TableCell>
+            <TableCell>
+              <span className="font-medium">{row.name}</span>
+            </TableCell>
+            <TableCell>{row.college?.name ?? ""}</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {row._count.programs.toLocaleString()}
+            </TableCell>
             <TableCell>
               <RowActions>
                 {canWrite ? (
@@ -148,7 +186,7 @@ function DepartmentsPage() {
                     onClick={() =>
                       setDraft({
                         id: row.id,
-                        code: row.code,
+                        collegeId: row.collegeId,
                         name: row.name,
                         description: row.description,
                       })
@@ -160,8 +198,15 @@ function DepartmentsPage() {
                 {canDelete ? (
                   <QuietButton
                     variant="destructive"
-                    onClick={() => {
-                      if (confirm("Remove this department? This cannot be undone.")) {
+                    onClick={async () => {
+                      if (
+                        await confirmAction({
+                          title: "Remove this department?",
+                          description: "This cannot be undone.",
+                          confirmLabel: "Remove",
+                          destructive: true,
+                        })
+                      ) {
                         remove.mutate(row.id);
                       }
                     }}
@@ -174,6 +219,12 @@ function DepartmentsPage() {
           </TableRow>
         ))}
       </DataTable>
+      <TablePagination
+        page={page}
+        onPage={setPage}
+        hasNext={list.data?.length === 20}
+        pending={list.isFetching}
+      />
     </PageShell>
   );
 }

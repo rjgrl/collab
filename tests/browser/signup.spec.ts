@@ -1,3 +1,4 @@
+import { selectOption } from "./select-helper";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
@@ -7,22 +8,64 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto("/login");
 });
 
+test("signed-out branding uses the university seal and tinted building", async ({
+  page,
+}, testInfo) => {
+  const seal = page.locator('img[src="/brand/buksu-cot-seal.webp"]:visible');
+  await expect(seal).toHaveCount(1);
+  expect(await seal.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+
+  const building = page.locator('img[src="/brand/cot-building.webp"]');
+  if (testInfo.project.name === "desktop") {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload();
+    await expect(building).toBeVisible();
+    expect(
+      await building.evaluate((image: HTMLImageElement) => image.naturalWidth),
+    ).toBeGreaterThan(0);
+    await expect(
+      page.getByText("Keep every graduate connected to Bukidnon State University."),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Academic leaders monitor progress across their scope"),
+    ).toBeVisible();
+  } else {
+    await expect(building).toBeHidden();
+  }
+});
+
 test("signup collects contact details and rejects an existing email", async ({ page }) => {
   await page.getByRole("button", { name: "Need an account? Sign up" }).click();
-  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Duplicate account");
+  await page.getByRole("textbox", { name: "First name", exact: true }).fill("Duplicate");
+  await page.getByRole("textbox", { name: "Last name", exact: true }).fill("Account");
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("ADMIN@EXAMPLE.TEST");
   const phone = page.getByRole("textbox", { name: "Phone number", exact: true });
   await expect(phone).toHaveAttribute("required", "");
   await phone.fill("+639171234567");
   const gender = page.getByRole("combobox", { name: "Gender", exact: true });
-  await expect(gender).toHaveAttribute("required", "");
-  await expect(gender.locator("option")).toHaveText(["Select gender", "Male", "Female"]);
-  await gender.selectOption("Female");
+  await expect(gender).toHaveAttribute("aria-required", "true");
+  await gender.click();
+  await expect(page.getByRole("option")).toHaveText(["Select gender", "Male", "Female"]);
+  await page.keyboard.press("Escape");
+  await selectOption(gender, "Female");
+  await page.getByRole("button", { name: "Add Facebook profile", exact: true }).click();
   const facebook = page.getByRole("textbox", { name: "Facebook profile link (optional)" });
+  await expect(facebook).toBeFocused();
   await expect(facebook).toHaveAttribute("type", "url");
   await expect(facebook).not.toHaveAttribute("required");
+  await page.getByRole("textbox", { name: "Student number", exact: true }).fill("NEW-SYNTHETIC");
+  await selectOption(
+    page.getByRole("combobox", { name: "Degree program", exact: true }),
+    "000000000000000000000302",
+  );
   await page.locator("#password").fill("SyntheticPassword123!");
-  const response = page.waitForResponse((response) => response.url().endsWith("/api/auth/signup"));
+  const year = page.getByRole("spinbutton", { name: "Graduation year", exact: true });
+  await expect(year).toHaveAttribute("required", "");
+  expect(await year.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await year.fill("2024");
+  const response = page.waitForResponse((response) =>
+    response.url().endsWith("/api/v1/auth/signup"),
+  );
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   expect((await response).status()).toBe(409);
   await expect(page.getByRole("alert")).toContainText("already exists");
@@ -37,7 +80,11 @@ test("signup collects contact details and rejects an existing email", async ({ p
 });
 
 test("Google is available in both modes when configured and enabled", async ({ page, request }) => {
-  await expect(page.getByRole("button", { name: "Sign in with Google" })).toBeDisabled();
+  // Hidden (not a disabled placeholder) while Google sign-in is off, in both modes.
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in with Google" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+  await expect(page.getByRole("button", { name: "Sign up with Google" })).toHaveCount(0);
   await request.post("http://127.0.0.1:3100/__test/google");
   await page.reload();
   await expect(page.getByRole("button", { name: "Sign in with Google" })).toHaveAttribute(
@@ -51,6 +98,38 @@ test("Google is available in both modes when configured and enabled", async ({ p
   );
 });
 
+test("signup stores separated compound names and the actual custom suffix", async ({ page }) => {
+  await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+  await page.getByRole("textbox", { name: "First name", exact: true }).fill("  María José  ");
+  await page.getByRole("textbox", { name: "Last name", exact: true }).fill("Dela Cruz-O’Neill");
+  await expect(page.getByRole("textbox", { name: "Middle name (optional)" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Add middle name or suffix", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Name extension / suffix (optional)", exact: true })
+    .fill("de la Casa");
+  await page
+    .getByRole("textbox", { name: "Email", exact: true })
+    .fill("structured.names@example.test");
+  await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234567");
+  await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
+  await page.getByRole("textbox", { name: "Student number", exact: true }).fill("NEW-SYNTHETIC");
+  await selectOption(
+    page.getByRole("combobox", { name: "Degree program", exact: true }),
+    "000000000000000000000302",
+  );
+  await page.locator("#password").fill("SyntheticPassword123!");
+  await page.getByRole("spinbutton", { name: "Graduation year", exact: true }).fill("2024");
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await page.waitForURL("**/complete-profile");
+  const user = await (await page.request.get("/api/auth/me")).json();
+  expect(user.firstName).toBe("María José");
+  expect(user.middleName).toBe("");
+  expect(user.lastName).toBe("Dela Cruz-O’Neill");
+  expect(user.suffix).toBe("de la Casa");
+  expect(user.name).toBe("María José Dela Cruz-O’Neill de la Casa");
+  expect((await page.request.get("/api/alumni")).status()).toBe(403);
+});
+
 test("existing password accounts can save missing contact details", async ({ page, request }) => {
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
@@ -61,9 +140,36 @@ test("existing password accounts can save missing contact details", async ({ pag
   await expect(page).toHaveURL(/\/complete-profile$/);
   await expect(page.locator('input[type="password"]')).toHaveCount(0);
   await page.getByRole("textbox", { name: "Phone number", exact: true }).fill("+639171234567");
-  await page.getByRole("combobox", { name: "Gender", exact: true }).selectOption("Male");
+  await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Male");
   await page.getByRole("button", { name: "Save contact details" }).click();
   await page.waitForURL("**/dashboard");
   await page.reload();
   await expect(page).toHaveURL(/\/dashboard$/);
+});
+
+test("sign-up fits a 1440×900 desktop without scrolling", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Desktop viewport sizes only");
+  const openSignup = async (width: number, height: number) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+    await expect(page.getByRole("combobox", { name: "Degree program", exact: true })).toBeEnabled();
+  };
+  const submit = page.getByRole("button", { name: "Create account", exact: true });
+
+  await openSignup(1440, 900);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(submit).toBeInViewport({ ratio: 1 });
+
+  await openSignup(1366, 768);
+  const box = await submit.boundingBox();
+  expect(box).not.toBeNull();
+  // At most one short scroll (about three mouse-wheel notches).
+  expect(box!.y + box!.height).toBeLessThanOrEqual(768 + 320);
+
+  await openSignup(390, 844);
+  const first = await page.getByRole("textbox", { name: "First name", exact: true }).boundingBox();
+  const last = await page.getByRole("textbox", { name: "Last name", exact: true }).boundingBox();
+  expect(first!.x).toBe(last!.x);
+  expect(last!.y).toBeGreaterThan(first!.y);
 });

@@ -2,144 +2,206 @@ import { createSign, randomUUID } from "node:crypto";
 import { mkdir, writeFile, realpath, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileTypeFromBuffer } from "file-type";
+import sharp from "sharp";
 
 import type { IntegrationEnv } from "../context";
+import { ApiError } from "../http-error";
 
+export type StorageProvider = "local" | "google_drive" | "imgbb";
 export type StoredFile = {
-  provider: "local" | "google_drive" | "imgbb";
+  provider: StorageProvider;
   storageKey: string;
   url?: string;
+  // imgBB only: the page that deletes the image. imgBB documents no delete API.
+  deleteUrl?: string;
+  // What was actually stored; differs from the upload when an image is resized.
+  mimeType: string;
+  sizeBytes: number;
 };
+type UploadInput = { buffer: Buffer; mimeType: string; originalName: string };
+
+/** One shape for every backend so the image host or evidence store can be swapped by config. */
+export interface FileStore {
+  readonly provider: StorageProvider;
+  put(input: UploadInput): Promise<StoredFile>;
+}
 
 type ServiceAccount = {
   client_email: string;
   private_key: string;
 };
 
-export async function storeFile(
-  env: IntegrationEnv,
-  input: {
-    buffer: Buffer;
-    mimeType: string;
-    originalName: string;
-    preferImageHost?: boolean;
-  },
-): Promise<StoredFile> {
-  if (input.preferImageHost && env.imageHostProvider === "local") return storeLocal(env, input);
-  if (input.preferImageHost && env.imageHostProvider !== "google_drive" && env.imgbbApiKey) {
-    return uploadImgbb(env.imgbbApiKey, input.buffer, input.originalName);
-  }
+export const PROFILE_IMAGE_MAX_EDGE = 1024;
 
-  if (env.googleServiceAccountJson && env.googleDriveFolderId) {
-    try {
-      return await uploadDrive(env, input);
-    } catch {
-      console.warn("Drive storage unavailable; storing file in private local storage.");
-    }
-  }
-
-  return storeLocal(env, input);
-}
-
-async function storeLocal(
-  env: IntegrationEnv,
-  input: { buffer: Buffer; originalName: string },
-): Promise<StoredFile> {
-  const uploadDir = env.uploadDir || path.join(process.cwd(), "uploads");
-  await mkdir(uploadDir, { recursive: true });
-  const storageKey = randomUUID();
-  await writeFile(path.join(uploadDir, storageKey), input.buffer, { flag: "wx", mode: 0o600 });
-  return { provider: "local", storageKey };
-}
-
-async function uploadImgbb(apiKey: string, buffer: Buffer, name: string): Promise<StoredFile> {
-  const body = new URLSearchParams({
-    key: apiKey,
-    image: buffer.toString("base64"),
-    name,
-  });
-
-  const response = await fetch("https://api.imgbb.com/1/upload", {
-    method: "POST",
-    signal: AbortSignal.timeout(20_000),
-    body,
-  });
-
-  if (!response.ok) {
-    throw new Error("imgBB upload failed");
-  }
-
-  const payload = (await response.json()) as {
-    success?: boolean;
-    data?: { url?: string; id?: string };
+/**
+ * Downscales to fit 1024x1024, applies EXIF orientation, strips metadata (including GPS),
+ * and re-encodes as WebP. A pixel limit rejects decompression bombs before decoding.
+ */
+export async function prepareProfileImage(input: UploadInput): Promise<UploadInput> {
+  const buffer = await sharp(input.buffer, { limitInputPixels: 40_000_000, animated: false })
+    .autoOrient()
+    .resize({
+      width: PROFILE_IMAGE_MAX_EDGE,
+      height: PROFILE_IMAGE_MAX_EDGE,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 82 })
+    .toBuffer();
+  return {
+    buffer,
+    mimeType: "image/webp",
+    originalName: input.originalName.replace(/\.[^.]*$/, "") + ".webp",
   };
+}
 
-  if (!payload.success || !payload.data?.url) {
-    throw new Error("imgBB upload rejected");
-  }
+export function localStore(env: IntegrationEnv): FileStore {
+  return {
+    provider: "local",
+    async put(input) {
+      const uploadDir = env.uploadDir || path.join(process.cwd(), "uploads");
+      await mkdir(uploadDir, { recursive: true });
+      const storageKey = randomUUID();
+      await writeFile(path.join(uploadDir, storageKey), input.buffer, { flag: "wx", mode: 0o600 });
+      return {
+        provider: "local",
+        storageKey,
+        mimeType: input.mimeType,
+        sizeBytes: input.buffer.length,
+      };
+    },
+  };
+}
 
+// API per https://api.imgbb.com/ : POST /1/upload with key + image (base64) + name; the
+// response carries data.id, data.url and data.delete_url. Uploaded images are public.
+export function imgbbStore(apiKey: string, fetcher: typeof fetch = fetch): FileStore {
   return {
     provider: "imgbb",
-    storageKey: payload.data.id || payload.data.url,
-    url: payload.data.url,
+    async put(input) {
+      const response = await fetcher("https://api.imgbb.com/1/upload", {
+        method: "POST",
+        signal: AbortSignal.timeout(20_000),
+        body: new URLSearchParams({
+          key: apiKey,
+          image: input.buffer.toString("base64"),
+          name: input.originalName,
+        }),
+      });
+      if (!response.ok) throw new Error("imgBB upload failed");
+      const payload = (await response.json()) as {
+        success?: boolean;
+        data?: { url?: string; id?: string; delete_url?: string };
+      };
+      if (!payload.success || !payload.data?.url) throw new Error("imgBB upload rejected");
+      return {
+        provider: "imgbb",
+        storageKey: payload.data.id || payload.data.url,
+        url: payload.data.url,
+        deleteUrl: payload.data.delete_url,
+        mimeType: input.mimeType,
+        sizeBytes: input.buffer.length,
+      };
+    },
   };
 }
 
-async function uploadDrive(
-  env: IntegrationEnv,
-  input: { buffer: Buffer; mimeType: string; originalName: string },
-): Promise<StoredFile> {
-  const token = await googleAccessToken(env.googleServiceAccountJson!, [
-    "https://www.googleapis.com/auth/drive.file",
-  ]);
-
-  const metadata: Record<string, unknown> = {
-    name: input.originalName,
-  };
-  if (env.googleDriveFolderId) {
-    metadata.parents = [env.googleDriveFolderId];
-  }
-
-  const boundary = `alumni_${randomUUID()}`;
-  const prefix = [
-    `--${boundary}`,
-    "Content-Type: application/json; charset=UTF-8",
-    "",
-    JSON.stringify(metadata),
-    `--${boundary}`,
-    `Content-Type: ${input.mimeType}`,
-    "",
-    "",
-  ].join("\r\n");
-  const suffix = `\r\n--${boundary}--`;
-  const body = Buffer.concat([Buffer.from(prefix), input.buffer, Buffer.from(suffix)]);
-
-  const response = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",
-    {
-      method: "POST",
-      signal: AbortSignal.timeout(20_000),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body,
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Google Drive upload failed: ${response.status}`);
-  }
-
-  const payload = (await response.json()) as { id: string; webViewLink?: string };
+// Service accounts have no storage quota and cannot own files, so the folder must sit in a
+// Shared Drive (https://developers.google.com/workspace/drive/api/guides/about-shareddrives),
+// and every request needs supportsAllDrives=true (…/guides/enable-shareddrives).
+// No permissions are created: files stay private and are served by the backend only.
+export function driveStore(env: IntegrationEnv, fetcher: typeof fetch = fetch): FileStore {
   return {
     provider: "google_drive",
-    storageKey: payload.id,
-    url: payload.webViewLink,
+    async put(input) {
+      const token = await googleAccessToken(
+        env.googleServiceAccountJson!,
+        ["https://www.googleapis.com/auth/drive.file"],
+        fetcher,
+      );
+      const metadata = { name: input.originalName, parents: [env.googleDriveFolderId!] };
+      const boundary = `alumni_${randomUUID()}`;
+      const prefix = [
+        `--${boundary}`,
+        "Content-Type: application/json; charset=UTF-8",
+        "",
+        JSON.stringify(metadata),
+        `--${boundary}`,
+        `Content-Type: ${input.mimeType}`,
+        "",
+        "",
+      ].join("\r\n");
+      const body = Buffer.concat([
+        Buffer.from(prefix),
+        input.buffer,
+        Buffer.from(`\r\n--${boundary}--`),
+      ]);
+      const response = await fetcher(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id",
+        {
+          method: "POST",
+          signal: AbortSignal.timeout(20_000),
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+          },
+          body,
+        },
+      );
+      if (!response.ok) throw new Error(`Google Drive upload failed: ${response.status}`);
+      const payload = (await response.json()) as { id: string };
+      return {
+        provider: "google_drive",
+        storageKey: payload.id,
+        mimeType: input.mimeType,
+        sizeBytes: input.buffer.length,
+      };
+    },
   };
 }
 
-export async function googleAccessToken(json: string, scopes: string[]) {
+const driveConfigured = (env: IntegrationEnv) =>
+  Boolean(env.googleServiceAccountJson && env.googleDriveFolderId);
+
+/** Private evidence: Google Drive when configured, otherwise local disk. Never a public host. */
+export function evidenceStore(env: IntegrationEnv): FileStore {
+  return driveConfigured(env) ? driveStore(env) : localStore(env);
+}
+
+/** Alumni profile photos: IMAGE_HOST_PROVIDER picks the host; default imgBB when keyed. */
+export function imageStore(env: IntegrationEnv): FileStore {
+  const choice = env.imageHostProvider?.trim().toLowerCase();
+  if (choice === "local") return localStore(env);
+  if (choice === "google_drive") return evidenceStore(env);
+  if (choice && choice !== "imgbb")
+    throw new Error("IMAGE_HOST_PROVIDER must be imgbb, google_drive or local.");
+  return env.imgbbApiKey ? imgbbStore(env.imgbbApiKey) : evidenceStore(env);
+}
+
+/**
+ * A configured provider that fails fails the upload: no silent fallback to another backend,
+ * which would leave files somewhere operators do not expect (and could not back up).
+ */
+export async function storeFile(
+  env: IntegrationEnv,
+  input: UploadInput & { preferImageHost?: boolean; resizeImage?: boolean },
+): Promise<StoredFile> {
+  let prepared: UploadInput = input;
+  if (input.resizeImage)
+    try {
+      prepared = await prepareProfileImage(input);
+    } catch {
+      // Magic bytes passed but the pixels do not decode (truncated, corrupt, or over the pixel limit).
+      throw new ApiError("BAD_REQUEST", { message: "Choose a valid, uncorrupted image." });
+    }
+  return (input.preferImageHost ? imageStore(env) : evidenceStore(env)).put(prepared);
+}
+
+export async function googleAccessToken(
+  json: string,
+  scopes: string[],
+  fetcher: typeof fetch = fetch,
+) {
   const account = JSON.parse(json) as ServiceAccount;
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
@@ -158,7 +220,7 @@ export async function googleAccessToken(json: string, scopes: string[]) {
   const signature = signer.sign(account.private_key, "base64url");
   const assertion = `${unsigned}.${signature}`;
 
-  const response = await fetch("https://oauth2.googleapis.com/token", {
+  const response = await fetcher("https://oauth2.googleapis.com/token", {
     method: "POST",
     signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -224,7 +286,7 @@ export async function readPrivateFile(
       "https://www.googleapis.com/auth/drive.readonly",
     ]);
     const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.storageKey)}?alt=media`,
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.storageKey)}?alt=media&supportsAllDrives=true`,
       {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(20_000),

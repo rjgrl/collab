@@ -1,28 +1,78 @@
 # Alumni Tracking System
 
-A local testing setup for the team: React/TanStack Router, Hono/oRPC, Prisma, and MongoDB. Every laptop/desktop runs its own database. No Atlas account, shared database password, Docker, or Google credentials are required for the core application.
+A role-based Alumni tracking application built with React/Vite, TanStack Router/Query, Express REST, Mongoose, and MongoDB. The academic structure is **College → Department → Program**. Alumni register and maintain their academic/employment profile; faculty trackers follow the alumni assigned to them; department and college heads manage faculty and assignments in their scope and review evidence and the audit log for it; Super Admins manage accounts, permissions, the full audit log and integrations.
+
+Each laptop/desktop runs its own local MongoDB; no Atlas account, shared database password, Docker or Google credentials are needed for local work. Hosted deployments use MongoDB Atlas (see [Setup options](#setup-options-clean-or-seeded)).
 
 ## Install once on each device
 
-| Requirement       | What to install                                                                                                                                                                                             |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Git               | [Git installer](https://git-scm.com/downloads)                                                                                                                                                              |
-| Node.js           | Node **26.10.0** is the tested version, recorded in `.node-version`. The project requires Node 22.15+; use the tested version for consistent team results. [Node downloads](https://nodejs.org/en/download) |
-| pnpm              | Install **12.5.1** after Node: `npm install --global pnpm@12.5.1`                                                                                                                                           |
-| MongoDB Server    | [MongoDB Community Server](https://www.mongodb.com/docs/manual/administration/install-community/), including `mongod`. **MongoDB 9.0 is tested.** Use an installer supported by your OS/CPU.                |
-| MongoDB Compass   | [Compass](https://www.mongodb.com/try/download/compass), for viewing/editing the local test database                                                                                                        |
-| Authenticator app | A TOTP authenticator supporting six-digit, 30-second codes; required for administrator accounts. Manual setup keys and recovery codes are supported.                                                        |
+| Requirement       | What to install                                                                                                                                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Git               | [Git installer](https://git-scm.com/downloads)                                                                                                                                                                              |
+| Node.js           | Node **26.10.0** is the tested version, recorded in `.node-version`. The project requires Node 22.18+, 24.11+, or 26+; use the tested version for consistent team results. [Node downloads](https://nodejs.org/en/download) |
+| pnpm              | Install **12.5.1** after Node: `npm install --global pnpm@12.5.1`                                                                                                                                                           |
+| MongoDB Server    | [MongoDB Community Server](https://www.mongodb.com/docs/manual/administration/install-community/), including `mongod`. **MongoDB 9.0 is tested.** Use an installer supported by your OS/CPU.                                |
+| MongoDB Compass   | [Compass](https://www.mongodb.com/try/download/compass), for viewing/editing the local test database                                                                                                                        |
+| Authenticator app | A TOTP authenticator supporting six-digit, 30-second codes; required for administrator accounts. Manual setup keys and recovery codes are supported.                                                                        |
 
-**Compass is the database GUI; it does not replace MongoDB Server.** Install both. The app connects to the same server that you open in Compass. Prisma requires a replica set for transactions, even when there is only one local server. The committed scripts initialize that replica set automatically.
+**Compass is the database GUI; it does not replace MongoDB Server.** Install both. The app connects to the same server that you open in Compass. The application requires a replica set for transactions, even when there is only one local server. The committed scripts initialize that replica set automatically.
 
 On Windows, MongoDB's standard installation directory is detected automatically, even if `mongod` is not on PATH. You may leave the installer's Windows service option unchanged: this project uses a separate background process on port **27018**, avoiding the usual service on 27017. On macOS/Linux, install the Community Server using MongoDB's OS-specific instructions and make `mongod` available on PATH (`mongod --version` should work).
 
 Restart your terminal after installing Node/pnpm or changing PATH. Initial dependency installation needs internet access. Native MongoDB binaries are installed per device and are not committed to Git.
 
+## Setup options: clean or seeded
+
+Pick one row. **Clean** starts with only roles, permissions and one Super Admin. **Seeded** also adds synthetic demo colleges, programs, four alumni and a demo login for every role (all sharing the admin's password).
+
+| Where                      | Clean                                                                                                                                   | Seeded (demo data)                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Local MongoDB              | `pnpm setup:local --no-demo`                                                                                                            | `pnpm setup:local`                            |
+| Hosted, e.g. MongoDB Atlas | `pnpm deploy:init`                                                                                                                      | `pnpm deploy:init --demo` (not in production) |
+| Hosted, with existing data | Copy it with the migration commands in [MongoDB Atlas](docs/operations/MONGODB_ATLAS.md#3-later-migrate-the-presentation-data-to-atlas) |                                               |
+
+### Local
+
+Follow [First run after cloning](#first-run-after-cloning) below. Swap in `pnpm setup:local --no-demo` for a clean database.
+
+### Hosted (deployment)
+
+`pnpm deploy:init` sets up an **empty** database once: collections, indexes, roles and the first Super Admin. It refuses any database that already has user accounts, so it cannot overwrite a live deployment. `--demo` is refused when `NODE_ENV=production`.
+
+1. Create the Atlas cluster, a `readWrite` database user and a network rule for the server ([MongoDB Atlas guide](docs/operations/MONGODB_ATLAS.md), steps 1–2).
+2. On the server, clone and install:
+
+   ```sh
+   git clone https://github.com/rjgrl/collab.git
+   cd collab
+   pnpm install --frozen-lockfile
+   pnpm tools:mongodb            # mongodump/mongorestore, for in-app backups
+   ```
+
+3. Create `apps/server/.env` from `apps/server/.env.example` and fill it privately. At minimum: `NODE_ENV=production`, `DATABASE_URL=mongodb+srv://...` (Atlas, with the database name in the path) and the encryption keys listed in the [deployment guide](docs/deployment.md#environment-inventory).
+4. Put the first Super Admin in `packages/db/.env` (or the shell environment; never on the command line):
+
+   ```dotenv
+   SEED_ADMIN_EMAIL=you@your-institution.edu
+   SEED_ADMIN_PASSWORD=<15+ characters with upper, lower, number and a special character or space>
+   ```
+
+5. Initialize, check, build and start:
+
+   ```sh
+   pnpm deploy:init              # clean; or: pnpm deploy:init --demo  (staging/presentation only)
+   pnpm db:verify-transactions   # rollback-only transaction probe
+   pnpm build
+   ```
+
+   Run the API with `pnpm --filter server start` under a process manager, behind HTTPS, and serve the built web app from the same origin ([HTTPS and process configuration](docs/deployment.md#https-and-process-configuration)).
+
+6. Delete `SEED_ADMIN_PASSWORD` from `packages/db/.env`, sign in, enroll an authenticator, and enable integrations in Settings.
+
 ## First run after cloning
 
 ```sh
-git clone --branch development/phase6-cross-device-testing --single-branch https://github.com/rjgrl/collab.git
+git clone https://github.com/rjgrl/collab.git
 cd collab
 pnpm install --frozen-lockfile
 pnpm setup:local
@@ -36,20 +86,30 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 
 1. Creates missing `apps/server/.env`, `apps/web/.env`, and `packages/db/.env` values for local testing. Existing nonempty values are preserved.
 2. Generates a unique initial administrator password on that device and saves the login privately in **`.tools/local-login.txt`**. Open that file to get your email/password; do not commit or share it.
-3. Generates environment types and the platform-specific Prisma client.
+3. Generates environment types. Mongoose models are ordinary TypeScript; no generated database client or native query engine is required.
 4. Starts MongoDB on loopback port 27018, initializes replica set **rs0**, and waits until it has a writable primary.
-5. Initializes a new, randomly named database for this checkout, applies Prisma collections/indexes without reset/data-loss flags, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
+5. Initializes a new, randomly named database for this checkout, adds missing Mongoose collections/indexes without removing records or indexes, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
-For sample departments and three synthetic alumni, use **`pnpm setup:local --demo`** instead of `pnpm setup:local`. This is optional; normal setup gives you an administrator and an empty application ready for data entry. Development sign-in may show an "I am not a robot" checkbox; tick it before submitting. Real reCAPTCHA/Google/provider keys are optional and should never be copied between machines through Git.
+**Demo data is on by default for local setup.** `pnpm setup:local` adds two colleges (College of Technologies with Information Technology and Automotive Technology; College of Education with Secondary Education), one program each, four synthetic alumni, and demo logins for every role. It does this on new databases and, as additive `@collab.test`-only upserts, on existing ones. Every demo login uses the administrator's initial password and is listed in `.tools/local-login.txt`:
+
+| Email                                                     | Signs in as                                            |
+| --------------------------------------------------------- | ------------------------------------------------------ |
+| `college.head@collab.test`                                | College head, College of Technologies                  |
+| `department.head@collab.test`                             | Department head, Information Technology                |
+| `faculty.it@collab.test`                                  | Faculty (IT), assigned Graduate One                    |
+| `faculty.education@collab.test`                           | Faculty (Secondary Education), assigned Graduate Three |
+| `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles               |
+
+Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or every demo login is refused. Hosted deployments get demo data only from `pnpm deploy:init --demo`, which is refused when `NODE_ENV=production`.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 
-Administrators must enroll an authenticator after signing in, before accessing protected pages or APIs. Enter the current password, add the displayed key to your authenticator, confirm its code, and save the one-time recovery codes privately. Setup generates missing encryption/verification keys per device. For enrollment, local lost-authenticator recovery, password resets and configuration details, see [account security operations](docs/operations/ACCOUNT_SECURITY.md).
+With normal MFA enforcement enabled, Administrators enroll an authenticator after signing in, before accessing protected pages or APIs. Local testing currently pauses that requirement. Enter the current password, add the displayed key to your authenticator, confirm its code, and save the one-time recovery codes privately. Setup generates missing encryption/verification keys per device. For enrollment, local lost-authenticator recovery, password resets and configuration details, see [account security operations](docs/operations/ACCOUNT_SECURITY.md).
 
 ## Run again, or update after a pull
 
-For local testing only, set `LOCAL_DISABLE_MFA=true` in your private `apps/server/.env` with `NODE_ENV=development`, then restart the API and refresh the browser. This pauses authenticator enrollment/code requirements for all local accounts, including previously enrolled accounts. Password sign-in and permissions still apply; enrollment/recovery codes are preserved. Remove the setting or set it to `false` and restart to restore MFA. New checkouts enforce MFA by default. Production refuses to start with this flag enabled.
+Local functionality testing uses `LOCAL_REQUIRE_EMAIL_VERIFICATION=false` and `LOCAL_REQUIRE_PHONE_VERIFICATION=false` in the private server environment. Both default to `true`; exemptions are accepted only with `NODE_ENV=development` or `test` and a named loopback MongoDB database on port 27018, replica set rs0. Restart the API and refresh after changes. Contacts remain unverified, and no verification codes are fabricated. Set both to `true` (or remove them) and restart to restore strict gates for verification-required accounts. For local testing, set `LOCAL_DISABLE_MFA=true`: Administrator enrollment/challenge is paused only in managed loopback development. Setup supplies this local default; set it false/remove it and restart to restore normal Admin MFA. Production rejects true. Existing factors/recovery codes are preserved and sessions are not falsely marked MFA-verified. Faculty and Alumni never have mandatory MFA.
 
 For ordinary daily use, including after reboot:
 
@@ -68,7 +128,20 @@ pnpm setup:local
 pnpm dev
 ```
 
-Stop this checkout's development servers before pulling/installing/generating on Windows. Setup preserves local configuration and existing account passwords; populated databases are verified without schema/seed updates. If schema changes are needed, back up local data, review the changes, then run `pnpm setup:local --update-existing`. If Prisma reports an index conflict or a potentially destructive change, setup stops; do not add `--accept-data-loss` or delete your data to bypass it. The system uses MongoDB, so **do not run Prisma Migrate**.
+Stop this checkout's development servers before pulling/installing/generating on Windows. Setup preserves local configuration and existing account passwords; populated databases are verified without schema/seed updates. If schema changes are needed, back up local data, review the changes, then run `pnpm setup:local --update-existing`. If index inspection reports a conflict, setup stops. Review `pnpm db:migrate --dry-run` and a backup before authorizing `pnpm db:migrate --apply`; never delete data or drop an index to bypass the report.
+
+### Updating an existing database to the College/Department/Program structure
+
+This update renames the old top-level `Department` collection to `College` (all IDs are preserved), creates one placeholder department named "<College> – Unsorted" per college, moves every program into its college's placeholder, links legacy faculty records to user accounts by email, and imports each alumnus's old phone, email and Facebook fields as primary contacts. Phone numbers that cannot be normalized are counted and skipped, never stored. Setup refuses to run an un-migrated database. With `pnpm dev` stopped:
+
+```sh
+pnpm db:migrate --dry-run
+pnpm setup:local --update-existing
+```
+
+Read the dry-run's `orgStructure` section first (colleges, programs, faculty needing review, contacts imported/skipped), and back up the database (Compass export or `mongodump`). Afterwards, create real departments under **Departments**, move programs out of the "– Unsorted" placeholders, then archive the placeholders. To undo before any real departments exist, run `pnpm db:migrate --rollback`; it refuses (and changes nothing) once departments or faculty placements were added after the migration.
+
+This update also adds the `AccountPhoto` collection and its user/date index. For an existing database, run `pnpm db:migrate --dry-run`, review the plan and back up your data, then run `pnpm setup:local --update-existing` (or `pnpm db:migrate --apply`). The migration adds missing collections/indexes without deleting existing records. Department codes are absent from the active model, forms and API; legacy stored fields/indexes are not destructively removed.
 
 ## Connect using MongoDB Compass
 
@@ -79,7 +152,7 @@ Stop this checkout's development servers before pulling/installing/generating on
    mongodb://127.0.0.1:27018/?replicaSet=rs0
    ```
 
-3. Connect and open the database named in your private `apps/server/.env` (`collab_dev_` plus a random suffix for new clones). Existing configured database names are preserved. You should see collections such as `User`, `Role`, `Permission`, `Alumni`, and `Department` after setup.
+3. Connect and open the database named in your private `apps/server/.env` (`collab_dev_` plus a random suffix for new clones). Existing configured database names are preserved. Collections include `User`, `Role`, `Permission`, `Alumni`, `Department`, `Program`, `Employment`, `EvidenceFile`, `AccountPhoto`, `Notification` and `AuditLog`.
 
 The application's generated local server environment uses:
 
@@ -91,11 +164,15 @@ Closing Compass does not stop MongoDB. Closing the application terminal leaves t
 
 ## What teammates get from Git
 
-Committed: all source packages, workspace manifests, pinned pnpm lockfile, Prisma schema, seed logic, environment schemas/examples, native MongoDB discovery/startup and replica initialization scripts, setup/verification scripts, and documentation. Prisma clients/types are generated on each machine to match its platform.
+Committed: application/shared-package source, workspace manifests, pinned pnpm lockfile, Mongoose models, migration and seed logic, environment schemas/examples, database startup helpers, setup/verification scripts, tests and CI. Database models run directly from the TypeScript package. Tests and CI verify the development repository; the university deployment package will be reviewed separately.
 
-Ignored deliberately: real `.env` files, per-device passwords, MongoDB data/logs, uploads, `node_modules`, generated Prisma clients/types, build outputs, and test traces. `pnpm install` and `pnpm setup:local` recreate the required local dependencies/config/generated files. Team changes to database records are **not** synchronized by Git; commit synthetic seed changes if everyone needs the same sample data.
+Retained documentation is limited to this README, setup/troubleshooting instructions, deployment configuration, migration/rollback, account recovery, disaster recovery and the Forms sender contract. Font and UI asset licenses/attribution remain with their assets.
 
-Do not copy another person's `node_modules`, generated Prisma engine, `.tools`, or `.env` files into your clone. Do not overwrite your local environment with examples on every pull.
+Ignored deliberately: real `.env` files, per-device passwords, MongoDB data/logs, uploads, `node_modules`, generated database artifacts, build outputs and test traces. Historical defense/requirements guides, audits, reports, design/planning notes, agent tooling and generated knowledge graphs also stay local. The allowlist in `.gitignore` identifies the retained operator documents; do not force-add excluded files.
+
+`pnpm install` and `pnpm setup:local` recreate the required local dependencies/config/environment types. Team changes to database records are **not** synchronized by Git; commit synthetic seed changes if everyone needs the same sample data. Removing a document from the current branch leaves earlier versions available in Git history.
+
+Do not copy another person's `node_modules`, build output, `.tools`, or `.env` files into your clone. Do not overwrite your local environment with examples on every pull.
 
 ## Troubleshooting
 
@@ -108,7 +185,7 @@ Start with `pnpm run doctor` (read-only; credentials are never printed). See the
 | Connection refused at 27018                                            | Run `pnpm db:local`; inspect `.tools/mongodb-rs0/mongod.log` if it exits. Normal `pnpm dev` also runs this check.                                                                                                 |
 | `ReplicaSetNoPrimary` or transaction/replica-set errors                | Run `pnpm db:local` and wait for `rs0 is PRIMARY`. Check that your private URL includes `?replicaSet=rs0` and port 27018, rather than a standalone server on 27017.                                               |
 | Another server owns port 27018 / a different replica set               | The helper refuses to reconfigure unmanaged data. Inspect that process/config before changing it; do not force `rs.reconfig()` or delete directories.                                                             |
-| Missing Prisma client / route types                                    | Run `pnpm setup:local`. For standalone typechecks on a fresh clone, first run `pnpm --filter web build` to generate route types.                                                                                  |
+| Missing Mongoose dependency / route types                              | Run `pnpm setup:local`. For standalone typechecks on a fresh clone, first run `pnpm --filter web build` to generate route types.                                                                                  |
 | MongoDB upgraded/moved after a previous setup                          | The saved binary path is intentionally pinned for existing data. Restore the binary or plan a proper MongoDB upgrade; the helper does not automatically upgrade existing database files.                          |
 | Setup refuses a custom/remote `DATABASE_URL` or production environment | Your existing values were preserved. Use [manual installation](docs/system/installation.md) / [deployment](docs/deployment.md) for that configuration. Local setup never silently replaces a shared database URL. |
 | Existing administrator password no longer matches the initial file     | Use the password you changed it to. Setup does not reset existing passwords or elevate an unrelated account.                                                                                                      |
@@ -119,20 +196,30 @@ Start with `pnpm run doctor` (read-only; credentials are never printed). See the
 ```sh
 pnpm --filter web build
 pnpm check-types
+pnpm test:browser-types
 pnpm lint
 pnpm test
 pnpm check:secrets
 pnpm build
 pnpm check:production-build
+pnpm check:server-build
 ```
 
-Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. See [test results](docs/test-report.md) for measured coverage and limits. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
+Run everything, including the real-database suites, with one command (MongoDB is started on port 27018 if needed):
 
-The web build always uses production mode without editing your local `.env`; development tools remain available through `pnpm dev`. The latest [pre-production audit](docs/audits/SECURITY_AUDIT.md), [verification results](docs/audits/TEST_RESULTS.md), [remaining risks](docs/audits/REMAINING_RISKS.md), and [release checklist](docs/DEPLOYMENT_CHECKLIST.md) distinguish completed local fixes from unresolved release blockers. MFA, password policy/reset, shared throttling and session hardening are implemented with local acceptance tests. Live verification delivery, production recovery/operations and other documented review gates remain pending; this application is not certified production-ready.
+```sh
+pnpm test:all
+```
+
+Add `-- --browser` to include the Playwright suite (`pnpm exec playwright install chromium` once first). The real-database suites can also be run individually: `pnpm test:org-migration`, `pnpm test:scope-local`, `pnpm test:faculty-local`, `pnpm test:contacts-local`, `pnpm test:reports-local`, `pnpm test:integrity-local`, `pnpm test:deploy-init-local`. Each creates and drops its own random loopback database.
+
+Optional browser checks: `pnpm exec playwright install chromium`, then `pnpm test:browser`. These use synthetic fixtures on ports 3100/3101. Native setup has been exercised on Windows with MongoDB 9.0; macOS/Linux discovery is implemented but needs verification on those operating systems.
+
+The web build always uses production mode without editing your local `.env`; development tools remain available through `pnpm dev`. MFA, password policy/reset, shared throttling and session hardening have local acceptance tests. Live verification delivery and production recovery/operations require acceptance before deployment; follow the [deployment instructions](docs/deployment.md) and [recovery runbook](docs/operations/DISASTER_RECOVERY.md). This application is not certified production-ready.
 
 Optional real-database security checks: `pnpm test:security-db`. This creates a fresh random loopback test database and rolls back synthetic account records; it does not touch the working application database. Tests use local mocks and send no real verification messages. See the security operations guide for the exact scope and retained test artifacts.
 
-Settings contains Account, Members, Roles and permissions, and Integrations. Older `/users`, `/roles`, and `/integrations` links redirect to Settings. Production hosting, private storage, backups, and provider credentials are covered separately in [deployment.md](docs/deployment.md); local usability does not certify production readiness.
+Settings contains Account, Members, Roles and permissions, Integrations and Backups (Super Admin). Older `/users`, `/roles`, and `/integrations` links redirect to Settings. Production hosting, private storage, backups, and provider credentials are covered separately in [deployment.md](docs/deployment.md); local usability does not certify production readiness.
 
 ## Google login and signup
 
@@ -142,9 +229,9 @@ Create a Google Cloud **Web application** OAuth client and configure the consent
 
 In production, new-account registration also requires ALLOW_PUBLIC_SIGNUP=true; existing accounts can still sign in when registration is disabled. Restart the server, then enable **Google sign-in** in Settings > Integrations. Both sign-in and signup use the same Google button. Without credentials or with the integration disabled, the button is unavailable; local password sign-in still works. For a shared deployment, set APP_URL to the public origin serving /api/auth/google and register that origin's HTTPS callback. See [Google's OAuth setup instructions](https://developers.google.com/identity/openid-connect/openid-connect#settingup).
 
-Email signup requires a name, phone number, Male/Female selection, and password; the Facebook profile URL is optional. Emails are trimmed and stored in lowercase. Existing emails are rejected, including concurrent signup attempts protected by MongoDB's unique email index. Google sign-in reuses an existing account with the verified email instead of creating a duplicate. New Google accounts receive the Viewer role and must create a password after a fresh Google verification, without a current-password field. The Google proof expires after five minutes, is bound to the current session, and is consumed once; creating a password also revokes other sessions. Future password changes require the current password. No automatic/shared password is generated.
+Email signup requires separate first/last names, optional middle/suffix fields, phone number, Male/Female selection, and password; the Facebook profile URL is optional. Emails are trimmed and stored in lowercase. Existing emails are rejected, including concurrent signup attempts protected by MongoDB's unique email index. Google sign-in reuses an existing account with the verified email instead of creating a duplicate. New Google accounts receive the Alumni role (legacy internal key `viewer`) and must create a password after a fresh Google verification, without a current-password field. The Google proof expires after five minutes, is bound to the current session, and is consumed once; creating a password also revokes other sessions. Future password changes require the current password. No automatic/shared password is generated.
 
-After pulling schema changes, stop the development server before running `pnpm setup:local` to avoid Windows locking Prisma's engine DLL, then restart `pnpm dev`.
+After pulling model/index changes, review `pnpm db:migrate --dry-run`. Back up local data before explicitly applying additive indexes with `pnpm setup:local --update-existing`; restart `pnpm dev` afterward.
 
 ## Required account verification
 
@@ -152,6 +239,104 @@ New form signups must confirm their email with a six-digit code and verify their
 
 Email confirmation uses the existing HTTPS JSON mail gateway: configure SMTP_URL and SMTP_FROM in the private server environment and enable Email in Settings > Integrations. The gateway receives a POST body with from, to, subject, and text and must actually deliver the message. Direct smtp:// connections are not supported. SESSION_SECRET must contain at least 32 characters; local setup generates it. Codes are never returned by production APIs or written to logs: only a keyed hash is stored. Codes expire in 10 minutes, permit five attempts, and can be consumed once. Resends wait 60 seconds; changing contact information invalidates the previous verification.
 
-**SMS delivery is a stub for now.** No real texts are sent and no development code marks a real phone verified. The server-side adapter and code-entry flow are ready, but new registrations remain restricted at phone verification until a real SMS provider is connected. The test suite uses an isolated in-memory adapter only in the test fixture; it is not a production bypass. Email delivery also remains pending until its gateway is configured.
+**SMS delivery is unimplemented.** Local contact exemptions let functionality tests proceed without pretending contacts are verified or sending codes. Strict verification remains blocked until the SMS adapter and enabled email gateway are configured and accepted. Production refuses local exemptions; `/health/ready` returns 503 when mandatory verification providers are unavailable. The isolated test SMS adapter is never installed in the application.
 
 Google sign-in does not silently activate a pending, unconfirmed password registration with the same email. Confirm the original registration email and sign in with that password before linking Google; this prevents a pre-registered password or phone from becoming trusted through someone else's Google verification.
+
+## Account and tracking workflows
+
+Follow the [migration and rollback runbook](docs/migrations/MONGOOSE_REST.md) before applying indexes to an existing database.
+
+`viewer` remains the internal legacy role key; the interface labels it **Alumni**. Public registration creates the account and linked Alumni profile atomically after collecting student number and a valid degree program. Alumni sign in to **My Profile** and access only their explicitly linked record. Historical broad grants do not give Alumni directory or management access.
+
+Graduation year is required for registration, academic saves and imports (1950–2100). Existing records with unknown years remain readable until corrected. Form dropdowns use the shared themed controls; suffix suggestions still allow custom text.
+
+**Settings > Account** is a read-first summary (Personal details, Contact, Sign-in & security); each Edit button opens a focused dialog. It is the single place for personal details: structured name, profile photo, email, country-selectable phone, gender and Facebook contact. Photos use authenticated private delivery; replacing/removing one archives its metadata and does not delete historical evidence.
+
+**Profile photos** open in a photo editor: the chosen file (or the current photo, when re-opened) previews immediately and can be zoomed and moved. Nothing is saved until **Upload photo** / **Save changes**; **Remove photo** is likewise applied only on save, and **Discard changes** restores the current photo. On an alumni profile, only a Super Admin or the faculty member assigned to that alumnus can change the photo; everyone else who can view the profile only sees it.
+
+Phone numbers are cleaned on blur and validated on submission/API input using country numbering metadata. Redundant trunk zeros after international calling codes are removed where applicable; significant zeros, including Italian numbers, are preserved. Stored international numbers contain only `+` and digits.
+
+Changing email requires the current password and a code delivered to the new address, even when local signup verification is relaxed. The old address remains active until confirmation succeeds. Confirmation verifies the new address, synchronizes the linked Alumni contact, invalidates password-reset links and signs out other sessions while preserving the current session's MFA proof. Live email changes need the enabled HTTPS mail gateway described above.
+
+**My Profile** contains Alumni academic identity, employment and supporting evidence. Tracking status is staff-only: Alumni never see whether they are tracked, and their own profile API omits it. Administrators and in-scope faculty maintain student numbers, academic assignments and tracking decisions. Employment/file edits do not automatically mark a record tracked. Alumni evidence uploads notify the assigned faculty member and the heads of that alumnus's department and college through the header bell.
+
+**Members > Add user** creates Super Admin accounts only; faculty and heads are created on the **Faculty** page. Manual Alumni creation, account conversion to Alumni and manual linking are retired at the API boundary as well as in the UI. Alumni self-register; existing/imported historical records remain available for authorized review. Names and email matches never establish account ownership automatically.
+
+**Departments** use names without codes. **Audit logs** show the **User** (name, with the email recorded at the time underneath), role, action and a plain-language summary; each row opens a detail dialog. **Integrations** are restricted to administrators, including for accounts with historical grants; enabled status is green and disabled status is red. Settings also contains Roles and permissions.
+
+Faculty and Alumni do not require MFA, including accounts with saved enrollment. Administrator roles (`super_admin` or `admin`) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
+
+Additional isolated verification: `pnpm test:mongoose-db`, `pnpm test:forms-db`, `pnpm test:pentest-local` and `pnpm test:staging-local`. They create fresh synthetic loopback namespaces and retain them for inspection. Browser tests now use a fresh real MongoDB namespace on the managed local replica set; CI starts an ephemeral MongoDB replica set with a test-only dependency. No production database is touched by these checks.
+
+## Roles, scope and faculty
+
+Record-level access is decided by one helper (`packages/api/src/scope.ts`) used by every alumni list, detail view, edit, contact, employment and tracking write, file upload/download, CSV/PDF export and dashboard. RBAC permissions only decide which actions are available.
+
+| Account                                    | Alumni visible and editable                        | Assign faculty          | Manage faculty / set roles                   | Change history and audit log |
+| ------------------------------------------ | -------------------------------------------------- | ----------------------- | -------------------------------------------- | ---------------------------- |
+| Super Admin                                | All                                                | Anyone                  | Any level                                    | Everything                   |
+| College head                               | Every program in every department of their college | Within their college    | Up to department level, within their college | Within scope                 |
+| Department head                            | Every program in their department                  | Within their department | Faculty level, within their department       | Within scope                 |
+| Faculty                                    | Only alumni assigned to them                       | No                      | No                                           | No                           |
+| Any account without a faculty record       | None                                               | No                      | No                                           | No                           |
+| Custom roles, inactive or unplaced faculty | None                                               | No                      | No                                           | No                           |
+
+The **Staff** role (university-wide access with no faculty record) is retired. `pnpm db:migrate --apply` and `pnpm db:seed` remove it and its grants; its dry run reports how many accounts held it. Accounts left with no role can still sign in but see nothing until an administrator recreates them on the **Faculty** page. The removal is not undone by `--rollback`.
+
+The **Audit log** page shows everything to Super Admins (`audit.read`). College and department heads see the entries about alumni in their scope (profile, contacts, assignments, tracking) and about faculty in their departments; other accounts cannot open it.
+
+Out-of-scope records return **404**, the same as missing ones. Heads edit only levels strictly below their own. Each alumnus has at most one faculty tracker. Deactivating a faculty member (never deleted) or moving them to another department unassigns their alumni and flags them **Needs reassignment**. Role changes, deactivation and every assignment are audit-logged; the affected member is signed out so their scope refreshes.
+
+Faculty are created on the **Faculty** page with an institutional email; the password is optional because faculty can sign in with institutional Google. **Colleges**, **Departments** and **Programs** cannot be archived while they still hold departments, programs, active faculty or alumni; the error says what blocks it.
+
+Alumni detail pages show the photo, name, program and Tracked/Untracked status at the top, then **Student details** with **Contacts** beside it. Contacts lists the email, phone and Facebook the alumnus gave at sign-up, plus any contacts staff add (Add contact → Phone number / Email / Social media, with edit, delete and make-primary). Below are **Employment**, **Tracking** (history table plus Mark tracked / untracked), supporting evidence and, for Admins and heads, **Change history** in plain language (for example "Added employment — Employer: Acme · Start date: Jul 7, 2023"). Employment, tracking, change history and the Faculty list are tables with 10/25/50 rows per page.
+
+## BukSU institutional email
+
+**Every account, Alumni included,** must use an email domain from `STAFF_EMAIL_DOMAINS` (comma-separated, exact match; subdomains and look-alikes such as `buksu.edu.ph.evil.com` are rejected; the variable name predates the rule covering Alumni). It is enforced server-side on sign-up, password sign-in, first-time Google sign-in, every authenticated request, account creation and email changes. Production refuses to start without it; when it is unset in development the check is off and the server prints a warning.
+
+Existing accounts with a personal email (for example Alumni who registered before this rule) are signed out and refused on their next request. Before turning this on in production, list them (`db.User.find({ email: { $not: /@(student\.)?buksu\.edu\.ph$/ } })`) and have each one change to a BukSU email, or decide how they will regain access. Graduates whose BukSU accounts are deactivated after graduation cannot sign in.
+
+Google sign-in verifies Google's signed ID token on the server (signature against Google's published keys, issuer, audience, expiry, verified email). For every account the token's `hd` (Workspace) claim must also be in the allowlist; the `hd` request parameter is never trusted. BukSU mail is hosted on Google Workspace for both `buksu.edu.ph` and `student.buksu.edu.ph`.
+
+## Integrations: Google Drive, ImgBB and PDF reports
+
+**Evidence files** go to Google Drive when `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_DRIVE_FOLDER_ID` are set, otherwise to private local disk (`UPLOAD_DIR`). Service accounts have no storage quota, so the folder must be inside a **Shared Drive** that the service account is a member of (Content manager). Files are never shared publicly; downloads always go through the signed-in, scope-checked API. If Drive is configured and an upload fails, the upload fails; it never silently falls back to local disk. Accepted types are PDF, JPEG, PNG, WebP, GIF, DOCX, XLSX and CSV up to 10 MB, checked by file contents, not just the name.
+
+**Alumni profile photos** are resized to fit 1024×1024, re-encoded as WebP and stripped of metadata (including GPS location) before upload. `IMAGE_HOST_PROVIDER` picks the host (`imgbb`, `google_drive` or `local`; blank means ImgBB when `IMGBB_API_KEY` is set). **ImgBB image URLs are public: anyone with the link can view the photo.** ImgBB has no documented delete API; the response's delete page URL is stored server-side so an operator can remove an image by hand. Account avatars (Settings → Account) are also resized but always stay on private storage.
+
+**PDF reports** (Reports page and the Profile PDF button on an alumni page) are generated server-side with pdfmake, using the bundled Roboto font, from templates in `apps/server/src/modules/reports/pdf/templates/`: an alumni list filtered by college, department, program, graduation year, batch and tracking (up to 2,000 rows; use CSV for more), a single alumnus profile sheet (with their current photo, 2 × 2 inches, beside the name), and a faculty assignment report. Every export respects the caller's scope and is audit-logged.
+
+## Environment variables (apps/server/.env)
+
+| Variable                                                | Purpose                                                                                                    |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `STAFF_EMAIL_DOMAINS`                                   | Allowed email domains for every account, e.g. `buksu.edu.ph,student.buksu.edu.ph`. Required in production. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`              | Google sign-in OAuth client.                                                                               |
+| `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID` | Drive evidence storage (service-account key JSON on one line; folder in a Shared Drive).                   |
+| `IMAGE_HOST_PROVIDER`, `IMGBB_API_KEY`                  | Profile photo host. ImgBB URLs are public.                                                                 |
+| `UPLOAD_DIR`                                            | Private local storage directory.                                                                           |
+
+All values are secrets or deployment settings: keep them in the private `.env` or your host's secret store, never in Git. `apps/server/.env.example` lists every variable with blank values. Declare new variables in `apps/server/.env.schema` as well if you want them in the generated env types.
+
+## Known limitations
+
+- ImgBB photos are public and cannot be deleted through the API; replacing or removing a photo leaves the old copy online until it is deleted with its stored delete page.
+- Google Drive, ImgBB and Google sign-in are tested against mocked responses only; verify each once with real credentials, including one real `student.buksu.edu.ph` account, to confirm which `hd` value Google returns.
+- Assignment notifications are not sent; assigned alumni simply appear under **My assigned alumni**.
+- Deleting a primary contact does not promote another contact of that type. Alumni cannot yet manage contacts from My Profile.
+- An existing user account cannot be converted into a faculty member; create faculty with a new email.
+- The program list's alumni counts are institution-wide (totals only, no records).
+- PDF alumni lists stop at 2,000 rows; the CSV export allows 10,000.
+- Migrated programs start in "– Unsorted" placeholder departments until an administrator reorganizes them.
+- Change history on an alumni profile shows the newest 200 entries.
+- Re-saving a repositioned photo re-crops the stored 512×512 image; choose the original file again for full quality.
+
+## Isolated accounts for role demonstrations
+
+Run `pnpm accounts:local` to provision fresh generated Admin, Faculty (college head) and Alumni credentials in a guarded `collab_test_accounts_*` database. Read the generated JSON privately under `.tools/test-accounts/`; `latest.txt` identifies it. Then run `pnpm dev:accounts` and open **http://localhost:3003** (API port 3004). Port 3003 is available only while this command is running; it is a separate role demo, while the main app stays on port 3001. This starts the normal application with an isolated profile and preserves working database configuration. Administrator MFA is paused for this managed local role demo. Ctrl+C stops these test servers; MongoDB/data remain intact.
+
+For automated role checks, install Chromium once with `pnpm exec playwright install chromium`. With those servers running, `pnpm test:roles-local` rehearses normal UI login for all three roles, the configured Admin MFA policy, Admin-only integrations, role/session revocation and disabled sessions. It saves synthetic screenshots and private authenticator/recovery artifacts under `.tools/role-browser/`. These files contain secrets: do not share or commit them. The tool only accepts the generated synthetic namespace; it has no production endpoint or fixed test password.
+
+Public registration requires `ALLOW_PUBLIC_SIGNUP=true`; local role demonstrations set this explicitly without changing your private working configuration.

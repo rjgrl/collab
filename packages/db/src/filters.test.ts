@@ -5,7 +5,7 @@ import { notDeleted, notDeletedFilter, withNotDeleted } from "./filters";
 
 describe("withNotDeleted", () => {
   it("includes unset MongoDB deletedAt fields", () => {
-    assert.deepEqual(notDeleted.OR, [{ deletedAt: null }, { deletedAt: { isSet: false } }]);
+    assert.deepEqual(notDeleted, { deletedAt: null });
   });
 
   it("returns the base filter when no extra where is provided", () => {
@@ -15,10 +15,10 @@ describe("withNotDeleted", () => {
 
   it("combines extra filters with AND so search OR cannot overwrite deletedAt", () => {
     const where = withNotDeleted({
-      OR: [{ name: { contains: "IT" } }],
+      $or: [{ name: /IT/ }],
     });
     assert.deepEqual(where, {
-      AND: [notDeleted, { OR: [{ name: { contains: "IT" } }] }],
+      $and: [notDeleted, { $or: [{ name: /IT/ }] }],
     });
   });
 });

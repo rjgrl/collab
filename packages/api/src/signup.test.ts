@@ -1,49 +1,72 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import type { Database } from "@Alumni-Tracking-Ss/db";
+import { modelFixture } from "./test-utils/model-test-fixture";
+import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import { registerUser, upsertGoogleUser } from "./services/session";
 
 const input = {
-  name: "Test Member",
+  firstName: "Test",
+  middleName: "",
+  lastName: "Member",
+  suffix: "",
   email: " NEW@Example.test ",
   password: "SyntheticPassword123!",
   phoneNumber: "+639171234567",
   gender: "Female" as const,
   facebookAccount: "https://facebook.com/test.member",
+  studentNumber: "SYN-001",
+  programId: "111111111111111111111111",
+  graduationYear: 2024,
 };
 function fixture(existing: Record<string, unknown> | null = null, collide = false) {
-  let record = existing;
-  const writes: Record<string, unknown>[] = [];
-  const lookups: string[] = [];
-  let audits = 0;
-  const db = {
-    user: {
-      findUnique: async ({ where }: { where: { email: string } }) => {
-        lookups.push(where.email);
-        return record;
-      },
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        writes.push(data);
-        if (collide) {
-          record = { id: "winner", email: "new@example.test", status: "active" };
-          throw { code: "P2002" };
-        }
-        record = { ...data, id: "new-user" };
-        return record;
-      },
-      update: async ({ data }: { data: Record<string, unknown> }) => {
-        record = { ...record, ...data };
-        return record;
-      },
+  const f = modelFixture({
+    User: existing ? [{ email: "new@example.test", ...existing }] : [],
+    Role: [{ id: "viewer", _id: "viewer", key: "viewer" }],
+    Program: [
+      { id: input.programId, _id: input.programId, departmentId: "222222222222222222222222" },
+    ],
+    Department: [{ id: "222222222222222222222222", _id: "222222222222222222222222" }],
+  });
+  const db = new Proxy(f.db, {
+    get(target, key) {
+      if (key === "User" && collide)
+        return {
+          ...target.User,
+          create: async (data: Record<string, unknown>) => {
+            f.operations.push({ model: "User", method: "create", update: data });
+            throw { code: 11000 };
+          },
+        };
+      if (key === "transaction")
+        return async <T>(work: (tx: Database) => Promise<T>) => {
+          try {
+            return await target.transaction(() => work(db));
+          } catch (error) {
+            if (collide)
+              f.tables.User = [{ id: "winner", email: "new@example.test", status: "active" }];
+            throw error;
+          }
+        };
+      return Reflect.get(target, key);
     },
-    role: { findUnique: async () => ({ id: "viewer", key: "viewer" }) },
-    auditLog: {
-      create: async () => {
-        audits++;
-      },
+  });
+  return {
+    db,
+    tables: f.tables,
+    get writes() {
+      return f.operations
+        .filter((op) => op.model === "User" && op.method === "create")
+        .map((op) => op.update!);
     },
-  } as unknown as Database;
-  return { db, writes, lookups, audits: () => audits };
+    get lookups() {
+      return f.operations
+        .filter((op) => op.model === "User" && op.method === "findOne")
+        .map((op) => op.filter?.email);
+    },
+    audits: () =>
+      f.operations.filter((op) => op.model === "AuditLog" && op.method === "create").length,
+  };
 }
 
 it("stores signup contact fields with a normalized unique email and hashed password", async () => {
@@ -55,7 +78,43 @@ it("stores signup contact fields with a normalized unique email and hashed passw
   assert.equal(f.writes[0]?.facebookAccount, input.facebookAccount);
   assert.equal(f.writes[0]?.email, "new@example.test");
   assert.notEqual(f.writes[0]?.passwordHash, input.password);
-  assert.deepEqual(f.writes[0]?.userRoles, { create: { roleId: "viewer" } });
+  assert.equal(f.tables.UserRole?.[0]?.roleId, "viewer");
+  assert.equal(f.tables.User?.[0]?.alumniId, f.tables.Alumni?.[0]?.id);
+  assert.equal(f.tables.Alumni?.[0]?.studentNumber, "SYN-001");
+  assert.equal(f.tables.Alumni?.[0]?.graduationYear, 2024);
+});
+it("rejects missing or invalid graduation years before signup persistence", async () => {
+  const { graduationYear: _year, ...withoutYear } = input;
+  for (const data of [
+    withoutYear,
+    ...["", null, 2024.5, 1949, 2101].map((graduationYear) => ({ ...input, graduationYear })),
+  ]) {
+    const f = fixture();
+    await assert.rejects(() => registerUser(f.db, data as typeof input));
+    assert.deepEqual(f.lookups, []);
+    assert.deepEqual(f.writes, []);
+    assert.equal(f.tables.Alumni?.length ?? 0, 0);
+    assert.equal(f.audits(), 0);
+  }
+});
+it("rejects non-BukSU emails at signup before anything is stored", async () => {
+  const previous = process.env.STAFF_EMAIL_DOMAINS;
+  process.env.STAFF_EMAIL_DOMAINS = "buksu.edu.ph,student.buksu.edu.ph";
+  try {
+    for (const email of ["grad@gmail.com", "grad@buksu.edu.ph.evil.com", "grad@xbuksu.edu.ph"]) {
+      const f = fixture();
+      await assert.rejects(() => registerUser(f.db, { ...input, email }), /BukSU institutional/);
+      assert.deepEqual(f.lookups, []);
+      assert.deepEqual(f.writes, []);
+      assert.equal(f.tables.Alumni?.length ?? 0, 0);
+    }
+    const ok = fixture();
+    await registerUser(ok.db, { ...input, email: "grad@student.buksu.edu.ph" });
+    assert.equal(ok.writes[0]?.email, "grad@student.buksu.edu.ph");
+  } finally {
+    if (previous === undefined) delete process.env.STAFF_EMAIL_DOMAINS;
+    else process.env.STAFF_EMAIL_DOMAINS = previous;
+  }
 });
 it("rejects existing emails before creating an account", async () => {
   const f = fixture({ id: "existing" });
@@ -89,8 +148,8 @@ it("new Google accounts are passwordless, use Viewer, and require profile comple
   await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
   assert.equal(f.writes[0]?.needsProfileCompletion, true);
   assert.equal(f.writes[0]?.emailVerified, true);
-  assert.equal("passwordHash" in f.writes[0]!, false);
-  assert.deepEqual(f.writes[0]?.userRoles, { create: { roleId: "viewer" } });
+  assert.equal(f.writes[0]?.passwordHash, null);
+  assert.equal(f.tables.UserRole?.[0]?.roleId, "viewer");
 });
 it("simultaneous Google signups reuse the winning account", async () => {
   const f = fixture(null, true);
@@ -119,4 +178,28 @@ it("does not link Google to an unconfirmed password registration", async () => {
     /Confirm the pending registration email/,
   );
   assert.equal(f.writes.length, 0);
+});
+
+it("rejects editable display names and incomplete structured names at signup", () => {
+  assert.equal(signupSchema.safeParse({ ...input, name: "Forged name" }).success, false);
+  assert.equal(signupSchema.safeParse({ ...input, firstName: "" }).success, false);
+  assert.equal(signupSchema.safeParse({ ...input, lastName: "" }).success, false);
+});
+it("Google does not overwrite confirmed structured or legacy account names", async () => {
+  const f = fixture({
+    id: "confirmed",
+    name: "Ana Mar?a Dela Cruz Jr.",
+    firstName: "Ana",
+    middleName: "Mar?a",
+    lastName: "Dela Cruz",
+    suffix: "Jr.",
+    emailVerified: true,
+    passwordHash: "existing-hash",
+    status: "active",
+  });
+  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Provider Edited Name" });
+  assert.equal(user.name, "Ana Mar?a Dela Cruz Jr.");
+  assert.equal(user.firstName, "Ana");
+  assert.equal(user.lastName, "Dela Cruz");
+  assert.equal(user.suffix, "Jr.");
 });

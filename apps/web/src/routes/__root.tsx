@@ -4,13 +4,14 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
-import { ThemeProvider } from "@/components/theme-provider";
-import { orpc } from "@/utils/orpc";
+import { ConfirmProvider } from "@/components/feedback/confirm-provider";
+import { ThemeProvider } from "@/components/layout/theme-provider";
+import { api } from "@/lib/api";
 
 import "../index.css";
 
 export interface RouterAppContext {
-  orpc: typeof orpc;
+  api: typeof api;
   queryClient: QueryClient;
 }
 
@@ -19,7 +20,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: "Alumni Tracking System",
+        title: "Alumni tracking system",
       },
       {
         name: "description",
@@ -45,8 +46,10 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <Outlet />
-        <Toaster richColors />
+        <ConfirmProvider>
+          <Outlet />
+        </ConfirmProvider>
+        <Toaster richColors closeButton visibleToasts={3} position="bottom-right" />
       </ThemeProvider>
       {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-left" /> : null}
       {import.meta.env.DEV ? (

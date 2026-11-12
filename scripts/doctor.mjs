@@ -19,7 +19,7 @@ async function main() {
   console.log("PASS Node/pnpm versions. Diagnostics are read-only; no provider requests are sent.");
   for (const file of [
     "node_modules/tsx/package.json",
-    "packages/db/prisma/generated/client.ts",
+    "packages/db/node_modules/mongoose/package.json",
     "apps/server/.env",
     "apps/web/.env",
     "packages/db/.env",
