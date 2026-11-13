@@ -3,24 +3,17 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import { PageSkeleton } from "@/components/layout/page-skeleton";
+import { ErrorPage, NotFoundPage } from "@/components/feedback/status-page";
 import { routeTree } from "./routeTree.gen";
 import { api, queryClient } from "@/lib/api";
-
-function RouteError() {
-  return (
-    <div className="mx-auto flex max-w-md flex-col gap-2 p-8">
-      <h1 className="text-xl font-medium tracking-tight">Something went wrong</h1>
-      <p className="text-sm text-muted-foreground">Refresh the page or sign in again.</p>
-    </div>
-  );
-}
 
 const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   scrollRestoration: true,
   defaultPendingComponent: () => <PageSkeleton className="p-4 sm:p-8" />,
-  defaultErrorComponent: RouteError,
+  defaultErrorComponent: ({ reset }) => <ErrorPage reset={reset} />,
+  defaultNotFoundComponent: NotFoundPage,
   context: { api, queryClient },
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;

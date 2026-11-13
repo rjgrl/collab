@@ -1,11 +1,5 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { BackupsPage } from "@/components/settings/backups-page";
-import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 
-export const Route = createFileRoute("/_app/settings/backups")({
-  beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.fetchQuery(context.api.auth.me.queryOptions());
-    if (!user || !isAdministrator(user)) throw redirect({ to: "/settings" });
-  },
-  component: BackupsPage,
-});
+// Access is checked by the app shell (canOpenPage), which shows Access denied when refused.
+export const Route = createFileRoute("/_app/settings/backups")({ component: BackupsPage });
