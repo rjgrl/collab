@@ -67,6 +67,7 @@
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.64.1",
     "@types/node": "catalog:",
+    "jose": "6.2.17",
     "mongodb-memory-server-core": "11.3.0",
     "otplib": "13.5.0",
     "rolldown": "1.2.7",

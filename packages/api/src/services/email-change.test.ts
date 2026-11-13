@@ -1,3 +1,4 @@
+import { decodeJwt } from "jose";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
@@ -57,7 +58,7 @@ async function fixture() {
       smtpUrl: "https://mail.example.test",
     },
     onSessionRotation: (session) => {
-      rotated = session.token;
+      rotated = String(decodeJwt(session.token).jti);
     },
   } as Context;
   return {
