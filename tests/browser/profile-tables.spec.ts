@@ -103,7 +103,7 @@ test("staff see a tidy profile with paginated employment and change history", as
   await expect(history.first()).toContainText("Marked tracked");
   await expect(history.first()).toContainText("Notes: Called graduate");
 
-  // The "Tracking updated" toast sits bottom-right with its close button inside.
+  // The "Tracking updated" toast sits bottom-right on desktop with its close button inside.
   if (info.project.name === "desktop") {
     const toasts = page.locator("[data-sonner-toast]");
     await expect(toasts.first()).toBeVisible();
@@ -115,6 +115,10 @@ test("staff see a tidy profile with paginated employment and change history", as
     expect(close.x).toBeGreaterThan(toast.x + toast.width / 2);
     expect(close.x + close.width).toBeLessThanOrEqual(toast.x + toast.width);
     expect(close.y).toBeGreaterThanOrEqual(toast.y);
+  } else {
+    // On phones toasts sit at the top, clear of actions at the bottom of the screen.
+    const toast = (await page.locator("[data-sonner-toast]").first().boundingBox())!;
+    expect(toast.y).toBeLessThan(page.viewportSize()!.height / 3);
   }
 
   // Audit log names the user, with their email underneath, and reads like Change history.
