@@ -192,5 +192,5 @@ Append-only. Format: date, decision, why, alternatives rejected.
 ## 2026-11-14: Faster CI
 
 - Pull requests run CI once (`pull_request` only); `push` runs only on `main`. Every push to a PR branch used to start two identical runs (4 jobs) that competed for runners.
-- The Playwright suite runs as its own jobs, one per OS and viewport (desktop/mobile), in parallel with the other checks. It took 12–13.5 of the 15–19 minutes when run serially after them.
+- The Playwright suite runs as its own jobs, three Playwright shards per OS, in parallel with the other checks. It took 12–13.5 of the 15–19 minutes when run serially after them. Splitting by viewport instead was tried first; desktop (10 min on Windows) was much longer than mobile, so shards balance better.
 - Chromium for Playwright is cached by lockfile hash (Linux still installs system packages); a download took about 2.5 minutes on Windows.

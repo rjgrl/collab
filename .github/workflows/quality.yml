@@ -54,15 +54,15 @@ jobs:
       - run: pnpm check:production-build
       - run: pnpm check:server-build
 
-  # The browser suite was most of the old job's 15-19 minutes. Each viewport now runs on its own
-  # runner, in parallel with the checks above.
+  # The browser suite was most of the old job's 15-19 minutes. It now runs as three equal shards
+  # per OS (each with its share of both viewports), in parallel with the checks above.
   browser:
-    name: browser (${{ matrix.os }}, ${{ matrix.project }})
+    name: browser (${{ matrix.os }}, ${{ matrix.shard }}/3)
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        project: [desktop, mobile]
+        shard: [1, 2, 3]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -90,4 +90,4 @@ jobs:
       - if: steps.playwright-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
         run: pnpm exec playwright install-deps chromium
       - run: pnpm tools:mongodb
-      - run: pnpm exec playwright test --project=${{ matrix.project }}
+      - run: pnpm exec playwright test --shard=${{ matrix.shard }}/3
