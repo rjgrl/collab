@@ -1,12 +1,22 @@
 name: Local-equivalent quality gates
+# Pull requests run once (pull_request); main runs after each merge. Pushing to a PR branch
+# used to start a second, identical "push" run that competed for the same runners.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+env:
+  NODE_ENV: test
+  DATABASE_URL: mongodb://127.0.0.1:27018/collab_ci?replicaSet=rs0
+  CORS_ORIGIN: http://localhost:3001
+  APP_URL: http://localhost:3000
+  VITE_SERVER_URL: http://localhost:3001
 jobs:
   verify:
     strategy:
@@ -14,13 +24,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
-    env:
-      NODE_ENV: test
-      DATABASE_URL: mongodb://127.0.0.1:27018/collab_ci?replicaSet=rs0
-      CORS_ORIGIN: http://localhost:3001
-      APP_URL: http://localhost:3000
-      VITE_SERVER_URL: http://localhost:3001
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -41,13 +45,49 @@ jobs:
       - run: pnpm test
       - run: pnpm check:secrets
       - run: pnpm audit --audit-level=moderate
-      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm tools:mongodb
       - run: pnpm test:completion-db
       - run: pnpm test:backup-local
       - run: pnpm test:integrations-local
       - run: pnpm test:integrity-local
-      - run: pnpm test:browser
       - run: pnpm build
       - run: pnpm check:production-build
       - run: pnpm check:server-build
+
+  # The browser suite was most of the old job's 15-19 minutes. Each viewport now runs on its own
+  # runner, in parallel with the checks above.
+  browser:
+    name: browser (${{ matrix.os }}, ${{ matrix.project }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        project: [desktop, mobile]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+        with:
+          version: 12.5.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.10.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Chromium is reused between runs (it took 2.5 minutes to download on Windows).
+      - id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/AppData/Local/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
+        run: pnpm exec playwright install-deps chromium
+      - run: pnpm tools:mongodb
+      - run: pnpm exec playwright test --project=${{ matrix.project }}
