@@ -2,6 +2,12 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-13 (theme, logo and alumni profile tabs)
+
+- Official COT logo (round) and BukSU light/dark palette merged as PR #4 after PR #3 was squash-merged at `a68ce3d`.
+- Alumni profile sections moved into tabs (see decisions). Settings uses the same `SectionTabs` bar, which now fills the width on phones. Empty tables no longer force sideways scrolling.
+- Verified: `pnpm check` 7/7; `pnpm test` 404/404; new `tests/browser/profile-tabs.spec.ts` (tabs, address, Back/reload, keyboard, hidden Change history, axe light/dark, phone width) and the full browser suite.
+
 ## 2026-11-12 (clean and seeded deployment setup)
 
 - `pnpm deploy:init` (clean) and `pnpm deploy:init --demo` (seeded, not in production) initialize an empty hosted database; README "Setup options" table and Atlas guide updated. `completion-local` updated for staff-only tracking.

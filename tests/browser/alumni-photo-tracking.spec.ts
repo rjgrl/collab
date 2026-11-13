@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openProfileTab } from "./profile-tabs-helper";
 import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
 
@@ -153,6 +154,7 @@ test("tracking history is a paginated table", async ({ page, request }) => {
   await request.post(`${FIXTURE}/tracking-events`, { data: { count: 27 } });
   await signIn(page, "staff@example.test");
   await page.goto(PROFILE);
+  await openProfileTab(page, "Tracking");
   const table = page.getByRole("region", { name: "Tracking history" });
   const rows = table.locator("tbody tr");
   await expect(rows).toHaveCount(10);

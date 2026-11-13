@@ -432,7 +432,7 @@ app.post("/__test/staff", async (request, response) => {
         lastName: "Staff",
         email: "staff@example.test",
         departmentId: ids.department,
-        roleLevel: "college",
+        roleLevel: request.body?.roleLevel === "faculty" ? "faculty" : "college",
         active: true,
       },
     },

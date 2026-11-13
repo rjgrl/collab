@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
-import Loader from "@/components/layout/loader";
+import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { routeTree } from "./routeTree.gen";
 import { api, queryClient } from "@/lib/api";
 
@@ -19,7 +19,7 @@ const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   scrollRestoration: true,
-  defaultPendingComponent: () => <Loader />,
+  defaultPendingComponent: () => <PageSkeleton className="p-4 sm:p-8" />,
   defaultErrorComponent: RouteError,
   context: { api, queryClient },
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {

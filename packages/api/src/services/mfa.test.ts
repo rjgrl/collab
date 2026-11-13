@@ -1,3 +1,4 @@
+import { decodeJwt } from "jose";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { generate } from "otplib";
@@ -41,9 +42,11 @@ async function fixture() {
     userAgent: null,
     integrationEnv: { mfaEncryptionKey: "23".repeat(32) },
   } as Context;
+  // Like the server: the next request carries the rotated JWT, whose jti is the session secret.
   context.onSessionRotation = (value) => {
-    context.sessionToken = value.token;
-    context.sessionStorageToken = "sha256:" + digest(value.token);
+    const secret = String(decodeJwt(value.token).jti);
+    context.sessionToken = secret;
+    context.sessionStorageToken = "sha256:" + digest(secret);
   };
   return {
     context,

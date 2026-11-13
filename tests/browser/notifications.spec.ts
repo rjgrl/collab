@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openProfileTab } from "./profile-tabs-helper";
 import AxeBuilder from "@axe-core/playwright";
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWMwTptpnDaTAUIBAB/uBMm6iK1UAAAAAElFTkSuQmCC",
@@ -40,6 +41,7 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
     await expect(page.getByRole("heading", { name: "Personal details", exact: true })).toHaveCount(
       0,
     );
+    await openProfileTab(page, "Evidence");
     await page.getByLabel("Choose evidence file").setInputFiles({
       name: "Tracking proof.png",
       mimeType: "image/png",
@@ -97,7 +99,8 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
       fullPage: true,
     });
     await notice.click();
-    await staff.waitForURL(/\/alumni\/000000000000000000000201#evidence-/);
+    // The notification opens the Employment tab, where supporting evidence lives.
+    await staff.waitForURL(/\/alumni\/000000000000000000000201\?tab=employment#evidence-/);
     await expect(
       staff.getByRole("link", { name: "Preview Tracking proof.png", exact: true }),
     ).toBeVisible();

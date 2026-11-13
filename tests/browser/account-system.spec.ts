@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openProfileTab } from "./profile-tabs-helper";
 import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
 
@@ -131,6 +132,7 @@ test("all account roles share personal photo controls and email changes require 
     await expect(page.getByRole("img", { name: "Test Alumni's profile photo" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Change photo", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Profile photo", exact: true })).toHaveCount(0);
+    await openProfileTab(page, "Employment");
     await expect(
       page.getByRole("heading", { name: "Supporting evidence", exact: true }),
     ).toBeVisible();

@@ -7,16 +7,17 @@ import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { QuietButton } from "@/components/data/data-table";
-import Loader from "@/components/layout/loader";
+import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { FormSelect } from "@/components/forms/form-select";
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { PageHeader, PageShell } from "@/components/layout/page";
+import { SectionTabs, sectionTabClass, useSectionTab } from "@/components/layout/section-tabs";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { StatusBadge } from "@/components/data/status-badge";
 import { can, managesFaculty, useSession } from "@/lib/session";
@@ -27,7 +28,20 @@ import { AlumniPhotoDialog } from "@/components/alumni/alumni-photo-dialog";
 import { TrackingTable } from "@/components/alumni/tracking-table";
 import { ChangeHistoryTable } from "@/components/alumni/change-history-table";
 
+const profileTabs = [
+  { key: "details", label: "Details" },
+  { key: "employment", label: "Employment" },
+  { key: "tracking", label: "Tracking" },
+  { key: "history", label: "Change history" },
+] as const;
+type LinkedTab = Exclude<(typeof profileTabs)[number]["key"], "details">;
+// Evidence links that predate the tabs carry only the file anchor.
+const tabFromHash = (hash: string) => (hash.startsWith("evidence-") ? "employment" : undefined);
+
 export const Route = createFileRoute("/_app/alumni/$id")({
+  // Types the tab links; useSectionTab reads and corrects the address itself.
+  validateSearch: (search: Record<string, unknown>): { tab?: LinkedTab } =>
+    typeof search.tab === "string" ? { tab: search.tab as LinkedTab } : {},
   component: AlumniDetailPage,
 });
 
@@ -49,6 +63,14 @@ function AlumniDetailPage() {
     programId: "",
   });
   const showHistory = managesFaculty(session.data);
+  // Until the session is known, keep a requested Change history tab instead of discarding it.
+  const visibleTabs = profileTabs.filter(
+    (item) => item.key !== "history" || showHistory || !session.data,
+  );
+  const tab = useSectionTab(
+    visibleTabs.map((item) => item.key),
+    tabFromHash,
+  );
   const [trackingNotes, setTrackingNotes] = useState("");
   const [editingDetails, setEditingDetails] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState(false);
@@ -104,13 +126,7 @@ function AlumniDetailPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  if (alumni.isPending) {
-    return (
-      <PageShell>
-        <Loader />
-      </PageShell>
-    );
-  }
+  if (alumni.isPending) return <PageSkeleton avatar tabs={visibleTabs.length} />;
 
   if (!record) {
     return (
@@ -159,49 +175,67 @@ function AlumniDetailPage() {
           </div>
         }
       />
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <SummaryCard
-          title="Student details"
-          actionLabel={canWrite ? "Edit details" : undefined}
-          onAction={
-            canWrite
-              ? () => {
-                  setForm({
-                    firstName: record.firstName,
-                    middleName: record.middleName ?? "",
-                    lastName: record.lastName,
-                    suffix: record.suffix ?? "",
-                    gender: record.gender ?? "",
-                    batch: record.batch ?? "",
-                    studentNumber: record.studentNumber,
-                    graduationYear: record.graduationYear ? String(record.graduationYear) : "",
-                    programId: record.programId,
-                  });
-                  setEditingDetails(true);
-                }
-              : undefined
-          }
-        >
-          <DetailRow label="Full name" value={formatDisplayName(record)} />
-          <DetailRow label="Student number" value={record.studentNumber} />
-          <DetailRow label="Program" value={`${record.program.code} — ${record.program.name}`} />
-          <DetailRow label="Department" value={record.program.department.name} />
-          <DetailRow label="Graduation year" value={record.graduationYear ?? "Not recorded"} />
-          <DetailRow label="Gender" value={record.gender || "Not recorded"} />
-          <DetailRow label="Batch" value={record.batch || "Not recorded"} />
-          <DetailRow label="Employment" value={record.employmentStatus} />
-        </SummaryCard>
-        <ContactsPanel
-          alumniId={id}
-          contacts={record.contacts}
-          canWrite={canWrite}
-          signup={{
-            email: record.personalEmail,
-            phone: record.mobileNumber,
-            facebook: record.facebookAccount,
-          }}
-        />
-      </div>
+      <SectionTabs label="Profile sections">
+        {visibleTabs.map((item) => (
+          <Link
+            key={item.key}
+            to="/alumni/$id"
+            params={{ id }}
+            search={item.key === "details" ? {} : { tab: item.key }}
+            resetScroll={false}
+            activeOptions={{ exact: true, includeSearch: true }}
+            aria-current={tab === item.key ? "page" : undefined}
+            className={sectionTabClass}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </SectionTabs>
+      {tab === "details" ? (
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <SummaryCard
+            title="Student details"
+            actionLabel={canWrite ? "Edit details" : undefined}
+            onAction={
+              canWrite
+                ? () => {
+                    setForm({
+                      firstName: record.firstName,
+                      middleName: record.middleName ?? "",
+                      lastName: record.lastName,
+                      suffix: record.suffix ?? "",
+                      gender: record.gender ?? "",
+                      batch: record.batch ?? "",
+                      studentNumber: record.studentNumber,
+                      graduationYear: record.graduationYear ? String(record.graduationYear) : "",
+                      programId: record.programId,
+                    });
+                    setEditingDetails(true);
+                  }
+                : undefined
+            }
+          >
+            <DetailRow label="Full name" value={formatDisplayName(record)} />
+            <DetailRow label="Student number" value={record.studentNumber} />
+            <DetailRow label="Program" value={`${record.program.code} — ${record.program.name}`} />
+            <DetailRow label="Department" value={record.program.department.name} />
+            <DetailRow label="Graduation year" value={record.graduationYear ?? "Not recorded"} />
+            <DetailRow label="Gender" value={record.gender || "Not recorded"} />
+            <DetailRow label="Batch" value={record.batch || "Not recorded"} />
+            <DetailRow label="Employment" value={record.employmentStatus} />
+          </SummaryCard>
+          <ContactsPanel
+            alumniId={id}
+            contacts={record.contacts}
+            canWrite={canWrite}
+            signup={{
+              email: record.personalEmail,
+              phone: record.mobileNumber,
+              facebook: record.facebookAccount,
+            }}
+          />
+        </div>
+      ) : null}
 
       {editingPhoto ? (
         <AlumniPhotoDialog
@@ -320,47 +354,52 @@ function AlumniDetailPage() {
         </FormDialog>
       ) : null}
 
-      <EmploymentPanel jobs={record.employments} alumniId={id} canWrite={canWrite} />
+      {tab === "employment" ? (
+        <>
+          <EmploymentPanel jobs={record.employments} alumniId={id} canWrite={canWrite} />
+          <EvidencePanel
+            kind="evidence"
+            files={record.evidenceFiles}
+            jobs={record.employments}
+            alumniId={id}
+            canUpload={canUpload}
+            canDelete={can(session.data?.permissions, "files.delete")}
+          />
+        </>
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Tracking</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-muted-foreground">Current status</span>
-            <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
-          </div>
-          <TrackingTable alumniId={id} page={trackingPage} onPageChange={setTrackingPage} />
-          {canTrack ? (
-            <div className="flex flex-col gap-3 border-t pt-4">
-              <Textarea
-                value={trackingNotes}
-                onChange={(event) => setTrackingNotes(event.target.value)}
-                placeholder="Tracking notes"
-                aria-label="Tracking notes"
-              />
-              <div className="flex flex-wrap gap-2">
-                <PrimaryButton onClick={() => track.mutate(true)} pending={track.isPending}>
-                  Mark tracked
-                </PrimaryButton>
-                <QuietButton onClick={() => track.mutate(false)}>Mark untracked</QuietButton>
-              </div>
+      {tab === "tracking" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tracking</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Current status</span>
+              <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+            <TrackingTable alumniId={id} page={trackingPage} onPageChange={setTrackingPage} />
+            {canTrack ? (
+              <div className="flex flex-col gap-3 border-t pt-4">
+                <Textarea
+                  value={trackingNotes}
+                  onChange={(event) => setTrackingNotes(event.target.value)}
+                  placeholder="Tracking notes"
+                  aria-label="Tracking notes"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <PrimaryButton onClick={() => track.mutate(true)} pending={track.isPending}>
+                    Mark tracked
+                  </PrimaryButton>
+                  <QuietButton onClick={() => track.mutate(false)}>Mark untracked</QuietButton>
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <EvidencePanel
-        kind="evidence"
-        files={record.evidenceFiles}
-        jobs={record.employments}
-        alumniId={id}
-        canUpload={canUpload}
-        canDelete={can(session.data?.permissions, "files.delete")}
-      />
-
-      {showHistory ? (
+      {tab === "history" ? (
         <Card>
           <CardHeader>
             <CardTitle>Change history</CardTitle>

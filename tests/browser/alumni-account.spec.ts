@@ -1,4 +1,5 @@
 import { selectOption } from "./select-helper";
+import { openProfileTab } from "./profile-tabs-helper";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
@@ -17,6 +18,7 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
   await page.locator("#password").fill("BrowserTest123!");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL("**/my-profile");
+  await openProfileTab(page, "Evidence");
   await expect(
     page.getByRole("heading", { name: "Supporting evidence", exact: true }),
   ).toBeVisible();

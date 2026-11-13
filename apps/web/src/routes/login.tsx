@@ -113,14 +113,16 @@ function LoginPage() {
         id="email"
         type="email"
         autoComplete="email"
-        aria-describedby="email-hint"
+        aria-describedby={signup ? "email-hint" : undefined}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         required
       />
-      <p id="email-hint" className={signup ? "sr-only" : "text-xs text-muted-foreground"}>
-        Use your BukSU institutional email. Personal email addresses are not accepted.
-      </p>
+      {signup ? (
+        <p id="email-hint" className="text-xs text-muted-foreground">
+          Use your BukSU institutional email. Personal email addresses are not accepted.
+        </p>
+      ) : null}
     </FormField>
   );
   const passwordField = (

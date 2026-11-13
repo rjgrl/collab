@@ -1,11 +1,12 @@
 import { EmploymentPanel } from "@/components/alumni/employment-panel";
 import { EvidencePanel } from "@/components/alumni/evidence-panel";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { api } from "@/lib/api";
 import { FormCard } from "@/components/forms/form-layout";
 import { PageHeader, PageShell } from "@/components/layout/page";
+import { SectionTabs, sectionTabClass, useSectionTab } from "@/components/layout/section-tabs";
 import { QuietButton } from "@/components/data/data-table";
 import { Skeleton } from "@Alumni-Tracking-Ss/ui/components/skeleton";
 import {
@@ -15,29 +16,25 @@ import {
   CardTitle,
   CardDescription,
 } from "@Alumni-Tracking-Ss/ui/components/card";
-import { BriefcaseBusiness, FileCheck2 } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
 import { useSession } from "@/lib/session";
 
-export const Route = createFileRoute("/_app/my-profile")({ component: MyProfile });
+export const Route = createFileRoute("/_app/my-profile")({
+  // Types the tab links; useSectionTab reads and corrects the address itself.
+  validateSearch: (search: Record<string, unknown>): { tab?: "evidence" } =>
+    typeof search.tab === "string" ? { tab: search.tab as "evidence" } : {},
+  component: MyProfile,
+});
 function MyProfile() {
   const session = useSession();
+  // Employment is the default and adds nothing to the address.
+  const tab = useSectionTab(["employment", "evidence"] as const);
   const profile = useQuery(api.me.profile.get.queryOptions());
   return (
     <PageShell>
       <PageHeader
         title="My profile"
         description="Your academic record, employment history and supporting evidence."
-        actions={
-          <>
-            <QuietButton nativeButton={false} render={<a href="#employment" />}>
-              <BriefcaseBusiness aria-hidden="true" className="size-4" /> Employment
-            </QuietButton>
-            <QuietButton nativeButton={false} render={<a href="#supporting-evidence" />}>
-              <FileCheck2 aria-hidden="true" className="size-4" /> Evidence
-            </QuietButton>
-          </>
-        }
       />
       {profile.isPending ? (
         <div role="status" className="rounded-xl border bg-card p-5">
@@ -108,26 +105,37 @@ function MyProfile() {
               </p>
             </CardContent>
           </Card>
-          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <section
-              id="employment"
-              aria-label="Employment history"
-              className="min-w-0 scroll-mt-4"
+          <SectionTabs label="Profile sections">
+            <Link
+              to="/my-profile"
+              search={{}}
+              resetScroll={false}
+              activeOptions={{ exact: true, includeSearch: true }}
+              aria-current={tab === "employment" ? "page" : undefined}
+              className={sectionTabClass}
             >
-              <EmploymentPanel jobs={profile.data.employments} />
-            </section>
-            <section
-              id="supporting-evidence"
-              aria-label="Supporting evidence"
-              className="min-w-0 scroll-mt-4"
+              Employment
+            </Link>
+            <Link
+              to="/my-profile"
+              search={{ tab: "evidence" }}
+              resetScroll={false}
+              activeOptions={{ exact: true, includeSearch: true }}
+              aria-current={tab === "evidence" ? "page" : undefined}
+              className={sectionTabClass}
             >
-              <EvidencePanel
-                kind="evidence"
-                files={profile.data.evidenceFiles}
-                jobs={profile.data.employments}
-              />
-            </section>
-          </div>
+              Evidence
+            </Link>
+          </SectionTabs>
+          {tab === "employment" ? (
+            <EmploymentPanel jobs={profile.data.employments} />
+          ) : (
+            <EvidencePanel
+              kind="evidence"
+              files={profile.data.evidenceFiles}
+              jobs={profile.data.employments}
+            />
+          )}
         </>
       ) : null}
     </PageShell>

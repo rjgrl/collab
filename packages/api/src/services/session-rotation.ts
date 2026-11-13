@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createSessionToken, toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import { ApiError } from "../http-error";
 import type { Context } from "../context";
+import { signSessionToken } from "./session-token";
 export async function rotateSession(
   tx: Database,
   context: Context,
@@ -31,5 +32,12 @@ export async function rotateSession(
   await tx.Session.deleteMany(
     revokeOthers ? { userId: prior.userId, token: { $ne: storage } } : { _id: prior.id },
   ).exec();
-  return { token, expiresAt: prior.expiresAt };
+  return {
+    token: await signSessionToken({
+      secret: token,
+      userId: prior.userId,
+      expiresAt: prior.expiresAt,
+    }),
+    expiresAt: prior.expiresAt,
+  };
 }
