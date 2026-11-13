@@ -180,3 +180,11 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Tabs are links in the shared `SectionTabs` bar, the same as Settings (no ARIA tablist), and the open tab is kept in `?tab=`. The default tab adds nothing, so older links still work; old `#evidence-…` notification links open Employment.
 - `useSectionTab` reads the tab from the router location that tab links use, and replaces an unknown or unavailable `tab` in the address. Why: TanStack keeps unknown search keys in `useSearch()`, and route search can lag the location on Back, which marked two tabs current.
 - Only the open tab is mounted, so Tracking and Change history load when opened. Unsaved tracking notes are kept in the page and survive switching tabs.
+
+## 2026-11-13: Sessions are HS256 JWTs tied to the session record
+
+- The course requires JWTs. The session cookie (and optional bearer credential) is an HS256 JWT: `iss`, `aud`, `sub` = user ID, `jti` = random session secret, `iat`, `exp` = session expiry.
+- Owner chose "JWT tied to a session" over access + refresh tokens: every request verifies the JWT and then requires the session whose SHA-256 is stored in `Session`, so sign-out, password reset, role change and MFA freshness stay immediate. Rejected: stateless access tokens (revocation would lag up to their lifetime).
+- HS256, because one server both issues and verifies (owner's choice); ES256 only matters if other systems must verify without being able to issue. The key is HKDF-SHA256 from `SESSION_SECRET` with a fixed purpose label, so BukSU manages no new secret.
+- `jose` verifies with an algorithm allowlist; hand-written JWT code was rejected because algorithm confusion is the classic failure.
+- Existing sessions end once on deploy (their cookies are not JWTs).

@@ -16,6 +16,7 @@ import {
   toEntity,
 } from "@Alumni-Tracking-Ss/db";
 import { ApiError } from "../http-error";
+import { signSessionToken, verifySessionToken } from "./session-token";
 
 import type { AuthUser } from "../context";
 import { writeAudit } from "../audit";
@@ -97,10 +98,11 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
   };
 }
 
-export async function loadAuthUserFromToken(db: Database, token: string | null) {
-  if (!token || token.startsWith("sha256:")) {
-    return null;
-  }
+/** Loads the signed-in user from a session JWT; the session it names must still be live. */
+export async function loadAuthUserFromToken(db: Database, sessionJwt: string | null) {
+  const claims = await verifySessionToken(sessionJwt);
+  if (!claims) return null;
+  const token = claims.secret;
 
   let session;
   try {
@@ -145,6 +147,7 @@ export async function loadAuthUserFromToken(db: Database, token: string | null) 
   if (lastSeen && lastSeen.getTime() < Date.now() - 60_000)
     await db.Session.updateOne({ _id: session.id }, { $set: { lastSeenAt: new Date() } }).exec();
 
+  if (session.userId !== claims.userId) return null;
   const user = await loadAuthUser(db, session.userId);
   if (user)
     user.mfaVerified = Boolean(
@@ -164,10 +167,10 @@ export async function createSession(
   userId: string,
   meta: { ipAddress?: string | null; userAgent?: string | null; googleVerifiedAt?: Date },
 ) {
-  const token = createSessionToken();
+  const secret = createSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await db.Session.create({
-    token: storedSessionToken(token),
+    token: storedSessionToken(secret),
     userId,
     expiresAt,
     ipAddress: meta.ipAddress ?? undefined,
@@ -175,9 +178,14 @@ export async function createSession(
     googleVerifiedAt: meta.googleVerifiedAt,
     lastSeenAt: new Date(),
   });
-  return { token, expiresAt };
+  return {
+    token: await signSessionToken({ secret, userId, expiresAt }),
+    storageToken: storedSessionToken(secret),
+    expiresAt,
+  };
 }
 
+/** `token` is the raw session secret from the verified JWT (Context.sessionToken). */
 export async function destroySession(db: Database, token: string | null) {
   if (!token) {
     return;
