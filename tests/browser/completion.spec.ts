@@ -1,4 +1,5 @@
 import { selectOption } from "./select-helper";
+import { openProfileTab } from "./profile-tabs-helper";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
@@ -148,6 +149,7 @@ test("local Alumni registration persists academic identity, employment and owned
   await page.getByRole("button", { name: "Save employment", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByText("Research fellow", { exact: true })).toBeVisible();
+  await openProfileTab(page, "Evidence");
   await selectOption(page.getByLabel("Related employment (optional)"), {
     label: "Synthetic University",
   });
@@ -206,6 +208,7 @@ test("local Alumni registration persists academic identity, employment and owned
       .getByRole("img", { name: /profile photo$/ }),
   ).toBeVisible();
   await page.goto("/my-profile");
+  await openProfileTab(page, "Evidence");
   await expect(page.getByRole("img", { name: /profile photo$/ })).toHaveCount(1);
   await expect(page.locator('header img:not([src="/brand/buksu-cot-seal.webp"])')).toBeVisible();
   await expect(
@@ -253,6 +256,7 @@ test("Staff persist employment edits and archives and can open Faculty", async (
   await details.getByRole("button", { name: "Save student details", exact: true }).click();
   await expect(details).toHaveCount(0);
   await expect(page.getByRole("definition").filter({ hasText: "Updated batch" })).toBeVisible();
+  await openProfileTab(page, "Employment");
   await page.getByRole("button", { name: "Add employment", exact: true }).click();
   await page
     .getByRole("dialog")
