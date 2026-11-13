@@ -1,4 +1,3 @@
-import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import {
   Card,
   CardContent,
@@ -34,9 +33,9 @@ function DashboardPage() {
         actions={
           <>
             {can(session.data?.permissions, "alumni.read") ? (
-              <Button size="sm" nativeButton={false} render={<Link to="/alumni" />}>
+              <QuietButton nativeButton={false} render={<Link to="/alumni" />}>
                 View alumni
-              </Button>
+              </QuietButton>
             ) : null}
             {can(session.data?.permissions, "reports.read") ? (
               <QuietButton nativeButton={false} render={<Link to="/reports" />}>
