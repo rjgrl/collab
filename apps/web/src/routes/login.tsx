@@ -20,10 +20,20 @@ import {
   passwordMeetsPolicy,
 } from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { client, api, queryClient } from "@/lib/api";
+import { safeReturnPath } from "@/lib/session-ended";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>): { error?: "google" | "google_domain" } =>
-    search.error === "google" || search.error === "google_domain" ? { error: search.error } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { error?: "google" | "google_domain"; redirect?: string } => {
+    const redirect = safeReturnPath(search.redirect);
+    return {
+      ...(search.error === "google" || search.error === "google_domain"
+        ? { error: search.error }
+        : {}),
+      ...(redirect ? { redirect } : {}),
+    };
+  },
   component: LoginPage,
 });
 
@@ -79,7 +89,9 @@ function LoginPage() {
       else await client.auth.login(credentials);
       queryClient.clear();
       toast.success(mode === "login" ? "Signed in" : "Account created");
-      await navigate({ to: "/dashboard" });
+      // After a session ended, return to the page the user was on.
+      const returnTo = mode === "login" ? safeReturnPath(search.redirect) : undefined;
+      await (returnTo ? navigate({ href: returnTo }) : navigate({ to: "/dashboard" }));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to continue";
       if (mode === "signup" && isPasswordScreeningMessage(message)) setScreeningError(message);
