@@ -5,7 +5,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -42,6 +42,12 @@ function ProgramsPage() {
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
   const departments = useDepartmentOptions();
+  // A new program defaults to the first department, even if the list arrives after the dialog opens.
+  const firstDepartmentId = departments.data?.[0]?.id;
+  useEffect(() => {
+    if (firstDepartmentId && draft && !draft.id && !draft.departmentId)
+      setDraft({ ...draft, departmentId: firstDepartmentId });
+  }, [firstDepartmentId, draft]);
   const list = useQuery(api.programs.list.queryOptions({ input: { search, page, pageSize: 20 } }));
   const canWrite = can(session.data?.permissions, "programs.write");
   const canDelete = can(session.data?.permissions, "programs.delete");
