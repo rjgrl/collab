@@ -35,7 +35,14 @@ test("signed-out branding uses the university seal and tinted building", async (
 });
 
 test("signup collects contact details and rejects an existing email", async ({ page }) => {
+  // The institutional-email reminder belongs to sign-up, not sign-in.
+  const reminder = "Use your BukSU institutional email. Personal email addresses are not accepted.";
+  await expect(page.getByText(reminder)).toHaveCount(0);
   await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Email", exact: true }),
+  ).toHaveAccessibleDescription(reminder);
+  await expect(page.getByText(reminder)).toBeVisible();
   await page.getByRole("textbox", { name: "First name", exact: true }).fill("Duplicate");
   await page.getByRole("textbox", { name: "Last name", exact: true }).fill("Account");
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("ADMIN@EXAMPLE.TEST");
