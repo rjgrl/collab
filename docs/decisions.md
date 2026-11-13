@@ -168,8 +168,15 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - The README has a "Setup options" table: local clean (`setup:local --no-demo`), local seeded (`setup:local`), hosted clean (`deploy:init`), hosted seeded (`deploy:init --demo`), and hosted with copied data (Atlas runbook).
 - Status: the app is not on Atlas yet. Hosted environments switch by setting `DATABASE_URL`; no Atlas cluster or migration exists yet.
 
-## BukSU-aligned theme and official College of Technologies logo
+## 2026-11-12: BukSU-aligned theme and official College of Technologies logo
 
 - The brand mark is the official `cot-logo.webp` from buksu.edu.ph, cropped to its transparent circular boundary and rendered in a clipped circle.
 - Light mode follows the buksu.edu.ph palette: navy `#001C38`, gold `#D7953E`, blue `#0070BA`, light blue `#8FC3DD`, warm neutrals.
 - Dark mode uses charcoal surfaces (`#17191C`/`#22262B`) with BukSU gold as the primary accent; blue is a supporting/chart color only. Colors change only through semantic tokens in `packages/ui/src/styles/globals.css`.
+
+## 2026-11-13: Alumni profile sections are tabs
+
+- Staff alumni page: tabs under the name and Tracked badge — Details (student details and contacts, default), Employment (jobs, then supporting evidence), Tracking, Change history (heads and Super Admins only). My profile: Employment (default) and Evidence; tracking stays hidden from alumni.
+- Tabs are links in the shared `SectionTabs` bar, the same as Settings (no ARIA tablist), and the open tab is kept in `?tab=`. The default tab adds nothing, so older links still work; old `#evidence-…` notification links open Employment.
+- `useSectionTab` reads the tab from the router location that tab links use, and replaces an unknown or unavailable `tab` in the address. Why: TanStack keeps unknown search keys in `useSearch()`, and route search can lag the location on Back, which marked two tabs current.
+- Only the open tab is mounted, so Tracking and Change history load when opened. Unsaved tracking notes are kept in the page and survive switching tabs.
