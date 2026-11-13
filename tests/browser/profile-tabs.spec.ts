@@ -182,3 +182,36 @@ test("Alumni switch between Employment and Evidence on My profile", async ({
   await expect(page.getByText(/^(Tracked|Untracked)$/)).toHaveCount(0);
   await expectAccessibleAndFitting(page);
 });
+
+test("a slow alumni profile shows a page-shaped skeleton instead of a spinner", async ({
+  page,
+  request,
+}, info) => {
+  await request.post(`${FIXTURE}/reset`);
+  await request.post(`${FIXTURE}/staff`);
+  await signIn(page, "staff@example.test", "dashboard");
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/api\/v1\/alumni\/000000000000000000000201$/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto(PROFILE);
+  const loading = page.getByRole("status").filter({ hasText: "Loading" });
+  await expect(loading).toBeVisible();
+  await expect(loading.locator('[data-slot="skeleton"]').first()).toBeVisible();
+  await expect(page.locator(".animate-spin")).toHaveCount(0);
+  // The profile request is still held, so check without waiting for the network to go idle.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.screenshot({ path: info.outputPath("profile-skeleton.png"), fullPage: true });
+  release();
+  await expect(page.locator("h1")).toHaveText("Test Alumni");
+  await expect(loading).toHaveCount(0);
+});

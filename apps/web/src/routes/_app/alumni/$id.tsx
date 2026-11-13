@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { QuietButton } from "@/components/data/data-table";
-import Loader from "@/components/layout/loader";
+import { PageSkeleton } from "@/components/layout/page-skeleton";
 import { FormSelect } from "@/components/forms/form-select";
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { PageHeader, PageShell } from "@/components/layout/page";
@@ -126,13 +126,7 @@ function AlumniDetailPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  if (alumni.isPending) {
-    return (
-      <PageShell>
-        <Loader />
-      </PageShell>
-    );
-  }
+  if (alumni.isPending) return <PageSkeleton avatar tabs={visibleTabs.length} />;
 
   if (!record) {
     return (
