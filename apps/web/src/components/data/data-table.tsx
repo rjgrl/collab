@@ -64,48 +64,46 @@ export function DataTable({
         tabIndex={0}
         className="relative overflow-x-auto rounded-xl border border-border bg-card shadow-card focus-visible:outline-2 focus-visible:outline-ring"
       >
-        <table className="w-full min-w-[32rem] text-left text-sm md:min-w-0">
-          <thead className="bg-muted/70 text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
-            <tr>
-              {headers.map((header) => (
-                <th
-                  key={header}
-                  className={
-                    header === "Actions" ||
-                    /^(Graduates|Tracked|Untracked|% tracked|Count|Users|Programs|Alumni)$/.test(
-                      header,
-                    )
-                      ? "px-4 py-2.5 text-right font-semibold"
-                      : "px-4 py-2.5 font-semibold"
-                  }
-                >
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <TableRow>
-                <TableCell className="px-3 py-3" colSpan={headers.length}>
-                  <div className="flex flex-col gap-2">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-4/5" />
-                    <Skeleton className="h-4 w-3/5" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {showEmpty ? (
-              <TableRow>
-                <TableCell className="p-0" colSpan={headers.length}>
-                  <EmptyState compact title={emptyTitle} description={emptyDescription} />
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {!loading && !showEmpty ? children : null}
-          </tbody>
-        </table>
+        {showEmpty ? (
+          <EmptyState compact title={emptyTitle} description={emptyDescription} />
+        ) : (
+          <table className="w-full min-w-[32rem] text-left text-sm md:min-w-0">
+            <thead className="bg-muted/70 text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
+              <tr>
+                {headers.map((header) => (
+                  <th
+                    key={header}
+                    className={
+                      header === "Actions" ||
+                      /^(Graduates|Tracked|Untracked|% tracked|Count|Users|Programs|Alumni)$/.test(
+                        header,
+                      )
+                        ? "px-4 py-2.5 text-right font-semibold"
+                        : "px-4 py-2.5 font-semibold"
+                    }
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <TableRow>
+                  <TableCell className="px-3 py-3" colSpan={headers.length}>
+                    <div className="flex flex-col gap-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-4/5" />
+                      <Skeleton className="h-4 w-3/5" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                children
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
