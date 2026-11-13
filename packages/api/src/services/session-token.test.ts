@@ -43,11 +43,13 @@ it("round-trips a session JWT with the standard claims", async () => {
   assert.equal(payload.sub, "u");
   assert.ok(payload.iat && payload.exp > payload.iat);
   assert.deepEqual(await verifySessionToken(token, settings), { secret, userId: "u" });
-  assert.deepEqual(hand({ alg: "HS256", typ: "JWT" }, claims()).split(".").length, 3);
-  assert.deepEqual(await verifySessionToken(hand({ alg: "HS256", typ: "JWT" }, claims()), settings), {
-    secret,
-    userId: "u",
-  });
+  assert.deepEqual(
+    await verifySessionToken(hand({ alg: "HS256", typ: "JWT" }, claims()), settings),
+    {
+      secret,
+      userId: "u",
+    },
+  );
 });
 
 it("rejects forged, altered, expired and malformed tokens", async () => {
@@ -60,17 +62,21 @@ it("rejects forged, altered, expired and malformed tokens", async () => {
     "alg none": `${b64({ alg: "none", typ: "JWT" })}.${payload}.`,
     "payload swapped to another user": `${header}.${b64(claims({ sub: "admin" }))}.${signature}`,
     "signature removed": `${header}.${payload}.`,
-    "other secret": await signSessionToken(
-      { secret, userId: "u", expiresAt: later() },
-      { SESSION_SECRET: "t".repeat(64), NODE_ENV: "test" } as NodeJS.ProcessEnv,
-    ),
-    "HS512 with the same key": await new SignJWT(claims())
-      .setProtectedHeader({ alg: "HS512", typ: "JWT" })
-      .sign(new Uint8Array(64).fill(1)),
+    "other secret": await signSessionToken({ secret, userId: "u", expiresAt: later() }, {
+      SESSION_SECRET: "t".repeat(64),
+      NODE_ENV: "test",
+    } as NodeJS.ProcessEnv),
+    "HS512 with the real key": (() => {
+      const body = `${b64({ alg: "HS512", typ: "JWT" })}.${b64(claims())}`;
+      return `${body}.${createHmac("sha512", key).update(body).digest("base64url")}`;
+    })(),
     "wrong issuer": hand({ alg: "HS256", typ: "JWT" }, claims({ iss: "someone-else" })),
     "wrong audience": hand({ alg: "HS256", typ: "JWT" }, claims({ aud: "other-app" })),
     "wrong type": hand({ alg: "HS256", typ: "at+jwt" }, claims()),
-    expired: hand({ alg: "HS256", typ: "JWT" }, claims({ exp: Math.floor(Date.now() / 1000) - 120 })),
+    expired: hand(
+      { alg: "HS256", typ: "JWT" },
+      claims({ exp: Math.floor(Date.now() / 1000) - 120 }),
+    ),
     "missing subject": hand({ alg: "HS256", typ: "JWT" }, claims({ sub: undefined })),
     "missing jti": hand({ alg: "HS256", typ: "JWT" }, claims({ jti: undefined })),
     "short jti": hand({ alg: "HS256", typ: "JWT" }, claims({ jti: "abc" })),
@@ -104,8 +110,16 @@ it("refuses to sign in production without SESSION_SECRET", async () => {
 
 it("needs the live session too: revoked sessions and other users' sessions are rejected", async () => {
   const f = modelFixture({
-    User: [{ id: "u", email: "u@example.test", status: "active" }],
-    Session: [],
+    User: [
+      {
+        id: "u",
+        name: "Test",
+        email: "u@example.test",
+        image: null,
+        status: "active",
+        passwordHash: "synthetic",
+      },
+    ],
   });
   const session = await createSession(f.db, "u", {});
   assert.ok(await loadAuthUserFromToken(f.db, session.token));
