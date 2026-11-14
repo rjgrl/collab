@@ -20,6 +20,8 @@ export function matches(row: Row, filter: Row): boolean {
       return Object.entries(expected).every(([operator, value]) => {
         if (operator === "$in")
           return (value as unknown[]).some((item) => String(item) === String(actual));
+        if (operator === "$nin")
+          return !(value as unknown[]).some((item) => String(item) === String(actual));
         if (operator === "$ne") return String(actual) !== String(value);
         if (operator === "$exists") return (actual !== undefined) === value;
         if (operator === "$gt") return Number(actual) > Number(value);
