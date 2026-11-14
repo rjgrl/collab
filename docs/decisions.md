@@ -209,3 +209,10 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Limits per alumnus: 50 evidence files and 30 jobs (like the existing 50 contacts), and 20 self-uploads per account per 10 minutes. Staff get one unread evidence notice per alumnus, refreshed by later uploads.
 - Email gateway: addresses are classified after full IPv6 parsing (IPv4 inside mapped, compatible, NAT64 and 6to4 forms counts as that IPv4 address), more reserved ranges are refused, redirects are never followed, and production re-checks the address before every send. Accepted residual risk: DNS can still change between that check and the connection (pinning needs undici), and only a Super Admin can set the address.
 - Evidence on Google Drive or imgBB is streamed to the browser; it previously arrived as `{}`.
+
+## 2026-11-15: Engineering guardrails from the bad-practice review
+
+- `main` is protected: pull request required, all eight CI checks required, linear history, no force-push or deletion, enforced for admins too. Direct pushes (including the owner's) now go through a PR.
+- The test model fixture throws on query or update features it cannot reproduce instead of guessing, and applies sort, skip and limit like MongoDB.
+- Role keys are compared only through `ROLE` and the helpers in `contracts/names.ts`; `source-guards.test.ts` fails on a typed-out role key (including the removed `admin`, `staff`, `viewer`) or on `context.user!` (use `requireUser`).
+- Unattended jobs (restore recovery, backup scheduler, nightly integrity check) report failures through `reportBackgroundFailure`: always a redacted JSON log line, plus a Super Admin notification at most hourly per job. Heartbeat and post-restore audit failures are logged only.
