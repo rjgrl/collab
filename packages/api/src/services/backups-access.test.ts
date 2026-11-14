@@ -37,7 +37,7 @@ const restoreInput = {
 it("denies every backup action to non-administrators and to unverified MFA sessions", async () => {
   for (const [roles, verified] of [
     [["faculty"], true],
-    [["viewer"], true],
+    [["alumni"], true],
     [["super_admin"], false],
   ] as const) {
     const { f, context: ctx } = context([...roles], verified);

@@ -260,8 +260,8 @@ try {
     users[preset.key] = { id: user.id, token };
   }
   for (const [role, route, status] of [
-    ["viewer", "users/list", 403],
-    ["viewer", "reports/alumniCsv", 403],
+    ["alumni", "users/list", 403],
+    ["alumni", "reports/alumniCsv", 403],
     ["faculty", "users/list", 403],
     ["faculty", "reports/alumniCsv", 200],
     ["super_admin", "users/list", 200],
@@ -269,21 +269,21 @@ try {
     assert.equal((await rest(route, users[role]!.token)).status, status);
     checks.push({ test: `${role}: ${route}`, status });
   }
-  const globalRead = await rest("alumni/get", users.viewer!.token, { id: saved.id });
+  const globalRead = await rest("alumni/get", users.alumni!.token, { id: saved.id });
   assert.equal(globalRead.status, 403);
   checks.push({ test: "Alumni cannot read the global directory", status: 403 });
   const unlinked = await acceptanceRequest(
     base,
     "/api/me/profile",
     {},
-    users.viewer!.token,
+    users.alumni!.token,
     {},
     "GET",
   );
   assert.equal(unlinked.response.status, 409);
-  await db.User.updateOne({ _id: users.viewer!.id }, { $set: { alumniId: saved._id } });
+  await db.User.updateOne({ _id: users.alumni!.id }, { $set: { alumniId: saved._id } });
   assert.equal(
-    (await acceptanceRequest(base, "/api/me/profile", {}, users.viewer!.token, {}, "GET")).response
+    (await acceptanceRequest(base, "/api/me/profile", {}, users.alumni!.token, {}, "GET")).response
       .status,
     200,
   );
@@ -291,10 +291,10 @@ try {
     test: "Alumni requires explicit link and then reads its own profile",
     status: 200,
   });
-  assert.equal((await rest("alumni/delete", users.viewer!.token, { id: saved.id })).status, 403);
+  assert.equal((await rest("alumni/delete", users.alumni!.token, { id: saved.id })).status, 403);
   assert.equal(
     (
-      await rest("auth/updateProfile", users.viewer!.token, {
+      await rest("auth/updateProfile", users.alumni!.token, {
         firstName: "Own",
         lastName: "Synthetic",
         userId: users.super_admin!.id,
@@ -304,7 +304,7 @@ try {
   );
   assert.equal(
     (
-      await rest("auth/updateProfile", users.viewer!.token, {
+      await rest("auth/updateProfile", users.alumni!.token, {
         firstName: "Own",
         lastName: "Synthetic",
       })

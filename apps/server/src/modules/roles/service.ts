@@ -1,5 +1,5 @@
 import type { RoleInput } from "@Alumni-Tracking-Ss/contracts/roles";
-import { toEntity, isPermissionKey } from "@Alumni-Tracking-Ss/db";
+import { toEntity, isPermissionKey, RESERVED_ROLE_KEYS } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/access";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
@@ -30,7 +30,8 @@ export const rolesService = {
     rejectAlumniManagement(context);
     const actor = requireAccess(context, "roles.write");
     return authorizationTransaction(context.db, async (tx) => {
-      if (input.key === "super_admin")
+      // System roles keep their keys; removed keys (admin, staff, viewer) can never return.
+      if ((RESERVED_ROLE_KEYS as readonly string[]).includes(input.key))
         throw new ApiError("FORBIDDEN", { message: "Reserved role key." });
       await validatePermissionIds(tx, actor, input.permissionIds);
       const row = await tx.Role.create({

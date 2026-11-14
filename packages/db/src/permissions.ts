@@ -182,8 +182,8 @@ export const ROLE_PRESETS = {
       "reports.export",
     ] satisfies PermissionKey[],
   },
-  viewer: {
-    key: "viewer",
+  alumni: {
+    key: "alumni",
     name: "Alumni",
     description:
       "Own explicitly linked profile, employment, evidence and privacy-safe aggregate statistics.",
@@ -192,10 +192,23 @@ export const ROLE_PRESETS = {
 } as const;
 
 /**
- * Retired system roles. Seeding removes them from existing databases: "staff" gave
- * university-wide alumni access with no faculty record, which the org scoping rules forbid.
+ * Removed role keys. Migration and seeding delete any role with these keys, and new roles may not
+ * use them: "staff" gave university-wide alumni access with no faculty record, which the org
+ * scoping rules forbid; "admin" was once treated as an administrator alias.
  */
-export const RETIRED_ROLE_KEYS = ["staff"] as const;
+export const RETIRED_ROLE_KEYS = ["staff", "admin"] as const;
+
+/** The Alumni role's former key; migration renames it to "alumni" in place. */
+export const LEGACY_ALUMNI_ROLE_KEY = "viewer";
+
+/** Keys a new custom role may not use: the three system roles and every removed key. */
+export const RESERVED_ROLE_KEYS = [
+  "super_admin",
+  "faculty",
+  "alumni",
+  LEGACY_ALUMNI_ROLE_KEY,
+  ...RETIRED_ROLE_KEYS,
+] as const;
 
 export function isPermissionKey(key: string): key is PermissionKey {
   return PERMISSION_KEYS.some((active) => active === key);

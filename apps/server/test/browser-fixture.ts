@@ -152,7 +152,7 @@ async function reset() {
     },
     {
       _id: ids.viewerRole,
-      key: "viewer",
+      key: "alumni",
       name: "Test Alumni",
       description: "Synthetic Alumni",
       isSystem: false,
@@ -488,7 +488,7 @@ app.post("/__test/employments", async (request, response) => {
 });
 app.post("/__test/alumni", async (request, response) => {
   await ensureAcademicFixtures();
-  await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);
+  await grantRole(ids.viewerRole, ROLE_PRESETS.alumni.permissions);
   await db.User.updateOne(
     { _id: ids.alumni },
     {
@@ -529,7 +529,7 @@ app.post("/__test/alumni", async (request, response) => {
 });
 app.post("/__test/other-alumni", async (_request, response) => {
   await ensureAcademicFixtures();
-  await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);
+  await grantRole(ids.viewerRole, ROLE_PRESETS.alumni.permissions);
   const id = "000000000000000000000004";
   await db.User.updateOne(
     { _id: id },

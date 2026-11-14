@@ -441,7 +441,7 @@ it("binds OAuth state to an HttpOnly cookie and rejects callbacks without that c
   assert.equal(callback.status, 302);
   assert.equal(location(callback), origin + "/login?error=google");
 });
-function googleFixture(existing = false, nodeEnv = "test", roleKey = "viewer") {
+function googleFixture(existing = false, nodeEnv = "test", roleKey = "alumni") {
   const created: Record<string, unknown>[] = [];
   let sessions = 0;
   const account = {
@@ -491,7 +491,7 @@ function googleFixture(existing = false, nodeEnv = "test", roleKey = "viewer") {
         ),
     },
     Role: {
-      findOne: () => query({ _id: otherId, key: "viewer" }),
+      findOne: () => query({ _id: otherId, key: "alumni" }),
       find: () => query([{ _id: otherId, key: roleKey, name: roleKey, isSystem: true }]),
     },
     RolePermission: { find: () => query([]) },
@@ -713,7 +713,7 @@ it("completion logs exclude queries, credentials and caller-controlled request I
 });
 it("HTTP rejects Alumni directory access despite broad permissions and requires explicit linking for My Profile", async () => {
   const app = fixture({
-    roles: ["viewer"],
+    roles: ["alumni"],
     permissions: [...PERMISSION_KEYS],
     db: { User: { findOne: () => query({ _id: userId, alumniId: null }) } },
   });
@@ -744,7 +744,7 @@ it("HTTP validates ObjectIds and rejects body-supplied owners, roles and URL IDs
       400,
       path,
     );
-  const alumniApp = fixture({ roles: ["viewer"], permissions: [...PERMISSION_KEYS] });
+  const alumniApp = fixture({ roles: ["alumni"], permissions: [...PERMISSION_KEYS] });
   for (const field of [
     "alumniId",
     "programId",

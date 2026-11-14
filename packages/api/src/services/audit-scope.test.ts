@@ -308,7 +308,7 @@ it("alumni without alumniId see only entries they acted in", async () => {
         verificationRequired: false,
       },
     ],
-    Role: [{ id: "role_viewer", _id: "role_viewer", name: "Viewer", key: "viewer" }],
+    Role: [{ id: "role_viewer", _id: "role_viewer", name: "Viewer", key: "alumni" }],
     UserRole: [{ userId: alumniUserId, roleId: "role_viewer" }],
     AuditLog: [
       {
@@ -339,7 +339,7 @@ it("alumni without alumniId see only entries they acted in", async () => {
       email: "alumni_noid@example.com",
       image: null,
       status: "active",
-      roles: ["viewer"],
+      roles: ["alumni"],
       permissions: [],
       mfaVerified: true,
       needsProfileCompletion: false,
@@ -354,4 +354,60 @@ it("alumni without alumniId see only entries they acted in", async () => {
     (await auditService.list(context, { page: 1, pageSize: 50 })).map((row) => row.id).sort(),
     ["b1"],
   );
+});
+
+it("never shows an alumnus tracking or tracker-assignment entries about their own profile", async () => {
+  const alumniUserId = "alumni-user";
+  const alumniId = "alumni-profile";
+  const entry = (id: string, action: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    action,
+    entity: "alumni",
+    entityId: alumniId,
+    actorId: "staff-user",
+    summary: `${action} entry`,
+    createdAt: new Date(Number(id.replace(/\D/g, "")) || 1),
+    ...extra,
+  });
+  const f = modelFixture({
+    User: [{ id: alumniUserId, name: "Grad", email: "grad@example.com", status: "active" }],
+    Role: [{ id: "role_alumni", _id: "role_alumni", name: "Alumni", key: "alumni" }],
+    UserRole: [{ userId: alumniUserId, roleId: "role_alumni" }],
+    AuditLog: [
+      entry("e1", "alumni.update"),
+      entry("e2", "tracking.create", {
+        entity: "tracking_event",
+        entityId: "t1",
+        metadata: { alumniId, tracking: { isTracked: false, notes: "STAFF-ONLY NOTE" } },
+        summary: "Marked untracked; notes STAFF-ONLY NOTE",
+      }),
+      entry("e3", "alumni.assign"),
+      entry("e4", "alumni.reassign"),
+      entry("e5", "alumni.unassign"),
+      entry("e6", "files.create", { entity: "file", entityId: "f1", metadata: { alumniId } }),
+      entry("e7", "employment.create", { actorId: alumniUserId }),
+    ],
+  });
+  const context = {
+    db: f.db,
+    user: {
+      id: alumniUserId,
+      name: "Grad",
+      email: "grad@example.com",
+      image: null,
+      status: "active",
+      roles: ["alumni"],
+      permissions: [],
+      alumniId,
+      mfaVerified: true,
+      needsProfileCompletion: false,
+    },
+    sessionToken: null,
+    ipAddress: null,
+    userAgent: null,
+    integrationEnv: {},
+  } as Context;
+  const rows = await auditService.list(context, { page: 1, pageSize: 50 });
+  assert.deepEqual(rows.map((row) => row.id).sort(), ["e1", "e6", "e7"]);
+  assert.ok(!JSON.stringify(rows).includes("STAFF-ONLY NOTE"));
 });

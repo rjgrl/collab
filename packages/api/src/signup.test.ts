@@ -22,7 +22,7 @@ const input = {
 function fixture(existing: Record<string, unknown> | null = null, collide = false) {
   const f = modelFixture({
     User: existing ? [{ email: "new@example.test", ...existing }] : [],
-    Role: [{ id: "viewer", _id: "viewer", key: "viewer" }],
+    Role: [{ id: "alumni", _id: "alumni", key: "alumni" }],
     Program: [
       { id: input.programId, _id: input.programId, departmentId: "222222222222222222222222" },
     ],
@@ -78,7 +78,7 @@ it("stores signup contact fields with a normalized unique email and hashed passw
   assert.equal(f.writes[0]?.facebookAccount, input.facebookAccount);
   assert.equal(f.writes[0]?.email, "new@example.test");
   assert.notEqual(f.writes[0]?.passwordHash, input.password);
-  assert.equal(f.tables.UserRole?.[0]?.roleId, "viewer");
+  assert.equal(f.tables.UserRole?.[0]?.roleId, "alumni");
   assert.equal(f.tables.User?.[0]?.alumniId, f.tables.Alumni?.[0]?.id);
   assert.equal(f.tables.Alumni?.[0]?.studentNumber, "SYN-001");
   assert.equal(f.tables.Alumni?.[0]?.graduationYear, 2024);
@@ -149,7 +149,7 @@ it("new Google accounts are passwordless, use Viewer, and require profile comple
   assert.equal(f.writes[0]?.needsProfileCompletion, true);
   assert.equal(f.writes[0]?.emailVerified, true);
   assert.equal(f.writes[0]?.passwordHash, null);
-  assert.equal(f.tables.UserRole?.[0]?.roleId, "viewer");
+  assert.equal(f.tables.UserRole?.[0]?.roleId, "alumni");
 });
 it("simultaneous Google signups reuse the winning account", async () => {
   const f = fixture(null, true);

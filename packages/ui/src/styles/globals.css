@@ -93,11 +93,16 @@
   --shadow-color: 0 0 0;
 }
 
-/* Sonner sets opacity per state (shown 1; hidden in the stack or dismissed 0). Fading between
-   them made text briefly fail WCAG contrast, so toasts switch opacity instantly and keep only the
-   slide and size animations. */
+/* Sonner sets opacity per state (shown 1; hidden or dismissed 0). Fading in made text briefly
+   fail WCAG contrast, so shown toasts switch opacity instantly and keep only the slide and size
+   animations; only a toast that is being removed fades out (below). */
 [data-sonner-toast] {
   transition-property: transform, height, box-shadow !important;
+}
+/* A toast being removed (closed, timed out, or replaced by a newer one) fades out. */
+[data-sonner-toast][data-removed="true"] {
+  transition-property: opacity, transform, height, box-shadow !important;
+  transition-duration: 200ms !important;
 }
 
 /* Close button sits inside the toast on the right instead of overhanging its top-left corner. */

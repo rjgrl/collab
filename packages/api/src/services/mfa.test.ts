@@ -81,7 +81,8 @@ it("blocks Administrator roles until MFA while delegated Staff permissions do no
   const f = await fixture();
   assert.throws(() => requireAccess(f.context, "dashboard.read"), /Verify your authenticator/);
   assert.equal(privilegedAccount({ roles: ["staff"], permissions: ["users.write"] }), false);
-  assert.equal(privilegedAccount({ roles: ["staff", "admin"], permissions: [] }), true);
+  assert.equal(privilegedAccount({ roles: ["staff", "admin"], permissions: [] }), false);
+  assert.equal(privilegedAccount({ roles: ["staff", "super_admin"], permissions: [] }), true);
   f.context.user!.mfaVerified = true;
   assert.equal(requireAccess(f.context, "dashboard.read").id, "user");
 });

@@ -247,7 +247,7 @@ Google sign-in does not silently activate a pending, unconfirmed password regist
 
 Follow the [migration and rollback runbook](docs/migrations/MONGOOSE_REST.md) before applying indexes to an existing database.
 
-`viewer` remains the internal legacy role key; the interface labels it **Alumni**. Public registration creates the account and linked Alumni profile atomically after collecting student number and a valid degree program. Alumni sign in to **My Profile** and access only their explicitly linked record. Historical broad grants do not give Alumni directory or management access.
+The Alumni role key is `alumni` (formerly `viewer`; `pnpm db:migrate --apply` renames it in place and the server refuses to start until it has run). The system has three built-in roles, Super Admin (`super_admin`), Faculty (`faculty`) and Alumni (`alumni`); custom roles cannot use those keys or the removed `admin`, `staff` and `viewer` keys. Public registration creates the account and linked Alumni profile atomically after collecting student number and a valid degree program. Alumni sign in to **My Profile** and access only their explicitly linked record. Historical broad grants do not give Alumni directory or management access.
 
 Graduation year is required for registration, academic saves and imports (1950–2100). Existing records with unknown years remain readable until corrected. Form dropdowns use the shared themed controls; suffix suggestions still allow custom text.
 
@@ -265,7 +265,7 @@ Changing email requires the current password and a code delivered to the new add
 
 **Departments** use names without codes. **Audit logs** show the **User** (name, with the email recorded at the time underneath), role, action and a plain-language summary; each row opens a detail dialog. **Integrations** are restricted to administrators, including for accounts with historical grants; enabled status is green and disabled status is red. Settings also contains Roles and permissions.
 
-Faculty and Alumni do not require MFA, including accounts with saved enrollment. Administrator roles (`super_admin` or `admin`) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
+Faculty and Alumni do not require MFA, including accounts with saved enrollment. Super Admins (`super_admin`, the only administrator role) require MFA, including mixed-role accounts, except during the explicit managed-local development pause described above. Passwords, sessions, account status, contact verification and permissions continue to apply. Signup email/phone verification and Google sign-in are separate from MFA; strict contact verification remains a deployment gate until real SMS and email delivery are accepted.
 
 Additional isolated verification: `pnpm test:mongoose-db`, `pnpm test:forms-db`, `pnpm test:pentest-local` and `pnpm test:staging-local`. They create fresh synthetic loopback namespaces and retain them for inspection. Browser tests now use a fresh real MongoDB namespace on the managed local replica set; CI starts an ephemeral MongoDB replica set with a test-only dependency. No production database is touched by these checks.
 
