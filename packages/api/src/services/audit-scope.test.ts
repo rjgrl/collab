@@ -308,7 +308,7 @@ it("alumni without alumniId see only entries they acted in", async () => {
         verificationRequired: false,
       },
     ],
-    Role: [{ id: "role_viewer", _id: "role_viewer", name: "Viewer", key: "viewer" }],
+    Role: [{ id: "role_viewer", _id: "role_viewer", name: "Viewer", key: "alumni" }],
     UserRole: [{ userId: alumniUserId, roleId: "role_viewer" }],
     AuditLog: [
       {
@@ -339,7 +339,7 @@ it("alumni without alumniId see only entries they acted in", async () => {
       email: "alumni_noid@example.com",
       image: null,
       status: "active",
-      roles: ["viewer"],
+      roles: ["alumni"],
       permissions: [],
       mfaVerified: true,
       needsProfileCompletion: false,

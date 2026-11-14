@@ -174,10 +174,28 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
           },
           countDocuments: (filter: Row) =>
             query(() => tables[model]!.filter((row) => matches(row, filter)).length),
-          updateOne: (filter: Row, update: Row) =>
+          updateOne: (filter: Row, update: Row, options?: { upsert?: boolean }) =>
             query(() => {
               record({ model, method: "updateOne", filter, update });
               const row = tables[model]!.find((item) => matches(item, filter));
+              if (!row && options?.upsert) {
+                // Like MongoDB, an upsert whose _id already exists fails as a duplicate key.
+                if (
+                  filter._id !== undefined &&
+                  tables[model]!.some((item) => item._id === filter._id)
+                )
+                  throw Object.assign(new Error("E11000 duplicate key"), { code: 11000 });
+                // Like MongoDB: insert the filter's equality fields plus $set/$setOnInsert.
+                const created: Row = {
+                  ...Object.fromEntries(
+                    Object.entries(filter).filter(([, value]) => typeof value !== "object"),
+                  ),
+                  ...(update.$set as Row),
+                  ...(update.$setOnInsert as Row),
+                };
+                tables[model]!.push(created);
+                return { modifiedCount: 0, matchedCount: 0, upsertedCount: 1 };
+              }
               if (!row) return { modifiedCount: 0, matchedCount: 0 };
               apply(row, update);
               return { modifiedCount: 1, matchedCount: 1 };

@@ -33,7 +33,7 @@ export async function loadRoles(db: Database, ids?: string[]): Promise<Role[]> {
     .exec();
   return roles.map((role) => ({
     ...role,
-    name: role.key === "viewer" || role.key === "alumni" ? "Alumni" : role.name,
+    name: role.key === "alumni" ? "Alumni" : role.name,
     description: role.description ?? "",
     _count: { userRoles: assignments.filter((link) => String(link.roleId) === role.id).length },
     rolePermissions: links

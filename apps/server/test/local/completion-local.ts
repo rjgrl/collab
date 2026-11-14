@@ -64,7 +64,7 @@ try {
   };
   const response = await agent.post("/api/auth/signup").set("Origin", origin).send(signup);
   assert.equal(response.status, 201, JSON.stringify(response.body));
-  assert.deepEqual(response.body.user.roles, ["viewer"]);
+  assert.deepEqual(response.body.user.roles, ["alumni"]);
   assert.equal(response.body.user.needsProfileCompletion, false);
   assert.ok(response.body.user.alumniId);
   const user = await db.User.findOne({ email: signup.email }).lean().orFail();
@@ -393,7 +393,7 @@ try {
     userAgent: null,
     integrationEnv: {},
   } as Context;
-  await db.Role.updateOne({ key: "viewer" }, { $set: { name: "Viewer" } });
+  await db.Role.updateOne({ key: "alumni" }, { $set: { name: "Viewer" } });
   await assert.rejects(
     () =>
       usersService.create(
@@ -425,7 +425,7 @@ try {
     .set(staffHeaders);
   assert.equal(managedList.status, 200);
   assert.deepEqual(managedList.body, []);
-  const viewer = await db.Role.findOne({ key: "viewer" }).lean().orFail();
+  const viewer = await db.Role.findOne({ key: "alumni" }).lean().orFail();
   await assert.rejects(
     () =>
       usersService.create(
@@ -445,7 +445,7 @@ try {
     email: "pending@example.test",
     name: "Pending Graduate",
   });
-  const viewerRole = await db.Role.findOne({ key: "viewer" }).lean().orFail();
+  const viewerRole = await db.Role.findOne({ key: "alumni" }).lean().orFail();
   const mixed = await db.User.create({
     name: "Mixed Faculty",
     email: "mixed@example.test",

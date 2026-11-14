@@ -143,7 +143,7 @@ export const alumniService = {
       },
       {
         $match: {
-          "roles.key": { $in: ["viewer", "alumni"], $nin: ["faculty", "admin", "super_admin"] },
+          "roles.key": { $in: ["alumni"], $nin: ["faculty", "super_admin"] },
         },
       },
       { $sort: { createdAt: -1, _id: -1 } },

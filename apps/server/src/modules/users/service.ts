@@ -121,9 +121,7 @@ export const usersService = {
         const currentKeys = roles.map((role) => role.key);
         const nextKeys = nextRoles.map((role) => role.key);
         if (
-          nextKeys.some(
-            (key) => (key === "viewer" || key === "alumni") && !currentKeys.includes(key),
-          ) ||
+          nextKeys.some((key) => key === "alumni" && !currentKeys.includes(key)) ||
           (!isAlumniAccount({ roles: currentKeys }) && isAlumniAccount({ roles: nextKeys }))
         )
           throw new ApiError("BAD_REQUEST", {

@@ -260,8 +260,8 @@ try {
     users[preset.key] = { id: user.id, token };
   }
   for (const [role, route, status] of [
-    ["viewer", "users/list", 403],
-    ["viewer", "reports/alumniCsv", 403],
+    ["alumni", "users/list", 403],
+    ["alumni", "reports/alumniCsv", 403],
     ["faculty", "users/list", 403],
     ["faculty", "reports/alumniCsv", 200],
     ["super_admin", "users/list", 200],

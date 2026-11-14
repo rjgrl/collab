@@ -39,14 +39,11 @@ export function formatDisplayName(
     .join(" ");
 }
 
+/** Only Super Admins administer the system; no other role key grants administrator access. */
 export function isAdministrator(user: { roles: readonly string[] }) {
-  return user.roles.some((role) => role === "super_admin" || role === "admin");
+  return user.roles.includes("super_admin");
 }
 
 export function isAlumniAccount(user: { roles: readonly string[] }) {
-  return (
-    user.roles.some((role) => role === "viewer" || role === "alumni") &&
-    !isAdministrator(user) &&
-    !user.roles.includes("faculty")
-  );
+  return user.roles.includes("alumni") && !isAdministrator(user) && !user.roles.includes("faculty");
 }

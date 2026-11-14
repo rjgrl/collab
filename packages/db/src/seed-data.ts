@@ -69,6 +69,8 @@ async function seedInTransaction(
     await tx.Permission.updateOne({ key: permission.key }, { $set: permission }, { upsert: true });
   const permissions = await tx.Permission.find().lean();
   const permissionByKey = new Map(permissions.map((item) => [item.key, item]));
+  // Rename Viewer to Alumni in place before upserting presets, so alumni keep their grants.
+  const retired = await retireRoles(tx);
   for (const preset of Object.values(ROLE_PRESETS)) {
     const existing = await tx.Role.findOne({ key: preset.key }).lean();
     const role = await tx.Role.findOneAndUpdate(
@@ -87,10 +89,9 @@ async function seedInTransaction(
         );
     }
   }
-  const retired = await retireRoles(tx);
   if (retired.accounts)
     console.warn(
-      `Removed the retired Staff role from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
+      `Removed the ${retired.roles.join(" and ")} role(s) from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
     );
   const existingAdmin = await tx.User.findOne({ email }).lean();
   if (!existingAdmin) {
@@ -349,7 +350,7 @@ async function seedDemo(db: Database, password: string) {
       last: sample.lastName,
       alumniId: profile._id,
     });
-    await grant(user._id, "viewer");
+    await grant(user._id, "alumni");
   }
 }
 

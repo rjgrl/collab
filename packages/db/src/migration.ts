@@ -10,7 +10,7 @@ import {
 import { createIntegrationDefaults, type IntegrationDefaultsReport } from "./integration-defaults";
 
 /** Schema version; must be incremented whenever a migration step is added. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type MigrationMode = "dry-run" | "apply" | "rollback";
 export interface ExistingIndex {
@@ -220,7 +220,7 @@ export async function migrateDatabase(
     createdCollections: [],
     createdIndexes: [],
     rollback:
-      "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact. Retired roles (Staff) are not restored.",
+      "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact. Removed roles (Staff, Admin) and the Viewer-to-Alumni rename are not reverted.",
   };
   if (mode === "rollback") {
     report.integrationDefaults = await createIntegrationDefaults(db, "rollback");
@@ -319,7 +319,7 @@ export async function migrateDatabase(
     report.conflicts.push(report.orgStructure.reason!);
     return report;
   }
-  // Removes the retired Staff role and its grants (not reversible; see `rollback`).
+  // Renames Viewer to Alumni and removes the Staff and Admin roles (not reversible; see `rollback`).
   report.retiredRoles = await db.transaction((tx) => retireRoles(tx));
   // Add explicit defaults for any missing integration settings.
   report.integrationDefaults = await createIntegrationDefaults(db, "apply");

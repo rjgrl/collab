@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { createDatabase } from "../packages/db/src/index";
+import { createDatabase, hasLegacyRoles } from "../packages/db/src/index";
 import { migrateDatabase } from "../packages/db/src/migration";
 import { seedDatabase } from "../packages/db/src/seed-data";
 import { isManagedLocalDatabase } from "./local-env.mjs";
@@ -248,7 +248,7 @@ try {
   const facultyRole = await fresh.Role.findOne({ key: "faculty" }).orFail().lean();
   assert.equal(await fresh.UserRole.countDocuments({ roleId: facultyRole._id }), 4);
   assert.equal(await fresh.Alumni.countDocuments({ assignedFacultyId: { $type: "objectId" } }), 2);
-  const viewerRole = await fresh.Role.findOne({ key: "viewer" }).orFail().lean();
+  const viewerRole = await fresh.Role.findOne({ key: "alumni" }).orFail().lean();
   assert.equal(
     await fresh.UserRole.countDocuments({ roleId: viewerRole._id }),
     4,
@@ -265,16 +265,30 @@ try {
   const legacyStaff = await fresh.Role.create({ key: "staff", name: "Staff", isSystem: true });
   const legacyUser = await fresh.User.create({ name: "Legacy Staff", email: "legacy@collab.test" });
   await fresh.UserRole.create({ userId: legacyUser._id, roleId: legacyStaff._id });
+  // An older database: the Alumni role still keyed "viewer", and a custom role keyed "admin".
+  await fresh.Role.updateOne({ _id: viewerRole._id }, { $set: { key: "viewer" } });
+  const adminRole = await fresh.Role.create({ key: "admin", name: "Escalated", isSystem: false });
+  await fresh.UserRole.create({ userId: legacyUser._id, roleId: adminRole._id });
   const retired = await migrateDatabase(fresh, "dry-run");
   assert.deepEqual(retired.retiredRoles, {
-    roles: ["staff"],
-    accounts: 1,
-    accountsWithoutRoles: 1,
+    roles: ["staff", "admin"],
+    accounts: 2,
+    accountsWithoutRoles: 0,
+    renamedAlumniAccounts: 4,
   });
   assert.ok(await fresh.Role.exists({ key: "staff" }), "dry-run changes nothing");
+  assert.ok(await fresh.Role.exists({ key: "viewer" }), "dry-run changes nothing");
+  assert.ok(await hasLegacyRoles(fresh), "the server would refuse to start");
   assert.deepEqual((await migrateDatabase(fresh, "apply")).conflicts, []);
   assert.equal(await fresh.Role.exists({ key: "staff" }), null);
+  assert.equal(await fresh.Role.exists({ key: "admin" }), null);
+  assert.equal(await fresh.Role.exists({ key: "viewer" }), null);
   assert.equal(await fresh.UserRole.exists({ userId: legacyUser._id }), null);
+  // Renamed in place: the same role id keeps all four alumni logins.
+  const renamed = await fresh.Role.findById(viewerRole._id).orFail().lean();
+  assert.equal(renamed.key, "alumni");
+  assert.equal(await fresh.UserRole.countDocuments({ roleId: viewerRole._id }), 4);
+  assert.equal(await hasLegacyRoles(fresh), false);
   const seededPrograms = await fresh.Program.find().lean();
   const seededDepartments = new Set(seededPrograms.map((p) => String(p.departmentId)));
   assert.equal(seededDepartments.size, 3, "alumni span more than one department");
