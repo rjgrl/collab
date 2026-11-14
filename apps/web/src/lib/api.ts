@@ -6,6 +6,7 @@ import { uploadOutputSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
 import { backupsSchemas } from "@Alumni-Tracking-Ss/contracts/backups";
 import { API_PREFIX, API_ROUTES } from "@Alumni-Tracking-Ss/contracts/api-routes";
 import { ENV } from "@/env";
+import { markSessionEnded } from "@/lib/session-ended";
 
 export class RestError extends Error {
   constructor(
@@ -19,6 +20,7 @@ export class RestError extends Error {
 
 export async function readJson<O>(response: Response, schema: z.ZodType<O>): Promise<O> {
   const payload: unknown = await response.json().catch(() => null);
+  if (response.status === 401) noteUnauthorized();
   if (!response.ok) {
     const parsed = errorResponseSchema.safeParse(payload);
     throw new RestError(
@@ -165,18 +167,43 @@ export async function uploadProfileFile(options: {
     xhr.send(data);
   });
 }
+let sessionCheck: Promise<void> | undefined;
+/**
+ * A 401 while signed in may mean the session ended. Confirm with /auth/me (a 401 can also come
+ * from an action) before telling the user; signed-out pages have no cached user and are skipped.
+ */
+function noteUnauthorized() {
+  if (sessionCheck || !queryClient.getQueryData(api.auth.me.queryOptions().queryKey)) return;
+  sessionCheck = client.auth
+    .me()
+    .then((user) => {
+      if (!user) {
+        markSessionEnded();
+        // Error toasts from the refused request would only repeat the notice.
+        toast.dismiss();
+      }
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      sessionCheck = undefined;
+    });
+}
+
 export function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) =>
-        toast.error(error.message, {
-          action: {
-            label: "Retry",
-            onClick: () => {
-              query.invalidate();
-            },
-          },
-        }),
+        // The session-ended dialog explains a 401; a toast would only repeat it.
+        error instanceof RestError && error.status === 401
+          ? undefined
+          : toast.error(error.message, {
+              action: {
+                label: "Retry",
+                onClick: () => {
+                  query.invalidate();
+                },
+              },
+            }),
     }),
   });
 }

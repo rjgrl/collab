@@ -14,7 +14,7 @@ export function AcademicProfileFields({
   value: typeof emptyAcademic;
   onChange: (value: typeof emptyAcademic) => void;
   /**
-   * Sign-up layout: numbered "Your studies" group (step 3), program on its own row, no
+   * Sign-up layout: numbered "Your studies" group (step 2), program on its own row, no
    * explanatory note (the review rule is explained after registration).
    */
   compact?: boolean;
@@ -57,7 +57,7 @@ export function AcademicProfileFields({
       className={compact ? "grid content-start gap-3 sm:grid-cols-2" : "grid gap-4 sm:col-span-2"}
     >
       {compact ? (
-        <NumberedLegend step={3}>Your studies</NumberedLegend>
+        <NumberedLegend step={2}>Your studies</NumberedLegend>
       ) : (
         <legend className="mb-3 text-sm font-medium">Academic information</legend>
       )}

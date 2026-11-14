@@ -6,6 +6,7 @@ import { useSyncExternalStore } from "react";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { ConfirmProvider } from "@/components/feedback/confirm-provider";
+import { SessionEndedDialog } from "@/components/feedback/session-ended-dialog";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { api } from "@/lib/api";
 
@@ -66,6 +67,7 @@ function RootComponent() {
         <ConfirmProvider>
           <Outlet />
         </ConfirmProvider>
+        <SessionEndedDialog />
         <Toaster richColors closeButton visibleToasts={3} position={toastPosition} />
       </ThemeProvider>
       {import.meta.env.DEV ? <TanStackRouterDevtools position="bottom-left" /> : null}
