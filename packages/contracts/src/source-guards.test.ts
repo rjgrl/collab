@@ -50,3 +50,17 @@ it("compares role keys only through ROLE and the role helpers", async () => {
     }
   assert.deepEqual(offenders, [], "Use ROLE.* or isAdministrator/isFacultyAccount/isAlumniAccount");
 });
+
+it("never assumes a signed-in user with context.user!", async () => {
+  // Use requireUser(context): it answers 401 instead of crashing when a route lacks sign-in.
+  const offenders: string[] = [];
+  for (const dir of ["apps/server/src", "packages/api/src"])
+    for await (const file of files(path.join(root, dir))) {
+      const lines = (await readFile(file, "utf8")).split("\n");
+      lines.forEach((line, index) => {
+        if (line.includes("context.user!"))
+          offenders.push(`${path.relative(root, file)}:${index + 1}: ${line.trim()}`);
+      });
+    }
+  assert.deepEqual(offenders, []);
+});
