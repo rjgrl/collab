@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { facultySchemas, FACULTY_LEVEL_LABELS } from "@Alumni-Tracking-Ss/contracts/faculty";
 import { hashPassword, toEntity, type Database, type FacultyRecord } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
@@ -127,7 +128,7 @@ export const facultyService = {
     const manager = await requireManager(context);
     const data = facultySchemas.create.input.parse(input);
     assertGrant(manager, data.roleLevel, data.departmentId);
-    assertStaffEmailAllowed(data.email, ["faculty"]);
+    assertStaffEmailAllowed(data.email, [ROLE.faculty]);
     if (data.password) await assertPasswordSafe(data.password);
     const passwordHash = data.password ? await hashPassword(data.password) : null;
     return authorizationTransaction(context.db, async (tx) => {
@@ -136,7 +137,7 @@ export const facultyService = {
         throw new ApiError("CONFLICT", { message: "Email is already in use." });
       if (await tx.Faculty.exists({ employeeNumber: data.employeeNumber }))
         throw new ApiError("CONFLICT", { message: "Employee number is already in use." });
-      const role = await tx.Role.findOne({ key: "faculty" }).lean();
+      const role = await tx.Role.findOne({ key: ROLE.faculty }).lean();
       if (!role) throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
       const user = await tx.User.create({
         name: `${data.firstName} ${data.lastName}`,

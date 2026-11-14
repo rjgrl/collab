@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import type { Database, BackupStateRecord } from "@Alumni-Tracking-Ss/db";
 import { writeAudit } from "../audit";
 import {
@@ -70,7 +71,7 @@ export async function releaseLock(db: Database, owner: string) {
 
 /** Inserts one notification per active Super Admin (failures of unattended jobs). */
 export async function notifySuperAdmins(db: Database, summary: string) {
-  const roles = await db.Role.find({ key: "super_admin" }).select("_id").lean().exec();
+  const roles = await db.Role.find({ key: ROLE.superAdmin }).select("_id").lean().exec();
   const links = await db.UserRole.find({ roleId: { $in: roles.map((role) => role._id) } })
     .select("userId")
     .lean()

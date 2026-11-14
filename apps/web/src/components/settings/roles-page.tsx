@@ -1,3 +1,4 @@
+import { ROLE, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -102,7 +103,7 @@ export function RolesPage() {
             ) : null}
             <span className="mt-2 block text-sm tabular-nums text-muted-foreground">
               {role._count.userRoles} members | {role.rolePermissions.length} permissions
-              {role.key === "super_admin" ? " | Protected" : ""}
+              {role.key === ROLE.superAdmin ? " | Protected" : ""}
             </span>
           </button>
         ))}
@@ -174,8 +175,8 @@ function RoleEditor({
   const stale = version(role) > baseline.version;
   const editable =
     can(session.data?.permissions, "roles.write") &&
-    role.key !== "super_admin" &&
-    (!role.isSystem || session.data?.roles.includes("super_admin")) &&
+    role.key !== ROLE.superAdmin &&
+    (!role.isSystem || (session.data ? isAdministrator(session.data) : false)) &&
     role.rolePermissions.every(({ permission }) => can(session.data?.permissions, permission.key));
   const duplicateName = name !== baseline.name ? duplicateRoleName(name, allRoles, role.id) : null;
   const save = useMutation({

@@ -1,7 +1,7 @@
 import { isPermissionKey, toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Role } from "@Alumni-Tracking-Ss/contracts/roles";
 import type { PublicUser } from "@Alumni-Tracking-Ss/contracts/users";
-import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
+import { formatDisplayName, ROLE, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "../http-error";
 import type { AuthUser } from "../context";
 
@@ -33,7 +33,7 @@ export async function loadRoles(db: Database, ids?: string[]): Promise<Role[]> {
     .exec();
   return roles.map((role) => ({
     ...role,
-    name: role.key === "alumni" ? "Alumni" : role.name,
+    name: role.key === ROLE.alumni ? "Alumni" : role.name,
     description: role.description ?? "",
     _count: { userRoles: assignments.filter((link) => String(link.roleId) === role.id).length },
     rolePermissions: links
@@ -85,7 +85,7 @@ export async function publicUser(db: Database, userId: string): Promise<PublicUs
 }
 export function assertRoleScope(actor: AuthUser, roles: RoleScope[]) {
   for (const role of roles) {
-    if ((role.key === "super_admin" || role.isSystem) && !actor.roles.includes("super_admin"))
+    if ((role.key === ROLE.superAdmin || role.isSystem) && !isAdministrator(actor))
       throw new ApiError("FORBIDDEN", {
         message: "Only a super administrator can manage system roles.",
       });

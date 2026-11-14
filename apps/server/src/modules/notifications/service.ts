@@ -1,7 +1,7 @@
 import { toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
-import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { isAlumniAccount, isFacultyAccount } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { notificationsSchemas } from "@Alumni-Tracking-Ss/contracts/notifications";
 import type { z } from "zod";
@@ -84,7 +84,7 @@ export async function notifyStaffOfEvidence(
 // Only faculty accounts receive evidence notifications (see evidenceReviewers).
 function canReview(user: NonNullable<Context["user"]>) {
   return (
-    user.roles.includes("faculty") &&
+    isFacultyAccount(user) &&
     !isAlumniAccount(user) &&
     user.permissions.includes("alumni.read") &&
     user.permissions.includes("files.read")

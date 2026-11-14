@@ -5,7 +5,7 @@ import { assertPasswordSafe } from "./password-security";
 import { consumeAuthAttempt, boundedSetting } from "./throttle";
 import type { z } from "zod";
 import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
-import { formatDisplayName, isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { formatDisplayName, isAlumniAccount, ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { loadUserRoles, authorizationTransaction } from "./authorization";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import {
@@ -273,7 +273,7 @@ export async function registerUser(
       }))
     )
       throw new ApiError("CONFLICT", { message: "An account with that email already exists." });
-    const role = await tx.Role.findOne({ key: "alumni" }).lean().exec();
+    const role = await tx.Role.findOne({ key: ROLE.alumni }).lean().exec();
     if (!role) throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
     const { firstName, middleName, lastName, suffix, phoneNumber, gender, facebookAccount } =
       profile;
@@ -374,7 +374,7 @@ export async function upsertGoogleUser(
   assertStaffGoogleIdentity(email, input.hostedDomain);
   try {
     return await authorizationTransaction(db, async (tx) => {
-      const role = await tx.Role.findOne({ key: "alumni" }).lean().exec();
+      const role = await tx.Role.findOne({ key: ROLE.alumni }).lean().exec();
       if (!role) throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
       const created = await tx.User.create({
         name: input.name,

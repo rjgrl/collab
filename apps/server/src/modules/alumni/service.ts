@@ -13,7 +13,7 @@ import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { requireAccess, requireUser } from "@Alumni-Tracking-Ss/api/access";
 import { accountAccessPending } from "@Alumni-Tracking-Ss/api/services/verification";
 import { requiresMfa } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
-import { isAlumniAccount, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
+import { isAlumniAccount, formatDisplayName, ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import {
   alumniSchemas,
   meProfileSchemas,
@@ -143,7 +143,7 @@ export const alumniService = {
       },
       {
         $match: {
-          "roles.key": { $in: ["alumni"], $nin: ["faculty", "super_admin"] },
+          "roles.key": { $in: [ROLE.alumni], $nin: [ROLE.faculty, ROLE.superAdmin] },
         },
       },
       { $sort: { createdAt: -1, _id: -1 } },

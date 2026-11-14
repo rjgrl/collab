@@ -1,3 +1,4 @@
+import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
@@ -15,7 +16,7 @@ export async function canManageAlumniPhoto(
   db = context.db,
 ) {
   const user = requireAccess(context);
-  if (user.roles.includes("super_admin")) return true;
+  if (isAdministrator(user)) return true;
   if (!alumni.assignedFacultyId) return false;
   const faculty = await db.Faculty.findOne({ userId: user.id, deletedAt: null })
     .select("_id")

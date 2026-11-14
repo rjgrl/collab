@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import type { RoleInput } from "@Alumni-Tracking-Ss/contracts/roles";
 import { toEntity, isPermissionKey, RESERVED_ROLE_KEYS } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
@@ -63,7 +64,7 @@ export const rolesService = {
       const current = (await loadRoles(tx, [input.id]))[0];
       if (!current) throw new ApiError("NOT_FOUND", { message: "Role not found." });
       assertRoleScope(actor, [current]);
-      if (current.key === "super_admin")
+      if (current.key === ROLE.superAdmin)
         throw new ApiError("FORBIDDEN", { message: "The super administrator role is protected." });
       if (input.permissionIds) await validatePermissionIds(tx, actor, input.permissionIds);
       const updatedAt = new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1));
