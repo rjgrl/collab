@@ -25,6 +25,9 @@ Format: symptom, cause, workaround. Remove an entry when it is fixed.
 - After 2026-11-15, `main` was force-pushed once to drop an empty duplicate commit (files unchanged). An older clone shows `main` as diverged. Workaround: `git fetch origin` then `git reset --hard origin/main` on that clone (after saving any local work).
 - Schema version 2: the server exits at start with "Legacy roles (viewer, admin or staff) are still in the database" until `pnpm db:migrate --apply` has run. Back up first; the rename and role removal are not reverted by `--rollback`.
 
+- `git fetch origin` did not update `main` or PR branches on this clone because `remote.origin.fetch` only listed `development/phase6-cross-device-testing`. Fixed on this machine with `git config --replace-all remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"`; check other clones the same way.
+- `main` is protected. Merge with a PR after all eight checks pass; `git push origin main` and force-pushes are refused (GH006).
+
 ## Security follow-ups (open)
 
 - Custom roles bypass the faculty scope model for non-alumni data. `audit.read` returns the whole audit log (`apps/server/src/modules/audit/service.ts`, `auditScope`), and `departments.*` / `programs.*` / `users.*` / `roles.*` act across every college. Real heads should be Faculty records with a department or college level. Custom roles also never require MFA (`privilegedAccount` is Super Admin only).
