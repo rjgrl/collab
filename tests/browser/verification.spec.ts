@@ -78,6 +78,8 @@ test("email confirmation is enforced and SMS remains disconnected until a provid
   await request.post("http://127.0.0.1:3100/__test/connect-sms");
   await page.reload();
   await page.getByRole("button", { name: "Send SMS code" }).click();
+  // Like a person waiting for the text message: confirm only once the code has been sent.
+  await expect(page.getByRole("button", { name: /^Resend/ })).toBeVisible();
   await page.getByRole("textbox", { name: "SMS verification code" }).fill("654321");
   await page.getByRole("button", { name: "Confirm phone", exact: true }).click();
   await page.waitForURL("**/dashboard");

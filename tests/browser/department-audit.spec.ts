@@ -81,3 +81,33 @@ test("departments have no code fields and audit summaries preserve each individu
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: info.outputPath("department-audit.png"), fullPage: true });
 });
+
+test("a new department picks the first college even when the college list loads late", async ({
+  page,
+  request,
+}) => {
+  await request.post("http://127.0.0.1:3100/__test/reset");
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
+  await page.locator("#password").fill("BrowserTest123!");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await enrollAdministrator(page);
+  // Hold the college options (pageSize=100) back until the dialog is already open.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/api\/v1\/colleges\?.*pageSize=100/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/departments");
+  await page.getByRole("button", { name: "Add department", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add department", exact: true });
+  await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Late Sciences");
+  release();
+  await expect(dialog.getByRole("combobox", { name: "College", exact: true })).not.toHaveText(
+    /^\s*$/,
+  );
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("row").filter({ hasText: "Late Sciences" })).toBeVisible();
+});

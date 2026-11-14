@@ -6,7 +6,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -36,6 +36,12 @@ function DepartmentsPage() {
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
   const colleges = useCollegeOptions();
+  // A new department defaults to the first college, even if the list arrives after the dialog opens.
+  const firstCollegeId = colleges.data?.[0]?.id;
+  useEffect(() => {
+    if (firstCollegeId && draft && !draft.id && !draft.collegeId)
+      setDraft({ ...draft, collegeId: firstCollegeId });
+  }, [firstCollegeId, draft]);
   const list = useQuery(
     api.departments.list.queryOptions({ input: { search, page, pageSize: 20 } }),
   );
