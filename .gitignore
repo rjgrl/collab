@@ -57,10 +57,8 @@ coverage
 # read by the build, the dev server, or the tests. Re-add individual entries
 # (e.g. !.mcp.json) if you want to share them with collaborators.
 .agents/
-# Share project agents and skills; keep local settings and state private.
-.claude/*
-!.claude/agents/
-!.claude/skills/
+# Claude Code config is personal; collaborators do not use it.
+.claude/
 .cursor/
 .kilo/
 .mcp.json
