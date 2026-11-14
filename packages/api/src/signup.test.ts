@@ -165,19 +165,48 @@ it("Google sign-in rejects disabled existing accounts", async () => {
   assert.equal(f.writes.length, 0);
 });
 
-it("does not link Google to an unconfirmed password registration", async () => {
+it("lets a verified Google identity take over an unconfirmed password registration", async () => {
+  // Someone else may have registered this email; Google proves who owns it. The pending
+  // account (with its unknown password and sessions) is released, never linked.
   const f = fixture({
+    _id: "pending",
     id: "pending",
     status: "active",
     verificationRequired: true,
     emailVerified: false,
     passwordHash: "existing-unconfirmed-hash",
+    createdAt: new Date(),
   });
-  await assert.rejects(
-    () => upsertGoogleUser(f.db, { email: input.email, name: "Google name" }),
-    /Confirm the pending registration email/,
+  f.tables.UserRole = [{ userId: "pending", roleId: "alumni" }];
+  f.tables.Session = [{ userId: "pending", token: "sha256:squatter" }];
+  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  assert.notEqual(user.id, "pending");
+  assert.equal(user.emailVerified, true);
+  assert.equal(user.passwordHash ?? null, null);
+  assert.equal(
+    f.tables.User!.some((row) => row.id === "pending"),
+    false,
   );
-  assert.equal(f.writes.length, 0);
+  assert.equal(f.tables.Session!.length, 0);
+  assert.equal(f.tables.AuditLog?.[0]?.action, "auth.signup.released");
+});
+
+it("never releases a confirmed or staff account for Google or a new sign-up", async () => {
+  for (const existing of [
+    { emailVerified: true, verificationRequired: true, passwordHash: "hash" },
+    { emailVerified: false, verificationRequired: false, passwordHash: "hash" },
+  ]) {
+    const f = fixture({
+      _id: "kept",
+      id: "kept",
+      status: "active",
+      createdAt: new Date(0),
+      ...existing,
+    });
+    f.tables.UserRole = [{ userId: "kept", roleId: "alumni" }];
+    await assert.rejects(() => registerUser(f.db, input), /already exists/);
+    assert.ok(f.tables.User!.some((row) => row.id === "kept"));
+  }
 });
 
 it("rejects editable display names and incomplete structured names at signup", () => {
@@ -202,4 +231,66 @@ it("Google does not overwrite confirmed structured or legacy account names", asy
   assert.equal(user.firstName, "Ana");
   assert.equal(user.lastName, "Dela Cruz");
   assert.equal(user.suffix, "Jr.");
+});
+
+it("frees an email and student number held by a registration unconfirmed for over 24 hours", async () => {
+  const day = 24 * 60 * 60 * 1000;
+  const squatter = (createdAt: Date, email = "new@example.test") => ({
+    _id: "squatter",
+    id: "squatter",
+    email,
+    status: "active",
+    verificationRequired: true,
+    emailVerified: false,
+    passwordHash: "attacker-hash",
+    alumniId: "held-profile",
+    createdAt,
+  });
+  const heldProfile = {
+    _id: "held-profile",
+    id: "held-profile",
+    studentNumber: input.studentNumber,
+  };
+
+  // Under 24 hours: still protected (the real person may be confirming right now).
+  const fresh = fixture(squatter(new Date(Date.now() - day + 60_000)));
+  fresh.tables.Alumni = [heldProfile];
+  fresh.tables.UserRole = [{ userId: "squatter", roleId: "alumni" }];
+  await assert.rejects(() => registerUser(fresh.db, input), /already exists/);
+
+  // Same email after 24 hours: released, and its untouched profile frees the student number.
+  const stale = fixture(squatter(new Date(Date.now() - day - 60_000)));
+  stale.tables.Alumni = [heldProfile];
+  stale.tables.UserRole = [{ userId: "squatter", roleId: "alumni" }];
+  const user = await registerUser(stale.db, input);
+  assert.equal(user.email, "new@example.test");
+  assert.equal(
+    stale.tables.User!.some((row) => row.id === "squatter"),
+    false,
+  );
+  assert.equal(
+    stale.tables.Alumni!.filter((row) => row.studentNumber === input.studentNumber).length,
+    1,
+  );
+  assert.notEqual(stale.tables.Alumni![0]!.id, "held-profile");
+
+  // Student number only (squatter used another email): released the same way.
+  const other = fixture(null);
+  other.tables.User = [squatter(new Date(Date.now() - 2 * day), "someone.else@example.test")];
+  other.tables.Alumni = [heldProfile];
+  other.tables.UserRole = [{ userId: "squatter", roleId: "alumni" }];
+  await registerUser(other.db, input);
+  assert.equal(
+    other.tables.User!.some((row) => row.id === "squatter"),
+    false,
+  );
+
+  // A profile staff already worked on is kept for an administrator, so the number stays taken.
+  const touched = fixture(null);
+  touched.tables.User = [squatter(new Date(Date.now() - 2 * day), "someone.else@example.test")];
+  touched.tables.Alumni = [heldProfile];
+  touched.tables.TrackingEvent = [{ alumniId: "held-profile" }];
+  touched.tables.UserRole = [{ userId: "squatter", roleId: "alumni" }];
+  await assert.rejects(() => registerUser(touched.db, input), /existing profile/);
+  assert.ok(touched.tables.Alumni!.some((row) => row.id === "held-profile"));
 });
