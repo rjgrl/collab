@@ -1,10 +1,17 @@
 // Test-only Mongoose query double. Production services always use real models.
+// Anything it cannot reproduce faithfully throws, so a test never passes or fails because the
+// double guessed: add the operator here (matching MongoDB) or test against a real database.
 import type { Database } from "@Alumni-Tracking-Ss/db";
 type Row = Record<string, unknown>;
+const unsupported = (what: string) =>
+  new Error(
+    `model-test-fixture does not support ${what}; add it (matching MongoDB) or use a real database.`,
+  );
 export function matches(row: Row, filter: Row): boolean {
   return Object.entries(filter).every(([key, expected]) => {
     if (key === "$or") return (expected as Row[]).some((part) => matches(row, part));
     if (key === "$and") return (expected as Row[]).every((part) => matches(row, part));
+    if (key.startsWith("$")) throw unsupported(`the query operator ${key}`);
     const actual =
       key === "_id"
         ? (row._id ?? row.id)
@@ -32,7 +39,10 @@ export function matches(row: Row, filter: Row): boolean {
           return new RegExp(String(value), String((expected as Row).$options ?? "")).test(
             String(actual),
           );
-        return operator === "$options";
+        if (operator === "$options") return true;
+        if (operator.startsWith("$")) throw unsupported(`the query operator ${operator}`);
+        // A plain embedded-document filter: MongoDB compares the whole sub-document.
+        return JSON.stringify(actual?.[operator as never]) === JSON.stringify(value);
       });
     }
     if (expected === null) return actual == null;
@@ -42,18 +52,58 @@ export function matches(row: Row, filter: Row): boolean {
     return actual === expected;
   });
 }
+function compare(a: unknown, b: unknown) {
+  if (a === b) return 0;
+  if (a == null) return -1;
+  if (b == null) return 1;
+  const [x, y] = [a instanceof Date ? a.getTime() : a, b instanceof Date ? b.getTime() : b];
+  if (typeof x === "number" && typeof y === "number") return x - y;
+  return String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0;
+}
 export function query<T>(work: () => T | Promise<T>) {
   let failure: (() => Error) | undefined;
+  let order: [string, number][] = [];
+  let skipped = 0;
+  let limited = 0;
   const result = Promise.resolve().then(async () => {
-    const value = await work();
+    let value: unknown = await work();
     if (value == null && failure) throw failure();
-    return value;
+    if (Array.isArray(value)) {
+      // Applied like MongoDB: sort, then skip, then limit (limit 0 means no limit).
+      if (order.length)
+        value = [...value].sort((a: Row, b: Row) => {
+          for (const [field, direction] of order) {
+            const difference = compare(
+              a[field] ?? (field === "_id" ? a.id : undefined),
+              b[field] ?? (field === "_id" ? b.id : undefined),
+            );
+            if (difference) return difference * direction;
+          }
+          return 0;
+        });
+      value = (value as unknown[]).slice(skipped, limited ? skipped + limited : undefined);
+    }
+    return value as Awaited<T>;
   });
   const q = Object.assign(result, {
     lean: () => q,
-    sort: (_order: unknown) => q,
-    skip: (_count: number) => q,
-    limit: (_count: number) => q,
+    sort: (spec: Record<string, 1 | -1 | "asc" | "desc">) => {
+      if (typeof spec !== "object" || spec === null) throw unsupported("non-object sort specs");
+      order = Object.entries(spec).map(([field, direction]) => [
+        field,
+        direction === -1 || direction === "desc" ? -1 : 1,
+      ]);
+      return q;
+    },
+    skip: (count: number) => {
+      skipped = count;
+      return q;
+    },
+    limit: (count: number) => {
+      limited = count;
+      return q;
+    },
+    // Field projection is not reproduced; services must not rely on fields being absent.
     select: (_fields: unknown) => q,
     orFail: (makeError: () => Error) => {
       failure = makeError;
@@ -75,6 +125,13 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
   let next = 0;
   let transactionFailure: Error | undefined;
   function apply(row: Row, update: Row) {
+    for (const operator of Object.keys(update))
+      if (!["$set", "$unset", "$inc", "$setOnInsert"].includes(operator))
+        throw unsupported(
+          operator.startsWith("$")
+            ? `the update operator ${operator}`
+            : "replacement-style updates (use $set)",
+        );
     Object.assign(row, update.$set ?? {});
     for (const key of Object.keys((update.$unset as Row) ?? {})) delete row[key];
     for (const [key, amount] of Object.entries((update.$inc as Row) ?? {}))
