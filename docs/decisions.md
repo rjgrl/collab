@@ -202,3 +202,10 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - `isAdministrator` is `super_admin` only. New roles cannot use `super_admin`, `faculty`, `alumni`, `admin`, `staff` or `viewer`.
 - The Alumni role key is now `alumni`. Schema version 2 renames `viewer` in place (same id, grants and permissions) and deletes roles keyed `admin` or `staff` with their grants; dry run reports counts. The server refuses to start while any of those roles remain, because an unmigrated `viewer` role would no longer be recognised as Alumni.
 - Alumni no longer see `tracking.create` or `alumni.assign|reassign|unassign` entries in their audit log (the bug-bounty audit showed staff tracking notes reaching alumni there). Staff still see them.
+
+## 2026-11-14: Remaining bug-bounty findings
+
+- Unconfirmed registrations: a sign-up that never confirmed its email no longer holds the email or student number forever. After 24 hours a new sign-up with either one releases it (account, sessions, challenges, and its student profile while untouched by staff); a verified BukSU Google sign-in of the same email releases it immediately. Confirmed accounts, legacy accounts without required verification, non-Alumni roles and profiles staff have worked on are never released. Logged as `auth.signup.released`. No migration.
+- Limits per alumnus: 50 evidence files and 30 jobs (like the existing 50 contacts), and 20 self-uploads per account per 10 minutes. Staff get one unread evidence notice per alumnus, refreshed by later uploads.
+- Email gateway: addresses are classified after full IPv6 parsing (IPv4 inside mapped, compatible, NAT64 and 6to4 forms counts as that IPv4 address), more reserved ranges are refused, redirects are never followed, and production re-checks the address before every send. Accepted residual risk: DNS can still change between that check and the connection (pinning needs undici), and only a Super Admin can set the address.
+- Evidence on Google Drive or imgBB is streamed to the browser; it previously arrived as `{}`.

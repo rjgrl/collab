@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import request from "supertest";
@@ -286,4 +286,66 @@ it("keeps retained legacy image upload/removal compatible with the canonical acc
   assert.equal(f.tables.User![0]!.image, null);
   assert.equal(f.tables.Alumni![0]!.photoUrl, null);
   assert.equal((await loadAuthUser(f.db, userId))!.image, null);
+});
+
+it("refuses evidence beyond 50 files per alumnus before storing anything", async (t) => {
+  const f = fixture(true);
+  const uploadDir = await mkdtemp(path.join(tmpdir(), "evidence-cap-"));
+  t.after(() => rm(uploadDir, { recursive: true, force: true }));
+  f.context.integrationEnv.uploadDir = uploadDir;
+  f.tables.EvidenceFile = Array.from({ length: 50 }, (_, index) => ({
+    _id: `e${index}`,
+    alumniId,
+    kind: "evidence",
+    deletedAt: null,
+  }));
+  await assert.rejects(
+    () => uploadEvidence(f.context, { alumniId, kind: "evidence" }, file(png, "image/png"), true),
+    /at most 50 evidence files/,
+  );
+  assert.equal(f.tables.EvidenceFile.length, 50);
+  assert.deepEqual(await readdir(uploadDir), [], "nothing stored on disk");
+  // Removed files do not count: the upload gets past the cap (this fixture then stops later).
+  f.tables.EvidenceFile[0]!.deletedAt = new Date();
+  await assert.rejects(
+    () => uploadEvidence(f.context, { alumniId, kind: "evidence" }, file(png, "image/png"), true),
+    (error: Error) => !/at most 50 evidence files/.test(error.message),
+  );
+});
+
+it("downloads evidence kept on imgBB or Google Drive as the real bytes, not {}", async () => {
+  const f = fixture(true);
+  f.tables.EvidenceFile = [
+    {
+      _id: "666666666666666666666666",
+      alumniId,
+      kind: "evidence",
+      provider: "imgbb",
+      url: "https://i.ibb.co/abc/proof.png",
+      storageKey: "abc",
+      originalName: "proof.png",
+      mimeType: "image/png",
+      deletedAt: null,
+    },
+  ];
+  const original = globalThis.fetch;
+  // The remote host answers with a stream, as fetch does for any real response body.
+  globalThis.fetch = (async () =>
+    new Response(new Blob([new Uint8Array(png)]).stream(), { status: 200 })) as typeof fetch;
+  try {
+    const response = await request(app(f, viewer({ alumniId })))
+      .get("/api/me/files/666666666666666666666666")
+      .set("Authorization", "Bearer synthetic")
+      .buffer(true)
+      .parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    assert.equal(response.headers["content-type"], "image/png");
+    assert.ok(Buffer.compare(response.body as Buffer, png) === 0, "the file's own bytes");
+  } finally {
+    globalThis.fetch = original;
+  }
 });
