@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "../http-error";
 
 /** Distinguishes domain rejections so sign-in flows can show a specific message. */
@@ -42,7 +43,7 @@ export function emailDomainAllowed(email: string, domains: readonly string[]): b
 
 /** Any role besides the Alumni role makes an account staff (Super Admin, Faculty, custom). */
 export function isStaffAccount(roles: readonly string[]) {
-  return roles.some((role) => role !== "alumni");
+  return roles.some((role) => role !== ROLE.alumni);
 }
 
 /**

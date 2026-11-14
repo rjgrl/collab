@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import type { Types } from "mongoose";
 import { hashPassword, type Database } from "./index";
 import { PERMISSIONS, ROLE_PRESETS } from "./permissions";
@@ -78,7 +79,7 @@ async function seedInTransaction(
       { $set: { name: preset.name, description: preset.description, isSystem: true } },
       { upsert: true, returnDocument: "after" },
     ).orFail();
-    if (existing && preset.key !== "super_admin") continue;
+    if (existing && preset.key !== ROLE.superAdmin) continue;
     for (const key of preset.permissions) {
       const permission = permissionByKey.get(key);
       if (permission)
@@ -95,7 +96,7 @@ async function seedInTransaction(
     );
   const existingAdmin = await tx.User.findOne({ email }).lean();
   if (!existingAdmin) {
-    const role = await tx.Role.findOne({ key: "super_admin" }).orFail();
+    const role = await tx.Role.findOne({ key: ROLE.superAdmin }).orFail();
     const user = await new tx.User({
       name: "System Administrator",
       email,
@@ -231,7 +232,7 @@ async function seedDemo(db: Database, password: string) {
       }).save();
   }
   // One account per faculty role level; the shared password is the private bootstrap password.
-  const role = await db.Role.findOne({ key: "faculty" }).orFail().lean();
+  const role = await db.Role.findOne({ key: ROLE.faculty }).orFail().lean();
   const faculty = [
     {
       email: "college.head@collab.test",
@@ -350,7 +351,7 @@ async function seedDemo(db: Database, password: string) {
       last: sample.lastName,
       alumniId: profile._id,
     });
-    await grant(user._id, "alumni");
+    await grant(user._id, ROLE.alumni);
   }
 }
 

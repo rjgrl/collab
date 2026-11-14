@@ -13,7 +13,7 @@ import { assertPasswordSafe } from "./password-security";
 import { rotateSession } from "./session-rotation";
 import { contactVerificationPolicy } from "./contact-policy";
 import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
-import { requireAccess } from "../access";
+import { requireAccess, requireUser } from "../access";
 import { consumeAuthAttempt } from "./throttle";
 
 export type VerificationKind = "email" | "phone";
@@ -46,8 +46,9 @@ function codeDigest(env: IntegrationEnv, nonce: string, code: string) {
 }
 
 export async function verificationStatus(context: Context) {
+  const signedIn = requireUser(context);
   const policy = contactVerificationPolicy();
-  const user = await context.db.User.findOne({ _id: context.user!.id })
+  const user = await context.db.User.findOne({ _id: signedIn.id })
     .lean()
     .orFail(() => new ApiError("UNAUTHORIZED"))
     .exec()
@@ -64,7 +65,7 @@ export async function verificationStatus(context: Context) {
     context.integrationEnv.verificationSecret &&
     context.integrationEnv.verificationSecret.length >= 32,
   );
-  const academicNeeded = isAlumniAccount(context.user!) && !user.alumniId;
+  const academicNeeded = isAlumniAccount(signedIn) && !user.alumniId;
   const pending = await context.db.VerificationChallenge.findOne({
     userId: user.id,
     kind: "email",
@@ -103,8 +104,9 @@ export async function verificationStatus(context: Context) {
 }
 
 export async function startVerification(context: Context, kind: VerificationKind) {
+  const signedIn = requireUser(context);
   const { db } = context;
-  const user = await db.User.findOne({ _id: context.user!.id })
+  const user = await db.User.findOne({ _id: signedIn.id })
     .lean()
     .orFail(() => new ApiError("UNAUTHORIZED"))
     .exec()
@@ -123,8 +125,9 @@ export async function startVerification(context: Context, kind: VerificationKind
 }
 
 async function issueVerification(context: Context, kind: VerificationKind, target: string) {
+  const signedIn = requireUser(context);
   const { db, integrationEnv: env } = context;
-  const user = context.user!;
+  const user = signedIn;
   const nonce = randomBytes(32).toString("hex");
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const digest = codeDigest(env, nonce, code);
@@ -223,8 +226,9 @@ async function issueVerification(context: Context, kind: VerificationKind, targe
 }
 
 async function verifyChallenge(context: Context, kind: VerificationKind, code: string) {
+  const signedIn = requireUser(context);
   const { db, integrationEnv: env } = context;
-  const challenge = await db.VerificationChallenge.findOne({ userId: context.user!.id, kind })
+  const challenge = await db.VerificationChallenge.findOne({ userId: signedIn.id, kind })
     .lean()
     .exec()
     .then((row) => (row ? toEntity(row) : null));
@@ -279,13 +283,14 @@ async function consumeChallenge(db: Context["db"], challenge: { id: string; nonc
 }
 
 export async function confirmVerification(context: Context, kind: VerificationKind, code: string) {
+  const signedIn = requireUser(context);
   const { db } = context;
   const challenge = await verifyChallenge(context, kind, code);
   return authorizationTransaction(db, async (tx) => {
     await consumeChallenge(tx, challenge);
     const updated = await tx.User.updateOne(
       {
-        _id: context.user!.id,
+        _id: signedIn.id,
         status: "active",
         ...(kind === "email" ? { email: challenge.target } : { phoneNumber: challenge.target }),
       },
@@ -299,7 +304,7 @@ export async function confirmVerification(context: Context, kind: VerificationKi
       actor: context.user,
       action: `auth.${kind}_verified`,
       entity: "user",
-      entityId: context.user!.id,
+      entityId: signedIn.id,
       summary: `Confirmed ${kind} ownership for ${JSON.stringify(challenge.target)}`,
     });
     return { ok: true };
@@ -316,11 +321,12 @@ async function currentEmailOwner(context: Context, password: string) {
 }
 
 export async function requestEmailChange(context: Context, email: string, currentPassword: string) {
+  const signedIn = requireUser(context);
   const user = await currentEmailOwner(context, currentPassword);
   const target = email.trim().toLowerCase();
   if (target === user.email)
     throw new ApiError("BAD_REQUEST", { message: "Choose a different email address." });
-  assertStaffEmailAllowed(target, context.user!.roles);
+  assertStaffEmailAllowed(target, signedIn.roles);
   if (await context.db.User.exists({ email: target }))
     throw new ApiError("CONFLICT", { message: "This email address is already in use." });
   const result = await issueVerification(context, "email", target);
@@ -328,7 +334,7 @@ export async function requestEmailChange(context: Context, email: string, curren
     actor: context.user,
     action: "auth.email.change_requested",
     entity: "user",
-    entityId: context.user!.id,
+    entityId: signedIn.id,
     summary: `Requested confirmation for new email ${JSON.stringify(target)}`,
     ipAddress: context.ipAddress,
   });
@@ -341,9 +347,10 @@ export async function confirmEmailChange(
   currentPassword: string,
   code: string,
 ) {
+  const signedIn = requireUser(context);
   const user = await currentEmailOwner(context, currentPassword);
   const target = email.trim().toLowerCase();
-  assertStaffEmailAllowed(target, context.user!.roles);
+  assertStaffEmailAllowed(target, signedIn.roles);
   const challenge = await verifyChallenge(context, "email", code);
   if (challenge.target !== target || target === user.email)
     throw new ApiError("BAD_REQUEST", {
@@ -355,7 +362,7 @@ export async function confirmEmailChange(
     await consumeChallenge(tx, challenge);
     const changed = await tx.User.updateOne(
       {
-        _id: context.user!.id,
+        _id: signedIn.id,
         status: "active",
         email: user.email,
         passwordHash: user.passwordHash,
@@ -371,13 +378,13 @@ export async function confirmEmailChange(
         { _id: user.alumniId, deletedAt: null },
         { $set: { personalEmail: target } },
       ).exec();
-    await tx.PasswordReset.deleteMany({ userId: context.user!.id }).exec();
+    await tx.PasswordReset.deleteMany({ userId: signedIn.id }).exec();
     const session = await rotateSession(tx, context, undefined, true);
     await writeAudit(tx, {
       actor: context.user,
       action: "auth.email.changed",
       entity: "user",
-      entityId: context.user!.id,
+      entityId: signedIn.id,
       summary: `Changed email from ${JSON.stringify(user.email)} to ${JSON.stringify(target)} after confirmation; revoked other sessions`,
       ipAddress: context.ipAddress,
     });
@@ -393,13 +400,14 @@ export async function confirmEmailChange(
 }
 
 export async function createGooglePassword(context: Context, password: string) {
+  const signedIn = requireUser(context);
   await assertPasswordSafe(password);
   const passwordHash = await hashPassword(password);
   const rotated = await authorizationTransaction(context.db, async (tx) => {
     const fresh = await tx.Session.updateOne(
       {
         token: context.sessionStorageToken ?? context.sessionToken ?? "",
-        userId: context.user!.id,
+        userId: signedIn.id,
         expiresAt: { $gt: new Date() },
         googleVerifiedAt: { $gt: new Date(Date.now() - GOOGLE_FRESH_MS) },
       },
@@ -411,7 +419,7 @@ export async function createGooglePassword(context: Context, password: string) {
       });
     const claimed = await tx.User.updateOne(
       {
-        _id: context.user!.id,
+        _id: signedIn.id,
         status: "active",
         $or: [{ passwordHash: null }, { passwordHash: { $exists: false } }],
       },
@@ -426,7 +434,7 @@ export async function createGooglePassword(context: Context, password: string) {
       actor: context.user,
       action: "auth.password.create",
       entity: "user",
-      entityId: context.user!.id,
+      entityId: signedIn.id,
       summary: "Created required password after recent Google verification",
     });
     return session;

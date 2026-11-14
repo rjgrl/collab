@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import type { Types } from "mongoose";
 import { academicProfileSchema, type AuthInput } from "@Alumni-Tracking-Ss/contracts/auth";
@@ -41,7 +42,7 @@ export async function releaseUnconfirmedRegistration(
   const roles = await db.Role.find({ _id: { $in: grants.map((grant) => grant.roleId) } })
     .lean()
     .exec();
-  if (roles.some((role) => role.key !== "alumni")) return false;
+  if (roles.some((role) => role.key !== ROLE.alumni)) return false;
   let profileReleased = false;
   if (user.alumniId) {
     const alumniId = user.alumniId;

@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import type { Database } from "./index";
 import { LEGACY_ALUMNI_ROLE_KEY, RETIRED_ROLE_KEYS } from "./permissions";
 
@@ -36,11 +37,11 @@ export async function retireRoles(db: Database, apply = true): Promise<RetiredRo
   if (legacyAlumni) {
     report.renamedAlumniAccounts = await db.UserRole.countDocuments({ roleId: legacyAlumni._id });
     if (apply) {
-      const alumni = await db.Role.findOne({ key: "alumni" }).lean();
+      const alumni = await db.Role.findOne({ key: ROLE.alumni }).lean();
       if (!alumni) {
         await db.Role.updateOne(
           { _id: legacyAlumni._id },
-          { $set: { key: "alumni", name: "Alumni", isSystem: true } },
+          { $set: { key: ROLE.alumni, name: "Alumni", isSystem: true } },
         );
       } else {
         // Both exist (e.g. seeded before migrating): move the grants, then drop the old role.

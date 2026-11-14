@@ -1,3 +1,4 @@
+import { requireUser } from "../access";
 import { toEntity } from "@Alumni-Tracking-Ss/db";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { generateSecret, generateURI, verify } from "otplib";
@@ -20,10 +21,16 @@ function encryptionKey(context: Context) {
     });
   return Buffer.from(key, "hex");
 }
+/** The secret is bound to its account: the user id is the cipher's associated data. */
+function secretOwner(context: Context) {
+  const id = context.user?.id;
+  if (!id) throw new Error("An authenticator secret needs its account id.");
+  return id;
+}
 export function encryptMfaSecret(context: Context, secret: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", encryptionKey(context), iv);
-  cipher.setAAD(Buffer.from(`mfa:${context.user!.id}`));
+  cipher.setAAD(Buffer.from(`mfa:${secretOwner(context)}`));
   const body = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
   return ["v1", iv.toString("hex"), cipher.getAuthTag().toString("hex"), body.toString("hex")].join(
     ".",
@@ -33,7 +40,7 @@ function decrypt(context: Context, envelope: string) {
   const [version, iv, tag, body] = envelope.split(".");
   if (version !== "v1" || !iv || !tag || !body) throw new Error("Invalid authenticator storage.");
   const decipher = createDecipheriv("aes-256-gcm", encryptionKey(context), Buffer.from(iv, "hex"));
-  decipher.setAAD(Buffer.from(`mfa:${context.user!.id}`));
+  decipher.setAAD(Buffer.from(`mfa:${secretOwner(context)}`));
   decipher.setAuthTag(Buffer.from(tag, "hex"));
   return Buffer.concat([decipher.update(Buffer.from(body, "hex")), decipher.final()]).toString(
     "utf8",
@@ -42,23 +49,25 @@ function decrypt(context: Context, envelope: string) {
 const failed = () =>
   new ApiError("BAD_REQUEST", { message: "The code is invalid, expired or already used." });
 export async function mfaStatus(context: Context) {
-  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+  const signedIn = requireUser(context);
+  const row = await context.db.MfaCredential.findOne({ userId: signedIn.id })
     .lean()
     .exec()
     .then((row) => (row ? toEntity(row) : null));
   return {
     enrolled: Boolean(row?.secretCipher),
-    required: requiresMfa({ ...context.user!, mfaEnrolled: Boolean(row?.secretCipher) }),
-    enforcementDisabled: privilegedAccount(context.user!) && localMfaDisabled(),
+    required: requiresMfa({ ...signedIn, mfaEnrolled: Boolean(row?.secretCipher) }),
+    enforcementDisabled: privilegedAccount(signedIn) && localMfaDisabled(),
     verified: Boolean(context.user?.mfaVerified),
     fresh: Boolean(context.user?.mfaFresh),
     configured: /^[a-f0-9]{64}$/i.test(context.integrationEnv.mfaEncryptionKey ?? ""),
   };
 }
 export async function beginMfa(context: Context, password: string) {
+  const signedIn = requireUser(context);
   encryptionKey(context);
-  await consumeAuthAttempt(context.db, "mfa-enroll", context.user!.id);
-  const user = await context.db.User.findOne({ _id: context.user!.id })
+  await consumeAuthAttempt(context.db, "mfa-enroll", signedIn.id);
+  const user = await context.db.User.findOne({ _id: signedIn.id })
     .lean()
     .orFail(() => new ApiError("UNAUTHORIZED"))
     .exec()
@@ -73,9 +82,7 @@ export async function beginMfa(context: Context, password: string) {
     .then((row) => (row ? toEntity(row) : null));
   if (
     existing?.secretCipher &&
-    (!context.user!.mfaVerified ||
-      !context.user!.mfaFresh ||
-      context.user!.mfaVersion !== existing.version)
+    (!signedIn.mfaVerified || !signedIn.mfaFresh || signedIn.mfaVersion !== existing.version)
   )
     throw new ApiError("FORBIDDEN", {
       message: "Verify with your authenticator or a recovery code before replacing it.",
@@ -102,8 +109,9 @@ export async function beginMfa(context: Context, password: string) {
   };
 }
 export async function confirmMfa(context: Context, code: string) {
-  await consumeAuthAttempt(context.db, "mfa-code", context.user!.id);
-  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+  const signedIn = requireUser(context);
+  await consumeAuthAttempt(context.db, "mfa-code", signedIn.id);
+  const row = await context.db.MfaCredential.findOne({ userId: signedIn.id })
     .lean()
     .exec()
     .then((row) => (row ? toEntity(row) : null));
@@ -148,7 +156,7 @@ export async function confirmMfa(context: Context, code: string) {
       actor: context.user,
       action: "auth.mfa.enrolled",
       entity: "user",
-      entityId: context.user!.id,
+      entityId: signedIn.id,
       summary: "Enrolled authenticator, replaced recovery codes and revoked other sessions",
     });
     return session;
@@ -167,9 +175,10 @@ export async function confirmMfa(context: Context, code: string) {
  * rejects reused time steps, and does not rotate the session. Recovery codes are not accepted.
  */
 export async function reverifyMfaCode(context: Context, code: string) {
+  const signedIn = requireUser(context);
   if (!/^[0-9]{6}$/.test(code)) throw failed();
-  await consumeAuthAttempt(context.db, "mfa-code", context.user!.id);
-  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+  await consumeAuthAttempt(context.db, "mfa-code", signedIn.id);
+  const row = await context.db.MfaCredential.findOne({ userId: signedIn.id })
     .lean()
     .exec()
     .then((found) => (found ? toEntity(found) : null));
@@ -193,8 +202,9 @@ export async function reverifyMfaCode(context: Context, code: string) {
 }
 
 export async function verifyMfa(context: Context, code: string) {
-  await consumeAuthAttempt(context.db, "mfa-code", context.user!.id);
-  const row = await context.db.MfaCredential.findOne({ userId: context.user!.id })
+  const signedIn = requireUser(context);
+  await consumeAuthAttempt(context.db, "mfa-code", signedIn.id);
+  const row = await context.db.MfaCredential.findOne({ userId: signedIn.id })
     .lean()
     .exec()
     .then((row) => (row ? toEntity(row) : null));
@@ -207,7 +217,7 @@ export async function verifyMfa(context: Context, code: string) {
   if (
     !row?.secretCipher ||
     !session ||
-    session.userId !== context.user!.id ||
+    session.userId !== signedIn.id ||
     session.expiresAt <= new Date() ||
     session.createdAt.getTime() < Date.now() - 10 * 60_000
   )
@@ -252,7 +262,7 @@ export async function verifyMfa(context: Context, code: string) {
       actor: context.user,
       action: recovery ? "auth.mfa.recovery" : "auth.mfa.verified",
       entity: "user",
-      entityId: context.user!.id,
+      entityId: signedIn.id,
       summary: recovery
         ? "Used a single-use authenticator recovery code"
         : "Verified authenticator",

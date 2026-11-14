@@ -13,7 +13,7 @@ import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { requireAccess, requireUser } from "@Alumni-Tracking-Ss/api/access";
 import { accountAccessPending } from "@Alumni-Tracking-Ss/api/services/verification";
 import { requiresMfa } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
-import { isAlumniAccount, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
+import { isAlumniAccount, formatDisplayName, ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import {
   alumniSchemas,
   meProfileSchemas,
@@ -62,6 +62,7 @@ export async function assertEvidenceReadAccess(context: Context, evidence: { alu
 }
 export const assertManagementAccess = management;
 async function detail(context: Context, id: string, db = context.db, self = false) {
+  const signedIn = requireUser(context);
   const a = await activeAlumni(db, id);
   // This helper also runs inside mutations: MongoDB sessions do not support parallel operations.
   const program = await entityProgram(db, String(a.programId));
@@ -73,7 +74,7 @@ async function detail(context: Context, id: string, db = context.db, self = fals
     ? []
     : await db.TrackingEvent.find({ alumniId: id }).sort({ recordedAt: -1, _id: -1 }).lean();
   const files =
-    self || context.user!.permissions.includes("files.read")
+    self || signedIn.permissions.includes("files.read")
       ? await db.EvidenceFile.find({ alumniId: id, ...active })
           .select("_id originalName mimeType provider sizeBytes kind createdAt employmentId")
           .sort({ createdAt: -1, _id: -1 })
@@ -143,7 +144,7 @@ export const alumniService = {
       },
       {
         $match: {
-          "roles.key": { $in: ["alumni"], $nin: ["faculty", "super_admin"] },
+          "roles.key": { $in: [ROLE.alumni], $nin: [ROLE.faculty, ROLE.superAdmin] },
         },
       },
       { $sort: { createdAt: -1, _id: -1 } },
@@ -159,6 +160,7 @@ export const alumniService = {
     }));
   },
   async list(context: Context, input?: z.input<typeof alumniSchemas.list.input>) {
+    const signedIn = requireUser(context);
     management(context, "alumni.read");
     const p = alumniSchemas.list.input.parse(input) ?? { page: 1, pageSize: 20 };
     const departments = await context.db.Department.find({
@@ -180,8 +182,8 @@ export const alumniService = {
       ...(p.graduationYear ? { graduationYear: p.graduationYear } : {}),
       ...(p.tracked && p.tracked !== "all" ? { isTracked: p.tracked === "tracked" } : {}),
       ...(p.assignment === "mine"
-        ? context.user!.faculty
-          ? { assignedFacultyId: context.user!.faculty.id }
+        ? signedIn.faculty
+          ? { assignedFacultyId: signedIn.faculty.id }
           : { _id: { $in: [] } }
         : p.assignment === "unassigned"
           ? { assignedFacultyId: null }

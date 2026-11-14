@@ -1,3 +1,5 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
+
 export const PERMISSIONS = [
   {
     key: "users.read",
@@ -158,14 +160,14 @@ export const PERMISSION_KEYS = PERMISSIONS.map((permission) => permission.key);
 
 export const ROLE_PRESETS = {
   super_admin: {
-    key: "super_admin",
+    key: ROLE.superAdmin,
     name: "Super Admin",
     description:
       "Full access to RBAC, academic structure, alumni, files, dashboard, and integrations.",
     permissions: PERMISSION_KEYS,
   },
   faculty: {
-    key: "faculty",
+    key: ROLE.faculty,
     name: "Faculty",
     description:
       "Faculty tracker. Alumni access is limited by the linked faculty record's department and role level.",
@@ -183,7 +185,7 @@ export const ROLE_PRESETS = {
     ] satisfies PermissionKey[],
   },
   alumni: {
-    key: "alumni",
+    key: ROLE.alumni,
     name: "Alumni",
     description:
       "Own explicitly linked profile, employment, evidence and privacy-safe aggregate statistics.",
@@ -203,9 +205,9 @@ export const LEGACY_ALUMNI_ROLE_KEY = "viewer";
 
 /** Keys a new custom role may not use: the three system roles and every removed key. */
 export const RESERVED_ROLE_KEYS = [
-  "super_admin",
-  "faculty",
-  "alumni",
+  ROLE.superAdmin,
+  ROLE.faculty,
+  ROLE.alumni,
   LEGACY_ALUMNI_ROLE_KEY,
   ...RETIRED_ROLE_KEYS,
 ] as const;

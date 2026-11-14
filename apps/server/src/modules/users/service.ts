@@ -4,6 +4,7 @@ import {
   formatDisplayName,
   isAdministrator,
   isAlumniAccount,
+  ROLE,
 } from "@Alumni-Tracking-Ss/contracts/names";
 import { hashPassword, toEntity } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
@@ -58,7 +59,7 @@ export const usersService = {
       if (!roleIds?.length)
         throw new ApiError("BAD_REQUEST", { message: "Choose a role for the new account." });
       const roles = await validateRoleIds(tx, actor, roleIds);
-      if (roles.some((role) => role.key !== "super_admin"))
+      if (roles.some((role) => role.key !== ROLE.superAdmin))
         throw new ApiError("BAD_REQUEST", {
           message:
             "Managed accounts may only have the Super Admin role. Create faculty and heads from the Faculty page; alumni must self-register.",
@@ -112,7 +113,7 @@ export const usersService = {
       let nextRolesForAudit = roles;
       assertRoleScope(actor, roles);
       if (input.roleIds) {
-        if (roles.some((role) => role.key === "super_admin"))
+        if (roles.some((role) => role.key === ROLE.superAdmin))
           throw new ApiError("FORBIDDEN", {
             message: "Super administrator role assignments are protected.",
           });
@@ -121,7 +122,7 @@ export const usersService = {
         const currentKeys = roles.map((role) => role.key);
         const nextKeys = nextRoles.map((role) => role.key);
         if (
-          nextKeys.some((key) => key === "alumni" && !currentKeys.includes(key)) ||
+          nextKeys.some((key) => key === ROLE.alumni && !currentKeys.includes(key)) ||
           (!isAlumniAccount({ roles: currentKeys }) && isAlumniAccount({ roles: nextKeys }))
         )
           throw new ApiError("BAD_REQUEST", {
@@ -180,7 +181,7 @@ export const usersService = {
       if (!target) throw new ApiError("NOT_FOUND", { message: "User not found." });
       const roles = await loadUserRoles(tx, input.id);
       assertRoleScope(actor, roles);
-      if (roles.some((role) => role.key === "super_admin"))
+      if (roles.some((role) => role.key === ROLE.superAdmin))
         throw new ApiError("FORBIDDEN", {
           message: "Super administrator accounts cannot be disabled here.",
         });

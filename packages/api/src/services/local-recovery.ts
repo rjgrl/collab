@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { toEntity } from "@Alumni-Tracking-Ss/db";
 // Operator-only helper; deliberately absent from every HTTP/oRPC router.
 import type { Database } from "@Alumni-Tracking-Ss/db";
@@ -19,7 +20,7 @@ export async function recoverLocalAdministrator(
   if (
     !user?.passwordHash ||
     user.status !== "active" ||
-    !(await loadUserRoles(db, user.id)).some((role) => role.key === "super_admin") ||
+    !(await loadUserRoles(db, user.id)).some((role) => role.key === ROLE.superAdmin) ||
     !(await verifyPassword(password, user.passwordHash))
   )
     throw new Error("Local administrator verification failed.");
@@ -32,7 +33,7 @@ export async function recoverLocalAdministrator(
       !current ||
       current.passwordHash !== user.passwordHash ||
       current.status !== "active" ||
-      !(await loadUserRoles(tx, user.id)).some((role) => role.key === "super_admin")
+      !(await loadUserRoles(tx, user.id)).some((role) => role.key === ROLE.superAdmin)
     )
       throw new Error("Account changed. Recovery cancelled.");
     await tx.MfaCredential.deleteMany({ userId: user.id }).exec();

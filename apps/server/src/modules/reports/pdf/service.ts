@@ -1,3 +1,4 @@
+import { requireUser } from "@Alumni-Tracking-Ss/api/access";
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { pdfReportSchemas } from "@Alumni-Tracking-Ss/contracts/reports";
 import { alumniSchemas } from "@Alumni-Tracking-Ss/contracts/alumni";
@@ -18,7 +19,7 @@ import { profilePhotoDataUrl } from "./profile-photo";
 export const PDF_ROW_LIMIT = 2000;
 
 const meta = (context: Context) => ({
-  generatedBy: context.user!.name,
+  generatedBy: requireUser(context).name,
   generatedAt: new Date(),
 });
 const safeName = (value: string) => value.replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 80);
