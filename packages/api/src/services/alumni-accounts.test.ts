@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
+import { PERMISSION_KEYS, hasLegacyRoles } from "@Alumni-Tracking-Ss/db";
+import { retireRoles } from "../../../db/src/retire-roles";
 import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
 import type { Context } from "../context";
 import { usersService } from "../../../../apps/server/src/modules/users/service";
@@ -31,7 +32,7 @@ const alumniProfile = {
 function fixture() {
   const f = modelFixture({
     Role: [
-      { id: viewerId, _id: viewerId, key: "viewer", name: "Viewer", isSystem: true },
+      { id: viewerId, _id: viewerId, key: "alumni", name: "Viewer", isSystem: true },
       { id: facultyId, _id: facultyId, key: "faculty", name: "Faculty", isSystem: true },
       { id: superId, _id: superId, key: "super_admin", name: "Super Admin", isSystem: true },
     ],
@@ -85,10 +86,10 @@ it("labels legacy Viewer roles Alumni without changing existing accounts or gran
   f.tables.User = [{ id: "legacy", _id: "legacy", ...account, status: "active" }];
   f.tables.UserRole = [{ userId: "legacy", roleId: viewerId }];
   const roles = await rolesService.list(f.context, {});
-  assert.equal(roles.find((r) => r.key === "viewer")?.name, "Alumni");
+  assert.equal(roles.find((r) => r.key === "alumni")?.name, "Alumni");
   const users = await usersService.list(f.context, { page: 1, pageSize: 20 });
   assert.equal(users[0]?.userRoles[0]?.role.name, "Alumni");
-  assert.equal(f.tables.Role![0]!.key, "viewer");
+  assert.equal(f.tables.Role![0]!.key, "alumni");
   assert.equal(f.tables.UserRole[0]?.roleId, viewerId);
 });
 
@@ -119,6 +120,7 @@ it("allows another Super Admin account while preserving protected role scope", a
     usersSchemas.create.input.parse({ ...account, roleIds: [superId] }),
   );
   assert.equal(user.userRoles[0]?.role.key, "super_admin");
+  // A role keyed "admin" is not an administrator: it cannot create any managed account.
   const ordinaryAdmin = fixture();
   ordinaryAdmin.context.user!.roles = ["admin"];
   await assert.rejects(
@@ -127,13 +129,13 @@ it("allows another Super Admin account while preserving protected role scope", a
         ordinaryAdmin.context,
         usersSchemas.create.input.parse({ ...account, roleIds: [superId] }),
       ),
-    /Only a super administrator can manage system roles/,
+    /Only administrators can create managed accounts/,
   );
   assert.equal(ordinaryAdmin.tables.User?.length ?? 0, 0);
 });
 
 it("denies managed creation to Faculty and custom roles even with legacy users.write grants", async () => {
-  for (const key of ["faculty", "legacy_manager", "viewer"]) {
+  for (const key of ["faculty", "legacy_manager", "alumni"]) {
     const f = fixture();
     f.context.user!.roles = [key];
     await assert.rejects(
@@ -145,7 +147,7 @@ it("denies managed creation to Faculty and custom roles even with legacy users.w
 });
 
 it("rejects Alumni, legacy Viewer, Admin, Faculty and custom managed role keys, including mixed roles", async () => {
-  for (const key of ["viewer", "alumni", "admin", "custom_manager"]) {
+  for (const key of ["alumni", "viewer", "admin", "custom_manager"]) {
     const f = fixture();
     f.tables.Role![0]!.key = key;
     for (const roleIds of [[viewerId], [facultyId], [superId, viewerId]])
@@ -214,9 +216,109 @@ it("prevents managed accounts from becoming Alumni while preserving historical A
 
 it("denies Alumni access to other pending accounts even with a legacy management grant", async () => {
   const f = fixture();
-  f.context.user!.roles = ["viewer"];
+  f.context.user!.roles = ["alumni"];
   await assert.rejects(() => alumniService.pendingAccounts(f.context, { page: 1, pageSize: 20 }), {
     code: "FORBIDDEN",
   });
   assert.equal(f.operations.length, 0);
+});
+
+it("refuses new roles with system or removed keys (admin, staff, viewer)", async () => {
+  for (const key of ["admin", "staff", "viewer", "alumni", "faculty", "super_admin"]) {
+    const f = fixture();
+    await assert.rejects(
+      () => rolesService.create(f.context, { key, name: "Sneaky", permissionIds: [] }),
+      /Reserved role key/,
+      key,
+    );
+    assert.equal(f.tables.Role!.length, 3, `${key} must not be created`);
+  }
+  const ok = fixture();
+  const created = await rolesService.create(ok.context, {
+    key: "access_manager",
+    name: "Access manager",
+    permissionIds: [],
+  });
+  assert.equal(created.key, "access_manager");
+});
+
+it("migration renames Viewer to Alumni in place and removes Admin and Staff roles", async () => {
+  const f = modelFixture({
+    Role: [
+      { id: viewerId, _id: viewerId, key: "viewer", name: "Alumni", isSystem: true },
+      { id: superId, _id: superId, key: "super_admin", name: "Super Admin", isSystem: true },
+      { id: "admin-role", _id: "admin-role", key: "admin", name: "Escalation", isSystem: false },
+      { id: "staff-role", _id: "staff-role", key: "staff", name: "Staff", isSystem: true },
+    ],
+    UserRole: [
+      { userId: "grad-1", roleId: viewerId },
+      { userId: "grad-2", roleId: viewerId },
+      { userId: "manager", roleId: "admin-role" },
+      { userId: "manager", roleId: "custom" },
+      { userId: "old-staff", roleId: "staff-role" },
+    ],
+    RolePermission: [
+      { roleId: viewerId, permissionId: "files.read" },
+      { roleId: "admin-role", permissionId: "x" },
+    ],
+  });
+  assert.equal(await hasLegacyRoles(f.db), true);
+  const dryRun = await retireRoles(f.db, false);
+  assert.deepEqual(dryRun, {
+    roles: ["staff", "admin"],
+    accounts: 2,
+    accountsWithoutRoles: 1,
+    renamedAlumniAccounts: 2,
+  });
+  assert.equal(f.tables.Role!.length, 4, "a dry run changes nothing");
+
+  await retireRoles(f.db);
+  // Same role id, grants and permissions: no alumni account loses access.
+  const alumni = f.tables.Role!.find((role) => role.id === viewerId);
+  assert.equal(alumni?.key, "alumni");
+  assert.deepEqual(
+    f.tables.UserRole!.filter((grant) => grant.roleId === viewerId).map((grant) => grant.userId),
+    ["grad-1", "grad-2"],
+  );
+  assert.ok(f.tables.RolePermission!.some((link) => link.roleId === viewerId));
+  assert.deepEqual(f.tables.Role!.map((role) => role.key).sort(), ["alumni", "super_admin"]);
+  assert.deepEqual(
+    f.tables.UserRole!.filter((grant) => grant.userId === "manager").map((g) => g.roleId),
+    ["custom"],
+  );
+  assert.equal(
+    f.tables.RolePermission!.some((link) => link.roleId === "admin-role"),
+    false,
+  );
+  assert.equal(await hasLegacyRoles(f.db), false);
+  // Running it again is a no-op.
+  assert.deepEqual(await retireRoles(f.db), {
+    roles: [],
+    accounts: 0,
+    accountsWithoutRoles: 0,
+    renamedAlumniAccounts: 0,
+  });
+});
+
+it("migration merges Viewer grants into an existing Alumni role without duplicates", async () => {
+  const f = modelFixture({
+    Role: [
+      { id: viewerId, _id: viewerId, key: "viewer", name: "Alumni", isSystem: true },
+      { id: "alumni-role", _id: "alumni-role", key: "alumni", name: "Alumni", isSystem: true },
+    ],
+    UserRole: [
+      { userId: "grad-1", roleId: viewerId },
+      { userId: "grad-2", roleId: viewerId },
+      { userId: "grad-2", roleId: "alumni-role" },
+    ],
+  });
+  await retireRoles(f.db);
+  assert.deepEqual(
+    f.tables.Role!.map((role) => role.key),
+    ["alumni"],
+  );
+  assert.deepEqual(f.tables.UserRole!.map((grant) => `${grant.userId}:${grant.roleId}`).sort(), [
+    "grad-1:alumni-role",
+    "grad-2:alumni-role",
+  ]);
 });

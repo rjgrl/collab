@@ -46,7 +46,7 @@ function query<T>(value: T) {
     exec: async () => value,
   });
 }
-function context(db: object, roles = ["viewer"]): Context {
+function context(db: object, roles = ["alumni"]): Context {
   return {
     db: db as Database,
     sessionToken: "synthetic",
@@ -103,7 +103,7 @@ function linkedDb() {
   };
 }
 it("blocks Alumni directory and management APIs even with every permission", async () => {
-  for (const roles of [["viewer"], ["alumni"]]) {
+  for (const roles of [["alumni"], ["alumni"]]) {
     const c = context({}, roles);
     for (const operation of [
       () => alumniService.list(c),
@@ -215,17 +215,17 @@ it("Alumni management edits profile fields but never the legacy contact fields",
   // Contacts are managed through the contacts API, so these keys are rejected outright.
   for (const key of ["personalEmail", "mobileNumber", "facebookAccount"])
     await assert.rejects(() =>
-      alumniService.update(context(f.db, ["admin"]), { ...academic, [key]: "Changed" }),
+      alumniService.update(context(f.db, ["super_admin"]), { ...academic, [key]: "Changed" }),
     );
   assert.equal(f.operations.length, 0);
-  await alumniService.update(context(f.db, ["admin"]), academic);
+  await alumniService.update(context(f.db, ["super_admin"]), academic);
   assert.equal(f.tables.Alumni?.[0]?.studentNumber, "SYN-2");
   assert.equal(f.tables.Alumni?.[0]?.firstName, "Original", "omitted names are unchanged");
-  await alumniService.update(context(f.db, ["admin"]), { ...academic, firstName: "Edited" });
+  await alumniService.update(context(f.db, ["super_admin"]), { ...academic, firstName: "Edited" });
   assert.equal(f.tables.Alumni?.[0]?.firstName, "Edited");
 });
 it("malformed IDs and employment date order fail before persistence", async () => {
-  const c = context({}, ["admin"]);
+  const c = context({}, ["super_admin"]);
   await assert.rejects(() => alumniService.get(c, { id: "bad" }));
   await assert.rejects(() => programsService.get(c, { id: "$ne" }));
   assert.equal(

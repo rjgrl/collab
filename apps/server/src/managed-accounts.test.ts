@@ -37,7 +37,7 @@ function fixture(roles: string[]) {
 }
 
 it("POST users denies Faculty and custom actors holding legacy users.write grants before persistence", async () => {
-  for (const roles of [["faculty"], ["legacy_manager"], ["viewer"]]) {
+  for (const roles of [["faculty"], ["legacy_manager"], ["alumni"]]) {
     const f = fixture(roles);
     const before = structuredClone(f.tables);
     const response = await request(f.app)

@@ -44,14 +44,14 @@ it("reads domains from env, refuses a missing list in production, and rejects ma
 });
 
 it("restricts every account, Alumni included, to institutional email", () => {
-  assert.equal(isStaffAccount(["viewer"]), false);
+  assert.equal(isStaffAccount(["alumni"]), false);
   assert.equal(isStaffAccount(["alumni"]), false);
   assert.equal(isStaffAccount([]), false);
-  for (const roles of [["super_admin"], ["faculty"], ["viewer", "custom"]])
+  for (const roles of [["super_admin"], ["faculty"], ["alumni", "custom"]])
     assert.equal(isStaffAccount(roles), true, roles.join());
-  for (const roles of [["viewer"], ["alumni"], ["faculty"], []])
+  for (const roles of [["alumni"], ["alumni"], ["faculty"], []])
     assert.equal(staffEmailRejected("someone@gmail.com", roles, settings), true, roles.join());
-  assert.equal(staffEmailRejected("grad@student.buksu.edu.ph", ["viewer"], settings), false);
+  assert.equal(staffEmailRejected("grad@student.buksu.edu.ph", ["alumni"], settings), false);
   assert.equal(
     staffEmailRejected("head@gmail.com", ["faculty"], { NODE_ENV: "development" }),
     false,
@@ -64,9 +64,9 @@ it("requires the verified hd claim to be allowlisted for every Google identity",
     assertStaffGoogleIdentity("head@buksu.edu.ph", "buksu.edu.ph", ["faculty"], settings),
   );
   assert.doesNotThrow(() =>
-    assertStaffGoogleIdentity("s@student.buksu.edu.ph", "buksu.edu.ph", ["viewer"], settings),
+    assertStaffGoogleIdentity("s@student.buksu.edu.ph", "buksu.edu.ph", ["alumni"], settings),
   );
-  for (const roles of [["faculty"], ["viewer"], []])
+  for (const roles of [["faculty"], ["alumni"], []])
     for (const hd of [null, undefined, "", "gmail.com", "buksu.edu.ph.evil.com"])
       assert.throws(
         () => assertStaffGoogleIdentity("head@buksu.edu.ph", hd, roles, settings),
@@ -78,7 +78,7 @@ it("requires the verified hd claim to be allowlisted for every Google identity",
     StaffDomainError,
   );
   assert.throws(
-    () => assertStaffGoogleIdentity("grad@gmail.com", null, ["viewer"], settings),
+    () => assertStaffGoogleIdentity("grad@gmail.com", null, ["alumni"], settings),
     StaffDomainError,
   );
 });
@@ -98,7 +98,7 @@ function accounts(password: string) {
   return modelFixture({
     Role: [
       { id: "rs", key: "faculty", name: "Faculty", isSystem: true },
-      { id: "rv", key: "viewer", name: "Alumni", isSystem: true },
+      { id: "rv", key: "alumni", name: "Alumni", isSystem: true },
     ],
     User: [
       {

@@ -48,10 +48,14 @@ it("preserves legacy display names until both structured names are confirmed", (
 });
 
 it("identifies Alumni and keeps Administrator policy for mixed roles", () => {
-  assert.equal(isAlumniAccount({ roles: ["viewer"] }), true);
   assert.equal(isAlumniAccount({ roles: ["alumni"] }), true);
-  assert.equal(isAlumniAccount({ roles: ["faculty", "viewer"] }), false);
-  assert.equal(isAlumniAccount({ roles: ["super_admin", "viewer"] }), false);
-  assert.equal(isAdministrator({ roles: ["viewer", "admin"] }), true);
+  // The removed "viewer" key is not an Alumni role any more (migration renames it).
+  assert.equal(isAlumniAccount({ roles: ["viewer"] }), false);
+  assert.equal(isAlumniAccount({ roles: ["faculty", "alumni"] }), false);
+  assert.equal(isAlumniAccount({ roles: ["super_admin", "alumni"] }), false);
+  assert.equal(isAdministrator({ roles: ["super_admin"] }), true);
+  // Only super_admin administers: a custom role keyed "admin" (or "staff") grants nothing.
+  for (const roles of [["admin"], ["alumni", "admin"], ["access_manager", "admin"], ["staff"]])
+    assert.equal(isAdministrator({ roles }), false, roles.join(","));
   assert.equal(isAdministrator({ roles: ["faculty"] }), false);
 });

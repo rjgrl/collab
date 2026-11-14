@@ -91,7 +91,7 @@ function app(f: ReturnType<typeof fixture>, user = viewer()) {
 it("lets every account role upload, replace and remove photos without an Alumni record", async (t) => {
   const uploadDir = await mkdtemp(path.join(tmpdir(), "account-photos-"));
   t.after(() => rm(uploadDir, { recursive: true, force: true }));
-  for (const roles of [["super_admin"], ["admin"], ["staff"], ["alumni"]]) {
+  for (const roles of [["super_admin"], ["faculty"], ["staff"], ["alumni"]]) {
     const f = fixture();
     f.context.integrationEnv.uploadDir = uploadDir;
     const server = app(f, viewer({ roles }));
@@ -176,7 +176,7 @@ it("enforces owner and management access and blocks Alumni with legacy managemen
   );
   for (const access of [
     { permissions: ["users.read"] },
-    { permissions: ["alumni.read"], roles: ["admin"] },
+    { permissions: ["alumni.read"], roles: ["super_admin"] },
   ]) {
     assert.deepEqual(
       (

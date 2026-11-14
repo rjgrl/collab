@@ -40,9 +40,9 @@ export function emailDomainAllowed(email: string, domains: readonly string[]): b
   return domains.includes(parts[1]!);
 }
 
-/** Any role besides the Alumni role makes an account staff (Admin, Faculty, custom). */
+/** Any role besides the Alumni role makes an account staff (Super Admin, Faculty, custom). */
 export function isStaffAccount(roles: readonly string[]) {
-  return roles.some((role) => role !== "viewer" && role !== "alumni");
+  return roles.some((role) => role !== "alumni");
 }
 
 /**

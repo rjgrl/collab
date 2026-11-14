@@ -1,24 +1,63 @@
 import type { Database } from "./index";
-import { RETIRED_ROLE_KEYS } from "./permissions";
+import { LEGACY_ALUMNI_ROLE_KEY, RETIRED_ROLE_KEYS } from "./permissions";
 
 export interface RetiredRolesReport {
-  /** Retired role keys still present in the database. */
+  /** Removed role keys still present in the database. */
   roles: string[];
-  /** Accounts that held a retired role (removed on apply). */
+  /** Accounts that held a removed role (removed on apply). */
   accounts: number;
   /** Of those, accounts left with no role at all; they need to be recreated (e.g. as faculty). */
   accountsWithoutRoles: number;
+  /** Alumni accounts whose role is (or will be) renamed from "viewer" to "alumni". */
+  renamedAlumniAccounts: number;
+}
+
+/** True while any removed or not-yet-renamed role remains; the server refuses to start. */
+export async function hasLegacyRoles(db: Database) {
+  return Boolean(
+    await db.Role.exists({ key: { $in: [LEGACY_ALUMNI_ROLE_KEY, ...RETIRED_ROLE_KEYS] } }),
+  );
 }
 
 /**
- * Removes retired system roles and their grants. Accounts that held only a retired role keep
- * signing in but have no access until an administrator recreates them from the Faculty page.
- * Not reversible: rollback does not restore a retired role.
+ * Renames the Alumni role from "viewer" to "alumni" in place (same id, grants and permissions,
+ * so no account loses access), then deletes roles with removed keys ("staff", "admin") and their
+ * grants. Accounts that held only a removed role keep signing in but have no access until an
+ * administrator recreates them from the Faculty page. Not reversible: rollback restores neither.
  */
 export async function retireRoles(db: Database, apply = true): Promise<RetiredRolesReport> {
-  const report: RetiredRolesReport = { roles: [], accounts: 0, accountsWithoutRoles: 0 };
+  const report: RetiredRolesReport = {
+    roles: [],
+    accounts: 0,
+    accountsWithoutRoles: 0,
+    renamedAlumniAccounts: 0,
+  };
+  const legacyAlumni = await db.Role.findOne({ key: LEGACY_ALUMNI_ROLE_KEY }).lean();
+  if (legacyAlumni) {
+    report.renamedAlumniAccounts = await db.UserRole.countDocuments({ roleId: legacyAlumni._id });
+    if (apply) {
+      const alumni = await db.Role.findOne({ key: "alumni" }).lean();
+      if (!alumni) {
+        await db.Role.updateOne(
+          { _id: legacyAlumni._id },
+          { $set: { key: "alumni", name: "Alumni", isSystem: true } },
+        );
+      } else {
+        // Both exist (e.g. seeded before migrating): move the grants, then drop the old role.
+        for (const grant of await db.UserRole.find({ roleId: legacyAlumni._id }).lean())
+          await db.UserRole.updateOne(
+            { userId: grant.userId, roleId: alumni._id },
+            { $setOnInsert: { userId: grant.userId, roleId: alumni._id } },
+            { upsert: true },
+          );
+        await db.UserRole.deleteMany({ roleId: legacyAlumni._id });
+        await db.RolePermission.deleteMany({ roleId: legacyAlumni._id });
+        await db.Role.deleteOne({ _id: legacyAlumni._id });
+      }
+    }
+  }
   for (const key of RETIRED_ROLE_KEYS) {
-    const role = await db.Role.findOne({ key, isSystem: true }).lean();
+    const role = await db.Role.findOne({ key }).lean();
     if (!role) continue;
     report.roles.push(key);
     const grants = await db.UserRole.find({ roleId: role._id }).lean();
