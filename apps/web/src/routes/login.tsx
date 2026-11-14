@@ -20,10 +20,20 @@ import {
   passwordMeetsPolicy,
 } from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { client, api, queryClient } from "@/lib/api";
+import { safeReturnPath } from "@/lib/session-ended";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>): { error?: "google" | "google_domain" } =>
-    search.error === "google" || search.error === "google_domain" ? { error: search.error } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { error?: "google" | "google_domain"; redirect?: string } => {
+    const redirect = safeReturnPath(search.redirect);
+    return {
+      ...(search.error === "google" || search.error === "google_domain"
+        ? { error: search.error }
+        : {}),
+      ...(redirect ? { redirect } : {}),
+    };
+  },
   component: LoginPage,
 });
 
@@ -79,7 +89,9 @@ function LoginPage() {
       else await client.auth.login(credentials);
       queryClient.clear();
       toast.success(mode === "login" ? "Signed in" : "Account created");
-      await navigate({ to: "/dashboard" });
+      // After a session ended, return to the page the user was on.
+      const returnTo = mode === "login" ? safeReturnPath(search.redirect) : undefined;
+      await (returnTo ? navigate({ href: returnTo }) : navigate({ to: "/dashboard" }));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to continue";
       if (mode === "signup" && isPasswordScreeningMessage(message)) setScreeningError(message);
@@ -164,32 +176,37 @@ function LoginPage() {
                 {divider}
               </>
             ) : null}
-            <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
-              <fieldset className="grid content-start gap-3 sm:grid-cols-2">
-                <NumberedLegend step={1}>About you</NumberedLegend>
-                <NameFields
-                  value={names}
-                  onChange={setNames}
-                  prefix="signup"
-                  compact
-                  optionalBehindLink
-                />
-              </fieldset>
-              <fieldset className="grid content-start gap-3 sm:grid-cols-2">
-                <NumberedLegend step={2}>Contact</NumberedLegend>
-                <div className="sm:col-span-2">{emailField}</div>
-                <AccountProfileFields value={profile} onChange={setProfile} compact />
-              </fieldset>
-              <AcademicProfileFields value={academic} onChange={setAcademic} compact />
-              <fieldset className="grid content-start gap-3">
-                <NumberedLegend step={4}>Password</NumberedLegend>
-                {passwordField}
-                <PasswordChecklist
-                  id="signup-password-guidance"
-                  value={password}
-                  serverError={screeningError}
-                />
-              </fieldset>
+            {/* Two independent columns, so a short group leaves no gap beside a tall one. */}
+            <div className="grid items-start gap-x-8 gap-y-6 lg:grid-cols-2">
+              <div className="flex flex-col gap-6">
+                <fieldset className="grid content-start gap-3 sm:grid-cols-2">
+                  <NumberedLegend step={1}>About you</NumberedLegend>
+                  <NameFields
+                    value={names}
+                    onChange={setNames}
+                    prefix="signup"
+                    compact
+                    optionalBehindLink
+                  />
+                </fieldset>
+                <AcademicProfileFields value={academic} onChange={setAcademic} compact />
+              </div>
+              <div className="flex flex-col gap-6">
+                <fieldset className="grid content-start gap-3 sm:grid-cols-2">
+                  <NumberedLegend step={3}>Contact</NumberedLegend>
+                  <div className="sm:col-span-2">{emailField}</div>
+                  <AccountProfileFields value={profile} onChange={setProfile} compact />
+                </fieldset>
+                <fieldset className="grid content-start gap-3">
+                  <NumberedLegend step={4}>Password</NumberedLegend>
+                  {passwordField}
+                  <PasswordChecklist
+                    id="signup-password-guidance"
+                    value={password}
+                    serverError={screeningError}
+                  />
+                </fieldset>
+              </div>
             </div>
           </>
         ) : (

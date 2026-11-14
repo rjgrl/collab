@@ -55,7 +55,9 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
         .evaluate((input: HTMLInputElement) => input.validity.valueMissing),
     ).toBe(true);
     await gender.click();
-    await expect(page.locator('[data-slot="select-content"]')).toBeVisible();
+    // Base UI keeps a closed, hidden panel for a dropdown that has had focus (Tab from the suffix
+    // reaches Degree program first), so look only for the open one.
+    await expect(page.locator('[data-slot="select-content"][data-open]')).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(gender).toBeFocused();
     await gender.press("ArrowDown");

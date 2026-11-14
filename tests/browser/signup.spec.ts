@@ -167,6 +167,14 @@ test("sign-up fits a 1440×900 desktop without scrolling", async ({ page }, test
   await openSignup(1440, 900);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   await expect(submit).toBeInViewport({ ratio: 1 });
+  // Each column stacks its own groups: "Your studies" sits right under "About you" even though
+  // "Contact" beside it is taller, so no blank band opens up between them.
+  const group = (name: string) => page.locator("fieldset").filter({ hasText: name }).first();
+  const about = (await group("About you").boundingBox())!;
+  const studies = (await group("Your studies").boundingBox())!;
+  expect(studies.x).toBe(about.x);
+  expect(studies.y - (about.y + about.height)).toBeLessThanOrEqual(32);
+  await page.screenshot({ path: testInfo.outputPath("signup-1440.png") });
 
   await openSignup(1366, 768);
   const box = await submit.boundingBox();

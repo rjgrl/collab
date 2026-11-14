@@ -61,7 +61,9 @@ for (const legacyIntegrations of [false, true]) {
     await page.goto("/settings");
     await expect(page.getByRole("link", { name: "Integrations", exact: true })).toHaveCount(0);
     await page.goto("/settings/integrations");
-    await expect(page).toHaveURL(/\/settings\/?$/);
+    // The page is refused in place with an explanation; integrations never load.
+    await expect(page.getByRole("heading", { name: "Access denied", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Integrations", exact: true })).toHaveCount(0);
     expect((await page.request.get("/api/integrations")).status()).toBe(403);
     expect(
       (
