@@ -188,3 +188,9 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - HS256, because one server both issues and verifies (owner's choice); ES256 only matters if other systems must verify without being able to issue. The key is HKDF-SHA256 from `SESSION_SECRET` with a fixed purpose label, so BukSU manages no new secret.
 - `jose` verifies with an algorithm allowlist; hand-written JWT code was rejected because algorithm confusion is the classic failure.
 - Existing sessions end once on deploy (their cookies are not JWTs).
+
+## 2026-11-14: Faster CI
+
+- Pull requests run CI once (`pull_request` only); `push` runs only on `main`. Every push to a PR branch used to start two identical runs (4 jobs) that competed for runners.
+- The Playwright suite runs as its own jobs, three Playwright shards per OS, in parallel with the other checks. It took 12–13.5 of the 15–19 minutes when run serially after them. Splitting by viewport instead was tried first; desktop (10 min on Windows) was much longer than mobile, so shards balance better.
+- Chromium for Playwright is cached by lockfile hash (Linux still installs system packages); a download took about 2.5 minutes on Windows.
