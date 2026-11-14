@@ -130,7 +130,7 @@ With `DATABASE_URL` set to the Atlas string in the current shell (PowerShell:
 
 ```bash
 pnpm --filter @Alumni-Tracking-Ss/db db:migrate --dry-run   # no missing indexes or conflicts
-pnpm --filter @Alumni-Tracking-Ss/db db:migrate --apply     # only if the dry run lists missing indexes
+pnpm --filter @Alumni-Tracking-Ss/db db:migrate --apply     # if the dry run lists missing indexes or roles to rename/remove (viewer → alumni, admin, staff); the server will not start until it has run
 pnpm --filter @Alumni-Tracking-Ss/db db:check-references    # must report no broken references
 ```
 

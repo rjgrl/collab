@@ -194,3 +194,11 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Pull requests run CI once (`pull_request` only); `push` runs only on `main`. Every push to a PR branch used to start two identical runs (4 jobs) that competed for runners.
 - The Playwright suite runs as its own jobs, three Playwright shards per OS, in parallel with the other checks. It took 12–13.5 of the 15–19 minutes when run serially after them. Splitting by viewport instead was tried first; desktop (10 min on Windows) was much longer than mobile, so shards balance better.
 - Chromium for Playwright is cached by lockfile hash (Linux still installs system packages); a download took about 2.5 minutes on Windows.
+
+## 2026-11-14: Only Super Admin administers; Viewer renamed to Alumni; Admin and Staff removed
+
+- Found by the bug-bounty audit: `isAdministrator` also accepted a role keyed `admin`, which no seed creates and role creation did not reserve. A delegated access manager (custom role with `roles.write` + `users.write`) could create a role keyed `admin`, give it to themselves and, after enrolling MFA, download and restore full database backups.
+- Owner decision: remove the `admin`, `staff` and `viewer` roles and nothing else. Custom roles, the permission editor, Edit role and full Super Admin management stay.
+- `isAdministrator` is `super_admin` only. New roles cannot use `super_admin`, `faculty`, `alumni`, `admin`, `staff` or `viewer`.
+- The Alumni role key is now `alumni`. Schema version 2 renames `viewer` in place (same id, grants and permissions) and deletes roles keyed `admin` or `staff` with their grants; dry run reports counts. The server refuses to start while any of those roles remain, because an unmigrated `viewer` role would no longer be recognised as Alumni.
+- Alumni no longer see `tracking.create` or `alumni.assign|reassign|unassign` entries in their audit log (the bug-bounty audit showed staff tracking notes reaching alumni there). Staff still see them.
