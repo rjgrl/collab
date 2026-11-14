@@ -5,38 +5,83 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { googleAccessToken } from "./files";
 
-/** True for loopback, private, link-local, CGNAT, multicast and unspecified addresses. */
-export function isPrivateAddress(address: string) {
-  const v4 = address.startsWith("::ffff:") ? address.slice(7) : address;
-  if (isIP(v4) === 4) {
-    const [a, b] = v4.split(".").map(Number) as [number, number];
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 100 && b >= 64 && b <= 127) ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      a >= 224
-    );
-  }
-  const v6 = address.toLowerCase();
+function privateIPv4(address: string) {
+  const [a, b, c] = address.split(".").map(Number) as [number, number, number];
   return (
-    v6 === "::" ||
-    v6 === "::1" ||
-    v6.startsWith("fc") ||
-    v6.startsWith("fd") ||
-    v6.startsWith("fe8") ||
-    v6.startsWith("fe9") ||
-    v6.startsWith("fea") ||
-    v6.startsWith("feb") ||
-    v6.startsWith("ff")
+    a === 0 || // "this network"
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) || // carrier-grade NAT
+    (a === 169 && b === 254) || // link-local, including cloud metadata
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && (c === 0 || c === 2)) || // IETF protocol, documentation
+    (a === 198 && (b === 18 || b === 19)) || // benchmarking
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224 // multicast and reserved
   );
 }
 
-/** Production gateways must be public: an administrator cannot point the server at internal hosts. */
-async function assertPublicHost(url: string) {
+/** The 16 bytes of an IPv6 address (with an optional dotted IPv4 tail), or null if malformed. */
+function ipv6Bytes(address: string): number[] | null {
+  let text = address.toLowerCase().split("%")[0]!;
+  const tail = text.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (tail) {
+    if (isIP(tail[1]!) !== 4) return null;
+    const [a, b, c, d] = tail[1]!.split(".").map(Number) as [number, number, number, number];
+    text = `${text.slice(0, -tail[1]!.length)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - head.length - rest.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...rest];
+  if (groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return null;
+  return groups.flatMap((group) => {
+    const value = parseInt(group, 16);
+    return [value >> 8, value & 0xff];
+  });
+}
+
+/**
+ * True for any address that is not plainly public: loopback, private, link-local (cloud metadata),
+ * CGNAT, documentation, benchmarking, multicast and unspecified, in IPv4 or IPv6 form, including
+ * IPv4 written inside IPv6 (mapped "::ffff:a.b.c.d", compatible, NAT64 64:ff9b::/96, 6to4 2002::/16).
+ * Anything unparsable counts as private.
+ */
+export function isPrivateAddress(address: string): boolean {
+  if (isIP(address) === 4) return privateIPv4(address);
+  const bytes = ipv6Bytes(address);
+  if (!bytes) return true;
+  const v4 = (offset: number) => bytes.slice(offset, offset + 4).join(".");
+  const zeros = (from: number, to: number) => bytes.slice(from, to).every((byte) => byte === 0);
+  if (zeros(0, 10) && bytes[10] === 0xff && bytes[11] === 0xff) return privateIPv4(v4(12)); // mapped
+  if (zeros(0, 12)) return true; // ::, ::1 and the deprecated IPv4-compatible form
+  if (
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    zeros(4, 12)
+  )
+    return privateIPv4(v4(12)); // NAT64
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) return privateIPv4(v4(2)); // 6to4
+  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8) return true; // documentation
+  return (
+    (bytes[0]! & 0xfe) === 0xfc || // unique local fc00::/7
+    (bytes[0] === 0xfe && (bytes[1]! & 0xc0) === 0x80) || // link-local fe80::/10
+    bytes[0] === 0xff // multicast
+  );
+}
+
+/**
+ * Production email gateways must be public. Checked when credentials are saved and again before
+ * every send, so a host whose DNS later points inside the network is refused.
+ */
+export async function assertPublicHost(url: string) {
   const host = new URL(url).hostname.replace(/^\[|\]$/g, "");
   const addresses = isIP(host)
     ? [host]
@@ -286,6 +331,8 @@ export async function testIntegrationConnection(
         const response = await fetcher(gatewayUrl, {
           method: "POST",
           signal: timeout,
+          // A redirect could send the request (and its body) to an internal address.
+          redirect: "error",
           headers,
           body: JSON.stringify({
             from: fromAddress,
