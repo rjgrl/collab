@@ -2,6 +2,12 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-15 (prepare publication of all interface changes)
+
+- User approved publishing all committed work on a new `alumni-interface-updates` branch instead of pushing protected `main`. No PR or merge was requested. UI changes are committed in `8951eb0`, on top of the history-preserving integration of `origin/main`.
+- Confirmed the worktree was clean and all 85 UI/test/doc files were in the commit. Credentials, `.tools` and `.thinkrail` context are excluded from publication. Safety stash and backup branch remain local.
+- Verified: fresh fetch and base ancestry check; publication diff whitespace clean; `pnpm check:secrets` checked 499 eligible files with no high-confidence findings. Reused unchanged-source evidence from integration: `pnpm check` 7/7, browser types pass, `pnpm test` 427/427. Remote CI/merge readiness is not claimed; no PR is being created by this action.
+
 ## 2026-11-15 (integrate diverged origin/main without pushing)
 
 - Fetched and merged remote `0360744` into local `050fb23` as merge commit `bc93216`, preserving both original histories (3 local-only and 8 remote-only commits). Branch is 4 ahead / 0 behind the fetched `origin/main`; nothing was pushed.
