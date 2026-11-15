@@ -29,6 +29,11 @@ test("workspace remains accessible across screen sizes and themes", async ({
 
   async function inspect(name: string) {
     await page.waitForLoadState("networkidle");
+    // This checks loaded pages. A page-load skeleton has no heading yet, and on a slow runner a
+    // query can still be retrying after the network goes quiet for a moment.
+    await expect(page.getByRole("status").filter({ hasText: /^Loading$/ })).toHaveCount(0, {
+      timeout: 15_000,
+    });
     await expect(page.locator("h1")).toHaveCount(1);
     await page.evaluate(() => document.fonts.ready);
     const dimensions = await page.evaluate(() => ({

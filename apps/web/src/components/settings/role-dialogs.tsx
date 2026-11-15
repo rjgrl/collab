@@ -8,6 +8,7 @@ import {
   togglePermissions,
 } from "@Alumni-Tracking-Ss/contracts/permission-groups";
 import type { PermissionItem } from "@Alumni-Tracking-Ss/contracts/permission-groups";
+import { isSuperAdminOnlyPermission } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +18,18 @@ import { can, useSession } from "@/lib/session";
 import { client, queryClient } from "@/lib/api";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
+
+/** Roles configured here are never Super Admin, so university-wide permissions do not apply. */
+const grantable = (session: ReturnType<typeof useSession>, permission: PermissionItem) =>
+  !isSuperAdminOnlyPermission(permission.key) && can(session.data?.permissions, permission.key);
+
+/** Drops permissions a non-Super Admin role cannot hold (older roles may still store some). */
+export function grantablePermissionIds(ids: string[], permissions: PermissionItem[]) {
+  const restricted = new Set(
+    permissions.filter((item) => isSuperAdminOnlyPermission(item.key)).map((item) => item.id),
+  );
+  return ids.filter((id) => !restricted.has(id));
+}
 
 export function PermissionControls({
   permissions,
@@ -50,7 +63,7 @@ export function PermissionControls({
         .filter((group) => group.items.some(matches))
         .map((group) => {
           const applicable = group.items
-            .filter((permission) => can(session.data?.permissions, permission.key))
+            .filter((permission) => grantable(session, permission))
             .map((permission) => permission.id);
           const state = groupState(applicable, ids);
           return (
@@ -79,8 +92,8 @@ export function PermissionControls({
                   <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
                     <Switch
                       className="mt-1"
-                      checked={ids.includes(permission.id)}
-                      disabled={locked || !can(session.data?.permissions, permission.key)}
+                      checked={grantable(session, permission) && ids.includes(permission.id)}
+                      disabled={locked || !grantable(session, permission)}
                       onCheckedChange={(checked) =>
                         setIds((current) => togglePermissions(current, [permission.id], checked))
                       }
@@ -88,6 +101,11 @@ export function PermissionControls({
                     <span>
                       <span className="font-medium">{permission.name}</span>
                       <span className="block text-muted-foreground">{permission.description}</span>
+                      {isSuperAdminOnlyPermission(permission.key) ? (
+                        <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
+                          Super Admin only
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 ))}
@@ -131,7 +149,11 @@ export function AddRoleDialog({
   const [newIds, setNewIds] = useState<string[]>(initialPermissionIds);
 
   const create = useMutation({
-    mutationFn: () => client.roles.create({ ...newRole, permissionIds: newIds }),
+    mutationFn: () =>
+      client.roles.create({
+        ...newRole,
+        permissionIds: grantablePermissionIds(newIds, permissions),
+      }),
     onSuccess: async (created) => {
       await queryClient.invalidateQueries();
       setNewIds([]);

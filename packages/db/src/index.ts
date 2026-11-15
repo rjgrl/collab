@@ -55,10 +55,13 @@ export type { Entity } from "./serialization";
 export type * from "./models";
 export { BACKUP_STATE_COLLECTION } from "./models";
 export { SCHEMA_VERSION } from "./migration";
+export { hasLegacyRoles } from "./retire-roles";
 
 export {
   PERMISSIONS,
   PERMISSION_KEYS,
+  LEGACY_ALUMNI_ROLE_KEY,
+  RESERVED_ROLE_KEYS,
   RETIRED_ROLE_KEYS,
   ROLE_PRESETS,
   isPermissionKey,

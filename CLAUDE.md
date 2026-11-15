@@ -2,8 +2,9 @@
 
 Role-based alumni tracking app. Academic hierarchy: College → Department → Program.
 Roles: Alumni (own profile/employment/evidence), Faculty tracker (assigned alumni),
-Department/College head (faculty and assignments in scope), Staff (evidence review),
-Super Admin (accounts, permissions, audit, integrations).
+Department/College head (faculty, assignments, evidence and audit in scope),
+Super Admin (accounts, permissions, audit, backups, integrations). Only Super Admins
+administer; the admin, staff and viewer roles were removed.
 
 Stack: pnpm 12.5.1 workspace, Node 26.10.0 (`.node-version`). React/Vite + TanStack
 Router/Query (`apps/web`), Express REST + Mongoose (`apps/server`), MongoDB replica set
@@ -12,34 +13,17 @@ on local port 27018. Tooling via `vp` (vite-plus). Active branch line: phase 6, 
 ## Session protocol
 
 - Start: read this file, `docs/progress.md`, `docs/decisions.md`, `docs/known-issues.md`.
-- End: update `docs/progress.md`, append new decisions and gotchas, run `/reflect`.
-  Apply skill or CLAUDE.md edits only after the user approves them.
+- End: update `docs/progress.md`, append new decisions and gotchas.
+  Apply CLAUDE.md edits only after the user approves them.
 
-## Orchestrator and workers
+## Change rules
 
-- The main session is the orchestrator. It plans, writes briefs and checks results.
-  It does not do bulk work when a worker can do it.
-- Workers are subagents on Haiku: `builder` (writes code) and `reviewer` (checks a diff against a brief).
-- Keep each brief to one concern and at most about three files. The orchestrator writes
-  cryptography, restore/migration and authorization-guard code itself and uses workers for bounded
-  UI and tests around it.
-- Every brief uses this shape:
-
-  ```
-  Goal: <one outcome>
-  Files to read: <paths>
-  Constraints: <what not to touch, conventions to follow>
-  Done when: <command that exits 0, or an observable result>
-  ```
-
-- Before accepting any worker output, the orchestrator runs the "Done when" check itself.
-  If it fails, send the work back to the same worker with the failing output.
-- When a brief removes or replaces a guard, route or compatibility path, its `Done when` includes a
-  grep that must find nothing (for example, the removed route string).
-- Never pass a worker's report to the user unchecked.
-- (added) Diffs touching auth, RBAC/scope (`packages/api/src/scope.ts`, `access.ts`,
-  `packages/contracts/src/permission-groups.ts`), MFA, file access or migrations: the
-  orchestrator reads them line by line. A passing check does not prove authorization is intact.
+- Do the work in this session; do not delegate to subagents.
+- When a change removes or replaces a guard, route or compatibility path, confirm with a grep
+  that finds nothing (for example, the removed route string).
+- Diffs touching auth, RBAC/scope (`packages/api/src/scope.ts`, `access.ts`,
+  `packages/contracts/src/permission-groups.ts`), MFA, file access or migrations are read
+  line by line. A passing check does not prove authorization is intact.
 
 ## Checks
 
@@ -58,7 +42,7 @@ on local port 27018. Tooling via `vp` (vite-plus). Active branch line: phase 6, 
 
 ```
 apps/server/src/          Express app, middleware
-  modules/<domain>/       academic, account-photos, alumni, audit, auth, faculty,
+  modules/<domain>/       academic, account-photos, alumni, audit, auth, backups, faculty,
                           files, integrations, notifications, reports(+pdf), roles, users
 apps/server/test/         browser-fixture.ts (Playwright API), local/*-local.ts check scripts
 apps/web/src/             React app: routes/ (TanStack, _app = signed-in shell),
@@ -75,6 +59,4 @@ tests/browser/            Playwright specs
 config/staging/           staging config
 docs/                     setup, operations, migrations, plus progress/decisions/known-issues
 .tools/                   local-only secrets (local-login.txt), never commit
-.claude/agents/           builder.md, reviewer.md
-.claude/skills/reflect/   end-of-session reflection skill
 ```

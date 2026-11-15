@@ -22,3 +22,16 @@ Format: symptom, cause, workaround. Remove an entry when it is fixed.
 - A harness response named `rate_limit_error` can be the external model provider's account quota rather than this application's authentication throttle. Confirm the failing request and provider before changing app middleware. For large local Playwright selections, any raised `AUTH_IP_LIMIT` / `AUTH_ACCOUNT_LIMIT` must be command-scoped; run the final suite with defaults to prove the application limiter remains enabled.
 - `tests/browser/ui-modernization.spec.ts` "workspace remains accessible…" can fail on desktop at the synthetic dashboard outage step ("Could not load dashboard" alert not visible within 15 s) on slower machines. It fails identically on untouched `d83726d`, so it is not caused by later changes; the mobile project passes. Likely the client's retry/backoff exceeding the 15 s wait; investigate before relying on that step.
 - Anything absolutely positioned inside a scrolling table (for example `sr-only` button labels) escapes the scroll clipping unless the scroller is `relative`. On emulated phones this silently widens the whole page (390px became 597px) and pushes dialog buttons off-screen; `scrollWidth <= innerWidth` cannot catch it because `innerWidth` grows too. Compare `innerWidth` with `page.viewportSize().width` instead.
+- After 2026-11-15, `main` was force-pushed once to drop an empty duplicate commit (files unchanged). An older clone shows `main` as diverged. Workaround: `git fetch origin` then `git reset --hard origin/main` on that clone (after saving any local work).
+- Schema version 2: the server exits at start with "Legacy roles (viewer, admin or staff) are still in the database" until `pnpm db:migrate --apply` has run. Back up first; the rename and role removal are not reverted by `--rollback`.
+
+- `git fetch origin` did not update `main` or PR branches on this clone because `remote.origin.fetch` only listed `development/phase6-cross-device-testing`. Fixed on this machine with `git config --replace-all remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"`; check other clones the same way.
+- `main` is protected. Merge with a PR after all eight checks pass; `git push origin main` and force-pushes are refused (GH006).
+
+## Security follow-ups (open)
+
+- SMS delivery is deliberately unconnected (`packages/api/src/integrations/sms.ts`). With phone verification required, production `/health/ready` stays 503 and new alumni cannot finish verification until an SMS provider is wired or the phone requirement is changed.
+- Email gateway: DNS can still change between the per-send public-address check and the connection (DNS rebinding). Only a Super Admin can set the gateway. Fix: allowlist the provider host (for example `api.resend.com`) or pin the resolved address with undici.
+- Password-reset requests may reveal which accounts exist through response time (the eligible path writes a record and calls the gateway). Not measured locally; fix by sending in the background or padding to a fixed time. Sign-up also says "An account with that email already exists."
+- No TTL cleanup for expired `Session`, `AuthThrottle`, `PasswordReset` and `VerificationChallenge` records; they are rejected in code but accumulate.
+- Product decision pending: `/me/profile` returns the alumnus's assigned faculty name.

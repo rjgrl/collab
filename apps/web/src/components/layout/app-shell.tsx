@@ -36,7 +36,11 @@ import { queryClient } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { canOpenPage } from "@/lib/page-access";
 import { AccessDeniedPage, InAppShell } from "@/components/feedback/status-page";
-import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
+import {
+  isAlumniAccount,
+  isAdministrator,
+  isFacultyAccount,
+} from "@Alumni-Tracking-Ss/contracts/names";
 
 const NAV = [
   { to: "/my-profile", label: "My profile", icon: UserRound },
@@ -77,7 +81,7 @@ export function AppShell() {
   const roleLabel = session.data
     ? isAdministrator(session.data)
       ? "Administrator"
-      : session.data.roles.includes("faculty")
+      : isFacultyAccount(session.data)
         ? "Faculty"
         : isAlumniAccount(session.data)
           ? "Alumni"

@@ -146,14 +146,36 @@ describe("connection-test", () => {
         ),
         "public HTTPS address",
       );
-    for (const address of ["8.8.8.8", "2001:4860:4860::8888"])
+    for (const address of [
+      "8.8.8.8",
+      "2001:4860:4860::8888",
+      "::ffff:8.8.8.8",
+      "64:ff9b::808:808",
+      "2002:808:808::1",
+      "2606:4700:4700::1111",
+    ])
       assert.equal(isPrivateAddress(address), false, address);
     for (const address of [
       "192.168.1.1",
       "172.20.0.1",
       "100.64.0.1",
+      "169.254.169.254",
+      "198.18.0.1",
+      "192.0.0.1",
       "fd00::1",
+      "fe80::1",
+      "::",
+      "::1",
       "::ffff:127.0.0.1",
+      // The audit's bypasses: IPv4 written in IPv6 hex form, as `new URL()` normalises it.
+      "::ffff:a9fe:a9fe",
+      "::ffff:7f00:1",
+      "::7f00:1",
+      "0:0:0:0:0:ffff:a9fe:a9fe",
+      "64:ff9b::a9fe:a9fe",
+      "2002:a9fe:a9fe::1",
+      "2001:db8::1",
+      "not-an-address",
     ])
       assert.equal(isPrivateAddress(address), true, address);
   });

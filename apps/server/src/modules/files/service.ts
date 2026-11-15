@@ -18,6 +18,18 @@ import { assertCanManageAlumniPhoto, linkedAlumni } from "../alumni/access";
 import { scopedAlumni } from "@Alumni-Tracking-Ss/api/scope";
 import { isAlumniAccount, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import { notifyStaffOfEvidence } from "../notifications/service";
+import { consumeAuthAttempt } from "@Alumni-Tracking-Ss/api/services/throttle";
+
+/** Per-alumnus evidence cap and per-account upload rate (a real graduate needs far fewer). */
+export const MAX_EVIDENCE_FILES = 50;
+const UPLOAD_LIMIT = { count: 20, windowMs: 10 * 60_000 };
+
+const evidenceCount = (db: Context["db"], alumniId: string) =>
+  db.EvidenceFile.countDocuments({ alumniId, kind: "evidence", deletedAt: null }).exec();
+const tooManyFiles = () =>
+  new ApiError("BAD_REQUEST", {
+    message: `A profile can hold at most ${MAX_EVIDENCE_FILES} evidence files. Remove one to upload another.`,
+  });
 
 export const uploadInputSchema = z
   .object({
@@ -46,6 +58,27 @@ export async function uploadEvidence(
     if (input.kind === "image") await assertCanManageAlumniPhoto(context, alumni);
   }
   if (!file) throw new ApiError("BAD_REQUEST", { message: "Alumni and file are required." });
+  if (self)
+    await consumeAuthAttempt(
+      context.db,
+      "evidence-upload",
+      user.id,
+      UPLOAD_LIMIT.count,
+      UPLOAD_LIMIT.windowMs,
+    ).catch((error: unknown) => {
+      if (error instanceof ApiError && error.code === "TOO_MANY_REQUESTS")
+        throw new ApiError("TOO_MANY_REQUESTS", {
+          message: "Too many uploads. Please wait a few minutes before uploading again.",
+          data: error.data,
+        });
+      throw error;
+    });
+  // Checked before storing (so nothing is left behind) and again in the transaction below.
+  if (
+    input.kind === "evidence" &&
+    (await evidenceCount(context.db, input.alumniId)) >= MAX_EVIDENCE_FILES
+  )
+    throw tooManyFiles();
   if (
     !file.originalname.trim() ||
     file.originalname.length > 160 ||
@@ -120,6 +153,11 @@ export async function uploadEvidence(
       throw new ApiError("BAD_REQUEST", {
         message: "Employment changed. Select a current record.",
       });
+    if (
+      input.kind === "evidence" &&
+      (await evidenceCount(db, input.alumniId)) >= MAX_EVIDENCE_FILES
+    )
+      throw tooManyFiles();
     const evidence = await db.EvidenceFile.create({
       ...input,
       originalName: file.originalname,

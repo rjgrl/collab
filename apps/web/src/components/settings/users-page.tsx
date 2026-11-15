@@ -21,7 +21,7 @@ import { PasswordChecklist } from "@/components/forms/password-checklist";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/lib/api";
 import { NameFields, emptyName } from "@/components/forms/name-fields";
-import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
+import { isAdministrator, ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { usersSchemas } from "@Alumni-Tracking-Ss/contracts/users";
 import { passwordMeetsPolicy } from "@Alumni-Tracking-Ss/contracts/password-policy";
 import { EditRoleDialog } from "./edit-role-dialog";
@@ -41,7 +41,7 @@ export function UsersPage() {
     ...api.permissions.list.queryOptions(),
     enabled: canWrite && can(session.data?.permissions, "permissions.read"),
   });
-  const managedRoles = roles.data?.filter((role) => role.key === "super_admin");
+  const managedRoles = roles.data?.filter((role) => role.key === ROLE.superAdmin);
   const [draft, setDraft] = useState({
     ...emptyName,
     email: "",
@@ -168,7 +168,7 @@ export function UsersPage() {
                     })
                   }
                 >
-                  {role.key === "super_admin" ? "Super admin" : role.name}
+                  {role.key === ROLE.superAdmin ? "Super admin" : role.name}
                 </CheckboxRow>
               ))}
             </div>

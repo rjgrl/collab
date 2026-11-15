@@ -1,8 +1,10 @@
+import { reportBackgroundFailure } from "@Alumni-Tracking-Ss/api/background-failure";
 import { Server as HttpServer } from "node:http";
 import { createApp } from "./app";
 import { readIntegrationEnv } from "./context";
 import { ENV } from "./env.server";
 import { db } from "./services";
+import { hasLegacyRoles } from "@Alumni-Tracking-Ss/db";
 import { drainAndDisconnect } from "./shutdown";
 import { validateRuntimeConfig } from "./runtime-config";
 import { staffEmailDomains } from "@Alumni-Tracking-Ss/api/services/staff-domain";
@@ -54,10 +56,25 @@ const app = createApp({
   integrationEnv,
 });
 await db.ready();
+// Roles renamed or removed by schema version 2 must be migrated before serving requests: an
+// unmigrated "viewer" role would no longer be recognised as Alumni.
+if (await hasLegacyRoles(db)) {
+  console.error(
+    "Legacy roles (viewer, admin or staff) are still in the database. Back up, then run `pnpm db:migrate --dry-run` and `pnpm db:migrate --apply` before starting the server.",
+  );
+  process.exit(1);
+}
 // A restore whose process died is detected at start and then every minute (heartbeat-based, so a
 // restore still running on another instance is never touched).
-await recoverInterruptedRestore(db).catch(() => false);
-setInterval(() => void recoverInterruptedRestore(db).catch(() => false), 60_000).unref();
+const recoverRestore = () =>
+  recoverInterruptedRestore(db).catch((error: unknown) =>
+    reportBackgroundFailure("restore-recovery", error, {
+      db,
+      notify: "Checking for an interrupted backup restore failed.",
+    }),
+  );
+await recoverRestore();
+setInterval(() => void recoverRestore(), 60_000).unref();
 startBackupScheduler({ db, config: backup });
 // Nightly (03:30 Asia/Manila) scan for references to missing records; notifies Super Admins.
 startIntegrityScheduler(db);

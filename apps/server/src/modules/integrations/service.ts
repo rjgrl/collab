@@ -14,7 +14,7 @@ import { importAlumniRows } from "@Alumni-Tracking-Ss/api/services/importer";
 import { csvToObjects } from "@Alumni-Tracking-Ss/api/validation";
 import { integrationsSchemas } from "@Alumni-Tracking-Ss/contracts/integrations";
 import type { z } from "zod";
-import { requireAdministrator } from "@Alumni-Tracking-Ss/api/access";
+import { requireAdministrator, requireUser } from "@Alumni-Tracking-Ss/api/access";
 import { audit } from "../academic/service";
 import { activeAlumni } from "../alumni/service";
 import { exportAlumniRows } from "../reports/service";
@@ -33,9 +33,10 @@ import { testIntegrationConnection } from "@Alumni-Tracking-Ss/api/integrations/
 import { randomBytes } from "node:crypto";
 
 async function importRows(context: Context, source: "csv" | "google_sheets", rows: unknown[]) {
+  const signedIn = requireUser(context);
   if (rows.length > 10000)
     throw new ApiError("BAD_REQUEST", { message: "An import may contain at most 10,000 rows." });
-  const result = await importAlumniRows(context.db, rows, { actorId: context.user!.id });
+  const result = await importAlumniRows(context.db, rows, { actorId: signedIn.id });
   await context.db.transaction(async (tx) => {
     const job = toEntity(
       (
@@ -43,7 +44,7 @@ async function importRows(context: Context, source: "csv" | "google_sheets", row
           ...result,
           source,
           status: result.errorCount > 0 && result.successCount === 0 ? "failed" : "completed",
-          createdById: context.user!.id,
+          createdById: signedIn.id,
           completedAt: new Date(),
         })
       ).toObject(),
@@ -68,6 +69,7 @@ export const integrationsService = {
   },
 
   async enable(context: Context, input: z.input<typeof integrationsSchemas.enable.input>) {
+    const signedIn = requireUser(context);
     requireAdministrator(context, "integrations.write");
     const p = integrationsSchemas.enable.input.parse(input);
     const key = integrationKey(context.integrationEnv);
@@ -108,7 +110,7 @@ export const integrationsService = {
     // Test the connection
     await testIntegrationConnection(p.key, trimmedValues, {
       env: context.integrationEnv,
-      adminEmail: context.user!.email,
+      adminEmail: signedIn.email,
     });
 
     // Generate webhook secret for google_forms
@@ -126,7 +128,7 @@ export const integrationsService = {
         integration: p.key,
         values: valuesToStore,
         key,
-        actorId: context.user!.id as any,
+        actorId: signedIn.id as any,
         enabled: true,
       });
 
@@ -159,6 +161,7 @@ export const integrationsService = {
     context: Context,
     input: z.input<typeof integrationsSchemas.update.input>,
   ) {
+    const signedIn = requireUser(context);
     requireAdministrator(context, "integrations.write");
     const p = integrationsSchemas.update.input.parse(input);
     const key = integrationKey(context.integrationEnv);
@@ -214,7 +217,7 @@ export const integrationsService = {
     // Test the connection
     await testIntegrationConnection(p.key, mergedValues, {
       env: context.integrationEnv,
-      adminEmail: context.user!.email,
+      adminEmail: signedIn.email,
     });
 
     // Generate new webhook secret for google_forms
@@ -237,7 +240,7 @@ export const integrationsService = {
         integration: p.key,
         values: valuesToStore,
         key,
-        actorId: context.user!.id as any,
+        actorId: signedIn.id as any,
       });
 
       const audRow = toEntity(updated);
@@ -257,13 +260,14 @@ export const integrationsService = {
   },
 
   async disable(context: Context, input: z.input<typeof integrationsSchemas.disable.input>) {
+    const signedIn = requireUser(context);
     requireAdministrator(context, "integrations.write");
     const p = integrationsSchemas.disable.input.parse(input);
     const key = integrationKey(context.integrationEnv);
 
     let status: any;
     await context.db.transaction(async (tx) => {
-      const updated = await eraseCredentials(tx, p.key, context.user!.id as any);
+      const updated = await eraseCredentials(tx, p.key, signedIn.id as any);
 
       const audRow = toEntity(updated);
       await audit(

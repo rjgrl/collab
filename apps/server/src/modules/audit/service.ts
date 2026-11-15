@@ -22,6 +22,14 @@ import { management, escapeRegex } from "../academic/service";
  * alumni in their scope (including contacts, assignments and tracking) and about faculty in
  * their departments. Others: none.
  */
+/** Audit actions about an alumnus that the alumnus never sees in their own audit log. */
+export const STAFF_ONLY_AUDIT_ACTIONS = [
+  "tracking.create",
+  "alumni.assign",
+  "alumni.reassign",
+  "alumni.unassign",
+];
+
 async function auditScope(context: Context): Promise<Record<string, unknown>> {
   if (requireUser(context).permissions.includes("audit.read")) {
     management(context, "audit.read");
@@ -36,7 +44,9 @@ async function auditScope(context: Context): Promise<Record<string, unknown>> {
       filter.push({ entity: "alumni", entityId: user.alumniId });
       filter.push({ "metadata.alumniId": user.alumniId });
     }
-    return { $or: filter };
+    // Tracking and tracker assignment are staff-only, like on the profile: the entries stay
+    // recorded and visible to staff, but are never shown to the alumnus.
+    return { $and: [{ $or: filter }, { action: { $nin: STAFF_ONLY_AUDIT_ACTIONS } }] };
   }
   management(context, "alumni.read");
   const manager = await managerScope(context);

@@ -1,7 +1,7 @@
 import { toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
-import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { isAlumniAccount, isFacultyAccount } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { notificationsSchemas } from "@Alumni-Tracking-Ss/contracts/notifications";
 import type { z } from "zod";
@@ -56,23 +56,35 @@ export async function notifyStaffOfEvidence(
   },
 ) {
   const recipients = await evidenceReviewers(db, input.alumniId);
-  if (recipients.length)
-    await db.Notification.insertMany(
-      recipients.map((recipient) => ({
+  const summary = `${input.alumniName} (${input.studentNumber}) uploaded ${input.originalName} for tracking review.`;
+  const fresh = [];
+  for (const recipient of recipients) {
+    // One unread notice per alumnus: a newer upload refreshes it instead of adding another.
+    const grouped = await db.Notification.updateOne(
+      { recipientId: recipient._id, alumniId: input.alumniId, readAt: null },
+      {
+        $set: {
+          evidenceId: input.evidenceId,
+          summary: `${input.alumniName} (${input.studentNumber}) uploaded new files for tracking review, most recently ${input.originalName}.`,
+        },
+      },
+    ).exec();
+    if (!grouped.matchedCount)
+      fresh.push({
         recipientId: recipient._id,
         alumniId: input.alumniId,
         evidenceId: input.evidenceId,
-        summary: `${input.alumniName} (${input.studentNumber}) uploaded ${input.originalName} for tracking review.`,
+        summary,
         readAt: null,
-      })),
-      { ordered: true },
-    );
+      });
+  }
+  if (fresh.length) await db.Notification.insertMany(fresh, { ordered: true });
 }
 
 // Only faculty accounts receive evidence notifications (see evidenceReviewers).
 function canReview(user: NonNullable<Context["user"]>) {
   return (
-    user.roles.includes("faculty") &&
+    isFacultyAccount(user) &&
     !isAlumniAccount(user) &&
     user.permissions.includes("alumni.read") &&
     user.permissions.includes("files.read")

@@ -327,7 +327,17 @@ test("Super Admins edit a member's role through exact permission matching", asyn
   const catalog: { id: string; key: string; name: string }[] = await (
     await page.request.get("/api/permissions")
   ).json();
-  const readIds = catalog.filter((item) => item.key.endsWith(".read")).map((item) => item.id);
+  // Read permissions a custom role may hold; the university-wide ones are Super Admin only.
+  const superAdminOnly = [
+    "users.read",
+    "roles.read",
+    "permissions.read",
+    "integrations.read",
+    "audit.read",
+  ];
+  const readIds = catalog
+    .filter((item) => item.key.endsWith(".read") && !superAdminOnly.includes(item.key))
+    .map((item) => item.id);
   const created = await page.request.post("/api/roles", {
     headers,
     data: {

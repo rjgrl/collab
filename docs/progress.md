@@ -2,6 +2,15 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-14/15 (JWT sessions, error pages, faster CI, bug-bounty fixes)
+
+- Merged: #5 (tabs, JWT sessions, skeletons, phone-safe toasts; #6 folded in), #7 (404/403/500 pages, session-ended notice), #8 (CI ~8 min: one run per PR, 3 browser shards per OS, cached Chromium), #9 (only `super_admin` administers; `admin`, `staff` and `viewer` roles removed, `viewer` renamed to `alumni` by schema version 2; tracking hidden from the alumni audit log; toast list), #10 (unconfirmed-registration release, alumni upload/job caps and rate limit, email-gateway address hardening, Drive/imgBB download streaming).
+- Bug-bounty audit: six confirmed findings, all fixed by #9 and #10 and re-tested against the original proofs of concept.
+- This machine: dev database backed up (`.tools/backups/pre-role-migration-20261114-152734/`, restore-verified), migrated to schema version 2; the leftover test role `asdasdasdasd` ("Department Head", demo user `staff@collab.test`) deleted.
+- `main` history: the empty duplicate #5 commit was removed with a lease-guarded force-push; the owner's PRODUCT.md commit was kept. Other clones must reset to `origin/main` (see known issues).
+- Verified: `pnpm test` 418/418; 13/13 real-DB checks; full browser suite 127 passed, 3 skipped; CI green on every merged PR.
+- Still to do: migrate the presentation device and any hosted/Atlas database (`db:migrate --dry-run`, then `--apply`); the open items under "Security follow-ups" in known-issues.
+
 ## 2026-11-13 (theme, logo and alumni profile tabs)
 
 - Official COT logo (round) and BukSU light/dark palette merged as PR #4 after PR #3 was squash-merged at `a68ce3d`.

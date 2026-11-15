@@ -1,3 +1,4 @@
+import { ROLE, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
@@ -11,7 +12,12 @@ import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/lib/api";
 import { useConfirm } from "@/components/feedback/confirm-provider";
-import { PermissionControls, AddRoleDialog, duplicateRoleName } from "./role-dialogs";
+import {
+  PermissionControls,
+  AddRoleDialog,
+  duplicateRoleName,
+  grantablePermissionIds,
+} from "./role-dialogs";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 const version = (role: { updatedAt: Date }) => new Date(role.updatedAt).toISOString();
@@ -102,7 +108,7 @@ export function RolesPage() {
             ) : null}
             <span className="mt-2 block text-sm tabular-nums text-muted-foreground">
               {role._count.userRoles} members | {role.rolePermissions.length} permissions
-              {role.key === "super_admin" ? " | Protected" : ""}
+              {role.key === ROLE.superAdmin ? " | Protected" : ""}
             </span>
           </button>
         ))}
@@ -174,8 +180,8 @@ function RoleEditor({
   const stale = version(role) > baseline.version;
   const editable =
     can(session.data?.permissions, "roles.write") &&
-    role.key !== "super_admin" &&
-    (!role.isSystem || session.data?.roles.includes("super_admin")) &&
+    role.key !== ROLE.superAdmin &&
+    (!role.isSystem || (session.data ? isAdministrator(session.data) : false)) &&
     role.rolePermissions.every(({ permission }) => can(session.data?.permissions, permission.key));
   const duplicateName = name !== baseline.name ? duplicateRoleName(name, allRoles, role.id) : null;
   const save = useMutation({
@@ -185,7 +191,7 @@ function RoleEditor({
         expectedUpdatedAt: baseline.version,
         name: name !== baseline.name ? name : undefined,
         description: description !== baseline.description ? description : undefined,
-        permissionIds: ids,
+        permissionIds: grantablePermissionIds(ids, permissions),
       }),
     onSuccess: async (saved) => {
       const savedIds = saved.rolePermissions.map((item) => item.permissionId);

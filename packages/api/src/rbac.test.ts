@@ -100,9 +100,9 @@ function makeUser(permissions: string[], overrides: Partial<AuthUser> = {}): Aut
     image: null,
     status: "active",
     mfaVerified: true, // These tests exercise authorization after successful MFA.
-    // An Administrator is the only unscoped account; permissions still gate each action, and
+    // A Super Admin is the only unscoped account; permissions still gate each action, and
     // scope has its own tests.
-    roles: ["admin"],
+    roles: ["super_admin"],
     permissions: permissions as AuthUser["permissions"],
     ...overrides,
   };
@@ -207,7 +207,7 @@ describe("RBAC: alumni permission granularity", () => {
   });
   it("a read-only management account can list and read but cannot mutate", async () => {
     const { db, reads } = stubDb({ alumni: [] });
-    const viewer = makeUser(["alumni.read"], { roles: ["admin"] });
+    const viewer = makeUser(["alumni.read"], { roles: ["super_admin"] });
 
     await invoke(alumniRouter.list, {}, makeContext(viewer, db));
     await invoke(alumniRouter.get, { id: "0000000000000000000000a1" }, makeContext(viewer, db));
@@ -343,7 +343,9 @@ describe("RBAC: coverage of the permission catalog", () => {
 describe("RBAC: role presets", () => {
   it("the Staff role is retired and faculty cannot manage RBAC or integrations", () => {
     assert.equal("staff" in ROLE_PRESETS, false);
-    assert.deepEqual([...RETIRED_ROLE_KEYS], ["staff"]);
+    assert.deepEqual([...RETIRED_ROLE_KEYS], ["staff", "admin"]);
+    assert.equal("viewer" in ROLE_PRESETS, false);
+    assert.equal(ROLE_PRESETS.alumni.key, "alumni");
     for (const key of ROLE_PRESETS.faculty.permissions) {
       assert.ok(
         !key.startsWith("users.") && !key.startsWith("roles.") && !key.startsWith("integrations."),
@@ -353,7 +355,7 @@ describe("RBAC: role presets", () => {
   });
 
   it("viewer is strictly read-only", () => {
-    for (const key of ROLE_PRESETS.viewer.permissions) {
+    for (const key of ROLE_PRESETS.alumni.permissions) {
       assert.ok(key.endsWith(".read"), `viewer must not hold ${key}`);
     }
   });
@@ -391,7 +393,7 @@ describe("RBAC: effective permission resolution", () => {
     const { loadAuthUser } = await import("./services/session");
     const db = userDb([
       {
-        key: "viewer",
+        key: "alumni",
         rolePermissions: [
           { permission: { key: "alumni.read" } },
           { permission: { key: "dashboard.read" } },
@@ -412,7 +414,7 @@ describe("RBAC: effective permission resolution", () => {
       "alumni.write",
       "dashboard.read",
     ]);
-    assert.deepEqual(user?.roles.sort(), ["staff", "viewer"]);
+    assert.deepEqual(user?.roles.sort(), ["alumni", "staff"]);
   });
 
   it("revoking a role permission removes access on the next resolution", async () => {
