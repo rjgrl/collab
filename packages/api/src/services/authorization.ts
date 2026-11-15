@@ -1,3 +1,4 @@
+import { isSuperAdminOnlyPermission } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import { isPermissionKey, toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Role } from "@Alumni-Tracking-Ss/contracts/roles";
 import type { PublicUser } from "@Alumni-Tracking-Ss/contracts/users";
@@ -119,6 +120,12 @@ export async function validatePermissionIds(db: Database, actor: AuthUser, ids: 
     });
   if (permissions.some(({ key }) => !isPermissionKey(key) || !actor.permissions.includes(key)))
     throw new ApiError("FORBIDDEN", { message: "You cannot grant permissions you do not hold." });
+  // Only the Super Admin role (never edited through here) may hold university-wide permissions.
+  if (permissions.some(({ key }) => isSuperAdminOnlyPermission(key)))
+    throw new ApiError("BAD_REQUEST", {
+      message:
+        "Managing members, roles, academic structure, integrations and the full audit log is for Super Admins only. Remove those permissions from this role.",
+    });
 }
 export async function authorizationTransaction<T>(
   db: Database,

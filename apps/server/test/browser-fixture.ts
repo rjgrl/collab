@@ -447,6 +447,11 @@ app.post("/__test/staff", async (request, response) => {
   });
 });
 // Directly assigns (or unassigns) the synthetic alumni profile to the staff user's faculty record.
+// Simulates a role saved before university-wide permissions were reserved for Super Admins.
+app.post("/__test/grant-role-permissions", async (request, response) => {
+  await grantRole(String(request.body?.roleId), (request.body?.keys ?? []) as string[]);
+  response.json({ ok: true });
+});
 app.post("/__test/assign-staff", async (request, response) => {
   const faculty = await db.Faculty.findOne({ userId: ids.staff }).select("_id").lean();
   await db.Alumni.updateOne(
