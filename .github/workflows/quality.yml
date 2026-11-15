@@ -91,3 +91,11 @@ jobs:
         run: pnpm exec playwright install-deps chromium
       - run: pnpm tools:mongodb
       - run: pnpm exec playwright test --shard=${{ matrix.shard }}/3
+      # Failure snapshots and traces; without them a CI-only failure cannot be diagnosed.
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-${{ matrix.os }}-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

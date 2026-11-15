@@ -30,7 +30,6 @@ Format: symptom, cause, workaround. Remove an entry when it is fixed.
 
 ## Security follow-ups (open)
 
-- Custom roles bypass the faculty scope model for non-alumni data. `audit.read` returns the whole audit log (`apps/server/src/modules/audit/service.ts`, `auditScope`), and `departments.*` / `programs.*` / `users.*` / `roles.*` act across every college. Real heads should be Faculty records with a department or college level. Custom roles also never require MFA (`privilegedAccount` is Super Admin only).
 - SMS delivery is deliberately unconnected (`packages/api/src/integrations/sms.ts`). With phone verification required, production `/health/ready` stays 503 and new alumni cannot finish verification until an SMS provider is wired or the phone requirement is changed.
 - Email gateway: DNS can still change between the per-send public-address check and the connection (DNS rebinding). Only a Super Admin can set the gateway. Fix: allowlist the provider host (for example `api.resend.com`) or pin the resolved address with undici.
 - Password-reset requests may reveal which accounts exist through response time (the eligible path writes a record and calls the gateway). Not measured locally; fix by sending in the background or padding to a fixed time. Sign-up also says "An account with that email already exists."

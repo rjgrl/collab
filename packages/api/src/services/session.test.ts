@@ -11,7 +11,10 @@ import {
   authenticateWithPassword,
 } from "./session";
 import { signSessionToken } from "./session-token";
-it("refunds successful login attempts while failed passwords exhaust the account budget", async () => {
+it("refunds successful login attempts while failed passwords exhaust the account budget", async (t) => {
+  // Attempts are counted in fixed 15-minute windows. Freeze the clock mid-window so the test
+  // cannot start in one window and finish in the next (it once failed at 04:00:01 on CI).
+  t.mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 0, 1, 0, 7, 30) });
   const password = "A private login testing passphrase 7878";
   const fixture = modelFixture({
     User: [

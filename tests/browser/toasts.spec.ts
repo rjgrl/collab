@@ -85,20 +85,25 @@ test("a replaced toast fades out instead of vanishing", async ({ page, request }
   ]);
   await expect(shown(page)).toHaveCount(3);
   const oldest = page.locator("[data-sonner-toast]").filter({ hasText: "One" });
-  const transition = oldest.evaluate((el) => {
-    return new Promise<string>((resolve) => {
-      const observer = new MutationObserver(() => {
-        if (el.getAttribute("data-removed") === "true") {
-          observer.disconnect();
-          const style = getComputedStyle(el);
-          resolve(`${style.transitionProperty}|${style.transitionDuration}`);
-        }
-      });
-      observer.observe(el, { attributes: true });
+  // Start watching before the replacement toast exists, so the change cannot be missed.
+  await oldest.evaluate((el) => {
+    const probe = window as unknown as { fadeSeen?: string };
+    probe.fadeSeen = "";
+    const observer = new MutationObserver(() => {
+      if (el.getAttribute("data-removed") === "true") {
+        observer.disconnect();
+        const style = getComputedStyle(el);
+        probe.fadeSeen = `${style.transitionProperty}|${style.transitionDuration}`;
+      }
     });
+    observer.observe(el, { attributes: true });
   });
   await fire(page, [["success", "Four"]]);
-  const [properties, durations] = (await transition).split("|");
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { fadeSeen?: string }).fadeSeen))
+    .not.toBe("");
+  const seen = await page.evaluate(() => (window as unknown as { fadeSeen?: string }).fadeSeen);
+  const [properties, durations] = String(seen).split("|");
   expect(properties).toContain("opacity");
   expect(durations).toContain("0.2s");
   await expect(oldest).toHaveCount(0);

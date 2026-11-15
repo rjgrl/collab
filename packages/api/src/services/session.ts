@@ -1,3 +1,4 @@
+import { effectivePermissions } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import { accountAccessPending } from "./verification";
 import { createHash } from "node:crypto";
 import { requiresMfa } from "./mfa-policy";
@@ -56,11 +57,15 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
     .select("_id roleLevel departmentId")
     .lean()
     .exec();
-  const permissions = [
-    ...new Set(
-      assigned.flatMap((role) => role.rolePermissions.map(({ permission }) => permission.key)),
-    ),
-  ].filter(isPermissionKey);
+  // Stored grants of Super Admin-only permissions give nothing to anyone else.
+  const permissions = effectivePermissions(
+    { roles },
+    [
+      ...new Set(
+        assigned.flatMap((role) => role.rolePermissions.map(({ permission }) => permission.key)),
+      ),
+    ].filter(isPermissionKey),
+  );
   return {
     id: user.id,
     name: formatDisplayName({

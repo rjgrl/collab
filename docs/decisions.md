@@ -216,3 +216,10 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - The test model fixture throws on query or update features it cannot reproduce instead of guessing, and applies sort, skip and limit like MongoDB.
 - Role keys are compared only through `ROLE` and the helpers in `contracts/names.ts`; `source-guards.test.ts` fails on a typed-out role key (including the removed `admin`, `staff`, `viewer`) or on `context.user!` (use `requireUser`).
 - Unattended jobs (restore recovery, backup scheduler, nightly integrity check) report failures through `reportBackgroundFailure`: always a redacted JSON log line, plus a Super Admin notification at most hourly per job. Heartbeat and post-restore audit failures are logged only.
+
+## 2026-11-15: University-wide permissions are Super Admin only
+
+- Owner decision: custom roles stay, but only with permissions that respect college/department scope. Rejected: keeping every permission grantable behind MFA, or scoping only the audit log.
+- `SUPER_ADMIN_ONLY_PERMISSIONS` (`packages/contracts/src/permission-scope.ts`): `users.*`, `roles.*`, `permissions.read`, `departments.write|delete`, `programs.write|delete`, `integrations.*`, `audit.read`.
+- Enforced once, where permissions are resolved at sign-in (`loadAuthUser` via `effectivePermissions`), so every route follows it; stored grants on older roles give nothing and need no migration. Roles cannot be saved with them (400, plain message). Settings › Roles shows them as "Super Admin only" and drops them on save.
+- Heads keep their scoped powers (faculty, assignments, scoped audit) through the Faculty record, which never used these permissions.

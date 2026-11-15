@@ -12,7 +12,12 @@ import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/lib/api";
 import { useConfirm } from "@/components/feedback/confirm-provider";
-import { PermissionControls, AddRoleDialog, duplicateRoleName } from "./role-dialogs";
+import {
+  PermissionControls,
+  AddRoleDialog,
+  duplicateRoleName,
+  grantablePermissionIds,
+} from "./role-dialogs";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 const version = (role: { updatedAt: Date }) => new Date(role.updatedAt).toISOString();
@@ -186,7 +191,7 @@ function RoleEditor({
         expectedUpdatedAt: baseline.version,
         name: name !== baseline.name ? name : undefined,
         description: description !== baseline.description ? description : undefined,
-        permissionIds: ids,
+        permissionIds: grantablePermissionIds(ids, permissions),
       }),
     onSuccess: async (saved) => {
       const savedIds = saved.rolePermissions.map((item) => item.permissionId);
