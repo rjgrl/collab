@@ -30,6 +30,7 @@ import { useConfirm } from "@/components/feedback/confirm-provider";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/lib/api";
 import { StatusBadge } from "@/components/data/status-badge";
+import { formatUiLabel } from "@/lib/ui-label";
 
 type Integration = Awaited<ReturnType<typeof client.integrations.list>>[number];
 type DialogState = { key: IntegrationKey; mode: "enable" | "update" };
@@ -100,13 +101,13 @@ export function IntegrationsPage() {
   });
 
   async function confirmDisable(item: Integration) {
-    const name = INTEGRATION_NAMES[item.key];
+    const name = formatUiLabel(INTEGRATION_NAMES[item.key]);
     if (
       await confirm({
         title: `Disable ${name}?`,
         description:
           "Disabling erases the saved credentials. Some providers only show a secret once; make sure you can generate a new one.",
-        confirmLabel: "Disable and erase",
+        confirmLabel: "Disable and Erase",
         destructive: true,
       })
     )
@@ -116,9 +117,9 @@ export function IntegrationsPage() {
   async function confirmRegenerate() {
     if (
       await confirm({
-        title: "Regenerate the Google Forms webhook secret?",
+        title: "Regenerate the Google Forms Webhook Secret?",
         description: "The Apps Script stops working until you paste the new secret.",
-        confirmLabel: "Regenerate secret",
+        confirmLabel: "Regenerate Secret",
         destructive: true,
       })
     )
@@ -141,7 +142,7 @@ export function IntegrationsPage() {
           </ErrorAlert>
         ) : null}
         {list.data?.map((item) => {
-          const name = INTEGRATION_NAMES[item.key];
+          const name = formatUiLabel(INTEGRATION_NAMES[item.key]);
           const warning = CREDENTIAL_WARNINGS[item.credentialStatus];
           return (
             <Card key={item.key}>
@@ -159,7 +160,7 @@ export function IntegrationsPage() {
                   <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_minmax(0,1fr)]">
                     {item.fields.map((field) => (
                       <div key={field.name} className="contents">
-                        <dt className="text-muted-foreground">{field.label}:</dt>
+                        <dt className="text-muted-foreground">{formatUiLabel(field.label)}:</dt>
                         <dd className="break-all">
                           {field.secret ? secretLabel(field) : (field.value ?? "Not set")}
                         </dd>
@@ -189,14 +190,14 @@ export function IntegrationsPage() {
                             pendingLabel="Regenerating"
                             onClick={() => void confirmRegenerate()}
                           >
-                            Regenerate {name} secret
+                            Regenerate {name} Secret
                           </PrimaryButton>
                         ) : (
                           <PrimaryButton
                             variant="outline"
                             onClick={() => setDialog({ key: item.key, mode: "update" })}
                           >
-                            Update {name} credentials
+                            Update {name} Credentials
                           </PrimaryButton>
                         )}
                         <PrimaryButton
@@ -237,7 +238,7 @@ export function IntegrationsPage() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle>CSV import</CardTitle>
+              <CardTitle>CSV Import</CardTitle>
               <CardDescription>
                 Gender is required: Male or Female. Facebook links, when supplied, must be full
                 Facebook profile URLs.
@@ -249,7 +250,7 @@ export function IntegrationsPage() {
                 rows={8}
                 value={csv}
                 onChange={(event) => setCsv(event.target.value)}
-                aria-label="CSV import"
+                aria-label="CSV Import"
               />
               <PrimaryButton
                 onClick={() => importCsv.mutate()}
@@ -262,7 +263,7 @@ export function IntegrationsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Google Sheets import</CardTitle>
+              <CardTitle>Google Sheets Import</CardTitle>
             </CardHeader>
             <CardContent>
               <PrimaryButton
@@ -276,7 +277,7 @@ export function IntegrationsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Test email</CardTitle>
+              <CardTitle>Test Email</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 sm:flex-row">
               <FormField id="testEmail" label="Recipient">
@@ -294,7 +295,7 @@ export function IntegrationsPage() {
                   pending={sendTest.isPending}
                   pendingLabel="Sending"
                 >
-                  Send test
+                  Send Test
                 </PrimaryButton>
               </div>
             </CardContent>
@@ -317,7 +318,7 @@ function CredentialsDialog({
   onClose: () => void;
   onSecret: (secret: string) => void;
 }) {
-  const name = INTEGRATION_NAMES[item.key];
+  const name = formatUiLabel(INTEGRATION_NAMES[item.key]);
   const fields = INTEGRATION_CREDENTIAL_FIELDS[item.key];
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -371,12 +372,12 @@ function CredentialsDialog({
     },
   });
   const forms = item.key === "google_forms";
-  const title = mode === "enable" ? `Enable ${name}` : `Update ${name} credentials`;
+  const title = mode === "enable" ? `Enable ${name}` : `Update ${name} Credentials`;
   const submitLabel = forms
-    ? "Generate secret and enable"
+    ? "Generate Secret and Enable"
     : mode === "enable"
-      ? "Test and enable"
-      : "Test and save";
+      ? "Test and Enable"
+      : "Test and Save";
   return (
     <FormDialog
       open
@@ -426,7 +427,7 @@ function CredentialsDialog({
             <FormField
               key={field.name}
               id={id}
-              label={field.label}
+              label={formatUiLabel(field.label)}
               required={fieldRequired(field, values) && !savedSecret(field)}
             >
               {field.kind === "choice" ? (
@@ -493,7 +494,7 @@ function SecretReveal({ secret, onClose }: { secret: string; onClose: () => void
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title="Google Forms webhook secret"
+      title="Google Forms Webhook Secret"
       description="Copy it now. It will not be shown again."
       footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}
     >
@@ -511,7 +512,7 @@ function SecretReveal({ secret, onClose }: { secret: string; onClose: () => void
               .catch(() => toast.error("Copy failed. Select the secret and copy it manually."))
           }
         >
-          Copy secret
+          Copy Secret
         </PrimaryButton>
         <p className="text-muted-foreground">
           Paste it into the Apps Script as <span className="font-mono">WEBHOOK_SECRET</span>.

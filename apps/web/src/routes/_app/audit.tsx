@@ -33,7 +33,7 @@ function AuditPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Audit log" description={description} />
+      <PageHeader title="Audit Log" description={description} />
       {logs.isError ? <ErrorAlert>{logs.error.message}</ErrorAlert> : null}
       <DataTable
         headers={["When", "User", "Role", "Action", "Summary"]}
@@ -45,7 +45,7 @@ function AuditPage() {
         searchPlaceholder="Search audit log"
         loading={logs.isPending}
         isEmpty={logs.data?.length === 0}
-        emptyTitle="No audit events found"
+        emptyTitle="No Audit Events Found"
         emptyDescription="Actions such as sign-in, alumni updates, and imports appear here."
       >
         {logs.data?.map((row) => (
@@ -114,7 +114,7 @@ function AuditPage() {
           onOpenChange={(open) => {
             if (!open) setSelected(null);
           }}
-          title="Audit event details"
+          title="Audit Event Details"
           description="The recorded details for this individual event."
         >
           <dl className="grid gap-4 text-sm sm:grid-cols-2">
@@ -159,7 +159,7 @@ function AuditPage() {
             tabIndex={0}
           >
             <h2 id="audit-summary-heading" className="text-sm font-semibold">
-              Full summary
+              Full Summary
             </h2>
             <p className="mt-3 whitespace-pre-wrap break-all text-sm leading-6">
               {selected.displaySummary || "No summary was recorded for this event."}

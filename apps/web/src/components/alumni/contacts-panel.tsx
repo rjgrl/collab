@@ -123,14 +123,14 @@ export function ContactsPanel({
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>Contacts</CardTitle>
         {canWrite ? (
-          <PrimaryButton onClick={() => setDialog("choose")}>Add contact</PrimaryButton>
+          <PrimaryButton onClick={() => setDialog("choose")}>Add Contact</PrimaryButton>
         ) : null}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {signupRows.length ? (
-          <section aria-label="Sign-up contacts">
+          <section aria-label="Sign-Up Contacts">
             <h3 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              From sign-up
+              From Sign-Up
             </h3>
             <dl className="divide-y text-sm">
               {signupRows.map(([label, value]) => (
@@ -157,7 +157,7 @@ export function ContactsPanel({
         ) : null}
         {signupRows.length && contacts.length ? (
           <h3 className="-mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Added contacts
+            Added Contacts
           </h3>
         ) : null}
         {contacts.length === 0 ? (
@@ -203,7 +203,7 @@ export function ContactsPanel({
                         disabled={makePrimary.isPending}
                         onClick={() => makePrimary.mutate(contact)}
                       >
-                        Make primary
+                        Make Primary
                       </QuietButton>
                     )}
                     <QuietButton
@@ -241,17 +241,17 @@ export function ContactsPanel({
           onOpenChange={(open) => {
             if (!open) setDialog(null);
           }}
-          title="Add contact"
+          title="Add Contact"
           footer={
             <QuietButton type="button" onClick={() => setDialog(null)}>
               Cancel
             </QuietButton>
           }
         >
-          <div className="grid gap-2 sm:grid-cols-3" role="group" aria-label="Contact kind">
-            <QuietButton onClick={() => start("phone")}>Phone number</QuietButton>
+          <div className="grid gap-2 sm:grid-cols-3" role="group" aria-label="Contact Kind">
+            <QuietButton onClick={() => start("phone")}>Phone Number</QuietButton>
             <QuietButton onClick={() => start("email")}>Email</QuietButton>
-            <QuietButton onClick={() => start("social")}>Social media</QuietButton>
+            <QuietButton onClick={() => start("social")}>Social Media</QuietButton>
           </div>
         </FormDialog>
       ) : dialog ? (
@@ -265,10 +265,10 @@ export function ContactsPanel({
             dialog.id
               ? `Edit ${TYPE_LABELS[dialog.type]} contact`
               : dialog.kind === "phone"
-                ? "Add phone number"
+                ? "Add Phone Number"
                 : dialog.kind === "email"
-                  ? "Add email"
-                  : "Add social media"
+                  ? "Add Email"
+                  : "Add Social Media"
           }
           footer={
             <div className="flex flex-wrap gap-2">
@@ -311,12 +311,12 @@ export function ContactsPanel({
               id="contact-value"
               label={
                 dialog.kind === "phone"
-                  ? "Phone number"
+                  ? "Phone Number"
                   : dialog.kind === "email"
-                    ? "Email address"
+                    ? "Email Address"
                     : dialog.type === "other_social"
-                      ? "Profile link"
-                      : "Profile link or handle"
+                      ? "Profile Link"
+                      : "Profile Link or Handle"
               }
               required
             >
@@ -342,7 +342,7 @@ export function ContactsPanel({
             <FormField id="contact-label" label="Label">
               <Input
                 id="contact-label"
-                placeholder="Work, personal…"
+                placeholder="Work, Personal…"
                 maxLength={60}
                 value={dialog.label}
                 onChange={(event) => setDialog({ ...dialog, label: event.target.value })}

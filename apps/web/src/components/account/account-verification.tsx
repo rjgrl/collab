@@ -130,7 +130,7 @@ export function AccountVerification() {
   return (
     <AuthLayout wide>
       <AuthHeader
-        title="Complete and verify your account"
+        title="Complete and Verify Your Account"
         description={
           <span className="break-words">
             Finish these required steps before using the system. {data?.email}
@@ -173,14 +173,14 @@ export function AccountVerification() {
               type="submit"
               pending={save.isPending}
             >
-              Save contact details
+              Save Contact Details
             </PrimaryButton>
           </form>
         ) : data ? (
           <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="break-words">Phone: {data.phoneNumber}</span>
             <Button variant="outline" onClick={() => setEditing(true)}>
-              Change phone/details
+              Change Phone/Details
             </Button>
           </div>
         ) : null}
@@ -190,7 +190,7 @@ export function AccountVerification() {
             aria-labelledby="create-password-title"
           >
             <h2 id="create-password-title" className="text-base font-semibold">
-              Create your password (required)
+              Create Your Password (Required)
             </h2>
             {data.googleFresh ? (
               <form
@@ -200,7 +200,7 @@ export function AccountVerification() {
                   createPassword.mutate();
                 }}
               >
-                <FormField id="setup-password" label="New password" required>
+                <FormField id="setup-password" label="New Password" required>
                   <Input
                     id="setup-password"
                     type="password"
@@ -216,7 +216,7 @@ export function AccountVerification() {
                     }}
                   />
                 </FormField>
-                <FormField id="setup-confirmation" label="Confirm password" required>
+                <FormField id="setup-confirmation" label="Confirm Password" required>
                   <Input
                     id="setup-confirmation"
                     type="password"
@@ -238,7 +238,7 @@ export function AccountVerification() {
                   pending={createPassword.isPending}
                   disabled={!passwordMeetsPolicy(password) || password !== confirmation}
                 >
-                  Create password
+                  Create Password
                 </PrimaryButton>
               </form>
             ) : (
@@ -248,7 +248,7 @@ export function AccountVerification() {
               </p>
             )}
             <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
-              Verify with Google again
+              Verify with Google Again
             </Button>
           </section>
         ) : null}
@@ -265,7 +265,7 @@ export function AccountVerification() {
                   aria-labelledby={`verify-${kind}-title`}
                 >
                   <h2 id={`verify-${kind}-title`} className="text-base font-semibold">
-                    Verify your {kind === "email" ? "email" : "phone number"}
+                    Verify Your {kind === "email" ? "Email" : "Phone Number"}
                   </h2>
                   <p className="break-words text-sm text-muted-foreground">
                     {kind === "email" ? data.email : data.phoneNumber}. Codes expire in 10 minutes.
@@ -289,7 +289,7 @@ export function AccountVerification() {
                     {waiting
                       ? `Resend in ${waiting}s`
                       : sent[kind]
-                        ? "Resend code"
+                        ? "Resend Code"
                         : `Send ${kind === "email" ? "email" : "SMS"} code`}
                   </Button>
                   <form
@@ -317,7 +317,7 @@ export function AccountVerification() {
                       />
                     </FormField>
                     <PrimaryButton type="submit" pending={verify.isPending} disabled={!available}>
-                      Confirm {kind === "email" ? "email" : "phone"}
+                      Confirm {kind === "email" ? "Email" : "Phone"}
                     </PrimaryButton>
                   </form>
                 </section>
@@ -328,7 +328,7 @@ export function AccountVerification() {
           <ErrorAlert key={index}>{error.message}</ErrorAlert>
         ))}
         <Button variant="outline" disabled={logout.isPending} onClick={() => logout.mutate()}>
-          Sign out
+          Sign Out
         </Button>
       </div>
     </AuthLayout>

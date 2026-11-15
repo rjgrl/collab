@@ -13,11 +13,11 @@ export function ChangeHistoryTable({ alumniId }: { alumniId: string }) {
         <ErrorAlert onRetry={() => void history.refetch()}>{history.error.message}</ErrorAlert>
       ) : null}
       <DataTable
-        label="Change history"
-        headers={["Date", "Changed by", "Action", "Details"]}
+        label="Change History"
+        headers={["Date", "Changed By", "Action", "Details"]}
         loading={history.isPending}
         isEmpty={!history.isError && paged.total === 0}
-        emptyTitle="No recorded changes"
+        emptyTitle="No Recorded Changes"
         emptyDescription="Edits to this alumni record will appear here."
       >
         {paged.rows.map((entry) => (
@@ -46,7 +46,7 @@ export function ChangeHistoryTable({ alumniId }: { alumniId: string }) {
         ))}
       </DataTable>
       <PageControls
-        label="Change history pages"
+        label="Change History Pages"
         page={paged.page}
         pageSize={paged.pageSize}
         total={paged.total}

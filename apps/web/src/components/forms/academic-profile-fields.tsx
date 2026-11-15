@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { api } from "@/lib/api";
 import { collectOptionPages } from "@/lib/pagination";
-import { FormField, NumberedLegend } from "@/components/forms/form-layout";
+import { FormField } from "@/components/forms/form-layout";
 import { FormSelect } from "@/components/forms/form-select";
 
 export const emptyAcademic = { studentNumber: "", programId: "", graduationYear: "" };
@@ -14,7 +14,7 @@ export function AcademicProfileFields({
   value: typeof emptyAcademic;
   onChange: (value: typeof emptyAcademic) => void;
   /**
-   * Sign-up layout: numbered "Your studies" group (step 2), program on its own row, no
+   * Sign-up layout: "Your studies" group, program on its own row, no
    * explanatory note (the review rule is explained after registration).
    */
   compact?: boolean;
@@ -30,18 +30,17 @@ export function AcademicProfileFields({
   });
   const program = (
     <div className={compact ? "sm:col-span-2" : undefined}>
-      <FormField id="registration-program" label="Degree program" required>
+      <FormField id="registration-program" label="Degree Program" required>
         <FormSelect
           id="registration-program"
           value={value.programId}
           disabled={programs.isPending || programs.isError}
           required
           onValueChange={(selected) => onChange({ ...value, programId: selected })}
-
           items={[
             {
               value: "",
-              label: programs.isPending ? "Loading programs…" : "Select degree program",
+              label: programs.isPending ? "Loading programs…" : "Select Degree Program",
             },
             ...(programs.data?.map((p) => ({
               value: p.id,
@@ -57,12 +56,12 @@ export function AcademicProfileFields({
       className={compact ? "grid content-start gap-3 sm:grid-cols-2" : "grid gap-4 sm:col-span-2"}
     >
       {compact ? (
-        <NumberedLegend step={2}>Your studies</NumberedLegend>
+        <legend className="mb-3 text-sm font-semibold">Your Studies</legend>
       ) : (
-        <legend className="mb-3 text-sm font-medium">Academic information</legend>
+        <legend className="mb-3 text-sm font-medium">Academic Information</legend>
       )}
       {compact ? program : null}
-      <FormField id="registration-student" label="Student number" required>
+      <FormField id="registration-student" label="Student Number" required>
         <Input
           id="registration-student"
           value={value.studentNumber}
@@ -72,7 +71,7 @@ export function AcademicProfileFields({
         />
       </FormField>
       {compact ? null : program}
-      <FormField id="registration-year" label="Graduation year" required>
+      <FormField id="registration-year" label="Graduation Year" required>
         <Input
           id="registration-year"
           type="number"

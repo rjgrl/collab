@@ -28,11 +28,11 @@ export function TrackingTable({
         <ErrorAlert onRetry={() => void events.refetch()}>{events.error.message}</ErrorAlert>
       ) : null}
       <DataTable
-        label="Tracking history"
+        label="Tracking History"
         headers={["Date", "Status", "Tracker", "Source", "Notes"]}
         loading={events.isPending}
         isEmpty={!events.isError && total === 0}
-        emptyTitle="No tracking events yet"
+        emptyTitle="No Tracking Events Yet"
         emptyDescription="Mark this alumnus tracked or untracked to start the history."
       >
         {events.data?.items.map((event) => (
@@ -58,7 +58,7 @@ export function TrackingTable({
         ))}
       </DataTable>
       <PageControls
-        label="Tracking history pages"
+        label="Tracking History Pages"
         page={page}
         pageSize={pageSize}
         total={total}

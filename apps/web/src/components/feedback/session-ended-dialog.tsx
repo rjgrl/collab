@@ -24,7 +24,7 @@ export function SessionEndedDialog() {
     <NoticeDialog
       open={open}
       icon={Clock}
-      title="Your session has ended"
+      title="Your Session Has Ended"
       description="For your security, you were signed out. Sign in again to continue where you left off."
       actionLabel="Okay"
       onAction={() => void signInAgain()}

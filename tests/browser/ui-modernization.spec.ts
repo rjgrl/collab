@@ -64,7 +64,7 @@ test("workspace remains accessible across screen sizes and themes", async ({
       await page.evaluate((value) => localStorage.setItem("vite-ui-theme", value), theme);
       await page.reload();
       await inspect(`login-${theme}-${width}`);
-      await page.getByRole("button", { name: "Need an account? Sign up", exact: true }).click();
+      await page.getByRole("button", { name: "Need an account? Sign Up", exact: true }).click();
       await inspect(`signup-${theme}-${width}`);
       await page.goto("/reset-password");
       await inspect(`reset-password-${theme}-${width}`);
@@ -73,7 +73,7 @@ test("workspace remains accessible across screen sizes and themes", async ({
   await page.goto("/login");
   await page.locator("#email").fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await enrollAdministrator(page);
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
@@ -87,7 +87,7 @@ test("workspace remains accessible across screen sizes and themes", async ({
           expect(
             await cell.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft)),
           ).toBeGreaterThan(0);
-          await page.getByRole("button", { name: "Add department", exact: true }).click();
+          await page.getByRole("button", { name: "Add Department", exact: true }).click();
           const dialog = page.getByRole("dialog");
           await expect(dialog).toBeVisible();
           await inspect(`department-dialog-${theme}-${width}`);
@@ -100,7 +100,7 @@ test("workspace remains accessible across screen sizes and themes", async ({
   await page.goto("/dashboard");
   await page.waitForLoadState("networkidle");
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
+  await expect(page.getByRole("link", { name: "Skip to Main Content" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
   await page.getByTestId("notifications-bell").click();
@@ -118,7 +118,7 @@ test("workspace remains accessible across screen sizes and themes", async ({
       expect(target.width).toBeGreaterThanOrEqual(44);
       expect(target.height).toBeGreaterThanOrEqual(44);
     }
-    await page.getByRole("button", { name: "Open menu" }).click();
+    await page.getByRole("button", { name: "Open Menu" }).click();
     await expect(page.getByRole("menuitem", { name: "Departments", exact: true })).toBeVisible();
     // Axe blends colors through a half-faded menu; measure contrast only after the open animation.
     await page.evaluate(() =>
@@ -147,7 +147,7 @@ test("workspace remains accessible across screen sizes and themes", async ({
   await page.goto("/login");
   await page.locator("#email").fill("alumni@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL("**/my-profile");
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
@@ -177,7 +177,7 @@ test("account completion stays usable across sizes and themes", async ({ page, r
   await page.goto("/login");
   await page.locator("#email").fill("alumni@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL("**/complete-profile");
   for (const width of info.project.name === "mobile" ? [375] : [768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -186,7 +186,7 @@ test("account completion stays usable across sizes and themes", async ({ page, r
       await page.reload();
       await page.waitForLoadState("networkidle");
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-        "Complete and verify your account",
+        "Complete and Verify Your Account",
       );
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,

@@ -8,7 +8,7 @@ const TONES = {
   live: { variant: "default" as const, label: "Live" },
   fallback: { variant: "secondary" as const, label: "Fallback" },
   verified: { variant: "secondary" as const, label: "Verified" },
-  unverified: { variant: "outline" as const, label: "Not verified" },
+  unverified: { variant: "outline" as const, label: "Not Verified" },
 } as const;
 
 export function StatusBadge({ tone, children }: { tone: keyof typeof TONES; children?: string }) {

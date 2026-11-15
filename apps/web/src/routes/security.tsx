@@ -40,7 +40,7 @@ function SecurityPage() {
   return (
     <AuthLayout>
       <AuthHeader
-        title="Authenticator security"
+        title="Authenticator Security"
         description="Manage your authenticator. Keep recovery codes somewhere private, outside this browser."
       />
       <div className="flex flex-col gap-4">
@@ -52,7 +52,7 @@ function SecurityPage() {
               className="font-medium text-primary underline-offset-4 hover:underline"
               to="/dashboard"
             >
-              Continue to application
+              Continue to Application
             </Link>
           </p>
         ) : null}
@@ -101,7 +101,7 @@ function SecurityPage() {
                 })
               }
             >
-              Continue to application
+              Continue to Application
             </PrimaryButton>
           </div>
         ) : setup ? (
@@ -124,7 +124,7 @@ function SecurityPage() {
             </p>
             <p
               className="break-all rounded-lg border bg-muted/50 p-4 font-mono text-sm"
-              aria-label="Authenticator setup key"
+              aria-label="Authenticator Setup Key"
             >
               {setup.secret}
             </p>
@@ -132,9 +132,9 @@ function SecurityPage() {
               className="block text-sm font-medium text-primary underline-offset-4 hover:underline"
               href={setup.uri}
             >
-              Open in an authenticator app on this device
+              Open in an Authenticator App on This Device
             </a>
-            <FormField id="mfa-code" label="Authenticator code" required>
+            <FormField id="mfa-code" label="Authenticator Code" required>
               <Input
                 id="mfa-code"
                 inputMode="numeric"
@@ -146,7 +146,7 @@ function SecurityPage() {
               />
             </FormField>
             <PrimaryButton className="w-full" type="submit" pending={pending}>
-              Confirm authenticator
+              Confirm Authenticator
             </PrimaryButton>
           </form>
         ) : status.data?.enrolled && (!status.data.verified || !status.data.fresh) ? (
@@ -162,7 +162,7 @@ function SecurityPage() {
               });
             }}
           >
-            <FormField id="mfa-code" label="Authenticator or recovery code" required>
+            <FormField id="mfa-code" label="Authenticator or Recovery Code" required>
               <Input
                 id="mfa-code"
                 autoComplete="one-time-code"
@@ -177,7 +177,7 @@ function SecurityPage() {
               lost, contact your administrator for the documented offline recovery procedure.
             </p>
             <PrimaryButton className="w-full" type="submit" pending={pending}>
-              Verify authenticator
+              Verify Authenticator
             </PrimaryButton>
           </form>
         ) : (
@@ -197,7 +197,7 @@ function SecurityPage() {
                 sessions and issue new recovery codes.
               </p>
             ) : null}
-            <FormField id="mfa-password" label="Current password" required>
+            <FormField id="mfa-password" label="Current Password" required>
               <Input
                 id="mfa-password"
                 type="password"
@@ -208,14 +208,14 @@ function SecurityPage() {
               />
             </FormField>
             <PrimaryButton className="w-full" type="submit" pending={pending}>
-              {status.data?.enrolled ? "Replace authenticator" : "Set up authenticator"}
+              {status.data?.enrolled ? "Replace Authenticator" : "Set Up Authenticator"}
             </PrimaryButton>
             {status.data?.verified || !status.data?.required ? (
               <Link
                 className="block text-sm font-medium text-primary underline-offset-4 hover:underline"
                 to="/dashboard"
               >
-                Back to application
+                Back to Application
               </Link>
             ) : null}
           </form>
@@ -231,7 +231,7 @@ function SecurityPage() {
             })
           }
         >
-          Sign out
+          Sign Out
         </Button>
       </div>
     </AuthLayout>

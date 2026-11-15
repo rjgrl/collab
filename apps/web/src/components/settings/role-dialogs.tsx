@@ -16,6 +16,7 @@ import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
 import { client, queryClient } from "@/lib/api";
+import { formatUiLabel } from "@/lib/ui-label";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 
@@ -51,8 +52,8 @@ export function PermissionControls({
   return (
     <div className="flex flex-col gap-3">
       <Input
-        aria-label="Search permissions"
-        placeholder="Find a permission..."
+        aria-label="Search Permissions"
+        placeholder="Find a Permission..."
         value={search}
         onChange={(event) => setSearch(event.target.value)}
       />
@@ -68,7 +69,7 @@ export function PermissionControls({
           const state = groupState(applicable, ids);
           return (
             <fieldset key={group.key} className="rounded-xl border p-4">
-              <legend className="px-1 text-sm font-medium">{group.label}</legend>
+              <legend className="px-1 text-sm font-medium">{formatUiLabel(group.label)}</legend>
               <label className="mb-3 flex min-h-10 items-center gap-3 border-b pb-3 text-sm">
                 <Switch
                   checked={state.checked}
@@ -80,7 +81,7 @@ export function PermissionControls({
                   }
                 />
                 <span>
-                  All applicable permissions{" "}
+                  All Applicable Permissions{" "}
                   <span id={`permission-group-${group.key}`} className="text-muted-foreground">
                     ({state.count}/{applicable.length})
                     {state.indeterminate ? " | Partially enabled" : ""}
@@ -99,7 +100,7 @@ export function PermissionControls({
                       }
                     />
                     <span>
-                      <span className="font-medium">{permission.name}</span>
+                      <span className="font-medium">{formatUiLabel(permission.name)}</span>
                       <span className="block text-muted-foreground">{permission.description}</span>
                       {isSuperAdminOnlyPermission(permission.key) ? (
                         <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
@@ -171,11 +172,11 @@ export function AddRoleDialog({
       open
       onOpenChange={onClose}
       pending={create.isPending}
-      title="Add role"
+      title="Add Role"
       description="All permissions start off. Enable only the access this role needs."
       footer={
         <PrimaryButton form="create-role" type="submit" pending={create.isPending}>
-          Create role
+          Create Role
         </PrimaryButton>
       }
     >

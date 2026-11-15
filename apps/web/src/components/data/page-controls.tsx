@@ -63,7 +63,7 @@ export function PageControls({
         </p>
         <div className="flex items-center gap-2">
           <span id={`${id}-rows`} className="text-muted-foreground">
-            Rows per page
+            Rows per Page
           </span>
           <FormSelect
             aria-labelledby={`${id}-rows`}
@@ -82,7 +82,7 @@ export function PageControls({
             disabled={page <= 1 || pending}
             onClick={() => onPage(page - 1)}
           >
-            Previous page
+            Previous Page
           </Button>
           {pageWindow(page, pages).map((n, index) =>
             n === null ? (
@@ -109,7 +109,7 @@ export function PageControls({
             disabled={page >= pages || pending}
             onClick={() => onPage(page + 1)}
           >
-            Next page
+            Next Page
           </Button>
         </nav>
       ) : null}

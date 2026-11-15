@@ -89,7 +89,7 @@ export function UsersPage() {
                 setOpen(true);
               }}
             >
-              Add user
+              Add User
             </PrimaryButton>
           ) : null
         }
@@ -110,11 +110,11 @@ export function UsersPage() {
                 }
                 pendingLabel="Creating"
               >
-                Create user
+                Create User
               </PrimaryButton>
             </>
           }
-          title="Add user"
+          title="Add User"
           description="Create super admin accounts. Add faculty and heads from the faculty page; alumni register themselves."
         >
           <form
@@ -188,7 +188,7 @@ export function UsersPage() {
         searchPlaceholder="Search users"
         loading={users.isPending}
         isEmpty={users.data?.length === 0}
-        emptyTitle="No users found"
+        emptyTitle="No Users Found"
         emptyDescription="Create a user and assign at least one role."
       >
         {users.data?.map((user) => (
@@ -213,10 +213,10 @@ export function UsersPage() {
                   ) : null}
                   {canWrite ? (
                     <QuietButton
-                      aria-label={`Edit role for ${user.name}`}
+                      aria-label={`Edit Role for ${user.name}`}
                       onClick={() => setEditingUserId(user.id)}
                     >
-                      Edit role
+                      Edit Role
                     </QuietButton>
                   ) : null}
                   {can(session.data?.permissions, "users.delete") ? (

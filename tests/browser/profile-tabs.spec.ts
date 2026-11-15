@@ -9,19 +9,19 @@ async function signIn(page: Page, email: string, landing: string) {
   await page.goto("/login");
   await page.locator("#email").fill(email);
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL(`**/${landing}`);
 }
 
-const tabs = (page: Page) => page.getByRole("navigation", { name: "Profile sections" });
+const tabs = (page: Page) => page.getByRole("navigation", { name: "Profile Sections" });
 const openTab = (page: Page) => tabs(page).locator('[aria-current="page"]');
 const studentDetails = (page: Page) =>
-  page.getByRole("heading", { name: "Student details", exact: true });
+  page.getByRole("heading", { name: "Student Details", exact: true });
 const addEmployment = (page: Page) =>
-  page.getByRole("button", { name: "Add employment", exact: true });
+  page.getByRole("button", { name: "Add Employment", exact: true });
 const evidence = (page: Page) =>
-  page.getByRole("heading", { name: "Supporting evidence", exact: true });
-const trackingNotes = (page: Page) => page.getByRole("textbox", { name: "Tracking notes" });
+  page.getByRole("heading", { name: "Supporting Evidence", exact: true });
+const trackingNotes = (page: Page) => page.getByRole("textbox", { name: "Tracking Notes" });
 
 async function expectAccessibleAndFitting(page: Page) {
   await page.waitForLoadState("networkidle");
@@ -50,7 +50,7 @@ test("staff reach each alumni profile section from tabs under the tracked status
     "Details",
     "Employment",
     "Tracking",
-    "Change history",
+    "Change History",
   ]);
   await expect(openTab(page)).toHaveText("Details");
   expect(new URL(page.url()).search).toBe("");
@@ -86,17 +86,17 @@ test("staff reach each alumni profile section from tabs under the tracked status
   await openProfileTab(page, "Tracking");
   await expect(page).toHaveURL(/\?tab=tracking$/);
   // With no events yet, the table's message fits without sideways scrolling, even on phones.
-  const trackingTable = page.getByRole("region", { name: "Tracking history" });
-  await expect(trackingTable).toContainText("No tracking events yet");
+  const trackingTable = page.getByRole("region", { name: "Tracking History" });
+  await expect(trackingTable).toContainText("No Tracking Events Yet");
   expect(await trackingTable.evaluate((table) => table.scrollWidth <= table.clientWidth)).toBe(
     true,
   );
   await trackingNotes(page).fill("Unsaved follow-up");
   await expect(addEmployment(page)).toHaveCount(0);
 
-  await openProfileTab(page, "Change history");
+  await openProfileTab(page, "Change History");
   await expect(page).toHaveURL(/\?tab=history$/);
-  await expect(page.getByRole("region", { name: "Change history" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Change History" })).toBeVisible();
   await expect(trackingNotes(page)).toHaveCount(0);
 
   // Notes typed but not saved are still there after visiting another tab.
@@ -107,7 +107,7 @@ test("staff reach each alumni profile section from tabs under the tracked status
   await page.reload();
   await expect(openTab(page)).toHaveText("Tracking");
   await page.goBack();
-  await expect(openTab(page)).toHaveText("Change history");
+  await expect(openTab(page)).toHaveText("Change History");
 
   // Keyboard: Enter opens the focused tab and Tab moves on to the next one.
   await tabs(page).getByRole("link", { name: "Details", exact: true }).focus();
@@ -150,7 +150,7 @@ test("faculty trackers get no Change history tab, even from the address", async 
   await expect(openTab(page)).toHaveText("Details");
   await expect(page).toHaveURL(/\/alumni\/000000000000000000000201$/);
   await expect(studentDetails(page)).toBeVisible();
-  await expect(page.getByRole("region", { name: "Change history" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Change History" })).toHaveCount(0);
 });
 
 test("Alumni switch between Employment and Evidence on My profile", async ({

@@ -66,7 +66,7 @@ function CollegesPage() {
         actions={
           canWrite ? (
             <PrimaryButton onClick={() => setDraft({ name: "", description: "" })}>
-              Add college
+              Add College
             </PrimaryButton>
           ) : null
         }
@@ -88,7 +88,7 @@ function CollegesPage() {
               </QuietButton>
             </div>
           }
-          title={draft.id ? "Edit college" : "Add college"}
+          title={draft.id ? "Edit College" : "Add College"}
         >
           <form
             id="college-form"
@@ -129,7 +129,7 @@ function CollegesPage() {
         searchPlaceholder="Search colleges"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
-        emptyTitle="No colleges found"
+        emptyTitle="No Colleges Found"
         emptyDescription="Add a college to start adding departments."
       >
         {list.data?.map((row) => (

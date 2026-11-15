@@ -34,12 +34,12 @@ function DashboardPage() {
           <>
             {can(session.data?.permissions, "alumni.read") ? (
               <QuietButton nativeButton={false} render={<Link to="/alumni" />}>
-                View alumni
+                View Alumni
               </QuietButton>
             ) : null}
             {can(session.data?.permissions, "reports.read") ? (
               <QuietButton nativeButton={false} render={<Link to="/reports" />}>
-                View reports
+                View Reports
               </QuietButton>
             ) : null}
           </>
@@ -65,7 +65,7 @@ function DashboardPage() {
           icon={UserX}
         />
         <StatTile
-          label="% tracked"
+          label="% Tracked"
           value={data ? `${data.percentTracked.toFixed(2)}%` : undefined}
           loading={summary.isPending}
           icon={Percent}
@@ -83,15 +83,15 @@ function DashboardPage() {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle>By department</CardTitle>
+          <CardTitle>By Department</CardTitle>
           <CardDescription>Percentage uses tracked ÷ graduates.</CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
-            headers={["Department", "Graduates", "Tracked", "% tracked"]}
+            headers={["Department", "Graduates", "Tracked", "% Tracked"]}
             loading={summary.isPending}
             isEmpty={data?.byDepartment.length === 0}
-            emptyTitle="No departments found"
+            emptyTitle="No Departments Found"
             emptyDescription="Add a department to see graduate tracking by group."
           >
             {data?.byDepartment.map((row) => (

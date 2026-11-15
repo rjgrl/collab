@@ -38,7 +38,7 @@ export function RolesPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Roles and permissions"
+        title="Roles and Permissions"
         description="Select a role to review and manage its permissions."
         actions={
           can(session.data?.permissions, "roles.write") ? (
@@ -48,7 +48,7 @@ export function RolesPage() {
                 setCreating(true);
               }}
             >
-              Add role
+              Add Role
             </PrimaryButton>
           ) : null
         }
@@ -87,8 +87,8 @@ export function RolesPage() {
               if (
                 !dirty ||
                 (await confirmAction({
-                  title: "Discard unsaved changes?",
-                  confirmLabel: "Discard changes",
+                  title: "Discard Unsaved Changes?",
+                  confirmLabel: "Discard Changes",
                   destructive: true,
                 }))
               ) {
@@ -134,8 +134,8 @@ export function RolesPage() {
             if (
               !dirty ||
               (await confirmAction({
-                title: "Discard unsaved changes?",
-                confirmLabel: "Discard changes",
+                title: "Discard Unsaved Changes?",
+                confirmLabel: "Discard Changes",
                 destructive: true,
               }))
             ) {
@@ -236,7 +236,7 @@ function RoleEditor({
               disabled={!dirty || stale}
               onClick={() => save.mutate()}
             >
-              Save changes
+              Save Changes
             </PrimaryButton>
           ) : null}
           <PrimaryButton
@@ -256,7 +256,7 @@ function RoleEditor({
               save.reset();
             }}
           >
-            {stale ? "Load latest permissions" : "Discard changes"}
+            {stale ? "Load Latest Permissions" : "Discard Changes"}
           </PrimaryButton>
         </div>
       }

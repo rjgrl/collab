@@ -23,7 +23,7 @@ function CountrySelect({
 }) {
   return (
     <FormSelect
-      aria-label="Country calling code"
+      aria-label="Country Calling Code"
       title={options.find((option) => option.value === value)?.label ?? "International"}
       className="h-auto w-24 shrink-0 self-stretch rounded-r-none border-0 border-r bg-transparent px-2 text-sm dark:bg-transparent"
       contentClassName="w-72 max-w-[calc(100vw-2rem)]"
@@ -46,6 +46,7 @@ export function PhoneInput({
   value,
   onChange,
   onBlur,
+  placeholder = "Enter Phone Number",
   ...props
 }: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "ref" | "onBlur"> & {
   value: string;
@@ -64,7 +65,7 @@ export function PhoneInput({
         className:
           "min-w-0 flex-1 rounded-l-none rounded-r-lg border-0 bg-transparent focus-visible:ring-0 focus-visible:outline-none! dark:bg-transparent",
       }}
-      placeholder="Enter phone number"
+      placeholder={placeholder}
       value={value || undefined}
       onChange={(number) => onChange(number ?? "")}
       onBlur={(event) => {

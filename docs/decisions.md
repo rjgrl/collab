@@ -223,3 +223,30 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - `SUPER_ADMIN_ONLY_PERMISSIONS` (`packages/contracts/src/permission-scope.ts`): `users.*`, `roles.*`, `permissions.read`, `departments.write|delete`, `programs.write|delete`, `integrations.*`, `audit.read`.
 - Enforced once, where permissions are resolved at sign-in (`loadAuthUser` via `effectivePermissions`), so every route follows it; stored grants on older roles give nothing and need no migration. Roles cannot be saved with them (400, plain message). Settings › Roles shows them as "Super Admin only" and drops them on save.
 - Heads keep their scoped powers (faculty, assignments, scoped audit) through the Faculty record, which never used these permissions.
+
+## 2026-11-14: Focused sign-up steps and consistent auth-page balance
+
+- Owner approved two steps instead of the previous single-page sign-up decision: Personal details (name and contact), then Studies & password. The one-page layout was cluttered and pushed actions off the laptop screen. Continue validates the first step without submitting; Back preserves entries; only Create account sends the existing registration payload.
+- Sign-in and sign-up share the same equal-width desktop panels and centered content. The owner explicitly rejected keeping the older wider sign-up panel because its dark empty space looked inconsistent with sign-in. Sign-up has a wider content measure within its half for paired fields, not a wider panel.
+- Required fields, institutional-email guidance, optional names/Facebook, password checks, configured Google entry and CAPTCHA are retained. Default steps fit 1366×768 without scrolling; small screens, zoom and expanded optional content may scroll naturally rather than clipping inputs or shrinking controls.
+
+## 2026-11-14: Formal capitalization on public authentication pages
+
+- Owner chose title case for the landing headline, page/group headings, field labels, placeholders and actions (for example “Sign In”, “Create Your Alumni Account” and “Phone Number”). Full sentences, explanatory text and validation/status messages stay in sentence case; university and product names retain proper capitalization.
+- Scope is the public landing/login/sign-up presentation, not a site-wide relabeling of shared account/settings forms. Capitalizing every word in paragraphs was rejected to preserve readability.
+
+## 2026-11-14: Extend formal labels and full branding across Super Admin
+
+- Owner explicitly expanded the capitalization scope to all Super Admin screens, including shared labels visible to other roles. Static interface headings, labels and actions use title case; explanations and status/instruction sentences remain sentence case. This supersedes the earlier restriction to public authentication pages.
+- The sidebar uses the complete landing-page product and institution names, wrapping rather than truncating the university subtitle. Its width, official seal and navigation behavior are retained.
+- System-defined permission/integration labels may be formatted at display time; user-defined role names, person names, academic records, stored values, permission keys and request payloads are never recased. The formatter is not a general text transform.
+
+## 2026-11-14: Password visibility, registration confirmation and abbreviated sidebar subtitle
+
+- Owner approved independent eye-button visibility controls on login and registration, plus a required matching Confirm Password during account creation. The presentation/API boundary and reset behavior are recorded in [Authentication Password Controls](../apps/web/src/components/forms/password-controls.SPEC.md).
+- Review `rc_c7ed30f8` was clarified as shortening the sidebar university name only: “Alumni Tracking System” above “BukSU - College of Technologies”. This supersedes the full-name sidebar subtitle above; the public landing branding remains unchanged.
+
+## 2026-11-14: Organize Reports without removing stored Batch data
+
+- Owner approved labeled, hierarchy-ordered report controls and separate export groups, and explicitly selected Reports-only Batch removal rather than removing it from profile/history surfaces.
+- Existing output scopes, permission gates and the selection-stability rule are recorded in [Reports Interface and Export Scopes](../apps/web/src/routes/_app/reports.SPEC.md). No backend contract or database migration is part of this change.

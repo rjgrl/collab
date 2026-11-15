@@ -101,7 +101,7 @@ export function EmploymentPanel({
         </p>
         {canWrite ? (
           <Button size="sm" onClick={() => edit(null)}>
-            Add employment
+            Add Employment
           </Button>
         ) : null}
       </div>
@@ -121,11 +121,11 @@ export function EmploymentPanel({
       ) : (
         <div className="flex flex-col gap-3">
           <DataTable
-            label="Employment history"
+            label="Employment History"
             headers={[
               "Employer",
               "Position",
-              "Industry / location",
+              "Industry / Location",
               "Period",
               ...(canWrite ? ["Actions"] : []),
             ]}
@@ -168,7 +168,7 @@ export function EmploymentPanel({
                         onClick={async () => {
                           if (
                             await confirmAction({
-                              title: `Remove employment at ${job.employer}?`,
+                              title: `Remove Employment at ${job.employer}?`,
                               description:
                                 "This removes the job history entry; attached evidence stays on the profile.",
                               confirmLabel: "Remove",
@@ -187,7 +187,7 @@ export function EmploymentPanel({
             ))}
           </DataTable>
           <PageControls
-            label="Employment pages"
+            label="Employment Pages"
             page={paged.page}
             pageSize={paged.pageSize}
             total={paged.total}
@@ -204,7 +204,7 @@ export function EmploymentPanel({
       {editing !== undefined ? (
         <FormDialog
           open
-          title={editing ? "Edit employment" : "Add employment"}
+          title={editing ? "Edit Employment" : "Add Employment"}
           pending={save.isPending}
           onOpenChange={(open) => {
             if (!open) setEditing(undefined);
@@ -212,7 +212,7 @@ export function EmploymentPanel({
           footer={
             <div className="flex gap-2">
               <PrimaryButton type="submit" form="employment-form" pending={save.isPending}>
-                Save employment
+                Save Employment
               </PrimaryButton>
               <Button
                 variant="outline"
@@ -250,7 +250,7 @@ export function EmploymentPanel({
                 />
               </FormField>
             ))}
-            <FormField id="job-start" label="Start date">
+            <FormField id="job-start" label="Start Date">
               <Input
                 id="job-start"
                 type="date"
@@ -258,7 +258,7 @@ export function EmploymentPanel({
                 onChange={(e) => setDraft({ ...draft, startDate: e.target.value })}
               />
             </FormField>
-            <FormField id="job-end" label="End date">
+            <FormField id="job-end" label="End Date">
               <Input
                 id="job-end"
                 type="date"
@@ -282,7 +282,7 @@ export function EmploymentPanel({
               </p>
             </div>
             <div className="sm:col-span-2">
-              <FormField id="job-notes" label="Notes (optional)">
+              <FormField id="job-notes" label="Notes (Optional)">
                 <Input
                   id="job-notes"
                   maxLength={2000}

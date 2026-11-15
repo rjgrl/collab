@@ -41,10 +41,10 @@ export function EmailVerification() {
         <span role="status">Checking email…</span>
       ) : status.isError ? (
         <Button type="button" variant="link" size="xs" onClick={() => void status.refetch()}>
-          Retry email status
+          Retry Email Status
         </Button>
       ) : status.data?.emailVerified ? (
-        <span role="status" aria-label="Email verification">
+        <span role="status" aria-label="Email Verification">
           <StatusBadge tone="verified" />
         </span>
       ) : (
@@ -54,7 +54,7 @@ export function EmailVerification() {
             type="button"
             variant="link"
             size="xs"
-            aria-label="Verify recovery email"
+            aria-label="Verify Recovery Email"
             disabled={!status.data}
             onClick={() => {
               send.reset();
@@ -72,7 +72,7 @@ export function EmailVerification() {
           open
           onOpenChange={setOpen}
           pending={send.isPending || confirm.isPending}
-          title="Verify recovery email"
+          title="Verify Recovery Email"
           description={`Confirm ${status.data?.email ?? "your account email"} to enable password recovery. Your existing account access is preserved.`}
         >
           <form
@@ -96,11 +96,11 @@ export function EmailVerification() {
                 {now < resendAt
                   ? `Resend in ${Math.ceil((resendAt - now) / 1000)} seconds`
                   : sent
-                    ? "Resend email code"
-                    : "Send email code"}
+                    ? "Resend Email Code"
+                    : "Send Email Code"}
               </Button>
             )}
-            <FormField id="recovery-email-code" label="Email verification code" required>
+            <FormField id="recovery-email-code" label="Email Verification Code" required>
               <Input
                 id="recovery-email-code"
                 required
@@ -125,7 +125,7 @@ export function EmailVerification() {
               pending={confirm.isPending}
               disabled={!sent || code.length !== 6}
             >
-              Confirm recovery email
+              Confirm Recovery Email
             </PrimaryButton>
           </form>
         </FormDialog>
