@@ -43,10 +43,12 @@ async function main() {
         : ["--filter", "@Alumni-Tracking-Ss/db", command];
   // The dev seed copies integration credentials from apps/server/.env into the database once,
   // so it needs the server's variables (INTEGRATION_ENCRYPTION_KEY and provider keys).
-  await runWorkspace(
-    [...args, ...process.argv.slice(3)],
-    command === "db:seed" ? { env: { ...effective, ...process.env } } : undefined,
-  );
+  await runWorkspace([...args, ...process.argv.slice(3)], {
+    env:
+      command === "db:seed"
+        ? { ...effective, ...process.env }
+        : { ...process.env, PORT: effective.PORT || "3000", DATABASE_URL: effective.DATABASE_URL },
+  });
 }
 main().catch((error) => {
   console.error(error.message);

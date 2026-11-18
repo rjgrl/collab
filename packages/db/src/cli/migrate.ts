@@ -6,9 +6,7 @@ if (args.length > 1 || args.some((arg) => !["--dry-run", "--apply", "--rollback"
   throw new Error("Usage: db:migrate [--dry-run|--apply|--rollback]");
 const mode: MigrationMode =
   args[0] === "--apply" ? "apply" : args[0] === "--rollback" ? "rollback" : "dry-run";
-if (!process.env.DATABASE_URL)
-  throw new Error("Configure DATABASE_URL privately before migration inspection");
-const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });
+const db = createDatabase(process.env);
 try {
   const report = await migrateDatabase(db, mode);
   console.log(JSON.stringify(report, null, 2));

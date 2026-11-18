@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import mongoose, { type Connection } from "mongoose";
-import type { DatabaseConfig } from "./config";
+import { resolveDatabaseUrl, type DatabaseConfig } from "./config";
+export { resolveDatabaseUrl } from "./config";
 import { createModels, type DatabaseModels } from "./models";
 
 function withMongoDriverOptions(url: string) {
@@ -24,11 +25,17 @@ export interface Database extends DatabaseModels {
 }
 
 export function createDatabase(env: DatabaseConfig): Database {
-  const connection = mongoose.createConnection(withMongoDriverOptions(env.DATABASE_URL), {
-    autoIndex: false,
-    autoCreate: false,
-    maxPoolSize: 10,
-  });
+  const databaseUrl = resolveDatabaseUrl(env);
+  let connection: Connection;
+  try {
+    connection = mongoose.createConnection(withMongoDriverOptions(databaseUrl), {
+      autoIndex: false,
+      autoCreate: false,
+      maxPoolSize: 10,
+    });
+  } catch {
+    throw new Error("Invalid MongoDB configuration. Check private MONGO_URI/DATABASE_URL.");
+  }
   const db: Database = {
     ...createModels(connection),
     connection,

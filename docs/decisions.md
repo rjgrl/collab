@@ -250,3 +250,20 @@ Append-only. Format: date, decision, why, alternatives rejected.
 
 - Owner approved labeled, hierarchy-ordered report controls and separate export groups, and explicitly selected Reports-only Batch removal rather than removing it from profile/history surfaces.
 - Existing output scopes, permission gates and the selection-stability rule are recorded in [Reports Interface and Export Scopes](../apps/web/src/routes/_app/reports.SPEC.md). No backend contract or database migration is part of this change.
+
+## 2026-11-15: Stage the Atlas data copy without live cutover or automatic cleanup
+
+- Owner approved copying only the active local application database into the empty Atlas `alumni_tracking` target, keeping the source and a private backup. Other databases are out of scope. Local development/tests remain on native `rs0`; hosted-server configuration and cutover are deferred until the hosting details are provided.
+- Preserve the existing encryption/session keys in restricted backups outside Git. A verified native archive is a point-in-time copy, not live synchronization and not an encrypted `.atsbak` bundle. Existing maintenance mode was used briefly, with consistent source hashes checked before/after the dump and restored BSON data/indexes/options verified against the snapshot.
+- Owner chose inspect-first cleanup and then explicitly **Keep All Records** after reviewing the exact demo/test candidates and dependencies. No unknown collections or broken references were found. Reserved example/test email domains alone do not justify deleting records; all 168 copied records remain, and no data cleanup is authorized.
+
+## 2026-11-15: Reconcile reviewed profile changes without replacing Atlas data
+
+- After a read-only local/Atlas comparison, the owner approved all 35 reviewed profile fields across 12 existing records, including names, gender/Facebook details and department/tracker assignments, together with their 12 source modification timestamps. Apply exactly that allowlist in one transaction, bound to the reviewed hashes and a fresh private backup; preserve every unapproved field and record.
+- Rejected a whole-database replacement or automatic transfer of local authentication/session state and audit history. The 17 new local-only operational records stay separate; no accounts or other data are deleted. Roles, permissions and passwords remain unchanged.
+- This is another point-in-time refresh, not a synchronization feature. Local development/tests remain native; the separately configured hosted backend must use Atlas before future hosted website edits persist there directly.
+
+## 2026-11-15: Document API setup without activating providers
+
+- Owner selected a guide and configuration examples, not missing-adapter implementation or live enablement. Use existing Render secret injection for root keys and the encrypted application credential store for production providers; do not add an external secrets-manager SDK as part of this task.
+- The operational catalog is [Secure API Setup](operations/API_SETUP.md). Its Resend/Twilio examples do not select vendors or authorize billing, messages, uploads, database changes or deployment. Provider choice and implementation gaps remain explicit; strict production verification/readiness is unchanged.

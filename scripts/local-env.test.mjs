@@ -4,7 +4,12 @@ import { mkdtemp, readFile, writeFile, mkdir, unlink, rmdir } from "node:fs/prom
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseEnv } from "node:util";
-import { isManagedLocalDatabase, LOCAL_DATABASE_URL, prepareLocalEnv } from "./local-env.mjs";
+import {
+  isManagedLocalDatabase,
+  LOCAL_DATABASE_URL,
+  prepareLocalEnv,
+  readLocalConfig,
+} from "./local-env.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), "collab-local-env-"));
@@ -113,4 +118,36 @@ it("refuses inconsistent server/DB targets and preserves a production web config
   await mkdir(path.join(root, "apps/web"), { recursive: true });
   await writeFile(path.join(root, "apps/web/.env"), "NODE_ENV=production\n");
   await assert.rejects(() => prepareLocalEnv(root, { inherited: {} }), /refuses production/);
+});
+
+it("normalizes MONGO_URI for local tools and refuses conflicting aliases", async (t) => {
+  const root = await fixture(t);
+  const config = await readLocalConfig(root, { MONGO_URI: LOCAL_DATABASE_URL });
+  assert.equal(config.effective.DATABASE_URL, LOCAL_DATABASE_URL);
+  assert.equal(config.effective.PORT, "3000");
+  await assert.rejects(
+    () =>
+      readLocalConfig(root, {
+        MONGO_URI: LOCAL_DATABASE_URL,
+        DATABASE_URL: "mongodb://127.0.0.1:27018/different?replicaSet=rs0",
+      }),
+    /must be identical/,
+  );
+});
+
+it("refuses remote MONGO_URI before setup can write or adopt Atlas data", async (t) => {
+  const root = await fixture(t);
+  const remote = new URL("mongodb+srv://cluster.example.test/alumni_tracking");
+  remote.username = "synthetic";
+  remote.password = "SECRET";
+  await assert.rejects(
+    () =>
+      prepareLocalEnv(root, {
+        inherited: {
+          MONGO_URI: remote.toString(),
+        },
+      }),
+    /preserved/,
+  );
+  await assert.rejects(() => readFile(path.join(root, "apps/server/.env")), { code: "ENOENT" });
 });

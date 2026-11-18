@@ -117,7 +117,9 @@ playwright-report/
 !/docs/operations/DISASTER_RECOVERY.md
 !/docs/operations/FORMS_WEBHOOK.md
 !/docs/operations/INTEGRATIONS.md
+!/docs/operations/API_SETUP.md
 !/docs/operations/MONGODB_ATLAS.md
+!/docs/operations/RENDER_DEPLOYMENT.md
 !/docs/api/
 /docs/api/*
 !/docs/api/openapi.json

@@ -2,6 +2,31 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-15 (secure API setup guide; no live activation)
+
+- Owner selected **Guide and Examples** using existing Render secret injection and the encrypted Settings › Integrations store. Added `docs/operations/API_SETUP.md`: provider enablement, least-privilege credentials/scopes, actual environment mappings, server-only loading examples, minimal manual probes, quota/billing cautions, rotation/revocation and a dashboard checklist.
+- Added `config/apis/.env.example` with placeholder values only and a narrow documentation ignore exception. Clarified encryption-key recovery/rotation in the existing credential guide; keys must stay outside database backup bundles but require a separate protected recovery copy.
+- Flagged important limits: production provider env values are ignored; Sheets needs its own UI-entered service account for separation; Drive photo/backup paths reuse the Drive identity; ImgBB images are public; Forms needs an authorized sender/retry contract; SMS is still unimplemented. Resend and Twilio are documented examples, not selected/activated vendors.
+- Verified documentation formatting, 36 placeholder-only assignments and their supported/manual mappings, section completeness, local links, private `.env` ignore coverage and example/doc visibility; all 12 JS/TS snippets parsed without execution (not full typechecking); secret scan checked 513 eligible files without high-confidence findings; whitespace check passed. No authenticated provider API tests, sends, credential creation, API enablement, billing changes, Atlas writes or deployment were performed.
+- Earlier hosting regression/spec reconciliation remains pending after the last private-path tightening. Actual Render cutover and SMS release readiness are not complete; this documentation task does not change that status.
+
+## 2026-11-15 (approved Atlas profile refresh; no live synchronization)
+
+- Investigated account-name differences: the website backend is still configured for native MongoDB on port 27018. The previous Atlas import was a one-time snapshot. Read-only comparison found 35 changed profile fields across 6 users, 4 faculty profiles and 2 alumni profiles, plus 17 new local-only audit/throttle/session records.
+- Owner reviewed the exact old/new values and approved **All Profile Changes**, including the listed department/tracker assignments. Created a new ACL-restricted native Atlas backup outside Git and revalidated the reviewed source/target hashes before updating anything.
+- Applied only the approved 35 fields and 12 corresponding modification timestamps in one majority-committed Atlas transaction. No record additions, deletions, database replacement or source changes. All 156 unaffected records and every unapproved field remain unchanged; passwords, role grants, permissions, audit/security/session data, indexes and collection options were preserved.
+- Verified: the atomic refresh and whole-dataset preservation checks passed; `pnpm exec tsx .thinkrail/context/verify-atlas-profile-refresh.ts` confirmed all 21 User/Faculty/Alumni profiles match the local source, zero broken references and 168 Atlas records across 27 collections. Recorded the verified post-refresh manifest without overwriting the original backup.
+- The 13 audit entries, 3 throttle entries and 1 local session were deliberately not transferred. Local environment files and app configuration were not changed, and no automated test was pointed at Atlas. Future local website edits still will not synchronize automatically; hosted configuration/cutover remains deferred until hosting details are provided.
+
+## 2026-11-15 (verified local-data snapshot in Atlas; cutover deferred)
+
+- Copied the active application's local database into the approved, freshly checked empty Atlas `alumni_tracking` database: 168 records across 27 collections. No other database or existing target data was deleted. The machine-specific `BackupState` collection remains local, as required by the Atlas runbook.
+- Created an ACL-restricted native archive and verified environment/key backups outside Git. The archive is not an encrypted in-app backup bundle; `BACKUP_ENCRYPTION_KEY` is not configured locally. No local photo/evidence file references or upload files were found.
+- Briefly used existing maintenance mode during backup, verified its 503 response, and restored its original state. Consistent source-snapshot BSON hashes matched before/after mongodump; every restored collection's hashes/counts, indexes and options match the backup. The local API is available again.
+- Read-only cleanup inspection found no broken references or unknown collections. Eight users, four faculty profiles and four alumni profiles had reserved example/test email domains, with 12 linked supporting records. After reviewing the exact 28-record proposed set, the owner chose **Keep All Records**. Zero records were deleted; no cleanup is authorized.
+- Atlas migration dry-run reported no conflicts, missing indexes, legacy-role changes or missing integration defaults. Inspection left all copied record hashes unchanged. No schema migration was applied, no application code changed, and no automated test was pointed at Atlas.
+- Hosted-server configuration and live cutover are still deferred until the owner supplies the hosting provider, service and API URL. The app and local tests still use the original native database; this snapshot does not synchronize subsequent local writes. The deployment URI must explicitly select `alumni_tracking`, retain the source encryption keys and use the host's approved Atlas egress allowlist.
+
 ## 2026-11-15 (prepare publication of all interface changes)
 
 - User approved publishing all committed work on a new `alumni-interface-updates` branch instead of pushing protected `main`. No PR or merge was requested. UI changes are committed in `8951eb0`, on top of the history-preserving integration of `origin/main`.
