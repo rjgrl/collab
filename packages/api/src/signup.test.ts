@@ -140,14 +140,22 @@ it("reuses a Google account matching an existing email without replacing its pas
     status: "active",
     passwordHash: "existing-hash",
   });
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(user.id, "existing");
   assert.equal(user.passwordHash, "existing-hash");
   assert.equal(f.writes.length, 0);
 });
 it("new Google accounts are passwordless, use Viewer, and require profile completion", async () => {
   const f = fixture();
-  await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(f.writes[0]?.needsProfileCompletion, true);
   assert.equal(f.writes[0]?.emailVerified, true);
   assert.equal(f.writes[0]?.passwordHash, null);
@@ -155,13 +163,22 @@ it("new Google accounts are passwordless, use Viewer, and require profile comple
 });
 it("simultaneous Google signups reuse the winning account", async () => {
   const f = fixture(null, true);
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(user.id, "winner");
 });
 it("Google sign-in rejects disabled existing accounts", async () => {
   const f = fixture({ id: "disabled", status: "disabled" });
   await assert.rejects(
-    () => upsertGoogleUser(f.db, { email: input.email, name: "Google name" }),
+    () =>
+      upsertGoogleUser(f.db, {
+        email: input.email,
+        name: "Google name",
+        hostedDomain: "buksu.edu.ph",
+      }),
     /disabled/,
   );
   assert.equal(f.writes.length, 0);
@@ -181,7 +198,11 @@ it("lets a verified Google identity take over an unconfirmed password registrati
   });
   f.tables.UserRole = [{ userId: "pending", roleId: "alumni" }];
   f.tables.Session = [{ userId: "pending", token: "sha256:squatter" }];
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.notEqual(user.id, "pending");
   assert.equal(user.emailVerified, true);
   assert.equal(user.passwordHash ?? null, null);
@@ -228,7 +249,11 @@ it("Google does not overwrite confirmed structured or legacy account names", asy
     passwordHash: "existing-hash",
     status: "active",
   });
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Provider Edited Name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Provider Edited Name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(user.name, "Ana Mar?a Dela Cruz Jr.");
   assert.equal(user.firstName, "Ana");
   assert.equal(user.lastName, "Dela Cruz");

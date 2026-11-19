@@ -13,7 +13,7 @@ it("preserves an account-managed photo or explicit removal on later Google sign-
         {
           _id: "111111111111111111111111",
           name: "Account Name",
-          email: "photo@example.test",
+          email: "photo@student.buksu.edu.ph",
           status: "active",
           emailVerified: true,
           passwordHash: "synthetic",
@@ -22,7 +22,8 @@ it("preserves an account-managed photo or explicit removal on later Google sign-
       ],
     });
     const user = await upsertGoogleUser(f.db, {
-      email: "photo@example.test",
+      email: "photo@student.buksu.edu.ph",
+      hostedDomain: "buksu.edu.ph",
       name: "Provider Name",
       image: "https://provider.example.test/photo.jpg",
     });

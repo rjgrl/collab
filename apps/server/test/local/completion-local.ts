@@ -263,7 +263,8 @@ try {
   assert.match(claim.body.error, /review|administrator/i);
   assert.equal(await db.User.countDocuments({ email: "claim@student.buksu.edu.ph" }), 0);
   const google = await upsertGoogleUser(db, {
-    email: "google@example.test",
+    email: "google@student.buksu.edu.ph",
+    hostedDomain: "buksu.edu.ph",
     name: "Unsplit provider name",
   });
   assert.equal(google.name, "Unsplit provider name");
@@ -442,7 +443,8 @@ try {
   );
   assert.equal(await db.User.countDocuments({ email: "rejected@example.test" }), 0);
   const pendingGoogle = await upsertGoogleUser(db, {
-    email: "pending@example.test",
+    email: "pending@student.buksu.edu.ph",
+    hostedDomain: "buksu.edu.ph",
     name: "Pending Graduate",
   });
   const viewerRole = await db.Role.findOne({ key: "alumni" }).lean().orFail();
@@ -461,7 +463,7 @@ try {
   assert.equal(pending.status, 200, JSON.stringify(pending.body));
   assert.deepEqual(
     pending.body.map((u: { email: string }) => u.email),
-    ["pending@example.test"],
+    ["pending@student.buksu.edu.ph"],
   );
   assert.deepEqual(Object.keys(pending.body[0]).sort(), ["createdAt", "email", "id", "name"]);
   assert.equal(

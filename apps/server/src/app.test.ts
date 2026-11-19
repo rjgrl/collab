@@ -449,7 +449,7 @@ function googleFixture(existing = false, nodeEnv = "test", roleKey = "alumni") {
   const account = {
     _id: userId,
     name: "Google Member",
-    email: "member@example.test",
+    email: "member@student.buksu.edu.ph",
     emailVerified: true,
     image: null,
     status: "active",
@@ -580,7 +580,12 @@ function mockGoogle(t: TestContext, profile: Record<string, unknown>) {
   });
 }
 it("Google callback creates a passwordless account and redirects to profile completion", async (t) => {
-  mockGoogle(t, { email: "member@example.test", name: "Google Member", verified_email: true });
+  mockGoogle(t, {
+    email: "member@student.buksu.edu.ph",
+    hd: "buksu.edu.ph",
+    name: "Google Member",
+    verified_email: true,
+  });
   const f = googleFixture();
   const response = await f.callback();
   assert.equal(location(response), origin + "/complete-profile");
@@ -590,7 +595,7 @@ it("Google callback creates a passwordless account and redirects to profile comp
   assert.equal(f.created[0]?.passwordHash, null);
 });
 it("Google callback signs into an existing verified email without creating a duplicate", async (t) => {
-  mockGoogle(t, { email: "member@example.test", verified_email: true });
+  mockGoogle(t, { email: "member@student.buksu.edu.ph", hd: "buksu.edu.ph", verified_email: true });
   const f = googleFixture(true);
   const response = await f.callback();
   assert.equal(location(response), origin + "/dashboard");
@@ -606,19 +611,50 @@ it("Google callback refuses unverified email without creating an account or sess
 });
 it("Google callback rejects staff accounts outside the institutional Workspace", async (t) => {
   const previous = process.env.STAFF_EMAIL_DOMAINS;
-  process.env.STAFF_EMAIL_DOMAINS = "example.test";
+  process.env.STAFF_EMAIL_DOMAINS = "buksu.edu.ph,student.buksu.edu.ph";
   try {
     // Allowlisted email domain but no verified hd claim: a consumer Google account.
-    mockGoogle(t, { email: "member@example.test", verified_email: true });
+    mockGoogle(t, { email: "member@student.buksu.edu.ph", verified_email: true });
     const f = googleFixture(true, "test", "staff");
     assert.equal(location(await f.callback()), origin + "/login?error=google_domain");
     assert.equal(f.sessions(), 0);
     t.mock.restoreAll();
-    mockGoogle(t, { email: "member@example.test", verified_email: true, hd: "example.test" });
+    mockGoogle(t, {
+      email: "member@student.buksu.edu.ph",
+      verified_email: true,
+      hd: "buksu.edu.ph",
+    });
     assert.equal(
       location(await googleFixture(true, "test", "staff").callback()),
       origin + "/dashboard",
     );
+  } finally {
+    if (previous === undefined) delete process.env.STAFF_EMAIL_DOMAINS;
+    else process.env.STAFF_EMAIL_DOMAINS = previous;
+  }
+});
+it("Google callback rejects personal, demo and non-Workspace identities even with local exceptions", async (t) => {
+  const previous = process.env.STAFF_EMAIL_DOMAINS;
+  process.env.STAFF_EMAIL_DOMAINS = "buksu.edu.ph,student.buksu.edu.ph,gmail.com,collab.test";
+  try {
+    for (const existing of [false, true]) {
+      for (const profile of [
+        { email: "member@gmail.com", hd: "gmail.com" },
+        { email: "admin@collab.test", hd: "collab.test" },
+        { email: "member@student.buksu.edu.ph" },
+        { email: "member@student.buksu.edu.ph", hd: "gmail.com" },
+        { email: "member@buksu.edu.ph.evil.test", hd: "buksu.edu.ph" },
+      ]) {
+        mockGoogle(t, { ...profile, verified_email: true });
+        const f = googleFixture(existing);
+        const response = await f.callback();
+        assert.equal(location(response), origin + "/login?error=google_domain");
+        assert.equal(f.created.length, 0);
+        assert.equal(f.sessions(), 0);
+        assert.doesNotMatch(cookies(response).join(";"), /ats_session=/);
+        t.mock.restoreAll();
+      }
+    }
   } finally {
     if (previous === undefined) delete process.env.STAFF_EMAIL_DOMAINS;
     else process.env.STAFF_EMAIL_DOMAINS = previous;
@@ -634,7 +670,7 @@ it("Google provider failures return to login without issuing a session", async (
   assert.equal(f.sessions(), 0);
 });
 it("uses a host-prefixed Secure HttpOnly session cookie in production", async (t) => {
-  mockGoogle(t, { email: "member@example.test", verified_email: true });
+  mockGoogle(t, { email: "member@student.buksu.edu.ph", hd: "buksu.edu.ph", verified_email: true });
   const response = await googleFixture(true, "production").callback();
   const value = cookies(response).join(";");
   assert.match(value, /__Host-ats_session=/);

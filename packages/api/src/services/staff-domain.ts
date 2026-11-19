@@ -89,8 +89,14 @@ export function assertStaffGoogleIdentity(
   roles: readonly string[] = [],
   settings: NodeJS.ProcessEnv = process.env,
 ) {
+  if (
+    !emailDomainAllowed(email, BUKSU_EMAIL_DOMAINS) ||
+    !hostedDomain ||
+    !BUKSU_EMAIL_DOMAINS.some((domain) => domain === hostedDomain.toLowerCase())
+  )
+    throw new StaffDomainError("Sign in with your BukSU Google Workspace account.");
   assertStaffEmailAllowed(email, roles, settings);
   const domains = staffEmailDomains(settings);
-  if (domains && !(hostedDomain && domains.includes(hostedDomain.toLowerCase())))
+  if (domains && !domains.includes(hostedDomain.toLowerCase()))
     throw new StaffDomainError("Sign in with your BukSU Google Workspace account.");
 }
