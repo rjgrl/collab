@@ -1,3 +1,4 @@
+import { sendEmail } from "./email";
 import type { IntegrationKey } from "@Alumni-Tracking-Ss/contracts/integration-credentials";
 import { ApiError } from "../http-error";
 import type { IntegrationEnv } from "../context";
@@ -101,7 +102,7 @@ export async function testIntegrationConnection(
     fetcher?: typeof fetch;
   },
 ): Promise<void> {
-  const { env, adminEmail, fetcher = fetch } = options;
+  const { env, fetcher = fetch } = options;
 
   // If a test hook is provided, use it instead
   if (env.connectionTester) {
@@ -312,45 +313,27 @@ export async function testIntegrationConnection(
     }
 
     case "email": {
-      const gatewayUrl = "https://api.resend.com/emails";
       const fromAddress = values.fromAddress?.trim();
-      const apiKey = values.apiKey?.trim();
-
-      if (!fromAddress || !apiKey)
+      const appPassword = values.gmailAppPassword?.trim();
+      if (!fromAddress || !appPassword)
         throw new ApiError("BAD_REQUEST", {
-          message: "A verified sender email and Resend API key are required for testing.",
+          message: "A Gmail address and Gmail App Password are required for testing.",
         });
-
       try {
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (apiKey) {
-          headers["Authorization"] = `Bearer ${apiKey}`;
-        }
-
-        const response = await fetcher(gatewayUrl, {
-          method: "POST",
-          signal: timeout,
-          // A redirect could send the request (and its body) to an internal address.
-          redirect: "error",
-          headers,
-          body: JSON.stringify({
-            from: fromAddress,
-            to: [adminEmail],
+        // Test the sender's own mailbox, not a seeded admin@collab.test account. This allows
+        // email to be configured before changing the administrator's login email.
+        await sendEmail(
+          { smtpFrom: fromAddress, gmailAppPassword: appPassword },
+          {
+            to: fromAddress,
             subject: "Alumni Tracking System email test",
-            text: "Email delivery is connected.",
-          }),
-        });
-
-        if (!response.ok) {
-          throw new ApiError("BAD_REQUEST", {
-            message:
-              "Resend rejected the test email. Check the API key and verified sender domain.",
-          });
-        }
-      } catch (error) {
-        if (error instanceof ApiError) throw error;
+            text: "Gmail email delivery is connected.",
+          },
+        );
+      } catch {
         throw new ApiError("BAD_REQUEST", {
-          message: "Could not reach the provider. Try again.",
+          message:
+            "Gmail did not accept the test email. Check your Gmail address, App Password and sending limits.",
         });
       }
       break;

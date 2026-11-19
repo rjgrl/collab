@@ -289,3 +289,18 @@ Append-only. Format: date, decision, why, alternatives rejected.
   Managed accounts already require verification; local setup now defaults to email verification on.
   BUG-006 is an Alumni-only browse/restore Archive for Super Admins, without permanent deletion.
   BUG-007 retains exact institutional domains and the local-only collab.test demo exception.
+
+## 2026-11-19: Gmail App Passwords replace Resend; SMTP2GO was not shipped
+
+- Owner approved Gmail SMTP after SMTP2GO signup was blocked. Use Nodemailer, fixed
+  smtp.gmail.com:465 with verified implicit TLS and TLS 1.2 minimum, not a configurable gateway.
+- One Gmail address is the SMTP username and sender. Setup tests go to that sender's own inbox,
+  not to the seeded administrator address. This allows email configuration before account email
+  change without bypassing recipient verification or institutional login rules.
+- The new encrypted gmailAppPassword field prevents reusing old Resend/SMTP2GO API keys. Google
+  App Passwords can be pasted grouped or ungrouped; whitespace is stripped only for SMTP login.
+- Transport errors are sanitized, resources closed, timeouts bounded and debug/file/URL access
+  disabled. Gmail's SMTP recipient acceptance is checked. Production uses encrypted DB credentials;
+  only explicit development GMAIL_ADDRESS/GMAIL_APP_PASSWORD fallback remains.
+- Test adapters capture SMTP messages without external delivery; no real App Password is used or
+  stored by the agent. The owner must verify live Gmail auth, port reachability and inbox delivery.

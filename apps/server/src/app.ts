@@ -1,3 +1,4 @@
+import { emailConfigured } from "@Alumni-Tracking-Ss/api/integrations/email";
 import express, { type RequestHandler } from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -255,7 +256,7 @@ export function createApp({
             });
             return Boolean(
               (resolvedEnv.verificationSecret?.length ?? 0) >= 32 &&
-              resolvedEnv.smtpUrl?.startsWith("https://") &&
+              emailConfigured(resolvedEnv) &&
               smsConfigured(resolvedEnv) &&
               (await isIntegrationEnabled(db, "email")),
             );

@@ -341,15 +341,27 @@ For automated role checks, install Chromium once with `pnpm exec playwright inst
 
 Public registration requires `ALLOW_PUBLIC_SIGNUP=true`; local role demonstrations set this explicitly without changing your private working configuration.
 
-### Resend and presentation verification
+### Gmail and presentation verification
 
-Email is now Resend-only. In Settings → Integrations → Email enter a Resend API key and a sender
-on a domain verified in Resend; there is no gateway URL. A test email must succeed before saving.
-For presentation, set `LOCAL_REQUIRE_EMAIL_VERIFICATION=true` in `apps/server/.env` and restart.
-New local setups now use that value by default; setup preserves existing deliberate values.
-Phone verification is separate and is not enabled by this change. Generated demo accounts remain
-pre-verified; newly registered/managed accounts must verify their recipient email. Real delivery
-needs working DNS, a Resend key and an approved sender; it cannot be demonstrated offline.
+Email uses Gmail SMTP with an App Password. After pulling, run pnpm install --frozen-lockfile
+and restart the API, not only the browser. In your personal Google Account, enable 2-Step
+Verification and create an App Password for this demo. Enter that Gmail address and the App
+Password (not your normal Google password) in Settings → Integrations → Email. Test and Enable
+or update the existing credentials. The test goes to the Gmail sender's own inbox, so a seeded
+admin@collab.test account can configure email without first changing its account address.
 
-Global API limits default to 300/minute per user or anonymous IP plus 3000/minute per shared IP;
-refreshing does not reset them. Do not disable these for the presentation.
+No purchased domain, Resend key or SMTP2GO account is needed. Real email requires network access
+to smtp.gmail.com:465; some hosts/networks block outbound SMTP. Sending is subject to Google's
+limits and anti-abuse checks. Look in Spam if Gmail accepted the message but it is not in Inbox.
+The Gmail sender need not match the application's administrator address. Once configured, use
+Settings → Account to change the administrator to a real institutional email through normal
+verification. Do not add personal Gmail to allowed application domains just to use it as a sender.
+
+Old Resend/SMTP2GO keys are not reused. Gmail stores its own encrypted gmailAppPassword field;
+you must enter a new App Password even if Email was previously enabled. Never commit/share the
+App Password in chat. For shared Atlas, configure Email once and preserve the same existing
+INTEGRATION_ENCRYPTION_KEY on all API servers. Revoke the demo App Password after the presentation.
+
+New local setups require email verification and preserve deliberate existing settings. Atlas
+cannot use localhost-only MFA/contact-verification bypasses. Gmail enables email only; SMS/phone
+verification policy is separate and unchanged. Global API limits are unchanged.

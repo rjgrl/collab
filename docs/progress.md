@@ -2,6 +2,27 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (Gmail SMTP replaces Resend; sender-mailbox bootstrap)
+
+- Owner could not register for SMTP2GO and approved Gmail App Passwords. SMTP2GO was never
+  committed/pushed; it was replaced by Nodemailer with fixed smtp.gmail.com:465, verified TLS,
+  TLS 1.2 minimum, bounded timeouts and no SMTP debug/file/URL access.
+- Email settings now ask for Gmail Address and Gmail App Password. The same address is both SMTP
+  username and sender. Provider tests go to that sender's own inbox instead of the seeded admin
+  address, eliminating the setup deadlock without bypassing account-email verification.
+- New encrypted gmailAppPassword field means old provider API keys are never reused. Grouped and
+  ungrouped 16-character App Passwords are supported. Production ignores provider env credentials;
+  development fallback is GMAIL_ADDRESS/GMAIL_APP_PASSWORD. Account-domain/MFA/rate limits remain.
+- Added tests for TLS, auth normalization, no diagnostic leakage, rejection/cleanup, sender-mailbox
+  testing with a seeded admin, legacy-key isolation and credential formatting. Mail mocks now use
+  an isolated SMTP capture transport rather than fake HTTP-provider payloads.
+- Verified so far: 448 unit tests, pnpm check 7/7, browser types, dependency audit, real-DB security
+  and integration acceptance, server build/artifact checks. The 16 recovery/account/security browser
+  checks passed; the new Gmail setup test then passed on desktop and mobile after fixing its
+  exact-label locator (required-field asterisk). Archive/global behavior is unchanged; the prior
+  full regression was 157 passed, 5 intentional skips.
+  Real Gmail authentication/inbox delivery still needs the owner's App Password and network access.
+
 ## 2026-11-19 (integrate phase 6 remote commits; no push)
 
 - Fetched origin and fast-forwarded `development/phase6-cross-device-testing` from `03c5884` to `7a347a2`, incorporating remote commits `18937f9` and `7a347a2`. The working tree was clean; there were no divergent local commits or conflicts. No history rewriting, force-push or push was performed.
@@ -13,7 +34,7 @@ Newest first. One entry per session: date, what changed, what was verified, what
 - Global MongoDB-backed API limits: 300 requests/minute per signed-in user or anonymous IP and 3000/minute per shared IP before authentication; aliases/refreshes/instances share counters. Existing stricter auth limits stay. HTTP 429 carries Retry-After and the client displays a wait message.
 - Reported BUG-002/003/004: Resend delivery, existing new-account verification guards preserved, and new local setup defaults to requiring email verification. This machine was configured accordingly; explicit older local overrides must be changed for presentation. Phone policy unchanged. BUG-007 exact institutional email rules retained.
 - BUG-006: new Super Admin-only Alumni Archive with paginated search, confirmation and audited restore. No permanent deletion. Inactive academic parents block restoration; unavailable assigned faculty is cleared and reassignment flagged.
-- Verified: pnpm check 7/7, pnpm test 441/441, browser types green, 24 focused browser tests pass desktop/mobile (Archive axe/access/restore, email verification/reset and integration screens); real-DB security check and dependency audit pass; no high-confidence secrets. Full browser regression is running; the owner requested committing/pushing before its final result, so it is not claimed green.
+- Verified: pnpm check 7/7, pnpm test 441/441, browser types green, 24 focused browser tests pass desktop/mobile (Archive axe/access/restore, email verification/reset and integration screens); real-DB security check and dependency audit pass; no high-confidence secrets. Full browser regression later completed: 157 passed, 5 intentional skips.
 - Test adaptations are explicit: mail mocks now expect the Resend endpoint and recipient array; HTTP fixtures supply global counters, and negative authorization assertions ignore only AuthThrottle writes while still requiring zero business-data mutation. Red-covered bug rows were unreadable and remain out of scope.
 
 ## 2026-11-19 (detailed API documentation PDF)

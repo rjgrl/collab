@@ -25,7 +25,7 @@ delete process.env.INTEGRATION_ENCRYPTION_KEY;
 const keyHex = randomBytes(32).toString("hex");
 const secrets = {
   recaptcha: `recaptcha-secret-${randomBytes(6).toString("hex")}`,
-  email: `gateway-key-${randomBytes(6).toString("hex")}`,
+  email: randomBytes(8).toString("hex"),
 };
 const stopCiReplicaSet = await startCiReplicaSet();
 const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });
@@ -66,7 +66,7 @@ try {
         credentials: {
           gatewayUrl: "https://mail.example.test/send",
           fromAddress: "alumni@example.test",
-          apiKey: secrets.email,
+          gmailAppPassword: secrets.email,
         },
       }),
     ).status,
@@ -75,7 +75,7 @@ try {
   assert.equal(
     track(
       await send("put", "/api/integrations/email/credentials", {
-        credentials: { fromAddress: "office@example.test", apiKey: "" },
+        credentials: { fromAddress: "office@example.test", gmailAppPassword: "" },
       }),
     ).status,
     200,

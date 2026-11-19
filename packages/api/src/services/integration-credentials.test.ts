@@ -1,8 +1,10 @@
+import { gmailSmtp } from "../integrations/email";
 import assert from "node:assert/strict";
 import { it, describe } from "node:test";
 import type { Context } from "../context";
 import { modelFixture } from "../test-utils/model-test-fixture";
 import { ApiError } from "../http-error";
+import { seal, credentialAad, keyFingerprint } from "@Alumni-Tracking-Ss/db/secret-box";
 import { invalidateIntegrationEnvCache } from "../integrations/credential-store";
 import { integrationsService } from "../../../../apps/server/src/modules/integrations/service";
 import { authService } from "../../../../apps/server/src/modules/auth/service";
@@ -70,7 +72,7 @@ describe("integration credentials", () => {
           credentials: {
             gatewayUrl: "http://example.com",
             fromAddress: "invalid-sender",
-            apiKey: "test-key",
+            gmailAppPassword: "test-key",
           },
         }),
       (error: any) => {
@@ -126,6 +128,56 @@ describe("integration credentials", () => {
     );
 
     assert.equal(f.tables.IntegrationSetting?.length || 0, 0);
+  });
+
+  it("does not save Gmail credentials when Gmail rejects delivery", async (t) => {
+    const f = modelFixture();
+    const context = adminContext(f);
+    t.mock.method(gmailSmtp, "create", () => ({
+      sendMail: async () => {
+        throw new Error("private provider diagnostics");
+      },
+      close: () => {},
+    }));
+    await assert.rejects(
+      integrationsService.enable(context, {
+        key: "email",
+        credentials: { fromAddress: "sender@example.test", gmailAppPassword: "abcdefghijklmnop" },
+      }),
+      (error: Error) => error.message.includes("Gmail") && !error.message.includes("private"),
+    );
+    assert.equal(f.tables.IntegrationSetting?.length ?? 0, 0);
+  });
+
+  it("requires a new Gmail key instead of silently preserving a legacy provider key", async () => {
+    const key = Buffer.from("34".repeat(32), "hex");
+    const f = modelFixture({
+      IntegrationSetting: [
+        {
+          id: "old-email",
+          key: "email",
+          enabled: true,
+          keyFingerprint: keyFingerprint(key),
+          credentials: {
+            apiKey: seal(key, credentialAad("email", "apiKey"), "old-provider-secret"),
+            fromAddress: seal(key, credentialAad("email", "fromAddress"), "sender@example.test"),
+          },
+        },
+      ],
+    });
+    const context = adminContext(f);
+    let contacted = false;
+    context.integrationEnv.connectionTester = async () => {
+      contacted = true;
+    };
+    await assert.rejects(
+      integrationsService.updateCredentials(context, {
+        key: "email",
+        credentials: { fromAddress: "sender@example.test", gmailAppPassword: "" },
+      }),
+      /Gmail App Password is required/,
+    );
+    assert.equal(contacted, false);
   });
 
   it("disables integration, erases credentials/hints/fingerprint in transaction", async () => {
@@ -205,7 +257,7 @@ describe("integration credentials", () => {
     const testValues = {
       recaptchaSecret: "secret-recaptcha-key-abc123",
       googleClientSecret: "secret-client-secret-xyz789",
-      emailApiKey: "secret-email-key-def456",
+      gmailAppPassword: "qrstuvwxyzabcdef",
     };
 
     // Enable with known secrets
@@ -230,7 +282,7 @@ describe("integration credentials", () => {
       credentials: {
         gatewayUrl: "https://example.com/mail",
         fromAddress: "test@example.com",
-        apiKey: testValues.emailApiKey,
+        gmailAppPassword: testValues.gmailAppPassword,
       },
     });
 
@@ -246,7 +298,7 @@ describe("integration credentials", () => {
       !listResult.includes(testValues.googleClientSecret),
       "List does not contain google secret",
     );
-    assert(!listResult.includes(testValues.emailApiKey), "List does not contain email key");
+    assert(!listResult.includes(testValues.gmailAppPassword), "List does not contain email key");
   });
 
   it("no document contains INTEGRATION_ENCRYPTION_KEY", async () => {
@@ -403,11 +455,7 @@ describe("integration credentials", () => {
     const context = adminContext(f);
     context.user!.permissions = ["integrations.read", "integrations.write", "audit.read"];
     context.integrationEnv.connectionTester = async () => {};
-    const secrets = [
-      "recaptcha-secret-aaaa-1111",
-      "client-secret-bbbb-2222",
-      "gateway-key-cccc-3333",
-    ];
+    const secrets = ["recaptcha-secret-aaaa-1111", "client-secret-bbbb-2222", "ghijklmnopqrstuv"];
     const responses: unknown[] = [
       await integrationsService.enable(context, {
         key: "recaptcha",
@@ -422,12 +470,12 @@ describe("integration credentials", () => {
         credentials: {
           gatewayUrl: "https://mail.example.test/send",
           fromAddress: "alumni@example.test",
-          apiKey: secrets[2]!,
+          gmailAppPassword: secrets[2]!,
         },
       }),
       await integrationsService.updateCredentials(context, {
         key: "email",
-        credentials: { fromAddress: "office@example.test", apiKey: "" },
+        credentials: { fromAddress: "office@example.test", gmailAppPassword: "" },
       }),
     ];
     invalidateIntegrationEnvCache();

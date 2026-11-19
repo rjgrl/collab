@@ -1,6 +1,6 @@
 # Known issues and gotchas
 
-- A Resend form that still reports "HTTPS gateway URL is required" is talking to an old API process. Vite updates the frontend independently, but a non-watching `tsx --env-file=.env src/index.ts` server retains the previous credential schema. Stop the stale API and restart `pnpm dev` (or `pnpm dev:server` if the frontend is already running); do not add a fake gateway URL. Resend also requires a sender on a verified real domain, not `collab.test`.
+- After an email-provider update, a form that still reports "HTTPS gateway URL is required" is talking to an old API process. Vite updates the frontend independently, but a non-watching `tsx --env-file=.env src/index.ts` server retains the previous credential schema. Stop the stale API and restart `pnpm dev` (or `pnpm dev:server` if the frontend is already running); do not add a fake gateway URL. Current Gmail settings require a real Gmail address and Google App Password, not a Resend/SMTP2GO key. The setup test goes to that Gmail inbox, not the seeded `collab.test` account.
 
 Format: symptom, cause, workaround. Remove an entry when it is fixed.
 

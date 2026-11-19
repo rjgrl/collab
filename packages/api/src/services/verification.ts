@@ -4,7 +4,7 @@ import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto
 import { ApiError } from "../http-error";
 import { hashPassword, verifyPassword } from "@Alumni-Tracking-Ss/db";
 import type { Context, IntegrationEnv } from "../context";
-import { sendEmail } from "../integrations/email";
+import { sendEmail, emailConfigured } from "../integrations/email";
 import { checkPhoneCode, sendPhoneCode, smsConfigured } from "../integrations/sms";
 import { isIntegrationEnabled } from "../integrations/registry";
 import { writeAudit } from "../audit";
@@ -96,7 +96,7 @@ export async function verificationStatus(context: Context) {
     ),
     canSendEmail:
       secretReady &&
-      Boolean(context.integrationEnv.smtpUrl?.startsWith("https://")) &&
+      emailConfigured(context.integrationEnv) &&
       (await isIntegrationEnabled(context.db, "email")),
     canSendPhone: secretReady && smsConfigured(context.integrationEnv),
     ready: !academicNeeded && !accountAccessPending(user),
@@ -131,10 +131,7 @@ async function issueVerification(context: Context, kind: VerificationKind, targe
   const nonce = randomBytes(32).toString("hex");
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const digest = codeDigest(env, nonce, code);
-  if (
-    kind === "email" &&
-    (!env.smtpUrl?.startsWith("https://") || !(await isIntegrationEnabled(db, "email")))
-  )
+  if (kind === "email" && (!emailConfigured(env) || !(await isIntegrationEnabled(db, "email"))))
     throw new ApiError("SERVICE_UNAVAILABLE", {
       message: "Email verification delivery is unavailable. Contact an administrator.",
     });

@@ -1,3 +1,4 @@
+import { captureEmail } from "../test-utils/email-capture";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { createHash } from "node:crypto";
@@ -26,9 +27,9 @@ async function fixture() {
     userAgent: null,
     integrationEnv: {
       webOrigin: "https://app.example.test",
-      emailApiKey: "re_test-key",
+      gmailAppPassword: "api-test-key",
       smtpFrom: "sender@example.test",
-      smtpUrl: "https://api.resend.com/emails",
+      smtpUrl: "smtps://smtp.gmail.com:465",
     },
   } as Context;
   return {
@@ -76,13 +77,11 @@ it("HIBP opt-in sends only a padded five-character hash prefix and fails closed"
 });
 it("sends single-use fragment reset links, stores a digest and revokes all sessions", async () => {
   const f = await fixture();
-  const native = globalThis.fetch;
   let link = "";
+  const restore = captureEmail((message) => {
+    link = message.text.match(/https:\/\/[^\s]+/)![0];
+  });
   try {
-    globalThis.fetch = async (_input, init) => {
-      link = JSON.parse(String(init?.body)).text.match(/https:\/\/[^\s]+/)[0];
-      return Response.json({ ok: true });
-    };
     const response = await requestPasswordReset(f.context, f.user.email);
     assert.equal("token" in response, false);
     const token = new URLSearchParams(new URL(link).hash.slice(1)).get("token")!;
@@ -96,12 +95,12 @@ it("sends single-use fragment reset links, stores a digest and revokes all sessi
       /invalid, expired or already used/,
     );
   } finally {
-    globalThis.fetch = native;
+    restore();
   }
 });
 it("does not disclose missing/unverified accounts or send when delivery is disabled", async () => {
   const f = await fixture();
-  f.context.integrationEnv.smtpUrl = undefined;
+  f.context.integrationEnv.gmailAppPassword = undefined;
   const a = await requestPasswordReset(f.context, f.user.email);
   f.user.emailVerified = false;
   const b = await requestPasswordReset(f.context, "missing@example.test");
@@ -110,15 +109,13 @@ it("does not disclose missing/unverified accounts or send when delivery is disab
 });
 it("rejects expired reset links and links invalidated by another password change", async () => {
   const f = await fixture();
-  const native = globalThis.fetch;
   let token = "";
+  const restore = captureEmail((message) => {
+    token = new URLSearchParams(
+      new URL(message.text.match(/https:\/\/[^\s]+/)![0]).hash.slice(1),
+    ).get("token")!;
+  });
   try {
-    globalThis.fetch = async (_input, init) => {
-      token = new URLSearchParams(
-        new URL(JSON.parse(String(init?.body)).text.match(/https:\/\/[^\s]+/)[0]).hash.slice(1),
-      ).get("token")!;
-      return Response.json({ ok: true });
-    };
     await requestPasswordReset(f.context, f.user.email);
     f.row!.expiresAt = new Date(0);
     await assert.rejects(
@@ -132,6 +129,6 @@ it("rejects expired reset links and links invalidated by another password change
       /invalid/,
     );
   } finally {
-    globalThis.fetch = native;
+    restore();
   }
 });

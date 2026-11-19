@@ -105,7 +105,7 @@ Managed Member/Faculty accounts remain unverified and cannot enter the app until
 and email verification. New local setups set `LOCAL_REQUIRE_EMAIL_VERIFICATION=true`; existing
 explicit `false` values are preserved, so presentation machines must set it to true and restart.
 Generated seeded demo accounts remain pre-verified. Phone verification is configured independently.
-Enable Resend before demonstrating registration, email verification or Forgot Password. Password
+Enable Gmail email delivery before demonstrating registration, email verification or Forgot Password. Password
 reset replies intentionally do not reveal whether an email exists or delivery succeeded.
 
 Archive is Super Admin-only and currently contains archived alumni (paged/searchable). Restore

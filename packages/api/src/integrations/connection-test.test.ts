@@ -1,3 +1,4 @@
+import { gmailSmtp, type GmailMessage } from "./email";
 import assert from "node:assert/strict";
 import { it, describe } from "node:test";
 import { isPrivateAddress, testIntegrationConnection } from "./connection-test";
@@ -105,42 +106,49 @@ describe("connection-test", () => {
     );
   });
 
-  it("email gateway failures are rejected without echoing the key or URL", async () => {
-    await assert.rejects(
-      () =>
-        testIntegrationConnection(
-          "email",
-          {
-            gatewayUrl: "https://gateway.example.com",
-            fromAddress: "test@example.com",
-            apiKey: "secret-api-key-12345",
-          },
-          options(reply(500, {})),
-        ),
-      (error: { code?: string; message: string }) => {
-        assert.equal(error.code, "BAD_REQUEST");
-        assert.ok(!error.message.includes("secret-api-key"));
-        assert.ok(!error.message.includes("gateway.example.com"));
-        return true;
+  it("Gmail authentication failures reject saving without exposing credentials", async (t) => {
+    t.mock.method(gmailSmtp, "create", () => ({
+      sendMail: async () => {
+        throw new Error("secret app password diagnostics");
       },
+      close: () => {},
+    }));
+    await rejectsWith(
+      testIntegrationConnection(
+        "email",
+        {
+          fromAddress: "sender@gmail.com",
+          gmailAppPassword: "abcdefghijklmnop",
+        },
+        options(reply(200, {})),
+      ),
+      "Gmail did not accept",
     );
   });
 
-  it("ignores old gateway URLs and validates public-address classification", async () => {
+  it("tests Gmail at the sender mailbox even when the admin uses an undeliverable seeded email", async (t) => {
     let target = "";
+    t.mock.method(gmailSmtp, "create", (config: Parameters<typeof gmailSmtp.create>[0]) => {
+      assert.equal(config.host, "smtp.gmail.com");
+      return {
+        sendMail: async (message: GmailMessage) => {
+          target = message.to[0]!;
+          assert.equal(message.from, "sender@gmail.com");
+          return { accepted: message.to, rejected: [] };
+        },
+        close: () => {},
+      };
+    });
     await testIntegrationConnection(
       "email",
       {
         gatewayUrl: "https://127.0.0.1/never-used",
-        fromAddress: "a@example.com",
-        apiKey: "re_test",
+        fromAddress: "sender@gmail.com",
+        gmailAppPassword: "abcdefghijklmnop",
       },
-      options(async (url) => {
-        target = String(url);
-        return Response.json({ id: "test" });
-      }),
+      { env: {}, adminEmail: "admin@collab.test" },
     );
-    assert.equal(target, "https://api.resend.com/emails");
+    assert.equal(target, "sender@gmail.com");
     for (const address of [
       "8.8.8.8",
       "2001:4860:4860::8888",

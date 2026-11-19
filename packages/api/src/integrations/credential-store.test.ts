@@ -110,7 +110,7 @@ describe("Credential Store", () => {
         googleFormsWebhookSecret: "webhook",
         smtpUrl: "https://smtp.example.test",
         smtpFrom: "noreply@example.test",
-        emailApiKey: "key",
+        gmailAppPassword: "key",
         imgbbApiKey: "key",
         imageHostProvider: "imgbb",
         verificationSecret: "keep-this",
@@ -126,7 +126,7 @@ describe("Credential Store", () => {
       // Check that credential fields are removed
       assert(!("recaptchaSiteKey" in result));
       assert(!("googleClientSecret" in result));
-      assert(!("emailApiKey" in result));
+      assert(!("gmailAppPassword" in result));
       assert(!("imgbbApiKey" in result));
 
       // Check that non-credential fields are kept
@@ -156,13 +156,13 @@ describe("Credential Store", () => {
     it("production mode ignores env credential variables", () => {
       const env: IntegrationEnv = {
         recaptchaSiteKey: "env-site",
-        emailApiKey: "env-key",
+        gmailAppPassword: "env-key",
         integrationEncryptionKey: validKey,
       };
 
       const result = withoutIntegrationCredentials(env);
       assert(!("recaptchaSiteKey" in result));
-      assert(!("emailApiKey" in result));
+      assert(!("gmailAppPassword" in result));
     });
   });
 
@@ -258,6 +258,48 @@ describe("resolveIntegrationEnv with stored credentials", () => {
     return f;
   }
 
+  it("does not reuse legacy Resend credentials with Gmail", async () => {
+    const f = modelFixture({
+      IntegrationSetting: [
+        {
+          key: "email",
+          enabled: true,
+          keyFingerprint: getKeyFingerprint(key),
+          credentials: {
+            apiKey: seal(key, credentialAad("email", "apiKey"), "legacy-provider-secret"),
+            fromAddress: seal(key, credentialAad("email", "fromAddress"), "sender@example.test"),
+          },
+        },
+      ],
+    });
+    invalidateIntegrationEnvCache();
+    const env = await resolveIntegrationEnv(
+      f.db,
+      { integrationEncryptionKey: keyHex },
+      { production: true },
+    );
+    assert.equal(env.gmailAppPassword, undefined);
+    assert.equal(env.smtpUrl, undefined);
+  });
+
+  it("resolves only the encrypted Gmail-specific key for email", async () => {
+    const f = modelFixture({ IntegrationSetting: [] });
+    await storeCredentials(f.db, {
+      integration: "email",
+      key,
+      enabled: true,
+      values: { gmailAppPassword: "smtp2go-test-secret", fromAddress: "sender@example.test" },
+    });
+    invalidateIntegrationEnvCache();
+    const env = await resolveIntegrationEnv(
+      f.db,
+      { integrationEncryptionKey: keyHex },
+      { production: true },
+    );
+    assert.equal(env.gmailAppPassword, "smtp2go-test-secret");
+    assert.equal(env.smtpUrl, "smtps://smtp.gmail.com:465");
+  });
+
   it("applies stored values over env values in development", async () => {
     const f = await storedFixture();
     const env = await resolveIntegrationEnv(f.db, { ...base }, { production: false });
@@ -337,11 +379,11 @@ describe("resolveIntegrationEnv with stored credentials", () => {
       values: {
         gatewayUrl: "https://mail.example.test",
         fromAddress: "a@example.test",
-        apiKey: "short123",
+        gmailAppPassword: "short123",
       },
       key,
     });
     const emailRow = rows.find((item) => item.key === "email")!;
-    assert.deepEqual(emailRow.credentialHints, { apiKey: "set" });
+    assert.deepEqual(emailRow.credentialHints, { gmailAppPassword: "set" });
   });
 });

@@ -172,22 +172,47 @@ This binds each ciphertext to one integration and field, preventing reuse or mix
 - [DISASTER_RECOVERY.md](./DISASTER_RECOVERY.md) - General backup and recovery procedures
 - [ACCOUNT_SECURITY.md](./ACCOUNT_SECURITY.md) - User authentication and authorization
 
-## Resend (current Email provider)
+## Gmail SMTP (current Email provider)
 
-Email now uses Resend only. Settings → Integrations → Email asks for **Resend API Key** and
-**Verified Sender Email**, not an HTTPS gateway URL. Create a sending API key in Resend and verify
-the sender domain's DNS records there first. Enable/update sends a test email to the signed-in
-administrator; a rejected request saves nothing. Verify actual arrival (and spam folder) separately:
-API acceptance is not a delivery guarantee. Resend's trial sender cannot deliver freely to arbitrary
-recipients; use your verified domain for presentation accounts.
+The unshipped SMTP2GO implementation was replaced because account signup was unavailable to the
+owner. Email now uses a Gmail account and Google App Password through Nodemailer. Host/port are
+fixed to smtp.gmail.com:465 with verified implicit TLS, TLS 1.2 minimum, timeouts, no debug logging
+and no file/URL content loading. Operators do not supply a custom host or HTTPS gateway URL.
 
-The encrypted credential field names `apiKey` and `fromAddress` stay stable. An old `gatewayUrl`
-is never used to send mail. Existing deployments must re-enter a **Resend** key and verified sender
-and successfully test them, rather than reusing another gateway's API key. No key should be pasted
-into chat, committed, or copied into a database backup unencrypted. Verification codes, email-change
-codes and password-reset links all use the same Resend sender.
+### Setup
 
-Development-only environment fallback: `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Production uses
-the encrypted database configuration, not provider environment credentials. Internal `smtpUrl` /
-`smtpFrom` names remain compatibility/readiness fields; no SMTP connection or arbitrary gateway
-request is made.
+1. Enable 2-Step Verification on the Google account used for sending.
+2. Open https://myaccount.google.com/apppasswords and create an App Password named for this demo.
+3. In Settings → Integrations → Email, enter **Gmail Address** and **Gmail App Password**.
+   Grouped or ungrouped 16-character passwords are accepted. Do not use your normal password.
+4. Test and Enable (or update credentials if already enabled). A real test goes to the Gmail
+   address itself. This breaks the seeded-admin setup deadlock: admin@collab.test need not be
+   able to receive mail before the integration can be configured.
+5. Check that mailbox, including Spam. SMTP acceptance is not an inbox-delivery guarantee.
+6. Afterwards change the Super Admin's email through Settings → Account to a real allowed
+   institutional mailbox. Existing account verification/domain rules still apply.
+
+There is no DNS-domain verification requirement. Google may limit sending or block sign-in;
+App Passwords may be unavailable on some managed accounts. The deployment must allow outbound
+SMTP on port 465. Gmail may enforce its own sender identity, so the SMTP login and From address
+are always the same Gmail address. All application verification, email-change and password-reset
+messages use this sender; their actual recipient is unchanged.
+
+### Credentials and compatibility
+
+The encrypted secret field is gmailAppPassword; legacy apiKey/smtp2goApiKey credentials are not
+reused or sent to Google. Supply a fresh Gmail App Password when switching an enabled Email
+integration. Subsequent blank secret edits preserve the stored Gmail App Password. Secrets are
+write-only, field-bound encrypted, and excluded from logs/audit/API responses.
+
+Development-only fallback names are GMAIL_ADDRESS and GMAIL_APP_PASSWORD. Production ignores
+provider environment credentials and reads the encrypted database settings. Internal smtpUrl and
+smtpFrom remain readiness/compatibility properties, not custom SMTP destinations. Normal account
+email constraints do not apply to the sending mailbox; institutional login restrictions remain.
+
+With shared Atlas, configure Email once and keep the same integration encryption key on all
+servers. Use a dedicated demo App Password, never put it in Git/chat, and revoke it after the demo.
+The implementation was verified with isolated SMTP capture adapters; real Google authentication
+and mailbox delivery require the operator's private credentials and have not been claimed tested.
+
+References: https://nodemailer.com/smtp and https://support.google.com/mail/answer/185833

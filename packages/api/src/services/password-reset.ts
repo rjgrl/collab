@@ -7,7 +7,7 @@ import { digest } from "./mfa";
 import { consumeAuthAttempt } from "./throttle";
 import { assertPasswordSafe } from "./password-security";
 import { authorizationTransaction } from "./authorization";
-import { sendEmail } from "../integrations/email";
+import { sendEmail, emailConfigured } from "../integrations/email";
 import { isIntegrationEnabled } from "../integrations/registry";
 import { writeAudit } from "../audit";
 
@@ -21,7 +21,7 @@ export async function requestPasswordReset(context: Context, email: string) {
     user?.status === "active" &&
     user.emailVerified &&
     user.passwordHash &&
-    context.integrationEnv.smtpUrl?.startsWith("https://") &&
+    emailConfigured(context.integrationEnv) &&
     context.integrationEnv.webOrigin &&
     (await isIntegrationEnabled(context.db, "email"))
   ) {
