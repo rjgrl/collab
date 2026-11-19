@@ -1,4 +1,8 @@
-import { signupEmailSchema } from "@Alumni-Tracking-Ss/contracts/auth";
+import {
+  signupEmailSchema,
+  signupSchema,
+  GOOGLE_SIGNIN_EMAIL_MESSAGE,
+} from "@Alumni-Tracking-Ss/contracts/auth";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +20,6 @@ import { Recaptcha } from "@/components/forms/recaptcha";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { AuthHeader, AuthLayout } from "@/components/layout/auth-layout";
-import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import {
   isPasswordScreeningMessage,
   passwordMeetsPolicy,
@@ -64,7 +67,7 @@ function LoginPage() {
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(
     search.error === "google_domain"
-      ? "Admin and faculty accounts must sign in with a BukSU institutional Google account."
+      ? GOOGLE_SIGNIN_EMAIL_MESSAGE
       : search.error === "google"
         ? "Google sign-in could not be completed. Please try again or sign in with your password."
         : null,

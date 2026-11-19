@@ -1,4 +1,7 @@
-import { BUKSU_EMAIL_DOMAINS } from "@Alumni-Tracking-Ss/contracts/auth";
+import {
+  BUKSU_EMAIL_DOMAINS,
+  GOOGLE_SIGNIN_EMAIL_MESSAGE,
+} from "@Alumni-Tracking-Ss/contracts/auth";
 import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "../http-error";
 
@@ -94,9 +97,9 @@ export function assertStaffGoogleIdentity(
     !hostedDomain ||
     !BUKSU_EMAIL_DOMAINS.some((domain) => domain === hostedDomain.toLowerCase())
   )
-    throw new StaffDomainError("Sign in with your BukSU Google Workspace account.");
+    throw new StaffDomainError(GOOGLE_SIGNIN_EMAIL_MESSAGE);
   assertStaffEmailAllowed(email, roles, settings);
   const domains = staffEmailDomains(settings);
   if (domains && !domains.includes(hostedDomain.toLowerCase()))
-    throw new StaffDomainError("Sign in with your BukSU Google Workspace account.");
+    throw new StaffDomainError(GOOGLE_SIGNIN_EMAIL_MESSAGE);
 }

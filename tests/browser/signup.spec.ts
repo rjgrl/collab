@@ -122,6 +122,22 @@ test("Google is available in both modes when configured and enabled", async ({ p
   );
 });
 
+test("Google domain rejection guides every account to exact BukSU domains", async ({
+  page,
+  request,
+}) => {
+  await request.post("http://127.0.0.1:3100/__test/google");
+  await page.goto("/login?error=google_domain");
+  const error = page.getByRole("alert");
+  await expect(error).toContainText(
+    "Use your BukSU institutional Google account (@buksu.edu.ph or @student.buksu.edu.ph).",
+  );
+  await expect(error).not.toContainText(/Admin and faculty|collab\.test|gmail\.com/);
+  await expect(
+    page.getByRole("button", { name: "Sign In with Google", exact: true }),
+  ).toHaveAttribute("href", "/api/auth/google");
+});
+
 test("signup stores separated compound names and the actual custom suffix", async ({ page }) => {
   await page.getByRole("button", { name: "Need an account? Sign Up" }).click();
   await page.getByRole("textbox", { name: "First Name", exact: true }).fill("  María José  ");

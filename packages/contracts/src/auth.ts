@@ -7,6 +7,7 @@ import { newPasswordSchema } from "./password-policy";
 export { newPasswordSchema } from "./password-policy";
 export const emailSchema = z.string().trim().max(254).email();
 export const BUKSU_EMAIL_DOMAINS = ["buksu.edu.ph", "student.buksu.edu.ph"] as const;
+export const GOOGLE_SIGNIN_EMAIL_MESSAGE = `Use your BukSU institutional Google account (${BUKSU_EMAIL_DOMAINS.map((domain) => `@${domain}`).join(" or ")}).`;
 export const SIGNUP_EMAIL_MESSAGE =
   "Use your BukSU institutional email (@buksu.edu.ph or @student.buksu.edu.ph).";
 export const signupEmailSchema = emailSchema.refine(

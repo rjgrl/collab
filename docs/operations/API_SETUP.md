@@ -145,7 +145,12 @@ Set the exact JavaScript origin to the deployed HTTPS origin, and the authorized
 
 The callback is intentionally **unversioned**; do not change it to `/api/v1/auth/google/callback`. Register development callback URIs only on the development client. Request only `openid email profile`; do not enable Gmail, Drive, contacts or admin scopes for login. A Google API key or service account cannot replace this user-consent flow. Keep application institutional-domain and MFA policies enabled.
 
-**Storage/config/test:** UI `clientId` / `clientSecret`; legacy `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+Google login requires exact BukSU/student email and verified BukSU Workspace hosted-domain claims
+in every environment; personal/demo exceptions never apply to Google. See the
+[account-access policy](../specs/account-access.md). A Gmail App Password is unrelated to this OAuth client.
+After saving tested credentials and enabling Google Sign-In, refresh `/login` to reveal its button.
+
+**Storage/config/test:** UI `clientId` / `clientSecret`; legacy `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are development fallbacks only. Production uses encrypted database credentials.
 
 ```ts
 await withProvider("google_auth", async (env) => {

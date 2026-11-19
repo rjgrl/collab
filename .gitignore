@@ -105,6 +105,9 @@ playwright-report/
 !/docs/progress.md
 !/docs/decisions.md
 !/docs/known-issues.md
+!/docs/specs/
+/docs/specs/*
+!/docs/specs/account-access.md
 !/docs/system/
 /docs/system/*
 !/docs/system/installation.md
