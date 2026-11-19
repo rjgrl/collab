@@ -221,6 +221,23 @@ app.post("/__test/local-contact-policy", (request, response) => {
   process.env.LOCAL_REQUIRE_PHONE_VERIFICATION = enabled ? "false" : "true";
   response.json({ ok: true });
 });
+// Marks a newly created managed account as having completed its profile and contacts.
+app.post("/__test/complete-account", async (request, response) => {
+  await db.User.updateOne(
+    { email: String(request.body?.email ?? "").toLowerCase() },
+    {
+      $set: {
+        phoneNumber: "+639171234567",
+        gender: "Female",
+        emailVerified: true,
+        phoneVerified: true,
+        verificationRequired: false,
+        needsProfileCompletion: false,
+      },
+    },
+  ).exec();
+  response.json({ ok: true });
+});
 app.post("/__test/google", async (_request, response) => {
   await db.IntegrationSetting.updateOne({ key: "google_auth" }, { $set: { enabled: true } }).exec();
   response.json({ ok: true });

@@ -15369,6 +15369,21 @@
                       "isSystem": {
                         "type": "boolean"
                       },
+                      "baseRole": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "super_admin",
+                              "faculty"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time"
@@ -15448,6 +15463,31 @@
                           "userRoles"
                         ],
                         "additionalProperties": false
+                      },
+                      "members": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f\\d]{24}$"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "email"
+                          ],
+                          "additionalProperties": false
+                        }
                       }
                     },
                     "required": [
@@ -15456,10 +15496,12 @@
                       "name",
                       "description",
                       "isSystem",
+                      "baseRole",
                       "createdAt",
                       "updatedAt",
                       "rolePermissions",
-                      "_count"
+                      "_count",
+                      "members"
                     ],
                     "additionalProperties": false
                   }
@@ -15566,6 +15608,21 @@
                     "isSystem": {
                       "type": "boolean"
                     },
+                    "baseRole": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "super_admin",
+                            "faculty"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -15645,6 +15702,31 @@
                         "userRoles"
                       ],
                       "additionalProperties": false
+                    },
+                    "members": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f\\d]{24}$"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -15653,10 +15735,12 @@
                     "name",
                     "description",
                     "isSystem",
+                    "baseRole",
                     "createdAt",
                     "updatedAt",
                     "rolePermissions",
-                    "_count"
+                    "_count",
+                    "members"
                   ],
                   "additionalProperties": false
                 }
@@ -15773,6 +15857,21 @@
                     "isSystem": {
                       "type": "boolean"
                     },
+                    "baseRole": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "super_admin",
+                            "faculty"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -15852,6 +15951,31 @@
                         "userRoles"
                       ],
                       "additionalProperties": false
+                    },
+                    "members": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f\\d]{24}$"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -15860,10 +15984,12 @@
                     "name",
                     "description",
                     "isSystem",
+                    "baseRole",
                     "createdAt",
                     "updatedAt",
                     "rolePermissions",
-                    "_count"
+                    "_count",
+                    "members"
                   ],
                   "additionalProperties": false
                 }
@@ -15930,6 +16056,266 @@
                   },
                   "required": [
                     "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles/{id}/split": {
+      "post": {
+        "operationId": "roles.split",
+        "summary": "Roles: split",
+        "tags": [
+          "roles"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedUpdatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "userIds": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-f\\d]{24}$"
+                    }
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 400
+                  },
+                  "permissionIds": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-f\\d]{24}$"
+                    }
+                  }
+                },
+                "required": [
+                  "expectedUpdatedAt",
+                  "userIds",
+                  "name",
+                  "permissionIds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/E400",
+            "description": "Invalid input"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401",
+            "description": "Sign-in required"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403",
+            "description": "Not allowed (permission, scope, MFA or origin)"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404",
+            "description": "Not found"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409",
+            "description": "Conflict (stale version, duplicate or wrong state)"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429",
+            "description": "Too many requests"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503",
+            "description": "Unavailable (maintenance mode, or a required service is not configured)"
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-f\\d]{24}$"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "isSystem": {
+                      "type": "boolean"
+                    },
+                    "baseRole": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "super_admin",
+                            "faculty"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "rolePermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "permissionId": {
+                            "type": "string",
+                            "pattern": "^[a-f\\d]{24}$"
+                          },
+                          "permission": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f\\d]{24}$"
+                              },
+                              "key": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "module": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "default": "",
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "updatedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "key",
+                              "name",
+                              "module",
+                              "description"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "permissionId",
+                          "permission"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "_count": {
+                      "default": {
+                        "userRoles": 0
+                      },
+                      "type": "object",
+                      "properties": {
+                        "userRoles": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "userRoles"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "members": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f\\d]{24}$"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "name",
+                    "description",
+                    "isSystem",
+                    "baseRole",
+                    "createdAt",
+                    "updatedAt",
+                    "rolePermissions",
+                    "_count",
+                    "members"
                   ],
                   "additionalProperties": false
                 }

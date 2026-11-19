@@ -7,7 +7,7 @@ import { consumeAuthAttempt, boundedSetting } from "./throttle";
 import type { z } from "zod";
 import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import { formatDisplayName, isAlumniAccount, ROLE } from "@Alumni-Tracking-Ss/contracts/names";
-import { loadUserRoles, authorizationTransaction } from "./authorization";
+import { loadUserRoles, authorizationTransaction, roleKeys } from "./authorization";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import {
   createSessionToken,
@@ -44,7 +44,7 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
   const user = toEntity(row);
   const credential = await db.MfaCredential.findOne({ userId }).lean().exec();
   const assigned = await loadUserRoles(db, userId);
-  const roles = assigned.map((role) => role.key);
+  const roles = roleKeys(assigned);
   // Also ends sessions of accounts whose email no longer matches the institutional domains.
   if (staffEmailRejected(user.email, roles)) return null;
   const alumniAccount = isAlumniAccount({ roles });
@@ -233,10 +233,7 @@ export async function authenticateWithPassword(
   if (roleCount === 0) {
     throw new ApiError("FORBIDDEN", { message: "No role is assigned to this account." });
   }
-  assertStaffEmailAllowed(
-    user.email,
-    (await loadUserRoles(db, user.id)).map((role) => role.key),
-  );
+  assertStaffEmailAllowed(user.email, roleKeys(await loadUserRoles(db, user.id)));
   await db.AuthThrottle.updateOne(
     { key: attempt.key, count: { $gt: 0 } },
     { $inc: { count: -1 } },
@@ -348,7 +345,7 @@ export async function upsertGoogleUser(
     assertStaffGoogleIdentity(
       email,
       input.hostedDomain,
-      (await loadUserRoles(db, existing.id)).map((role) => role.key),
+      roleKeys(await loadUserRoles(db, existing.id)),
     );
     // Provider names and photos initialize new accounts; later sign-ins preserve account edits.
     const updated = await db.User.findOneAndUpdate(
@@ -403,7 +400,7 @@ export async function upsertGoogleUser(
         assertStaffGoogleIdentity(
           email,
           input.hostedDomain,
-          (await loadUserRoles(db, String(row._id))).map((role) => role.key),
+          roleKeys(await loadUserRoles(db, String(row._id))),
         );
         return toEntity(row);
       }

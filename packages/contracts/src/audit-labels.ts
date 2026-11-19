@@ -70,6 +70,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // Role management
   "roles.create": "Created role",
   "roles.update": "Updated role permissions",
+  "roles.split": "Moved members to a new role",
   "roles.delete": "Deleted role",
 
   // Files

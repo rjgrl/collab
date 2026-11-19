@@ -267,3 +267,11 @@ Append-only. Format: date, decision, why, alternatives rejected.
 
 - Owner selected a guide and configuration examples, not missing-adapter implementation or live enablement. Use existing Render secret injection for root keys and the encrypted application credential store for production providers; do not add an external secrets-manager SDK as part of this task.
 - The operational catalog is [Secure API Setup](operations/API_SETUP.md). Its Resend/Twilio examples do not select vendors or authorize billing, messages, uploads, database changes or deployment. Provider choice and implementation gaps remain explicit; strict production verification/readiness is unchanged.
+
+## 2026-11-19: Role changes can apply to selected members; limited Super Admins
+
+- Decision: the role editor lists a role's members. "Apply Changes To" offers All Members (edits the role) or Only Selected Members, which moves the picked members to a new role holding the edited permissions (`POST /roles/:id/split`, one transaction, audited as `roles.split`; moved members are signed out). Works for Faculty, custom and Super Admin roles, not Alumni.
+- This keeps "no per-user permissions" (2026-11-09): every account's access is still exactly its role's permissions. Per-user overrides were offered and rejected because they make access hard to audit.
+- A role split from Super Admin or Faculty records `baseRole`; `roleKeys()` adds that base key to the account's roles, so a limited Super Admin is still an administrator (university-wide scope, MFA) and a split Faculty member keeps Faculty menus, notifications and scope. Permissions come only from the new role's grants.
+- Owner requirement: several Super Admins may exist with limited access. The original Super Admin role is read-only with every permission on. Only a full Super Admin (member of that role) may split Super Admin members or edit, delete, re-assign or disable a limited one; nobody can split themself; the full role can never be emptied by a split.
+- University-wide ("Super Admin only") permissions may be held by Super Admin roles and their limited variants only; Faculty and custom roles still cannot hold them.

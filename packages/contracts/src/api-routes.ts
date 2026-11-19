@@ -100,6 +100,7 @@ export const API_ROUTES = {
     create: route(rolesSchemas.create, "POST", "/roles"),
     update: route(rolesSchemas.update, "PATCH", "/roles/:id"),
     delete: route(rolesSchemas.delete, "DELETE", "/roles/:id"),
+    split: route(rolesSchemas.split, "POST", "/roles/:id/split"),
   },
   permissions: { list: route(permissionsSchemas.list, "GET", "/permissions") },
   colleges: {

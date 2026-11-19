@@ -9,3 +9,4 @@ rolesRoutes.get("/", authorize("roles.read"), rolesController.list);
 rolesRoutes.post("/", authorize("roles.write"), rolesController.create);
 rolesRoutes.patch("/:id", authorize("roles.write"), rolesController.update);
 rolesRoutes.delete("/:id", authorize("roles.delete"), rolesController.delete);
+rolesRoutes.post("/:id/split", authorize("roles.write"), rolesController.split);

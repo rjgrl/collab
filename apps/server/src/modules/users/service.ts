@@ -12,8 +12,10 @@ import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/a
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { writeAudit, describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
 import {
+  assertFullSuperAdmin,
   assertRoleScope,
   authorizationTransaction,
+  isSuperAdminKind,
   loadUserRoles,
   publicUser,
   validateRoleIds,
@@ -111,6 +113,8 @@ export const usersService = {
       const current = toEntity(row);
       const roles = await loadUserRoles(tx, input.id);
       let nextRolesForAudit = roles;
+      // Limited Super Admins are managed only by a full Super Admin.
+      if (roles.some(isSuperAdminKind)) await assertFullSuperAdmin(tx, actor);
       assertRoleScope(actor, roles);
       if (input.roleIds) {
         if (roles.some((role) => role.key === ROLE.superAdmin))
@@ -118,6 +122,7 @@ export const usersService = {
             message: "Super administrator role assignments are protected.",
           });
         const nextRoles = await validateRoleIds(tx, actor, input.roleIds);
+        if (nextRoles.some(isSuperAdminKind)) await assertFullSuperAdmin(tx, actor);
         nextRolesForAudit = nextRoles;
         const currentKeys = roles.map((role) => role.key);
         const nextKeys = nextRoles.map((role) => role.key);
@@ -180,6 +185,7 @@ export const usersService = {
       const target = await tx.User.findById(input.id).lean().exec();
       if (!target) throw new ApiError("NOT_FOUND", { message: "User not found." });
       const roles = await loadUserRoles(tx, input.id);
+      if (roles.some(isSuperAdminKind)) await assertFullSuperAdmin(tx, actor);
       assertRoleScope(actor, roles);
       if (roles.some((role) => role.key === ROLE.superAdmin))
         throw new ApiError("FORBIDDEN", {

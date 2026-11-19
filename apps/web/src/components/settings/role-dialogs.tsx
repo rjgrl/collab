@@ -20,12 +20,22 @@ import { formatUiLabel } from "@/lib/ui-label";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 
-/** Roles configured here are never Super Admin, so university-wide permissions do not apply. */
-const grantable = (session: ReturnType<typeof useSession>, permission: PermissionItem) =>
-  !isSuperAdminOnlyPermission(permission.key) && can(session.data?.permissions, permission.key);
+/** University-wide permissions apply only to Super Admin roles (the original or a limited one). */
+const grantable = (
+  session: ReturnType<typeof useSession>,
+  permission: PermissionItem,
+  superAdminRole: boolean,
+) =>
+  (superAdminRole || !isSuperAdminOnlyPermission(permission.key)) &&
+  can(session.data?.permissions, permission.key);
 
 /** Drops permissions a non-Super Admin role cannot hold (older roles may still store some). */
-export function grantablePermissionIds(ids: string[], permissions: PermissionItem[]) {
+export function grantablePermissionIds(
+  ids: string[],
+  permissions: PermissionItem[],
+  superAdminRole = false,
+) {
+  if (superAdminRole) return ids;
   const restricted = new Set(
     permissions.filter((item) => isSuperAdminOnlyPermission(item.key)).map((item) => item.id),
   );
@@ -37,11 +47,14 @@ export function PermissionControls({
   ids,
   setIds,
   locked,
+  superAdminRole = false,
 }: {
   permissions: PermissionItem[];
   ids: string[];
   setIds: React.Dispatch<React.SetStateAction<string[]>>;
   locked: boolean;
+  /** The role is Super Admin or a limited Super Admin, so university-wide permissions apply. */
+  superAdminRole?: boolean;
 }) {
   const session = useSession();
   const [search, setSearch] = useState("");
@@ -64,7 +77,7 @@ export function PermissionControls({
         .filter((group) => group.items.some(matches))
         .map((group) => {
           const applicable = group.items
-            .filter((permission) => grantable(session, permission))
+            .filter((permission) => grantable(session, permission, superAdminRole))
             .map((permission) => permission.id);
           const state = groupState(applicable, ids);
           return (
@@ -93,8 +106,11 @@ export function PermissionControls({
                   <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
                     <Switch
                       className="mt-1"
-                      checked={grantable(session, permission) && ids.includes(permission.id)}
-                      disabled={locked || !grantable(session, permission)}
+                      checked={
+                        (superAdminRole || !isSuperAdminOnlyPermission(permission.key)) &&
+                        ids.includes(permission.id)
+                      }
+                      disabled={locked || !grantable(session, permission, superAdminRole)}
                       onCheckedChange={(checked) =>
                         setIds((current) => togglePermissions(current, [permission.id], checked))
                       }
@@ -102,7 +118,7 @@ export function PermissionControls({
                     <span>
                       <span className="font-medium">{formatUiLabel(permission.name)}</span>
                       <span className="block text-muted-foreground">{permission.description}</span>
-                      {isSuperAdminOnlyPermission(permission.key) ? (
+                      {!superAdminRole && isSuperAdminOnlyPermission(permission.key) ? (
                         <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
                           Super Admin only
                         </span>

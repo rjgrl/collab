@@ -20,12 +20,18 @@ export const roleSchema = z.object({
   name: z.string(),
   description: z.string(),
   isSystem: z.boolean(),
+  // A role split from Super Admin or Faculty; its members keep that kind of account.
+  baseRole: z.enum(["super_admin", "faculty"]).nullable().default(null),
   createdAt: dateSchema,
   updatedAt: dateSchema,
   rolePermissions: z.array(
     z.object({ permissionId: objectIdSchema, permission: permissionSchema }),
   ),
   _count: z.object({ userRoles: z.number().int().nonnegative() }).default({ userRoles: 0 }),
+  // Member names, listed for roles that can be split (not Alumni).
+  members: z
+    .array(z.object({ id: objectIdSchema, name: z.string(), email: z.string() }))
+    .default([]),
 });
 export const rolesSchemas = {
   list: { input: noInputSchema, output: z.array(roleSchema) },
@@ -56,6 +62,20 @@ export const rolesSchemas = {
     output: roleSchema,
   },
   delete: { input: idInputSchema, output: okSchema },
+  /** Moves the selected members to a new role holding the edited permissions. */
+  split: {
+    input: z
+      .object({
+        id: objectIdSchema,
+        expectedUpdatedAt: z.string().datetime(),
+        userIds: idsSchema.refine((ids) => ids.length > 0, "Select at least one member."),
+        name: z.string().trim().min(1).max(80),
+        description: z.string().max(400).optional(),
+        permissionIds: idsSchema,
+      })
+      .strict(),
+    output: roleSchema,
+  },
 };
 export const permissionsSchemas = {
   list: { input: noInputSchema, output: z.array(permissionSchema) },
