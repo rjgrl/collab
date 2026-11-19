@@ -2,6 +2,15 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (Resend, global API budgets and account/archive bug fixes)
+
+- Email settings now use Resend only (verified sender + encrypted API key), with a fixed send endpoint and provider check before save. Generic gateway URL is removed; old internal SMTP names remain compatibility/readiness fields, not custom destinations. Verification, email change and password reset all use Resend. No live key/domain was supplied, so real mailbox delivery remains an operator acceptance step.
+- Global MongoDB-backed API limits: 300 requests/minute per signed-in user or anonymous IP and 3000/minute per shared IP before authentication; aliases/refreshes/instances share counters. Existing stricter auth limits stay. HTTP 429 carries Retry-After and the client displays a wait message.
+- Reported BUG-002/003/004: Resend delivery, existing new-account verification guards preserved, and new local setup defaults to requiring email verification. This machine was configured accordingly; explicit older local overrides must be changed for presentation. Phone policy unchanged. BUG-007 exact institutional email rules retained.
+- BUG-006: new Super Admin-only Alumni Archive with paginated search, confirmation and audited restore. No permanent deletion. Inactive academic parents block restoration; unavailable assigned faculty is cleared and reassignment flagged.
+- Verified: pnpm check 7/7, pnpm test 441/441, browser types green, 24 focused browser tests pass desktop/mobile (Archive axe/access/restore, email verification/reset and integration screens); real-DB security check and dependency audit pass; no high-confidence secrets. Full browser regression is running; the owner requested committing/pushing before its final result, so it is not claimed green.
+- Test adaptations are explicit: mail mocks now expect the Resend endpoint and recipient array; HTTP fixtures supply global counters, and negative authorization assertions ignore only AuthThrottle writes while still requiring zero business-data mutation. Red-covered bug rows were unreadable and remain out of scope.
+
 ## 2026-11-19 (detailed API documentation PDF)
 
 - Generated an endpoint-by-endpoint reference matching the owner's sample: version, documentation date, description, URL, method, configurations, parameters, and response-code tables for all 106 OpenAPI operations plus three health probes. The detailed PDF, HTML source, generator, and verification manifest are local exports under `.thinkrail/context/exports/` (generator under `.thinkrail/context/`); the earlier overview PDF remains unchanged.

@@ -171,3 +171,23 @@ This binds each ciphertext to one integration and field, preventing reuse or mix
 
 - [DISASTER_RECOVERY.md](./DISASTER_RECOVERY.md) - General backup and recovery procedures
 - [ACCOUNT_SECURITY.md](./ACCOUNT_SECURITY.md) - User authentication and authorization
+
+## Resend (current Email provider)
+
+Email now uses Resend only. Settings → Integrations → Email asks for **Resend API Key** and
+**Verified Sender Email**, not an HTTPS gateway URL. Create a sending API key in Resend and verify
+the sender domain's DNS records there first. Enable/update sends a test email to the signed-in
+administrator; a rejected request saves nothing. Verify actual arrival (and spam folder) separately:
+API acceptance is not a delivery guarantee. Resend's trial sender cannot deliver freely to arbitrary
+recipients; use your verified domain for presentation accounts.
+
+The encrypted credential field names `apiKey` and `fromAddress` stay stable. An old `gatewayUrl`
+is never used to send mail. Existing deployments must re-enter a **Resend** key and verified sender
+and successfully test them, rather than reusing another gateway's API key. No key should be pasted
+into chat, committed, or copied into a database backup unencrypted. Verification codes, email-change
+codes and password-reset links all use the same Resend sender.
+
+Development-only environment fallback: `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Production uses
+the encrypted database configuration, not provider environment credentials. Internal `smtpUrl` /
+`smtpFrom` names remain compatibility/readiness fields; no SMTP connection or arbitrary gateway
+request is made.

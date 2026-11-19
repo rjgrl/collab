@@ -10,6 +10,10 @@ const PAGE_RULES: { path: string; allows: (user: SessionUser) => boolean }[] = [
   { path: "/departments", allows: (user) => can(user.permissions, "departments.read") },
   { path: "/programs", allows: (user) => can(user.permissions, "programs.read") },
   { path: "/alumni", allows: (user) => can(user.permissions, "alumni.read") },
+  {
+    path: "/archive",
+    allows: (user) => isAdministrator(user) && can(user.permissions, "alumni.read"),
+  },
   // Gated by faculty level, not an RBAC key.
   { path: "/faculty", allows: (user) => canAssignFaculty(user) },
   { path: "/reports", allows: (user) => can(user.permissions, "reports.read") },

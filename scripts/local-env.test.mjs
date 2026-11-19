@@ -48,6 +48,7 @@ it("creates complete local config and unique private bootstrap credentials once"
     /^mongodb:\/\/127\.0\.0\.1:27018\/collab_dev_[a-f0-9]{12}\?replicaSet=rs0$/,
   );
   assert.equal(server.CORS_ORIGIN, "http://localhost:3001");
+  assert.equal(server.LOCAL_REQUIRE_EMAIL_VERIFICATION, "true");
   // Institutional domains plus the generated admin's domain, so its login keeps working.
   assert.equal(server.STAFF_EMAIL_DOMAINS, "buksu.edu.ph,student.buksu.edu.ph,collab.test");
   assert.match(server.MFA_ENCRYPTION_KEY, /^[a-f0-9]{64}$/);

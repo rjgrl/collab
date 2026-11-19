@@ -76,7 +76,12 @@ function fixture() {
     db,
     user: { id: user.id, status: "active" },
     sessionToken: session.token,
-    integrationEnv: { verificationSecret: secret, smtpUrl: "https://mail.example.test" },
+    integrationEnv: {
+      verificationSecret: secret,
+      emailApiKey: "re_test-key",
+      smtpFrom: "sender@example.test",
+      smtpUrl: "https://mail.example.test",
+    },
   } as unknown as Context;
   context.onSessionRotation = (value) => {
     context.sessionToken = value.token;

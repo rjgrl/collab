@@ -24,13 +24,15 @@ const db = new Proxy(
   {},
   {
     get: (_target, name) =>
-      name === "ready"
-        ? async () => undefined
-        : name === "transaction"
-          ? async () => {
-              throw new Error("no database in routing test");
-            }
-          : model,
+      name === "AuthThrottle"
+        ? { findOneAndUpdate: () => query({ count: 1 }) }
+        : name === "ready"
+          ? async () => undefined
+          : name === "transaction"
+            ? async () => {
+                throw new Error("no database in routing test");
+              }
+            : model,
   },
 ) as unknown as Database;
 const app = createApp({ db, config: { nodeEnv: "test", origin }, integrationEnv: {} });

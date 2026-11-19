@@ -275,3 +275,17 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - A role split from Super Admin or Faculty records `baseRole`; `roleKeys()` adds that base key to the account's roles, so a limited Super Admin is still an administrator (university-wide scope, MFA) and a split Faculty member keeps Faculty menus, notifications and scope. Permissions come only from the new role's grants.
 - Owner requirement: several Super Admins may exist with limited access. The original Super Admin role is read-only with every permission on. Only a full Super Admin (member of that role) may split Super Admin members or edit, delete, re-assign or disable a limited one; nobody can split themself; the full role can never be emptied by a split.
 - University-wide ("Super Admin only") permissions may be held by Super Admin roles and their limited variants only; Faculty and custom roles still cannot hold them.
+
+## Resend, global API budgets and account/archive bug fixes
+
+- Email is Resend-only, using its fixed HTTPS send endpoint, encrypted API key and verified sender.
+  Old internal mail property names remain for compatibility; custom gateway URLs are ignored.
+  Provider checks send a real test email before credentials are committed. No live credentials were
+  supplied during implementation, so mailbox delivery must be checked on the presentation device.
+- Global limits: 300/minute per account or anonymous IP, plus 3000/minute per shared IP before
+  authentication; MongoDB counters persist across refreshes and instances. Existing stricter auth
+  limits stay. Only explicit non-production memory storage is permitted.
+- Owner clarified BUG-003 as verification of the recipient's email, not extra administrator MFA.
+  Managed accounts already require verification; local setup now defaults to email verification on.
+  BUG-006 is an Alumni-only browse/restore Archive for Super Admins, without permanent deletion.
+  BUG-007 retains exact institutional domains and the local-only collab.test demo exception.

@@ -312,16 +312,15 @@ export async function testIntegrationConnection(
     }
 
     case "email": {
-      const gatewayUrl = values.gatewayUrl?.trim();
+      const gatewayUrl = "https://api.resend.com/emails";
       const fromAddress = values.fromAddress?.trim();
       const apiKey = values.apiKey?.trim();
 
-      if (!gatewayUrl || !fromAddress || !apiKey)
+      if (!fromAddress || !apiKey)
         throw new ApiError("BAD_REQUEST", {
-          message: "Gateway URL, from address, and API key are required for testing.",
+          message: "A verified sender email and Resend API key are required for testing.",
         });
 
-      if (process.env.NODE_ENV === "production") await assertPublicHost(gatewayUrl);
       try {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (apiKey) {
@@ -336,7 +335,7 @@ export async function testIntegrationConnection(
           headers,
           body: JSON.stringify({
             from: fromAddress,
-            to: adminEmail,
+            to: [adminEmail],
             subject: "Alumni Tracking System email test",
             text: "Email delivery is connected.",
           }),
@@ -344,7 +343,8 @@ export async function testIntegrationConnection(
 
         if (!response.ok) {
           throw new ApiError("BAD_REQUEST", {
-            message: "The email gateway did not accept the test message.",
+            message:
+              "Resend rejected the test email. Check the API key and verified sender domain.",
           });
         }
       } catch (error) {

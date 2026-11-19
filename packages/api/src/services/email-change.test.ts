@@ -55,7 +55,9 @@ async function fixture() {
     userAgent: null,
     integrationEnv: {
       verificationSecret: "test-only-verification-key-with-32-characters",
-      smtpUrl: "https://mail.example.test",
+      emailApiKey: "re_test-key",
+      smtpFrom: "sender@example.test",
+      smtpUrl: "https://api.resend.com/emails",
     },
     onSessionRotation: (session) => {
       rotated = String(decodeJwt(session.token).jti);
@@ -76,7 +78,7 @@ async function issue(f: Awaited<ReturnType<typeof fixture>>, email = "new@exampl
   try {
     globalThis.fetch = async (_url, init) => {
       const message = JSON.parse(String(init?.body));
-      assert.equal(message.to, email);
+      assert.deepEqual(message.to, [email]);
       code = message.text.match(/\b\d{6}\b/)[0];
       return Response.json({ ok: true });
     };

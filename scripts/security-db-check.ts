@@ -67,7 +67,9 @@ try {
         integrationEnv: {
           mfaEncryptionKey: "56".repeat(32),
           webOrigin: "https://app.example.test",
-          smtpUrl: "https://mail.example.test",
+          smtpUrl: "https://api.resend.com/emails",
+          smtpFrom: "sender@example.test",
+          emailApiKey: "re_test-key",
         },
       } as Context;
       context.onSessionRotation = (next) => {
@@ -105,7 +107,7 @@ try {
       await new tx.IntegrationSetting({ key: "email", enabled: true }).save();
       let resetToken = "";
       globalThis.fetch = async (input, init) => {
-        assert.equal(String(input), "https://mail.example.test");
+        assert.equal(String(input), "https://api.resend.com/emails");
         const text = JSON.parse(String(init?.body)).text;
         resetToken = new URLSearchParams(
           new URL(text.match(/https:\/\/[^\s]+/)[0]).hash.slice(1),

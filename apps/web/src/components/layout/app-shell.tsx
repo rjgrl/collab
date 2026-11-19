@@ -54,6 +54,7 @@ const NAV = [
   { to: "/reports", label: "Reports", icon: ClipboardList },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/audit", label: "Audit Log", icon: ScrollText },
+  { to: "/archive", label: "Archive", icon: ScrollText },
 ] as const;
 
 type NavItem = (typeof NAV)[number];
@@ -62,7 +63,7 @@ const STAFF_SECTIONS = [
   { label: "Overview", paths: ["/dashboard", "/reports"] },
   { label: "Records", paths: ["/alumni", "/faculty"] },
   { label: "Academic Structure", paths: ["/colleges", "/departments", "/programs"] },
-  { label: "Administration", paths: ["/settings", "/audit"] },
+  { label: "Administration", paths: ["/settings", "/audit", "/archive"] },
 ] as const;
 
 const ALUMNI_SECTIONS = [

@@ -340,3 +340,16 @@ Run `pnpm accounts:local` to provision fresh generated Admin, Faculty (college h
 For automated role checks, install Chromium once with `pnpm exec playwright install chromium`. With those servers running, `pnpm test:roles-local` rehearses normal UI login for all three roles, the configured Admin MFA policy, Admin-only integrations, role/session revocation and disabled sessions. It saves synthetic screenshots and private authenticator/recovery artifacts under `.tools/role-browser/`. These files contain secrets: do not share or commit them. The tool only accepts the generated synthetic namespace; it has no production endpoint or fixed test password.
 
 Public registration requires `ALLOW_PUBLIC_SIGNUP=true`; local role demonstrations set this explicitly without changing your private working configuration.
+
+### Resend and presentation verification
+
+Email is now Resend-only. In Settings → Integrations → Email enter a Resend API key and a sender
+on a domain verified in Resend; there is no gateway URL. A test email must succeed before saving.
+For presentation, set `LOCAL_REQUIRE_EMAIL_VERIFICATION=true` in `apps/server/.env` and restart.
+New local setups now use that value by default; setup preserves existing deliberate values.
+Phone verification is separate and is not enabled by this change. Generated demo accounts remain
+pre-verified; newly registered/managed accounts must verify their recipient email. Real delivery
+needs working DNS, a Resend key and an approved sender; it cannot be demonstrated offline.
+
+Global API limits default to 300/minute per user or anonymous IP plus 3000/minute per shared IP;
+refreshing does not reset them. Do not disable these for the presentation.

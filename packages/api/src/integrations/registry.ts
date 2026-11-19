@@ -116,7 +116,7 @@ export function isConfigured(key: IntegrationKey, env: IntegrationEnv) {
     case "google_drive":
       return Boolean(env.googleServiceAccountJson && env.googleDriveFolderId);
     case "email":
-      return Boolean(env.smtpUrl?.startsWith("https://"));
+      return Boolean(env.emailApiKey && env.smtpFrom);
     case "image_host":
       return Boolean(env.imgbbApiKey || env.googleServiceAccountJson);
     case "google_forms":

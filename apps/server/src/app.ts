@@ -37,6 +37,7 @@ import type { BackupConfig } from "@Alumni-Tracking-Ss/api/backups/backup-servic
 import { maintenanceState } from "@Alumni-Tracking-Ss/api/backups/restore";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { requestContext } from "./middleware/request-context";
+import { apiRateLimits } from "./middleware/api-rate-limit";
 import { filesRoutes, ownFilesRoutes } from "./modules/files/routes";
 import { accountPhotoRoutes, ownPhotoRoutes } from "./modules/account-photos/routes";
 import { employmentController } from "./modules/alumni/employment.controller";
@@ -180,11 +181,13 @@ export function createApp({
       origin: (origin, callback) =>
         callback(null, origin === config.origin ? config.origin : false),
       credentials: true,
-      exposedHeaders: ["Content-Disposition", "X-Request-ID"],
+      exposedHeaders: ["Content-Disposition", "X-Request-ID", "Retry-After"],
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
     }),
   );
+  const globalLimits = apiRateLimits(db, config.nodeEnv, config.trustedProxyIps);
+  app.use(globalLimits.ceiling);
   const windowMs = boundedSetting(process.env.AUTH_IP_WINDOW_SECONDS, 900, 86400) * 1000;
   const limit = boundedSetting(process.env.AUTH_IP_LIMIT, 30, 1000);
   const peer = (request: Parameters<typeof readPeerAddress>[0]) =>
@@ -288,6 +291,7 @@ export function createApp({
     );
     next();
   });
+  app.use(globalLimits.identity);
   // During a restore every API request gets 503 except Super Admin work and the few routes a
   // Super Admin needs to sign in (password or Google, second factor, session check, sign-out).
   const signInRoutes = new Set([

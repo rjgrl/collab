@@ -55,10 +55,12 @@ it("POST users denies Faculty and custom actors holding legacy users.write grant
     const relevantOps = f.operations.filter(
       (op) =>
         !(op.model === "IntegrationSetting" && op.method === "find") &&
-        !(op.model === "BackupState" && op.method === "findById"),
+        !(op.model === "BackupState" && op.method === "findById") &&
+        op.model !== "AuthThrottle",
     );
     assert.equal(relevantOps.length, 0);
-    assert.deepEqual(f.tables, before);
+    const { AuthThrottle: _counters, ...businessTables } = f.tables;
+    assert.deepEqual(businessTables, before);
   }
 });
 
@@ -91,9 +93,11 @@ it("legacy manual Alumni create/link HTTP endpoints reject all management actors
     const relevantOps = f.operations.filter(
       (op) =>
         !(op.model === "IntegrationSetting" && op.method === "find") &&
-        !(op.model === "BackupState" && op.method === "findById"),
+        !(op.model === "BackupState" && op.method === "findById") &&
+        op.model !== "AuthThrottle",
     );
     assert.equal(relevantOps.length, 0);
-    assert.deepEqual(f.tables, before);
+    const { AuthThrottle: _counters, ...businessTables } = f.tables;
+    assert.deepEqual(businessTables, before);
   }
 });

@@ -126,26 +126,21 @@ describe("connection-test", () => {
     );
   });
 
-  it("production rejects email gateways on internal addresses", async (t) => {
-    const previous = process.env.NODE_ENV;
-    t.after(() => {
-      process.env.NODE_ENV = previous;
-    });
-    process.env.NODE_ENV = "production";
-    for (const gatewayUrl of [
-      "https://127.0.0.1/send",
-      "https://10.1.2.3/send",
-      "https://[::1]/send",
-      "https://169.254.169.254/latest",
-    ])
-      await rejectsWith(
-        testIntegrationConnection(
-          "email",
-          { gatewayUrl, fromAddress: "a@example.com", apiKey: "k" },
-          options(reply(200, {})),
-        ),
-        "public HTTPS address",
-      );
+  it("ignores old gateway URLs and validates public-address classification", async () => {
+    let target = "";
+    await testIntegrationConnection(
+      "email",
+      {
+        gatewayUrl: "https://127.0.0.1/never-used",
+        fromAddress: "a@example.com",
+        apiKey: "re_test",
+      },
+      options(async (url) => {
+        target = String(url);
+        return Response.json({ id: "test" });
+      }),
+    );
+    assert.equal(target, "https://api.resend.com/emails");
     for (const address of [
       "8.8.8.8",
       "2001:4860:4860::8888",

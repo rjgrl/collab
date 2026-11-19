@@ -23,8 +23,13 @@ export async function readJson<O>(response: Response, schema: z.ZodType<O>): Pro
   if (response.status === 401) noteUnauthorized();
   if (!response.ok) {
     const parsed = errorResponseSchema.safeParse(payload);
+    const retryAfter = Number(response.headers.get("Retry-After"));
     throw new RestError(
-      parsed.success ? parsed.data.error : "Request failed. Try again.",
+      response.status === 429
+        ? `Too many requests. Please wait ${Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter) : 60} seconds before retrying.`
+        : parsed.success
+          ? parsed.data.error
+          : "Request failed. Try again.",
       response.status,
       parsed.success ? parsed.data.code : "REQUEST_FAILED",
     );

@@ -6,6 +6,8 @@ import { contactsSchemas } from "@Alumni-Tracking-Ss/contracts/contacts";
 import { contactsService } from "./contacts.service";
 
 export const alumniController = {
+  archived: controller(alumniSchemas.archived, alumniService.archived, "query", 200),
+  restore: controller(alumniSchemas.restore, alumniService.restore, "params", 200),
   pendingAccounts: controller(
     alumniSchemas.pendingAccounts,
     alumniService.pendingAccounts,

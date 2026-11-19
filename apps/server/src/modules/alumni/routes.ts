@@ -7,6 +7,8 @@ export const alumniRoutes = Router();
 alumniRoutes.use(authenticate);
 alumniRoutes.get("/", authorize("alumni.read"), alumniController.list);
 alumniRoutes.get("/pending-accounts", authorize("alumni.read"), alumniController.pendingAccounts);
+alumniRoutes.get("/archived", authorize("alumni.read"), alumniController.archived);
+alumniRoutes.post("/:id/restore", authorize("alumni.write"), alumniController.restore);
 alumniRoutes.get("/:id", authorize("alumni.read"), alumniController.get);
 alumniRoutes.get("/:id/history", authorize("alumni.read"), alumniController.history);
 alumniRoutes.post("/:alumniId/contacts", authorize("alumni.write"), alumniController.addContact);

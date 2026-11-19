@@ -52,7 +52,9 @@ const verificationEnv: IntegrationEnv = {
   googleClientId: "synthetic-browser-client",
   googleClientSecret: "synthetic-browser-secret",
   appUrl: "http://127.0.0.1:3100",
-  smtpUrl: "https://mail.example.test",
+  emailApiKey: "re_test-key",
+  smtpFrom: "sender@example.test",
+  smtpUrl: "https://api.resend.com/emails",
   verificationSecret: "synthetic-test-only-verification-key-1234567890",
   mfaEncryptionKey: "12".repeat(32),
   webOrigin: "http://127.0.0.1:3101",
@@ -70,7 +72,7 @@ const verificationEnv: IntegrationEnv = {
 };
 const nativeFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
-  if (String(input) === "https://mail.example.test") {
+  if (String(input) === "https://api.resend.com/emails") {
     const body = JSON.parse(String(init?.body)) as { text: string };
     emailCode = body.text.match(/\b[0-9]{6}\b/)?.[0] ?? "";
     resetLink = body.text.match(/https?:\/\/[^\s]+\/reset-password#[^\s]+/)?.[0] ?? "";

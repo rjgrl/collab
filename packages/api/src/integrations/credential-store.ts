@@ -191,7 +191,8 @@ export async function resolveIntegrationEnv(
           if (stored.values.apiKey) env.imgbbApiKey = stored.values.apiKey;
           break;
         case "email":
-          if (stored.values.gatewayUrl) env.smtpUrl = stored.values.gatewayUrl;
+          // Keep the internal readiness marker, but never use a stored/custom gateway URL.
+          env.smtpUrl = "https://api.resend.com/emails";
           if (stored.values.fromAddress) env.smtpFrom = stored.values.fromAddress;
           if (stored.values.apiKey) env.emailApiKey = stored.values.apiKey;
           break;

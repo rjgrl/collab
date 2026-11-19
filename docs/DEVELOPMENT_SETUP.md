@@ -32,3 +32,16 @@ For checks: `pnpm --filter web build`, `pnpm check-types`, `pnpm test:browser-ty
 Each laptop should run its own loopback instance. LAN sharing is opt-in and requires an explicit network/authentication/TLS review; changing HOST alone is insufficient because CORS, cookies, browser origin and firewall rules must agree. Never expose the unauthenticated development MongoDB server. No staging provisioning or deployment is performed by setup.
 
 Current architecture and database cutover instructions: [migration runbook](migrations/MONGOOSE_REST.md). Existing names, ObjectIds and records are preserved; migration is dry-run by default.
+
+### Resend and presentation verification
+
+Email is now Resend-only. In Settings → Integrations → Email enter a Resend API key and a sender
+on a domain verified in Resend; there is no gateway URL. A test email must succeed before saving.
+For presentation, set `LOCAL_REQUIRE_EMAIL_VERIFICATION=true` in `apps/server/.env` and restart.
+New local setups now use that value by default; setup preserves existing deliberate values.
+Phone verification is separate and is not enabled by this change. Generated demo accounts remain
+pre-verified; newly registered/managed accounts must verify their recipient email. Real delivery
+needs working DNS, a Resend key and an approved sender; it cannot be demonstrated offline.
+
+Global API limits default to 300/minute per user or anonymous IP plus 3000/minute per shared IP;
+refreshing does not reset them. Do not disable these for the presentation.

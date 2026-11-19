@@ -14,6 +14,7 @@ import { validateWebStorage, webHandler } from "./web-serving";
 const origin = "https://app.example.test";
 function fixture(webRoot?: string, production = false) {
   const db = {
+    AuthThrottle: { findOneAndUpdate: () => query(() => ({ count: 1 })) },
     ready: async () => {},
     connection: {
       readyState: 1,
@@ -69,6 +70,7 @@ it("separates connectivity health from the strict production readiness gate", as
 it("health refuses disconnected/standalone/secondary databases and bounds a stalled probe", async () => {
   for (const hello of [{ isWritablePrimary: false, setName: "rs0" }, { isWritablePrimary: true }]) {
     const db = {
+      AuthThrottle: { findOneAndUpdate: () => query(() => ({ count: 1 })) },
       ready: async () => {},
       connection: { readyState: 1, db: { command: async () => hello } },
     } as unknown as Database;

@@ -78,6 +78,7 @@ function fixture(
   } = {},
 ) {
   const db = {
+    AuthThrottle: { findOneAndUpdate: () => query({ count: 1 }) },
     Session: { deleteMany: () => query({ deletedCount: 1 }) },
     AuditLog: { create: async () => ({ _id: otherId }) },
     IntegrationSetting: { findOne: () => query({ enabled: true }) },
@@ -365,6 +366,7 @@ it("accepts trusted cookie sources and never lets Referer override a foreign Ori
 it("does not disclose database diagnostics through malformed or failed Forms requests", async () => {
   const diagnostic = "synthetic-private-database-diagnostic";
   const db = {
+    AuthThrottle: { findOneAndUpdate: () => query({ count: 1 }) },
     IntegrationSetting: { findOne: () => query({ enabled: true }) },
     FormsReceipt: { findOne: () => query(null), create: async () => ({}) },
     Department: {
@@ -646,7 +648,10 @@ it("shares MongoDB IP counters across app instances and canonical authentication
   try {
     let count = 0;
     const db = {
-      AuthThrottle: { findOneAndUpdate: () => query({ count: ++count }) },
+      AuthThrottle: {
+        findOneAndUpdate: (filter: { key: string }) =>
+          query({ count: filter.key.startsWith("auth-ip:") ? ++count : 1 }),
+      },
     } as unknown as Database;
     const options = {
       db,
@@ -668,6 +673,7 @@ it("shares MongoDB IP counters across app instances and canonical authentication
 });
 it("issues server-generated correlation IDs and readiness requires a writable primary", async () => {
   const db = {
+    AuthThrottle: { findOneAndUpdate: () => query({ count: 1 }) },
     ready: async () => {},
     connection: { db: { command: async () => ({ isWritablePrimary: false, setName: "rs0" }) } },
   } as unknown as Database;

@@ -24,7 +24,12 @@ async function fixture() {
     sessionToken: null,
     ipAddress: null,
     userAgent: null,
-    integrationEnv: { webOrigin: "https://app.example.test", smtpUrl: "https://mail.example.test" },
+    integrationEnv: {
+      webOrigin: "https://app.example.test",
+      emailApiKey: "re_test-key",
+      smtpFrom: "sender@example.test",
+      smtpUrl: "https://api.resend.com/emails",
+    },
   } as Context;
   return {
     context,

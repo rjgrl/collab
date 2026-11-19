@@ -85,3 +85,30 @@ pnpm check:production-build
 Google confirms email ownership only. New Google users must explicitly confirm structured names, student number and program to create their Alumni profile, then create a password using a recent Google proof. Local contact exemptions waive delivery gates, never the academic/name or password steps. Existing imported profiles and ownership links are preserved; registration cannot claim a historical profile by matching email, name or student number. Manual account/profile linking is retired; any historical ownership reconciliation requires a separately reviewed institutional process. A conflicting student number rolls the entire signup transaction back.
 
 To return to strict mode: configure enabled email delivery and a real SMS adapter; test actual receipt, code expiry/resend/rate limits and account-change behavior in isolated staging; set both local flags true/remove them; restart and check an unverified account is restricted. Production rejects either false flag at startup. Readiness is configuration evidence, not proof that a provider delivered a message. No real SMS adapter is supplied in this implementation, so this release is for local functionality verification until that integration is completed.
+
+## Global API budgets
+
+Every `/api` and `/api/v1` request shares a MongoDB-backed fixed-window budget. Defaults:
+`API_RATE_LIMIT=300` requests/minute per signed-in account (or anonymous IP), and a separate
+`API_IP_RATE_LIMIT=3000` shared-IP ceiling before authentication. Refreshing, new cookies, switching
+between API aliases, or another server instance does not reset counters. Existing stricter login,
+reset, code and MFA limits remain active. Health probes and static assets are not rate-limited.
+
+Exceeded budgets return HTTP 429 with `Retry-After`; the browser displays the wait time. Limits
+fail closed if the counter store is unavailable. `API_RATE_STORE=memory` is for explicit isolated
+non-production use only; production refuses it. Fixed windows permit a burst across a boundary;
+this is an application abuse ceiling, not DDoS protection. Use an edge/proxy limit as well.
+
+## Recipient verification and Archive
+
+Managed Member/Faculty accounts remain unverified and cannot enter the app until profile completion
+and email verification. New local setups set `LOCAL_REQUIRE_EMAIL_VERIFICATION=true`; existing
+explicit `false` values are preserved, so presentation machines must set it to true and restart.
+Generated seeded demo accounts remain pre-verified. Phone verification is configured independently.
+Enable Resend before demonstrating registration, email verification or Forgot Password. Password
+reset replies intentionally do not reveal whether an email exists or delivery succeeded.
+
+Archive is Super Admin-only and currently contains archived alumni (paged/searchable). Restore
+requires `alumni.write`, preserves identity/contact/employment history, and is audited. Restore
+refuses inactive academic parents; a removed/inactive assigned faculty is cleared and reassignment
+is flagged. There is no permanent-delete button. Faculty and Alumni cannot call the archive APIs.

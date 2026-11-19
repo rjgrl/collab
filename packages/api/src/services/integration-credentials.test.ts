@@ -62,20 +62,20 @@ describe("integration credentials", () => {
     const f = modelFixture();
     const context = adminContext(f);
 
-    // Test email gatewayUrl must be https
+    // Test email sender must be an email
     await assert.rejects(
       () =>
         integrationsService.enable(context, {
           key: "email",
           credentials: {
             gatewayUrl: "http://example.com",
-            fromAddress: "test@example.com",
+            fromAddress: "invalid-sender",
             apiKey: "test-key",
           },
         }),
       (error: any) => {
         assert.equal(error.code, "BAD_REQUEST");
-        assert(error.message.includes("https"));
+        assert(error.message.includes("email"));
         return true;
       },
     );

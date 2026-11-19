@@ -10,7 +10,7 @@ import { toEntity } from "@Alumni-Tracking-Ss/db";
 import type { Database, UserRecord } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
-import { requireAccess, requireUser } from "@Alumni-Tracking-Ss/api/access";
+import { requireAccess, requireUser, requireAdministrator } from "@Alumni-Tracking-Ss/api/access";
 import { accountAccessPending } from "@Alumni-Tracking-Ss/api/services/verification";
 import { requiresMfa } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
 import { isAlumniAccount, formatDisplayName, ROLE } from "@Alumni-Tracking-Ss/contracts/names";
@@ -108,6 +108,71 @@ async function uniqueStudent(db: Database, studentNumber: string, id?: string) {
     });
 }
 export const alumniService = {
+  async archived(context: Context, input: z.input<typeof alumniSchemas.archived.input>) {
+    requireAdministrator(context, "alumni.read");
+    const p = alumniSchemas.archived.input.parse(input);
+    const filter = {
+      deletedAt: { $ne: null },
+      ...(p.search
+        ? {
+            $or: ["firstName", "lastName", "studentNumber"].map((key) => ({
+              [key]: { $regex: escapeRegex(p.search!), $options: "i" },
+            })),
+          }
+        : {}),
+    };
+    const total = await context.db.Alumni.countDocuments(filter);
+    const items = await context.db.Alumni.find(filter)
+      .select("studentNumber firstName lastName middleName suffix deletedAt")
+      .sort({ deletedAt: -1, _id: -1 })
+      .skip((p.page - 1) * p.pageSize)
+      .limit(p.pageSize)
+      .lean();
+    return { items: items.map(toEntity), total, page: p.page, pageSize: p.pageSize };
+  },
+  async restore(context: Context, input: z.input<typeof alumniSchemas.restore.input>) {
+    requireAdministrator(context, "alumni.write");
+    const { id } = alumniSchemas.restore.input.parse(input);
+    return context.db.transaction(async (tx) => {
+      const row = await tx.Alumni.findOne({ _id: id, deletedAt: { $ne: null } }).lean();
+      if (!row) throw new ApiError("NOT_FOUND", { message: "Archived alumni record not found." });
+      const program = await tx.Program.findOne({ _id: row.programId, deletedAt: null }).lean();
+      const department = program
+        ? await tx.Department.findOne({ _id: program.departmentId, deletedAt: null }).lean()
+        : null;
+      const college = department
+        ? await tx.College.exists({ _id: department.collegeId, deletedAt: null })
+        : null;
+      if (!program || !department || !college)
+        throw new ApiError("CONFLICT", {
+          message: "Restore the linked academic records before restoring this alumnus.",
+        });
+      const facultyActive = row.assignedFacultyId
+        ? await tx.Faculty.exists({ _id: row.assignedFacultyId, deletedAt: null, active: true })
+        : true;
+      const changed = await tx.Alumni.updateOne(
+        { _id: id, deletedAt: row.deletedAt },
+        {
+          $set: {
+            deletedAt: null,
+            ...(!facultyActive ? { assignedFacultyId: null, needsReassignment: true } : {}),
+          },
+        },
+      );
+      if (!changed.modifiedCount)
+        throw new ApiError("CONFLICT", { message: "This record changed. Reload the archive." });
+      await audit(
+        tx,
+        context,
+        "alumni.restore",
+        "alumni",
+        id,
+        `Restored Alumni ${JSON.stringify(formatDisplayName(row))} (${row.studentNumber})`,
+        { alumniId: id },
+      );
+      return { ok: true };
+    });
+  },
   async pendingAccounts(
     context: Context,
     input: z.input<typeof alumniSchemas.pendingAccounts.input>,

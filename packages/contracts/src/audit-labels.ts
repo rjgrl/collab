@@ -52,6 +52,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // Alumni
   "alumni.update": "Updated alumni profile",
   "alumni.delete": "Archived alumni",
+  "alumni.restore": "Restored alumni",
   "alumni.import.create": "Created alumni from import",
   "alumni.import.update": "Updated alumni from import",
   "contacts.create": "Added contact information",

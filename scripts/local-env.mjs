@@ -118,7 +118,7 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     PORT: "3000",
     LOCAL_DISABLE_MFA: "true",
     ALLOW_PUBLIC_SIGNUP: "true",
-    LOCAL_REQUIRE_EMAIL_VERIFICATION: "false",
+    LOCAL_REQUIRE_EMAIL_VERIFICATION: "true",
     LOCAL_REQUIRE_PHONE_VERIFICATION: "false",
     CORS_ORIGIN: "http://localhost:3001",
     APP_URL: "http://localhost:3000",
