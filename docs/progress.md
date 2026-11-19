@@ -2,6 +2,17 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (prepare protected main release and refresh setup guidance)
+
+- Reviewed setup defaults: existing local admin domain exceptions remain sign-in-only; signup
+  always uses exact BukSU domains. No new setup flags, credentials or migrations are required.
+- Replaced stale HTTPS-gateway/Resend setup instructions in README, deployment, API setup and
+  account-security docs with Gmail SMTP's tested encrypted-settings flow. Removed obsolete
+  email-seeding examples; production ignores provider env credentials. Existing Atlas data,
+  uploads and encryption keys must be preserved. SMS/production-readiness caveats remain.
+- Publication requested through a merge-commit PR into main, retaining collaborator history.
+  Required CI and branch-protection outcome will be reported separately after GitHub confirms it.
+
 ## 2026-11-19 (early institutional signup, Philippine numbers and role dropdown)
 
 - Signup validates exact BukSU/student domains inline and before Step 2, using the same schema

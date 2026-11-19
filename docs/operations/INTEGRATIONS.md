@@ -55,15 +55,17 @@ The `pnpm db:seed` command copies integration credentials from environment varia
 # Set credentials in .env
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-SMTP_URL=https://...
-EMAIL_GATEWAY_API_KEY=...
 
 # Seed them into the database
 pnpm db:seed
-# Output: Seeded integration credentials: google_auth, email
+# Output includes the configured eligible integrations, for example google_auth
 ```
 
-**Important**: Environment variables are read once. After seeding:
+Do not run seed/setup against an existing Atlas presentation database just to configure Gmail.
+Use Settings > Integrations > Email with Gmail Address and Gmail App Password; Gmail env values
+are development fallbacks and are not the email-seeding mechanism shown above.
+
+**Important**: Seed-eligible environment variables are read once. After seeding:
 
 - Credentials live in the encrypted database
 - Environment variables are ignored (in production) or used as fallback (in development)

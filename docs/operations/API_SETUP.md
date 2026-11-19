@@ -8,19 +8,19 @@ The selected deployment is Render. Root secrets use Render environment injection
 
 Rotation intervals below are recommended operating policy, not provider-enforced expiration. Rotate immediately after suspected exposure, staff departure or unexpected use, even when the scheduled interval has not elapsed.
 
-| API                                    | Enabled via                                                                | Auth type                                                                | Env var                                                                | Scopes                                                                    | Rotation                                                              |
-| -------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| MongoDB Atlas                          | Atlas database user + Network Access                                       | Database username/password over TLS; not an Atlas administration API key | `MONGO_URI`                                                            | `readWrite` on `alumni_tracking` for core CRUD                            | 90 days / incident                                                    |
-| reCAPTCHA v2 Checkbox                  | reCAPTCHA registration console                                             | Public site key + backend secret                                         | `RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`                           | Exact authorized hostnames                                                | 90 days / incident                                                    |
-| Google Sign-In                         | Google Auth Platform                                                       | **OAuth 2.0 authorization code / OIDC**, not a static API key            | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                             | `openid email profile`                                                    | Client secret: 90 days / incident                                     |
-| Google Drive                           | Cloud API Library + Workspace Shared Drive                                 | **Service-account JWT → OAuth access token**                             | `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`                | Runtime `drive.file`, `drive.readonly`; connection check requests `drive` | JSON key: at most 90 days; access tokens short-lived                  |
-| Google Sheets                          | Cloud API Library + share target spreadsheet                               | **Separate service-account JWT → OAuth access token**                    | `GOOGLE_SHEETS_SPREADSHEET_ID`; JSON entered in its own Settings field | `spreadsheets.readonly` / `spreadsheets`                                  | Separate JSON key: at most 90 days                                    |
-| Email HTTPS gateway                    | Provider domain verification + sending key; Resend is a compatible example | Bearer sending key                                                       | `SMTP_URL`, `SMTP_FROM`, `EMAIL_GATEWAY_API_KEY`                       | Sending only, restricted to one verified domain                           | 90 days / incident                                                    |
-| ImgBB image host (optional)            | ImgBB API account                                                          | Upload API key                                                           | `IMGBB_API_KEY`, `IMAGE_HOST_PROVIDER`                                 | No documented fine-grained scopes; dedicated account                      | 90 days if regeneration supported; otherwise incident/support process |
-| Google Forms delivery                  | Form-bound Apps Script + installable trigger + app integration             | Google-authorized script + shared webhook secret                         | `GOOGLE_FORMS_WEBHOOK_SECRET` (legacy mapping)                         | Current form + external requests; trigger-management scope only if needed | Webhook secret: 90 days / incident                                    |
-| Pwned Passwords (optional)             | Set opt-in mode; no console enablement                                     | None for password range endpoint                                         | `PASSWORD_BREACH_CHECK`                                                | Five-character SHA-1 prefix only                                          | No credential to rotate                                               |
-| SMS verification (**not implemented**) | Provider selection and adapter required; Twilio Verify is an example       | Proposed restricted API key + Verify Service                             | No SMS env variables are consumed today                                | Verification send/check only                                              | Proposed key: 90 days / incident                                      |
-| Render secret delivery                 | Service → Environment                                                      | Dashboard RBAC; no API token needed for manual setup                     | Root keys listed below                                                 | One service/environment; no shared production/dev group                   | Root-key rotation requires coordinated application procedure          |
+| API                                    | Enabled via                                                          | Auth type                                                                | Env var                                                                | Scopes                                                                    | Rotation                                                              |
+| -------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| MongoDB Atlas                          | Atlas database user + Network Access                                 | Database username/password over TLS; not an Atlas administration API key | `MONGO_URI`                                                            | `readWrite` on `alumni_tracking` for core CRUD                            | 90 days / incident                                                    |
+| reCAPTCHA v2 Checkbox                  | reCAPTCHA registration console                                       | Public site key + backend secret                                         | `RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`                           | Exact authorized hostnames                                                | 90 days / incident                                                    |
+| Google Sign-In                         | Google Auth Platform                                                 | **OAuth 2.0 authorization code / OIDC**, not a static API key            | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                             | `openid email profile`                                                    | Client secret: 90 days / incident                                     |
+| Google Drive                           | Cloud API Library + Workspace Shared Drive                           | **Service-account JWT → OAuth access token**                             | `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`                | Runtime `drive.file`, `drive.readonly`; connection check requests `drive` | JSON key: at most 90 days; access tokens short-lived                  |
+| Google Sheets                          | Cloud API Library + share target spreadsheet                         | **Separate service-account JWT → OAuth access token**                    | `GOOGLE_SHEETS_SPREADSHEET_ID`; JSON entered in its own Settings field | `spreadsheets.readonly` / `spreadsheets`                                  | Separate JSON key: at most 90 days                                    |
+| Gmail SMTP                             | Google 2-Step Verification + App Password                            | SMTP authentication over verified TLS                                    | `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD` (development fallback only)      | Dedicated sender account; App Password is not a send-only scope           | Revoke/replace on incident or operator rotation policy                |
+| ImgBB image host (optional)            | ImgBB API account                                                    | Upload API key                                                           | `IMGBB_API_KEY`, `IMAGE_HOST_PROVIDER`                                 | No documented fine-grained scopes; dedicated account                      | 90 days if regeneration supported; otherwise incident/support process |
+| Google Forms delivery                  | Form-bound Apps Script + installable trigger + app integration       | Google-authorized script + shared webhook secret                         | `GOOGLE_FORMS_WEBHOOK_SECRET` (legacy mapping)                         | Current form + external requests; trigger-management scope only if needed | Webhook secret: 90 days / incident                                    |
+| Pwned Passwords (optional)             | Set opt-in mode; no console enablement                               | None for password range endpoint                                         | `PASSWORD_BREACH_CHECK`                                                | Five-character SHA-1 prefix only                                          | No credential to rotate                                               |
+| SMS verification (**not implemented**) | Provider selection and adapter required; Twilio Verify is an example | Proposed restricted API key + Verify Service                             | No SMS env variables are consumed today                                | Verification send/check only                                              | Proposed key: 90 days / incident                                      |
+| Render secret delivery                 | Service → Environment                                                | Dashboard RBAC; no API token needed for manual setup                     | Root keys listed below                                                 | One service/environment; no shared production/dev group                   | Root-key rotation requires coordinated application procedure          |
 
 Provider env names in this table are **legacy development/bootstrap mappings**, except runtime/root settings such as `MONGO_URI`. In production, setting `GOOGLE_CLIENT_SECRET`, `IMGBB_API_KEY`, etc. in Render alone does **not** configure those integrations. Provider values must be saved through the authorized application UI.
 
@@ -248,34 +248,28 @@ Use `googleAccessToken` from section 4. Reading uses `spreadsheets.readonly`; ap
 
 **Rotation/revocation:** At most every 90 days, replace this account's JSON key, update the **own** credential field, verify, disable/delete the old IAM key. Remove spreadsheet sharing when retired. Do not rotate Drive just because Sheets credentials change.
 
-## 6. Email HTTPS gateway (Resend-compatible example)
+## 6. Gmail SMTP
 
-No email vendor has been activated by this guide. The current app requires a public **HTTPS JSON** endpoint accepting `{ from, to, subject, text }` with `Authorization: Bearer`. `SMTP_URL` is a legacy name: direct `smtp://` or `smtps://` is **not implemented**. SendGrid/Mailgun/Postmark credentials are not automatically compatible with this wire contract.
+Use a dedicated Gmail/Google account with 2-Step Verification and an available Google App Password.
+Enter Gmail Address and Gmail App Password in Settings > Integrations > Email. Complete the
+connection test before saving; it sends to the sender's own inbox, not the seeded administrator.
+Confirm receipt privately. Never paste the App Password into chat, logs or tracked files.
+See [the Gmail runbook](INTEGRATIONS.md) for setup and troubleshooting.
 
-**Enable/least privilege:** A compatible example is [Resend Send Email](https://resend.com/docs/api-reference/emails/send-email). In its dashboard, verify a separate sending domain/subdomain for each environment using the required DNS records. Create a **sending-access** key restricted to that domain, not a full-access administration key. Configure the approved sender address and public HTTPS gateway. Use SPF/DKIM and the institution's DMARC policy; test controlled delivery, not just HTTP acceptance. If an institution already has a compatible gateway, use its equivalent send-only authorization instead.
+The app uses fixed `smtp.gmail.com:465`, verified implicit TLS and bounded timeouts. Allow outbound
+port 465; there is no custom gateway/host field. Production uses encrypted database credentials
+only and preserves the existing integration encryption key. `GMAIL_ADDRESS`/`GMAIL_APP_PASSWORD`
+are development fallbacks, not production setup. Old Resend/SMTP2GO keys are never reused.
+The sender's Gmail account does not need to be an allowed application-login domain.
 
-**Storage/config/send test:** UI `gatewayUrl`, `fromAddress`, `apiKey`; legacy `SMTP_URL`, `SMTP_FROM`, `EMAIL_GATEWAY_API_KEY`.
+An App Password is not a domain-restricted send-only API key: isolate the sender account and limit
+who can administer it. Sending is subject to Google's account-specific limits and abuse controls;
+SMTP acceptance does not guarantee inbox delivery. No bulk test or real-alumni notification is
+authorized by this guide, and no real Gmail authentication or delivery has been tested here.
 
-```ts
-import { sendEmail } from "@Alumni-Tracking-Ss/api/integrations/email";
-await withProvider("email", async (env) => {
-  required(env.smtpUrl);
-  required(env.smtpFrom);
-  required(env.emailApiKey);
-  await sendEmail(env, {
-    to: required(process.env.API_TEST_RECIPIENT),
-    subject: "Controlled integration test",
-    text: "Synthetic staging test; no student data.",
-  });
-  console.log("Gateway accepted message; confirm receipt privately");
-});
-```
-
-This sends a message and may incur a charge. No bulk test or alumni notification is authorized. Resend requires a User-Agent; verify the actual runtime request/provider logs satisfy that requirement (Node fetch normally supplies one). Do not follow credential-bearing redirects. Existing code checks public DNS before sends, but a DNS-rebinding race remains documented in [known issues](../known-issues.md); a pinned/allowlisted provider connection is separate hardening work.
-
-**Quotas/billing:** Resend currently documents a default **10 requests/sec per team**, shared by keys; inspect the actual team usage page and plan's daily/monthly sending cap. Multiple keys do not multiply the team rate. A successful API response does not imply inbox delivery. Domain registration, email plan and overage costs require approval.
-
-**Rotation/revocation:** Every 90 days, issue a new domain-restricted send-only key, update encrypted credentials, send one controlled test, then delete the old key in the provider dashboard. In an incident revoke first if continued access is unsafe. App disable alone does not revoke the provider key.
+For rotation, replace the App Password through the integration's tested credential-update flow,
+then revoke the old one in Google. Revoke first on compromise when continued access is unsafe.
+Disabling the app integration does not revoke the Google credential.
 
 ## 7. ImgBB (optional, public images only)
 
@@ -449,7 +443,7 @@ Provider documentation checked 2026-11-15; quotas/prices and console labels can 
 - [Service-account key security](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys)
 - [Drive quotas](https://developers.google.com/workspace/drive/api/guides/limits), [Shared Drives](https://developers.google.com/workspace/drive/api/guides/about-shareddrives)
 - [Sheets quotas](https://developers.google.com/workspace/sheets/api/limits)
-- [Resend sending keys](https://resend.com/docs/api-reference/api-keys/create-api-key), [send endpoint](https://resend.com/docs/api-reference/emails/send-email), [rate limits](https://resend.com/docs/api-reference/introduction)
+- [Google App Passwords](https://support.google.com/accounts/answer/185833), [Gmail sending limits](https://support.google.com/mail/answer/22839)
 - [ImgBB upload API](https://api.imgbb.com/)
 - [Apps Script quotas](https://developers.google.com/apps-script/guides/services/quotas)
 - [Pwned Passwords range API](https://haveibeenpwned.com/API/v3#PwnedPasswords)

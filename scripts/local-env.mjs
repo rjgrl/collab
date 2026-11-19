@@ -108,8 +108,7 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     throw new Error(
       "Existing bootstrap credentials are invalid. Set a valid SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD of at least 12 characters privately.",
     );
-  // Institutional domains plus the local admin's own domain, so the generated login keeps working
-  // while every other non-institutional address is rejected at sign-up and sign-in.
+  // Keep the existing local admin login usable; public signup separately requires BukSU domains.
   const institutionalDomains = ["buksu.edu.ph", "student.buksu.edu.ph"];
   const adminDomain = email.split("@")[1].toLowerCase();
   await fillMissingEnv(path.join(root, "apps/server/.env"), {
