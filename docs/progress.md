@@ -2,6 +2,11 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (integrate phase 6 remote commits; no push)
+
+- Fetched origin and fast-forwarded `development/phase6-cross-device-testing` from `03c5884` to `7a347a2`, incorporating remote commits `18937f9` and `7a347a2`. The working tree was clean; there were no divergent local commits or conflicts. No history rewriting, force-push or push was performed.
+- Verified both the previous local tip and fetched remote tip remain ancestors of HEAD, with zero ahead/behind immediately after integration. Application tests were not rerun for this conflict-free fast-forward. This progress note is a separate local documentation commit; publication remains with the owner.
+
 ## 2026-11-19 (Resend, global API budgets and account/archive bug fixes)
 
 - Email settings now use Resend only (verified sender + encrypted API key), with a fixed send endpoint and provider check before save. Generic gateway URL is removed; old internal SMTP names remain compatibility/readiness fields, not custom destinations. Verification, email change and password reset all use Resend. No live key/domain was supplied, so real mailbox delivery remains an operator acceptance step.
