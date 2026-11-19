@@ -101,7 +101,7 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 | `faculty.education@collab.test`                           | Faculty (Secondary Education), assigned Graduate Three |
 | `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles               |
 
-Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or every demo login is refused. Hosted deployments get demo data only from `pnpm deploy:init --demo`, which is refused when `NODE_ENV=production`.
+Use `pnpm setup:local --no-demo` to skip demo data. `pnpm setup:local` sets `STAFF_EMAIL_DOMAINS=buksu.edu.ph,student.buksu.edu.ph,collab.test` when it is missing, so local sign-up rejects personal emails while the generated `collab.test` logins keep working. An existing value is never overwritten; if you set it yourself, include `collab.test` or every demo login is refused. Hosted deployments get demo data only from `pnpm deploy:init --demo`, which is refused when `NODE_ENV=production`.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 
