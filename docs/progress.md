@@ -10,8 +10,13 @@ Newest first. One entry per session: date, what changed, what was verified, what
 - Reproduced both desktop/mobile failures locally, then changed only the fixture to an
   institutional student address. No product validation, layout/axe assertions, timeout, retry
   or skip settings were weakened. Existing seeded sign-in fixtures remain unchanged.
-- Verified the corrected 320px test and signup/phone/action-row regression together: 6 passed
-  on desktop/mobile. Required remote CI will rerun on the fix before main can be merged.
+- Completed Windows logs also exposed two readiness races: trace timestamps show Save was
+  clicked before college options returned, and the program's native input was temporarily
+  disabled during initialization. Department creation now waits for its default college;
+  native-validity assertions auto-wait for their original expected states rather than reading
+  an intermediate mount state. No arbitrary sleep, test retry or timeout increase was added.
+- Verified all affected department, dropdown, 320px and signup/phone/action-row tests together:
+  12 passed on desktop/mobile. Required remote CI reruns on the fix before main can be merged.
 
 ## 2026-11-19 (prepare protected main release and refresh setup guidance)
 

@@ -101,16 +101,20 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
     await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+12025550123");
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     const program = page.getByRole("combobox", { name: "Degree Program", exact: true });
-    expect(
-      await page
-        .locator('input[name="registration-program"]')
-        .evaluate((input: HTMLInputElement) => input.validity.valueMissing),
-    ).toBe(true);
+    await expect
+      .poll(() =>
+        page
+          .locator('input[name="registration-program"]')
+          .evaluate((input: HTMLInputElement) => input.validity.valueMissing),
+      )
+      .toBe(true);
     await selectOption(program, "000000000000000000000302");
-    expect(
-      await page
-        .locator('input[name="registration-program"]')
-        .evaluate((input: HTMLInputElement) => input.checkValidity()),
-    ).toBe(true);
+    await expect
+      .poll(() =>
+        page
+          .locator('input[name="registration-program"]')
+          .evaluate((input: HTMLInputElement) => input.checkValidity()),
+      )
+      .toBe(true);
   }
 });

@@ -16,6 +16,9 @@ test("departments have no code fields and audit summaries preserve each individu
   await page.getByRole("button", { name: "Add Department", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Add Department", exact: true });
   await expect(dialog.getByLabel(/Code/)).toHaveCount(0);
+  await expect(dialog.getByRole("combobox", { name: "College", exact: true })).toHaveText(
+    "Synthetic College",
+  );
   await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Audit Science");
   await dialog.getByRole("textbox", { name: "Description", exact: true }).fill("First description");
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
