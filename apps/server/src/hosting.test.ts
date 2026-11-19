@@ -150,7 +150,8 @@ it("refuses missing builds, public storage overlap and symlinked web assets", as
   assert.throws(() => validateWebStorage(web, root), /UPLOAD_DIR/);
   assert.throws(() => validateWebStorage(web, path.join(web, "..private")), /UPLOAD_DIR/);
   assert.throws(
-    () => validateWebStorage(web, path.join(root, "private"), path.join(root, "private", "..backups")),
+    () =>
+      validateWebStorage(web, path.join(root, "private"), path.join(root, "private", "..backups")),
     /BACKUP_DIR/,
   );
   assert.throws(

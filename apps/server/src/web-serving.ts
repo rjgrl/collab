@@ -2,7 +2,15 @@ import express, { type RequestHandler } from "express";
 import { existsSync, lstatSync, readdirSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
-const reserved = new Set(["api", "health", "rpc", "api-reference", "uploads", "backups", "node_modules"]);
+const reserved = new Set([
+  "api",
+  "health",
+  "rpc",
+  "api-reference",
+  "uploads",
+  "backups",
+  "node_modules",
+]);
 
 function canonicalPath(value: string): string {
   let current = path.resolve(value);
@@ -18,7 +26,10 @@ function canonicalPath(value: string): string {
 
 function within(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
-  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
 }
 
 export function validateWebStorage(webRoot: string, uploads: string, backups?: string) {
