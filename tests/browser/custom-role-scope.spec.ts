@@ -11,7 +11,7 @@ test("custom roles never get university-wide permissions", async ({ page, reques
   await page.goto("/login");
   await page.locator("#email").fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await enrollAdministrator(page);
   const perms: { id: string; key: string }[] = await (
     await page.request.get(`${API}/permissions`)

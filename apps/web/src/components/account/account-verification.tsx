@@ -290,7 +290,7 @@ export function AccountVerification() {
                       ? `Resend in ${waiting}s`
                       : sent[kind]
                         ? "Resend Code"
-                        : `Send ${kind === "email" ? "email" : "SMS"} code`}
+                        : `Send ${kind === "email" ? "Email" : "SMS"} Code`}
                   </Button>
                   <form
                     className="flex flex-col gap-4"
@@ -301,7 +301,7 @@ export function AccountVerification() {
                   >
                     <FormField
                       id={`${kind}-code`}
-                      label={`${kind === "email" ? "Email" : "SMS"} verification code`}
+                      label={`${kind === "email" ? "Email" : "SMS"} Verification Code`}
                       required
                     >
                       <Input

@@ -60,7 +60,7 @@ test("email confirmation is enforced and SMS remains disconnected until a provid
     .toMatch(/^[0-9]{6}$/);
   const { emailCode } = await (await request.get("http://127.0.0.1:3100/__test/code")).json();
   await page.getByRole("textbox", { name: "Email Verification Code", exact: true }).fill(emailCode);
-  await page.getByRole("button", { name: "Confirm email", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Email", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Verify Your Email", exact: true })).toHaveCount(
     0,
   );
@@ -80,7 +80,7 @@ test("email confirmation is enforced and SMS remains disconnected until a provid
   await page.getByRole("button", { name: "Send SMS Code" }).click();
   // Like a person waiting for the text message: confirm only once the code has been sent.
   await expect(page.getByRole("button", { name: /^Resend/ })).toBeVisible();
-  await page.getByRole("textbox", { name: "SMS verification code" }).fill("654321");
-  await page.getByRole("button", { name: "Confirm phone", exact: true }).click();
+  await page.getByRole("textbox", { name: "SMS Verification Code" }).fill("654321");
+  await page.getByRole("button", { name: "Confirm Phone", exact: true }).click();
   await page.waitForURL("**/dashboard");
 });
