@@ -59,6 +59,9 @@ function jobData(input: z.input<typeof selfEmploymentInputSchema>) {
     notes: data.notes ?? "",
   };
 }
+/** Per-alumnus cap on job records (far above a real employment history). */
+export const MAX_EMPLOYMENTS = 30;
+
 export const employmentService = {
   async create(
     context: Context,
@@ -71,6 +74,10 @@ export const employmentService = {
     return context.db.transaction(async (tx) => {
       const ownerId = alumniId ?? (await linkedAlumni(context, tx)).id;
       await claimProfile(context, tx, ownerId, self);
+      if ((await tx.Employment.countDocuments({ alumniId: ownerId })) >= MAX_EMPLOYMENTS)
+        throw new ApiError("BAD_REQUEST", {
+          message: `A profile can hold at most ${MAX_EMPLOYMENTS} jobs. Remove an old one to add another.`,
+        });
       if (data.isCurrent)
         await tx.Employment.updateMany(
           { alumniId: ownerId, isCurrent: true },

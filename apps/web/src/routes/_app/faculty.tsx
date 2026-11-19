@@ -135,7 +135,7 @@ function FacultyPage() {
                 })
               }
             >
-              Add faculty
+              Add Faculty
             </PrimaryButton>
           ) : null
         }
@@ -157,7 +157,7 @@ function FacultyPage() {
               </QuietButton>
             </div>
           }
-          title={draft.id ? "Edit faculty" : "Add faculty"}
+          title={draft.id ? "Edit Faculty" : "Add Faculty"}
         >
           <form
             id="faculty-form"
@@ -167,7 +167,7 @@ function FacultyPage() {
               save.mutate(draft);
             }}
           >
-            <FormField id="faculty-first" label="First name" required>
+            <FormField id="faculty-first" label="First Name" required>
               <Input
                 id="faculty-first"
                 value={draft.firstName}
@@ -175,7 +175,7 @@ function FacultyPage() {
                 required
               />
             </FormField>
-            <FormField id="faculty-last" label="Last name" required>
+            <FormField id="faculty-last" label="Last Name" required>
               <Input
                 id="faculty-last"
                 value={draft.lastName}
@@ -184,7 +184,7 @@ function FacultyPage() {
               />
             </FormField>
             {draft.id ? null : (
-              <FormField id="faculty-email" label="Institutional email" required>
+              <FormField id="faculty-email" label="Institutional Email" required>
                 <Input
                   id="faculty-email"
                   type="email"
@@ -194,7 +194,7 @@ function FacultyPage() {
                 />
               </FormField>
             )}
-            <FormField id="faculty-employee" label="Employee number" required>
+            <FormField id="faculty-employee" label="Employee Number" required>
               <Input
                 id="faculty-employee"
                 value={draft.employeeNumber}
@@ -209,12 +209,12 @@ function FacultyPage() {
                 onValueChange={(selected) => setDraft({ ...draft, departmentId: selected })}
                 required
                 items={[
-                  { value: "", label: "Select department" },
+                  { value: "", label: "Select Department" },
                   ...departmentChoices.map((d) => ({ value: d.id, label: d.name })),
                 ]}
               />
             </FormField>
-            <FormField id="faculty-level" label="Role level" required>
+            <FormField id="faculty-level" label="Role Level" required>
               <FormSelect
                 id="faculty-level"
                 value={draft.roleLevel}
@@ -235,8 +235,8 @@ function FacultyPage() {
         <ErrorAlert onRetry={() => void list.refetch()}>{list.error.message}</ErrorAlert>
       ) : null}
       <DataTable
-        label="Faculty members"
-        headers={["Name", "Department", "Role level", "Assigned", "Status", "Actions"]}
+        label="Faculty Members"
+        headers={["Name", "Department", "Role Level", "Assigned", "Status", "Actions"]}
         search={search}
         onSearch={(value) => {
           setSearch(value);
@@ -256,14 +256,14 @@ function FacultyPage() {
               items={[
                 { value: "true", label: "Active" },
                 { value: "false", label: "Inactive" },
-                { value: "", label: "All statuses" },
+                { value: "", label: "All Statuses" },
               ]}
             />
           </FilterBar>
         }
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
-        emptyTitle="No faculty found"
+        emptyTitle="No Faculty Found"
         emptyDescription="Add faculty members to assign them alumni to track."
       >
         {list.data?.map((row) => {

@@ -5,7 +5,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -42,6 +42,12 @@ function ProgramsPage() {
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
   const departments = useDepartmentOptions();
+  // A new program defaults to the first department, even if the list arrives after the dialog opens.
+  const firstDepartmentId = departments.data?.[0]?.id;
+  useEffect(() => {
+    if (firstDepartmentId && draft && !draft.id && !draft.departmentId)
+      setDraft({ ...draft, departmentId: firstDepartmentId });
+  }, [firstDepartmentId, draft]);
   const list = useQuery(api.programs.list.queryOptions({ input: { search, page, pageSize: 20 } }));
   const canWrite = can(session.data?.permissions, "programs.write");
   const canDelete = can(session.data?.permissions, "programs.delete");
@@ -83,7 +89,7 @@ function ProgramsPage() {
                 })
               }
             >
-              Add program
+              Add Program
             </PrimaryButton>
           ) : null
         }
@@ -105,7 +111,7 @@ function ProgramsPage() {
               </QuietButton>
             </div>
           }
-          title={draft.id ? "Edit program" : "Add program"}
+          title={draft.id ? "Edit Program" : "Add Program"}
         >
           <form
             id="academic-form"
@@ -122,7 +128,7 @@ function ProgramsPage() {
                 onValueChange={(selected) => setDraft({ ...draft, departmentId: selected })}
                 required
                 items={[
-                  { value: "", label: "Select department" },
+                  { value: "", label: "Select Department" },
                   ...(departments.data?.map((department) => ({
                     value: department.id,
                     label: department.name,
@@ -171,7 +177,7 @@ function ProgramsPage() {
         searchPlaceholder="Search programs"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
-        emptyTitle="No programs found"
+        emptyTitle="No Programs Found"
         emptyDescription="Add a program and attach it to a department."
       >
         {list.data?.map((row) => (
@@ -209,7 +215,7 @@ function ProgramsPage() {
                     onClick={async () => {
                       if (
                         await confirmAction({
-                          title: "Remove this program?",
+                          title: "Remove This Program?",
                           description: "This cannot be undone.",
                           confirmLabel: "Remove",
                           destructive: true,

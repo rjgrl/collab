@@ -10,11 +10,11 @@ test("departments have no code fields and audit summaries preserve each individu
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await enrollAdministrator(page);
   await page.goto("/departments");
-  await page.getByRole("button", { name: "Add department", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: "Add department", exact: true });
+  await page.getByRole("button", { name: "Add Department", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: "Add Department", exact: true });
   await expect(dialog.getByLabel(/Code/)).toHaveCount(0);
   await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Audit Science");
   await dialog.getByRole("textbox", { name: "Description", exact: true }).fill("First description");
@@ -22,7 +22,7 @@ test("departments have no code fields and audit summaries preserve each individu
   await expect(dialog).toHaveCount(0);
   const row = page.getByRole("row").filter({ hasText: "Audit Science" });
   await row.getByRole("button", { name: "Edit", exact: true }).click();
-  dialog = page.getByRole("dialog", { name: "Edit department", exact: true });
+  dialog = page.getByRole("dialog", { name: "Edit Department", exact: true });
   await expect(dialog.getByLabel(/Code/)).toHaveCount(0);
   await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Natural Sciences");
   await dialog
@@ -35,7 +35,7 @@ test("departments have no code fields and audit summaries preserve each individu
     .filter({ hasText: "Natural Sciences" })
     .getByRole("button", { name: "Edit", exact: true })
     .click();
-  dialog = page.getByRole("dialog", { name: "Edit department", exact: true });
+  dialog = page.getByRole("dialog", { name: "Edit Department", exact: true });
   await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Final Sciences");
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -63,7 +63,7 @@ test("departments have no code fields and audit summaries preserve each individu
   const details = firstChange.getByRole("button", { name: /^View audit details/ });
   await details.focus();
   await page.keyboard.press("Enter");
-  const event = page.getByRole("dialog", { name: "Audit event details", exact: true });
+  const event = page.getByRole("dialog", { name: "Audit Event Details", exact: true });
   await expect(event).toContainText('Name: "Audit Science" → "Natural Sciences"');
   await expect(event).toContainText('Description: "First description" → "Second description"');
   await expect(event).toContainText("admin@example.test");
@@ -80,4 +80,34 @@ test("departments have no code fields and audit summaries preserve each individu
   await page.getByRole("button", { name: "Close dialog", exact: true }).click();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: info.outputPath("department-audit.png"), fullPage: true });
+});
+
+test("a new department picks the first college even when the college list loads late", async ({
+  page,
+  request,
+}) => {
+  await request.post("http://127.0.0.1:3100/__test/reset");
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
+  await page.locator("#password").fill("BrowserTest123!");
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await enrollAdministrator(page);
+  // Hold the college options (pageSize=100) back until the dialog is already open.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/api\/v1\/colleges\?.*pageSize=100/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/departments");
+  await page.getByRole("button", { name: "Add Department", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add Department", exact: true });
+  await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Late Sciences");
+  release();
+  await expect(dialog.getByRole("combobox", { name: "College", exact: true })).not.toHaveText(
+    /^\s*$/,
+  );
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("row").filter({ hasText: "Late Sciences" })).toBeVisible();
 });

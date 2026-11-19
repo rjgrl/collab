@@ -5,7 +5,7 @@ import { PAGE_SIZES, type PageSize } from "@/components/data/page-controls";
 
 /** Previous/next pager for server lists that do not report a total. */
 export function TablePagination({
-  label = "Table pagination",
+  label = "Table Pagination",
   page,
   onPage,
   hasNext,
@@ -28,7 +28,7 @@ export function TablePagination({
       {pageSize && onPageSize ? (
         <div className="flex items-center gap-2">
           <span id={`${id}-rows`} className="text-muted-foreground">
-            Rows per page
+            Rows per Page
           </span>
           <FormSelect
             aria-labelledby={`${id}-rows`}
@@ -48,7 +48,7 @@ export function TablePagination({
           disabled={pending || page <= 1}
           onClick={() => onPage(page - 1)}
         >
-          Previous page
+          Previous Page
         </Button>
         <span role="status" className="px-2 text-muted-foreground tabular-nums">
           Page {page}
@@ -59,7 +59,7 @@ export function TablePagination({
           disabled={pending || !hasNext}
           onClick={() => onPage(page + 1)}
         >
-          Next page
+          Next Page
         </Button>
       </nav>
     </div>

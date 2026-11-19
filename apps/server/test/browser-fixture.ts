@@ -152,7 +152,7 @@ async function reset() {
     },
     {
       _id: ids.viewerRole,
-      key: "viewer",
+      key: "alumni",
       name: "Test Alumni",
       description: "Synthetic Alumni",
       isSystem: false,
@@ -432,7 +432,7 @@ app.post("/__test/staff", async (request, response) => {
         lastName: "Staff",
         email: "staff@example.test",
         departmentId: ids.department,
-        roleLevel: "college",
+        roleLevel: request.body?.roleLevel === "faculty" ? "faculty" : "college",
         active: true,
       },
     },
@@ -447,6 +447,11 @@ app.post("/__test/staff", async (request, response) => {
   });
 });
 // Directly assigns (or unassigns) the synthetic alumni profile to the staff user's faculty record.
+// Simulates a role saved before university-wide permissions were reserved for Super Admins.
+app.post("/__test/grant-role-permissions", async (request, response) => {
+  await grantRole(String(request.body?.roleId), (request.body?.keys ?? []) as string[]);
+  response.json({ ok: true });
+});
 app.post("/__test/assign-staff", async (request, response) => {
   const faculty = await db.Faculty.findOne({ userId: ids.staff }).select("_id").lean();
   await db.Alumni.updateOne(
@@ -488,7 +493,7 @@ app.post("/__test/employments", async (request, response) => {
 });
 app.post("/__test/alumni", async (request, response) => {
   await ensureAcademicFixtures();
-  await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);
+  await grantRole(ids.viewerRole, ROLE_PRESETS.alumni.permissions);
   await db.User.updateOne(
     { _id: ids.alumni },
     {
@@ -529,7 +534,7 @@ app.post("/__test/alumni", async (request, response) => {
 });
 app.post("/__test/other-alumni", async (_request, response) => {
   await ensureAcademicFixtures();
-  await grantRole(ids.viewerRole, ROLE_PRESETS.viewer.permissions);
+  await grantRole(ids.viewerRole, ROLE_PRESETS.alumni.permissions);
   const id = "000000000000000000000004";
   await db.User.updateOne(
     { _id: id },

@@ -16,6 +16,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "auth.login": "Signed in with password",
   "auth.logout": "Signed out",
   "auth.signup": "Registered account",
+  "auth.signup.released": "Released unconfirmed registration",
   "auth.google": "Signed in with Google",
   "auth.password": "Changed password",
   "auth.password.create": "Set password",

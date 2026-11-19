@@ -4,7 +4,9 @@ Staging and production use MongoDB Atlas. Local development and every automated 
 native replica set (`rs0` on `127.0.0.1:27018`); never point `pnpm setup:local`, `pnpm test` or
 `pnpm test:browser` at Atlas.
 
-The application needs no Atlas-specific code. `DATABASE_URL` is the only database setting, and
+The application needs no Atlas-specific driver. `MONGO_URI` is the preferred hosted setting;
+`DATABASE_URL` remains supported for existing tools. If both are nonempty, they must be identical.
+The selected production URI must explicitly name `alumni_tracking`, and
 the production validator already requires credentials and verified TLS, which a `mongodb+srv://`
 Atlas string provides. Transactions work on every Atlas cluster tier (all are replica sets).
 
@@ -34,7 +36,7 @@ Put the string in the server's private environment (secret store or `apps/server
 never in Git), next to the existing keys:
 
 ```dotenv
-DATABASE_URL=mongodb+srv://...mongodb.net/alumni_tracking?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://...mongodb.net/alumni_tracking?retryWrites=true&w=majority
 ```
 
 The data is only usable with the **same** keys it was written with. When moving an existing
@@ -57,7 +59,7 @@ pnpm --filter @Alumni-Tracking-Ss/db db:migrate --dry-run     # reports, writes 
 
 ## Fresh database (no data to copy)
 
-With `DATABASE_URL` pointing at the empty Atlas database and the first Super Admin in `packages/db/.env` (`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`):
+With `MONGO_URI` (or the identical legacy `DATABASE_URL`) pointing at the empty Atlas database and the first Super Admin in `packages/db/.env` (`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`):
 
 ```bash
 pnpm deploy:init          # clean: roles, permissions, one Super Admin
@@ -125,12 +127,12 @@ means the `--nsFrom` name is wrong.
 
 ### Verify
 
-With `DATABASE_URL` set to the Atlas string in the current shell (PowerShell:
-`$env:DATABASE_URL = "..."`; remove it afterwards):
+With the private Atlas `MONGO_URI` loaded in the approved host's secret environment
+(or the identical legacy `DATABASE_URL`), not pasted into shell history:
 
 ```bash
 pnpm --filter @Alumni-Tracking-Ss/db db:migrate --dry-run   # no missing indexes or conflicts
-pnpm --filter @Alumni-Tracking-Ss/db db:migrate --apply     # only if the dry run lists missing indexes
+pnpm --filter @Alumni-Tracking-Ss/db db:migrate --apply     # if the dry run lists missing indexes or roles to rename/remove (viewer → alumni, admin, staff); the server will not start until it has run
 pnpm --filter @Alumni-Tracking-Ss/db db:check-references    # must report no broken references
 ```
 
@@ -155,7 +157,8 @@ the previous database and restart. Writes made in Atlas after the switch are not
 
 ## Notes
 
-- In-app backups (`.atsbak`) work against Atlas: `mongodump`/`mongorestore` use `DATABASE_URL`.
+- In-app backups (`.atsbak`) use the resolved private database URI, whether configured by
+  `MONGO_URI` or the compatible `DATABASE_URL`.
   Atlas's own cloud backups (M10+) are an additional, independent layer; enabling them is a
   deployment decision.
 - The Atlas user needs only `readWrite` on the application database; in-app restore drops and

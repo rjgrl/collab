@@ -1,3 +1,4 @@
+import { reportBackgroundFailure } from "../background-failure";
 import { appendFile } from "node:fs/promises";
 import path from "node:path";
 import type { Database } from "@Alumni-Tracking-Ss/db";
@@ -91,7 +92,9 @@ export async function runRestore(input: {
   });
   // Proves to other server instances that this restore is alive (see recoverInterruptedRestore).
   const heartbeat = setInterval(() => {
-    void setStatus(db, { heartbeatAt: new Date() }).catch(() => undefined);
+    void setStatus(db, { heartbeatAt: new Date() }).catch((error: unknown) =>
+      reportBackgroundFailure("restore-heartbeat", error),
+    );
   }, RESTORE_HEARTBEAT_MS);
   heartbeat.unref?.();
   await appendRestoreLog(config, {
@@ -193,7 +196,7 @@ export async function runRestore(input: {
     entityId: backupId,
     summary,
     metadata: { preRestoreBackupId: preRestoreId, result, failedStep, reason, rollbackReason },
-  }).catch(() => undefined);
+  }).catch((error: unknown) => reportBackgroundFailure("restore-audit", error));
   await releaseLock(db, input.lockOwner);
   return { result, failedStep, preRestoreId };
 }

@@ -4,6 +4,7 @@ import {
   loadAuthUserFromToken,
   storedSessionToken,
 } from "@Alumni-Tracking-Ss/api/services/session";
+import { verifySessionToken } from "@Alumni-Tracking-Ss/api/services/session-token";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import { resolveClientAddress } from "./runtime-config";
 
@@ -77,8 +78,10 @@ export async function createContext(options: {
   production?: boolean;
 }): Promise<ApiContext> {
   const { request, response, db } = options;
-  const token = readSessionToken(request);
-  const user = await (options.sessionLoader ?? loadAuthUserFromToken)(db, token);
+  const sessionJwt = readSessionToken(request);
+  const user = await (options.sessionLoader ?? loadAuthUserFromToken)(db, sessionJwt);
+  // Services work with the session secret inside the JWT, as stored (hashed) in Session.
+  const token = user ? ((await verifySessionToken(sessionJwt))?.secret ?? null) : null;
   return {
     db,
     sessionToken: token,

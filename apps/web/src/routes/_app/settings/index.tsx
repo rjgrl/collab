@@ -129,21 +129,21 @@ function AccountSettings() {
             onClick={() => setDialog("photo")}
           >
             <Camera className="size-4" />
-            Change photo
+            Change Photo
           </Button>
         </CardContent>
       </Card>
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <SummaryCard
-          title="Personal details"
+          title="Personal Details"
           actionLabel="Edit"
           actionDisabled={!verification.data}
           onAction={() => openProfileDialog("personal")}
         >
-          <DetailRow label="First name" value={valueOrDash(session.data?.firstName)} />
-          <DetailRow label="Middle name" value={valueOrDash(session.data?.middleName)} />
-          <DetailRow label="Last name" value={valueOrDash(session.data?.lastName)} />
+          <DetailRow label="First Name" value={valueOrDash(session.data?.firstName)} />
+          <DetailRow label="Middle Name" value={valueOrDash(session.data?.middleName)} />
+          <DetailRow label="Last Name" value={valueOrDash(session.data?.lastName)} />
           <DetailRow label="Suffix" value={valueOrDash(session.data?.suffix)} />
           <DetailRow label="Gender" value={valueOrDash(verification.data?.gender)} />
         </SummaryCard>
@@ -160,7 +160,7 @@ function AccountSettings() {
         </SummaryCard>
 
         <div className="lg:col-span-2">
-          <SummaryCard title="Sign-in & security">
+          <SummaryCard title="Sign-In & Security">
             <DetailRow
               label="Password"
               value="Set"
@@ -176,7 +176,7 @@ function AccountSettings() {
                     setDialog("password");
                   }}
                 >
-                  Change password
+                  Change Password
                 </Button>
               }
             />
@@ -188,7 +188,7 @@ function AccountSettings() {
                   to="/security"
                   className="inline-flex min-h-8 items-center text-xs font-medium text-primary underline-offset-4 hover:underline"
                 >
-                  Manage authenticator
+                  Manage Authenticator
                 </Link>
               }
             />
@@ -200,10 +200,10 @@ function AccountSettings() {
         <FormDialog
           open
           onOpenChange={(open) => !open && setDialog(null)}
-          title="Change profile photo"
+          title="Change Profile Photo"
           description="Choose a clear photo shown with your account and alumni profile."
         >
-          <section aria-label="Profile photo">
+          <section aria-label="Profile Photo">
             <AccountPhotoControls
               image={session.data?.image}
               name={session.data?.name ?? "Account"}
@@ -217,7 +217,7 @@ function AccountSettings() {
           open
           onOpenChange={(open) => !open && setDialog(null)}
           pending={profile.isPending}
-          title="Edit personal details"
+          title="Edit Personal Details"
           description="Update your name or gender."
         >
           <form
@@ -243,7 +243,7 @@ function AccountSettings() {
               <ErrorAlert className="sm:col-span-2">{profile.error.message}</ErrorAlert>
             ) : null}
             <PrimaryButton type="submit" pending={profile.isPending}>
-              Save personal details
+              Save Personal Details
             </PrimaryButton>
           </form>
         </FormDialog>
@@ -254,7 +254,7 @@ function AccountSettings() {
           open
           onOpenChange={(open) => !open && setDialog(null)}
           pending={profile.isPending}
-          title="Edit contact details"
+          title="Edit Contact Details"
           description="Changing your phone number clears its verification."
         >
           <form
@@ -268,7 +268,7 @@ function AccountSettings() {
             {verification.isError ? <ErrorAlert>{verification.error.message}</ErrorAlert> : null}
             {profile.isError ? <ErrorAlert>{profile.error.message}</ErrorAlert> : null}
             <PrimaryButton type="submit" pending={profile.isPending}>
-              Save contact details
+              Save Contact Details
             </PrimaryButton>
           </form>
         </FormDialog>
@@ -279,7 +279,7 @@ function AccountSettings() {
           open
           onOpenChange={(open) => !open && setDialog(null)}
           pending={changePassword.isPending}
-          title="Change password"
+          title="Change Password"
           description="A successful change signs out your other sessions."
         >
           <form
@@ -289,7 +289,7 @@ function AccountSettings() {
               changePassword.mutate();
             }}
           >
-            <FormField id="current-password" label="Current password" required>
+            <FormField id="current-password" label="Current Password" required>
               <Input
                 id="current-password"
                 type="password"
@@ -300,7 +300,7 @@ function AccountSettings() {
                 onChange={(event) => setCurrentPassword(event.target.value)}
               />
             </FormField>
-            <FormField id="new-password" label="New password" required>
+            <FormField id="new-password" label="New Password" required>
               <Input
                 id="new-password"
                 aria-describedby="account-password-guidance"
@@ -329,7 +329,7 @@ function AccountSettings() {
               pending={changePassword.isPending}
               disabled={!passwordMeetsPolicy(password)}
             >
-              Change password
+              Change Password
             </PrimaryButton>
           </form>
         </FormDialog>

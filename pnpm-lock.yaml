@@ -230,6 +230,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.2
+      jose:
+        specifier: 6.2.17
+        version: 6.2.17
       mongodb-memory-server-core:
         specifier: 11.3.0
         version: 11.3.0
@@ -424,6 +427,9 @@ importers:
       file-type:
         specifier: ^22.2.0
         version: 22.2.0
+      jose:
+        specifier: 6.2.17
+        version: 6.2.17
       otplib:
         specifier: 13.5.0
         version: 13.5.0
@@ -2765,6 +2771,9 @@ packages:
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
+
+  jose@6.2.17:
+    resolution: {integrity: sha512-wOuK9V1yujQFH5S0ZWmLcDZN7+IKh9bUCC2ZPCf2HDlol3WWHy+PPyNjEI75FXRLMp3vDKQcupP59xhVU95hcg==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -5632,6 +5641,8 @@ snapshots:
   isbot@5.2.2: {}
 
   jiti@2.7.0: {}
+
+  jose@6.2.17: {}
 
   js-tokens@4.0.0: {}
 

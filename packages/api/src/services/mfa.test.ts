@@ -1,3 +1,4 @@
+import { decodeJwt } from "jose";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { generate } from "otplib";
@@ -41,9 +42,11 @@ async function fixture() {
     userAgent: null,
     integrationEnv: { mfaEncryptionKey: "23".repeat(32) },
   } as Context;
+  // Like the server: the next request carries the rotated JWT, whose jti is the session secret.
   context.onSessionRotation = (value) => {
-    context.sessionToken = value.token;
-    context.sessionStorageToken = "sha256:" + digest(value.token);
+    const secret = String(decodeJwt(value.token).jti);
+    context.sessionToken = secret;
+    context.sessionStorageToken = "sha256:" + digest(secret);
   };
   return {
     context,
@@ -78,7 +81,8 @@ it("blocks Administrator roles until MFA while delegated Staff permissions do no
   const f = await fixture();
   assert.throws(() => requireAccess(f.context, "dashboard.read"), /Verify your authenticator/);
   assert.equal(privilegedAccount({ roles: ["staff"], permissions: ["users.write"] }), false);
-  assert.equal(privilegedAccount({ roles: ["staff", "admin"], permissions: [] }), true);
+  assert.equal(privilegedAccount({ roles: ["staff", "admin"], permissions: [] }), false);
+  assert.equal(privilegedAccount({ roles: ["staff", "super_admin"], permissions: [] }), true);
   f.context.user!.mfaVerified = true;
   assert.equal(requireAccess(f.context, "dashboard.read").id, "user");
 });

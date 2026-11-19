@@ -6,7 +6,7 @@ async function login(page: import("@playwright/test").Page, password = "BrowserT
   await page.goto("/login");
   await page.locator("#email").fill("admin@example.test");
   await page.locator("#password").fill(password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL("**/security");
 }
 test.beforeEach(async ({ request }) => {
@@ -20,8 +20,8 @@ test("legacy accounts can confirm a recovery email without losing app access", a
   await enrollAdministrator(page);
   await request.post("http://127.0.0.1:3100/__test/legacy-unverified-email");
   await page.goto("/settings");
-  await page.getByRole("button", { name: "Verify recovery email", exact: true }).click();
-  await page.getByRole("button", { name: "Send email code", exact: true }).click();
+  await page.getByRole("button", { name: "Verify Recovery Email", exact: true }).click();
+  await page.getByRole("button", { name: "Send Email Code", exact: true }).click();
   await expect
     .poll(
       async () => (await (await request.get("http://127.0.0.1:3100/__test/code")).json()).emailCode,
@@ -29,8 +29,8 @@ test("legacy accounts can confirm a recovery email without losing app access", a
     .toMatch(/^[0-9]{6}$/);
   const { emailCode } = await (await request.get("http://127.0.0.1:3100/__test/code")).json();
   await page.locator("#recovery-email-code").fill(emailCode);
-  await page.getByRole("button", { name: "Confirm recovery email", exact: true }).click();
-  await expect(page.getByRole("status", { name: "Email verification", exact: true })).toHaveText(
+  await page.getByRole("button", { name: "Confirm Recovery Email", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Email Verification", exact: true })).toHaveText(
     "Verified",
   );
   await page.goto("/dashboard");
@@ -57,16 +57,16 @@ test("admin enrollment, backend gate, logout and single-use recovery work", asyn
   ).toEqual([]);
   const { recoveryCode } = await enrollAdministrator(page);
   await page.goto("/security");
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("button", { name: "Sign Out", exact: true }).click();
   await login(page);
   await page.locator("#mfa-code").fill(recoveryCode);
-  await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
+  await page.getByRole("button", { name: "Verify Authenticator", exact: true }).click();
   await page.waitForURL("**/dashboard");
   await page.goto("/security");
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("button", { name: "Sign Out", exact: true }).click();
   await login(page);
   await page.locator("#mfa-code").fill(recoveryCode);
-  await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
+  await page.getByRole("button", { name: "Verify Authenticator", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(/invalid|used/);
 });
 test("forgot/reset password revokes the session and retains administrator MFA", async ({
@@ -77,7 +77,7 @@ test("forgot/reset password revokes the session and retains administrator MFA", 
   const { recoveryCode } = await enrollAdministrator(page);
   await page.goto("/reset-password");
   await page.locator("#reset-email").fill("admin@example.test");
-  await page.getByRole("button", { name: "Send reset link", exact: true }).click();
+  await page.getByRole("button", { name: "Send Reset Link", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "eligible account" })).toBeVisible();
   const { resetLink } = await (await request.get("http://127.0.0.1:3100/__test/reset-link")).json();
   expect(resetLink).toContain("#token=");
@@ -93,10 +93,10 @@ test("forgot/reset password revokes the session and retains administrator MFA", 
   const password = "A new private browser passphrase 6464";
   await page.locator("#reset-password").fill(password);
   await page.locator("#reset-confirmation").fill(password);
-  await page.getByRole("button", { name: "Save new password", exact: true }).click();
+  await page.getByRole("button", { name: "Save New Password", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Password reset." })).toBeVisible();
   await login(page, password);
   await page.locator("#mfa-code").fill(recoveryCode);
-  await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
+  await page.getByRole("button", { name: "Verify Authenticator", exact: true }).click();
   await page.waitForURL("**/dashboard");
 });

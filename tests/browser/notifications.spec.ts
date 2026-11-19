@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openProfileTab } from "./profile-tabs-helper";
 import AxeBuilder from "@axe-core/playwright";
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWMwTptpnDaTAUIBAB/uBMm6iK1UAAAAAElFTkSuQmCC",
@@ -22,7 +23,7 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
     await staff.goto("/login");
     await staff.locator("#email").fill("staff@example.test");
     await staff.locator("#password").fill("BrowserTest123!");
-    await staff.getByRole("button", { name: "Sign in", exact: true }).click();
+    await staff.getByRole("button", { name: "Sign In", exact: true }).click();
     await staff.waitForURL("**/dashboard");
     const untrack = await staff.request.post(
       "/api/alumni/000000000000000000000201/tracking-events",
@@ -35,17 +36,18 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
     await page.goto("/login");
     await page.locator("#email").fill("alumni@example.test");
     await page.locator("#password").fill("BrowserTest123!");
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
     await page.waitForURL("**/my-profile");
-    await expect(page.getByRole("heading", { name: "Personal details", exact: true })).toHaveCount(
+    await expect(page.getByRole("heading", { name: "Personal Details", exact: true })).toHaveCount(
       0,
     );
-    await page.getByLabel("Choose evidence file").setInputFiles({
+    await openProfileTab(page, "Evidence");
+    await page.getByLabel("Choose Evidence File").setInputFiles({
       name: "Tracking proof.png",
       mimeType: "image/png",
       buffer: png,
     });
-    await page.getByRole("button", { name: "Upload file", exact: true }).click();
+    await page.getByRole("button", { name: "Upload File", exact: true }).click();
     await expect(
       page.getByRole("link", { name: "Preview Tracking proof.png", exact: true }),
     ).toBeVisible();
@@ -97,7 +99,8 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
       fullPage: true,
     });
     await notice.click();
-    await staff.waitForURL(/\/alumni\/000000000000000000000201#evidence-/);
+    // The notification opens the Employment tab, where supporting evidence lives.
+    await staff.waitForURL(/\/alumni\/000000000000000000000201\?tab=employment#evidence-/);
     await expect(
       staff.getByRole("link", { name: "Preview Tracking proof.png", exact: true }),
     ).toBeVisible();

@@ -44,7 +44,7 @@ export function AccountPhotoControls({ image, name }: { image?: string | null; n
         currentImage={image}
         name={name}
         inputId={id}
-        accessibleLabel="Profile photo"
+        accessibleLabel="Profile Photo"
         accept={ACCOUNT_PHOTO_TYPES.join(",")}
         disabled={save.isPending}
         help="JPEG, PNG, WebP, or GIF. Maximum 10 MB."
@@ -55,7 +55,7 @@ export function AccountPhotoControls({ image, name }: { image?: string | null; n
           disabled={!editor.dirty || save.isPending}
           onClick={() => save.mutate()}
         >
-          {save.isPending ? "Saving…" : editor.isNewFile ? "Upload photo" : "Save changes"}
+          {save.isPending ? "Saving…" : editor.isNewFile ? "Upload Photo" : "Save Changes"}
         </Button>
         {editor.dirty ? (
           <Button
@@ -64,12 +64,12 @@ export function AccountPhotoControls({ image, name }: { image?: string | null; n
             disabled={save.isPending}
             onClick={editor.discard}
           >
-            Discard changes
+            Discard Changes
           </Button>
         ) : null}
         {image && !editor.removed ? (
           <Button type="button" variant="outline" disabled={save.isPending} onClick={editor.remove}>
-            Remove photo
+            Remove Photo
           </Button>
         ) : null}
       </div>
@@ -79,7 +79,7 @@ export function AccountPhotoControls({ image, name }: { image?: string | null; n
             className="h-2 w-full"
             max={100}
             value={progress}
-            aria-label="Photo upload progress"
+            aria-label="Photo Upload Progress"
           />
           <p>{progress === 100 ? "Saving photo…" : `Uploading photo: ${progress}%`}</p>
         </div>

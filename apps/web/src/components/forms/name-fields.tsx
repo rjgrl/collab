@@ -35,7 +35,7 @@ export function NameFields({
 }: Props) {
   const set = (patch: Partial<NameDraft>) => onChange({ ...value, ...patch });
   const first = (
-    <FormField id={`${prefix}-first-name`} label="First name" required>
+    <FormField id={`${prefix}-first-name`} label="First Name" required>
       <Input
         id={`${prefix}-first-name`}
         autoComplete="given-name"
@@ -47,7 +47,7 @@ export function NameFields({
     </FormField>
   );
   const middle = (
-    <FormField id={`${prefix}-middle-name`} label="Middle name (optional)">
+    <FormField id={`${prefix}-middle-name`} label="Middle Name (Optional)">
       <Input
         id={`${prefix}-middle-name`}
         autoComplete="additional-name"
@@ -58,7 +58,7 @@ export function NameFields({
     </FormField>
   );
   const last = (
-    <FormField id={`${prefix}-last-name`} label="Last name" required>
+    <FormField id={`${prefix}-last-name`} label="Last Name" required>
       <Input
         id={`${prefix}-last-name`}
         autoComplete="family-name"
@@ -70,7 +70,7 @@ export function NameFields({
     </FormField>
   );
   const suffix = (
-    <FormField id={`${prefix}-suffix`} label="Name extension / suffix (optional)">
+    <FormField id={`${prefix}-suffix`} label="Name Extension / Suffix (Optional)">
       <Autocomplete
         id={`${prefix}-suffix`}
         autoComplete="honorific-suffix"
@@ -94,7 +94,7 @@ export function NameFields({
         {first}
         {last}
         <OptionalFields
-          label="Add middle name or suffix"
+          label="Add Middle Name or Suffix"
           defaultOpen={Boolean(value.middleName || value.suffix)}
           className="sm:col-span-2"
         >

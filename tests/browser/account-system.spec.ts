@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openProfileTab } from "./profile-tabs-helper";
 import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
 
@@ -14,20 +15,20 @@ async function signIn(page: Page, email: string) {
   await page.goto("/login");
   await page.locator("#email").fill(email);
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
 }
 async function upload(page: Page, filename: string) {
   await page.goto("/settings");
-  await page.getByRole("button", { name: "Change photo", exact: true }).click();
-  const photoDialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });
-  const photo = photoDialog.getByRole("region", { name: "Profile photo", exact: true });
+  await page.getByRole("button", { name: "Change Photo", exact: true }).click();
+  const photoDialog = page.getByRole("dialog", { name: "Change Profile Photo", exact: true });
+  const photo = photoDialog.getByRole("region", { name: "Profile Photo", exact: true });
   await photo
-    .getByLabel("Profile photo", { exact: true })
+    .getByLabel("Profile Photo", { exact: true })
     .setInputFiles({ name: filename, mimeType: "image/png", buffer: png });
   const response = page.waitForResponse(
     (r) => r.url().endsWith("/api/v1/me/photo") && r.request().method() === "POST",
   );
-  await photo.getByRole("button", { name: /Upload photo|Replace photo/ }).click();
+  await photo.getByRole("button", { name: /Upload Photo|Replace photo/ }).click();
   expect((await response).status()).toBe(201);
   await expect(photo.getByRole("img", { name: /profile photo$/ })).toBeVisible();
   await expect
@@ -35,7 +36,7 @@ async function upload(page: Page, filename: string) {
     .toBeGreaterThan(0);
   await expect(accountAvatar(page)).toBeVisible();
   const image = await accountAvatar(page).getAttribute("src");
-  await expect(photo.getByRole("button", { name: "Remove photo", exact: true })).toBeEnabled();
+  await expect(photo.getByRole("button", { name: "Remove Photo", exact: true })).toBeEnabled();
   await photoDialog.getByRole("button", { name: "Close dialog" }).click();
   await page.reload();
   await expect(accountAvatar(page)).toHaveAttribute("src", image!);
@@ -57,7 +58,7 @@ test("all account roles share personal photo controls and email changes require 
   await enrollAdministrator(page);
   const adminPhoto = await upload(page, "Administrator photo.png");
   expect((await page.request.get(adminPhoto)).status()).toBe(200);
-  await expect(page.getByRole("heading", { name: "Profile photo", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Profile Photo", exact: true })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("admin-personal-details.png"), fullPage: true });
 
   // A second session proves revocation without bypassing the first session's MFA.
@@ -68,15 +69,15 @@ test("all account roles share personal photo controls and email changes require 
   expect((await (await request.get("http://127.0.0.1:3101/api/auth/me")).json()).email).toBe(
     "admin@example.test",
   );
-  await page.getByRole("button", { name: "Change email", exact: true }).click();
-  const change = page.getByRole("dialog", { name: "Change email address", exact: true });
-  await change.getByLabel("New email address").fill("renamed.admin@example.test");
-  await change.getByLabel("Current password").fill("incorrect");
-  await change.getByRole("button", { name: "Send confirmation code", exact: true }).click();
+  await page.getByRole("button", { name: "Change Email", exact: true }).click();
+  const change = page.getByRole("dialog", { name: "Change Email Address", exact: true });
+  await change.getByLabel("New Email Address").fill("renamed.admin@example.test");
+  await change.getByLabel("Current Password").fill("incorrect");
+  await change.getByRole("button", { name: "Send Confirmation Code", exact: true }).click();
   await expect(change.getByRole("alert")).toContainText("password is incorrect");
-  await change.getByLabel("Current password").fill("BrowserTest123!");
-  await change.getByRole("button", { name: "Send confirmation code", exact: true }).click();
-  await expect(change.getByLabel("New email confirmation code")).toBeVisible();
+  await change.getByLabel("Current Password").fill("BrowserTest123!");
+  await change.getByRole("button", { name: "Send Confirmation Code", exact: true }).click();
+  await expect(change.getByLabel("New Email Confirmation Code")).toBeVisible();
   expect((await (await page.request.get("/api/auth/me")).json()).email).toBe("admin@example.test");
   expect((await (await page.request.get("/api/auth/verification")).json()).pendingEmail).toBe(
     "renamed.admin@example.test",
@@ -84,14 +85,14 @@ test("all account roles share personal photo controls and email changes require 
   await page.screenshot({ path: info.outputPath("pending-email-change.png"), fullPage: true });
   const { emailCode } = await (await request.get("http://127.0.0.1:3100/__test/code")).json();
   await change
-    .getByLabel("New email confirmation code")
+    .getByLabel("New Email Confirmation Code")
     .fill(emailCode === "000000" ? "111111" : "000000");
-  await change.getByRole("button", { name: "Confirm new email", exact: true }).click();
+  await change.getByRole("button", { name: "Confirm New Email", exact: true }).click();
   await expect(change.getByRole("alert")).toContainText("incorrect");
-  await change.getByLabel("New email confirmation code").fill(emailCode);
-  await change.getByRole("button", { name: "Confirm new email", exact: true }).click();
+  await change.getByLabel("New Email Confirmation Code").fill(emailCode);
+  await change.getByRole("button", { name: "Confirm New Email", exact: true }).click();
   await expect(change).toHaveCount(0);
-  await expect(page.getByRole("status", { name: "Email verification", exact: true })).toHaveText(
+  await expect(page.getByRole("status", { name: "Email Verification", exact: true })).toHaveText(
     "Verified",
   );
   const updated = await (await page.request.get("/api/auth/me")).json();
@@ -129,12 +130,13 @@ test("all account roles share personal photo controls and email changes require 
     await page.goto("/alumni/000000000000000000000201");
     // The alumnus's own photo shows in the detail header; a Super Admin may change it.
     await expect(page.getByRole("img", { name: "Test Alumni's profile photo" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Change photo", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Profile photo", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Change Photo", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Profile Photo", exact: true })).toHaveCount(0);
+    await openProfileTab(page, "Employment");
     await expect(
-      page.getByRole("heading", { name: "Supporting evidence", exact: true }),
+      page.getByRole("heading", { name: "Supporting Evidence", exact: true }),
     ).toBeVisible();
-    await expect(page.getByLabel("File purpose")).toHaveCount(0);
+    await expect(page.getByLabel("File Purpose")).toHaveCount(0);
     expect((await page.request.get(alumniPhoto)).status()).toBe(200);
     expect(
       (
@@ -148,12 +150,12 @@ test("all account roles share personal photo controls and email changes require 
       fullPage: true,
     });
     await member.goto("/settings");
-    await member.getByRole("button", { name: "Change photo", exact: true }).click();
-    const settingsPhoto = member.getByRole("dialog", { name: "Change profile photo", exact: true });
-    await settingsPhoto.getByRole("button", { name: "Remove photo", exact: true }).click();
+    await member.getByRole("button", { name: "Change Photo", exact: true }).click();
+    const settingsPhoto = member.getByRole("dialog", { name: "Change Profile Photo", exact: true });
+    await settingsPhoto.getByRole("button", { name: "Remove Photo", exact: true }).click();
     // Removal waits for Save; the photo is still stored until then.
     expect((await member.request.get(alumniPhoto)).status()).toBe(200);
-    await settingsPhoto.getByRole("button", { name: "Save changes", exact: true }).click();
+    await settingsPhoto.getByRole("button", { name: "Save Changes", exact: true }).click();
     await expect(accountAvatar(member)).toHaveCount(0);
     expect((await member.request.get(alumniPhoto)).status()).toBe(404);
     expect((await (await member.request.get("/api/me/profile")).json()).photoUrl).toBeNull();

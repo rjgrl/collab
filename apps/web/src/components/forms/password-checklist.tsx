@@ -25,7 +25,7 @@ export function PasswordChecklist({
   const tooLong = passwordLength(value) > PASSWORD_MAX_LENGTH;
   return (
     <div id={id} className="flex flex-col gap-2">
-      <ul aria-live="polite" aria-label="Password requirements" className="flex flex-wrap gap-1.5">
+      <ul aria-live="polite" aria-label="Password Requirements" className="flex flex-wrap gap-1.5">
         {PASSWORD_REQUIREMENTS.filter(
           (requirement) => requirement.id !== "max-length" || tooLong,
         ).map((requirement) => {

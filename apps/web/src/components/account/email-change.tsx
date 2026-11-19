@@ -54,7 +54,7 @@ export function EmailChange() {
           setOpen(true);
         }}
       >
-        {status.data?.pendingEmail ? "Confirm new email" : "Change email"}
+        {status.data?.pendingEmail ? "Confirm New Email" : "Change Email"}
       </Button>
       {open ? (
         <FormDialog
@@ -64,7 +64,7 @@ export function EmailChange() {
             if (!value) setPassword("");
           }}
           pending={pending}
-          title="Change email address"
+          title="Change Email Address"
           description="Your current email remains active until the new address is confirmed. Confirming signs out your other sessions and keeps your authenticator enabled."
         >
           <form
@@ -75,7 +75,7 @@ export function EmailChange() {
               else request.mutate();
             }}
           >
-            <FormField id="change-email-address" label="New email address" required>
+            <FormField id="change-email-address" label="New Email Address" required>
               <Input
                 id="change-email-address"
                 type="email"
@@ -87,7 +87,7 @@ export function EmailChange() {
                 onChange={(event) => setEmail(event.target.value)}
               />
             </FormField>
-            <FormField id="change-email-password" label="Current password" required>
+            <FormField id="change-email-password" label="Current Password" required>
               <Input
                 id="change-email-password"
                 type="password"
@@ -104,7 +104,7 @@ export function EmailChange() {
                   <StatusBadge tone="unverified" />
                   <span>Check the new address for a code. Codes expire in 10 minutes.</span>
                 </div>
-                <FormField id="change-email-code" label="New email confirmation code" required>
+                <FormField id="change-email-code" label="New Email Confirmation Code" required>
                   <Input
                     id="change-email-code"
                     inputMode="numeric"
@@ -129,7 +129,7 @@ export function EmailChange() {
                 pending={pending}
                 pendingLabel={sent ? "Confirming" : "Sending"}
               >
-                {sent ? "Confirm new email" : "Send confirmation code"}
+                {sent ? "Confirm New Email" : "Send Confirmation Code"}
               </PrimaryButton>
               {sent ? (
                 <Button
@@ -143,7 +143,7 @@ export function EmailChange() {
                     confirm.reset();
                   }}
                 >
-                  Resend or change address
+                  Resend or Change Address
                 </Button>
               ) : null}
             </div>

@@ -1,3 +1,4 @@
+import { reportBackgroundFailure } from "./background-failure";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import { findBrokenReferences, type BrokenReference } from "@Alumni-Tracking-Ss/db/reference-check";
 import { writeAudit } from "./audit";
@@ -80,7 +81,12 @@ export async function runIntegrityTick(input: {
 
 export function startIntegrityScheduler(db: Database) {
   const timer = setInterval(() => {
-    void runIntegrityTick({ db }).catch(() => undefined);
+    void runIntegrityTick({ db }).catch((error: unknown) =>
+      reportBackgroundFailure("integrity-check", error, {
+        db,
+        notify: "The nightly reference check could not run.",
+      }),
+    );
   }, 60_000);
   timer.unref();
   return () => clearInterval(timer);

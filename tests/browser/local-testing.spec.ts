@@ -13,7 +13,7 @@ test("local Admin first login enters without an authenticator and strict mode re
   await page.goto("/login");
   await page.locator("#email").fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL("**/dashboard");
   const identity = await (await page.request.get("/api/auth/me")).json();
   expect(identity.mfaRequired).toBe(false);
@@ -55,13 +55,15 @@ for (const legacyIntegrations of [false, true]) {
     await page.goto("/login");
     await page.locator("#email").fill("staff@example.test");
     await page.locator("#password").fill("BrowserTest123!");
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
     await page.waitForURL("**/dashboard");
     await expect(page.getByTestId("account-role")).toHaveText("Faculty");
     await page.goto("/settings");
     await expect(page.getByRole("link", { name: "Integrations", exact: true })).toHaveCount(0);
     await page.goto("/settings/integrations");
-    await expect(page).toHaveURL(/\/settings\/?$/);
+    // The page is refused in place with an explanation; integrations never load.
+    await expect(page.getByRole("heading", { name: "Access Denied", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Integrations", exact: true })).toHaveCount(0);
     expect((await page.request.get("/api/integrations")).status()).toBe(403);
     expect(
       (

@@ -1,5 +1,6 @@
-import { createDatabase } from "@Alumni-Tracking-Ss/db";
+import { createDatabase, resolveDatabaseUrl } from "@Alumni-Tracking-Ss/db";
 
 import { ENV } from "./env.server";
 
-export const db = createDatabase(ENV);
+export const databaseUrl = resolveDatabaseUrl(ENV);
+export const db = createDatabase({ DATABASE_URL: databaseUrl });

@@ -1,3 +1,5 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
+
 export const PERMISSIONS = [
   {
     key: "users.read",
@@ -158,14 +160,14 @@ export const PERMISSION_KEYS = PERMISSIONS.map((permission) => permission.key);
 
 export const ROLE_PRESETS = {
   super_admin: {
-    key: "super_admin",
+    key: ROLE.superAdmin,
     name: "Super Admin",
     description:
       "Full access to RBAC, academic structure, alumni, files, dashboard, and integrations.",
     permissions: PERMISSION_KEYS,
   },
   faculty: {
-    key: "faculty",
+    key: ROLE.faculty,
     name: "Faculty",
     description:
       "Faculty tracker. Alumni access is limited by the linked faculty record's department and role level.",
@@ -182,8 +184,8 @@ export const ROLE_PRESETS = {
       "reports.export",
     ] satisfies PermissionKey[],
   },
-  viewer: {
-    key: "viewer",
+  alumni: {
+    key: ROLE.alumni,
     name: "Alumni",
     description:
       "Own explicitly linked profile, employment, evidence and privacy-safe aggregate statistics.",
@@ -192,10 +194,23 @@ export const ROLE_PRESETS = {
 } as const;
 
 /**
- * Retired system roles. Seeding removes them from existing databases: "staff" gave
- * university-wide alumni access with no faculty record, which the org scoping rules forbid.
+ * Removed role keys. Migration and seeding delete any role with these keys, and new roles may not
+ * use them: "staff" gave university-wide alumni access with no faculty record, which the org
+ * scoping rules forbid; "admin" was once treated as an administrator alias.
  */
-export const RETIRED_ROLE_KEYS = ["staff"] as const;
+export const RETIRED_ROLE_KEYS = ["staff", "admin"] as const;
+
+/** The Alumni role's former key; migration renames it to "alumni" in place. */
+export const LEGACY_ALUMNI_ROLE_KEY = "viewer";
+
+/** Keys a new custom role may not use: the three system roles and every removed key. */
+export const RESERVED_ROLE_KEYS = [
+  ROLE.superAdmin,
+  ROLE.faculty,
+  ROLE.alumni,
+  LEGACY_ALUMNI_ROLE_KEY,
+  ...RETIRED_ROLE_KEYS,
+] as const;
 
 export function isPermissionKey(key: string): key is PermissionKey {
   return PERMISSION_KEYS.some((active) => active === key);

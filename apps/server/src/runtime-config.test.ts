@@ -7,7 +7,7 @@ import {
   trustedProxyAddresses,
 } from "./runtime-config";
 const syntheticDatabaseUrl = (scheme: string, query: string) => {
-  const value = new URL(`${scheme}://db.example.test/test?${query}`);
+  const value = new URL(`${scheme}://db.example.test/alumni_tracking?${query}`);
   value.username = "synthetic";
   value.password = "SECRET";
   return value.toString();
@@ -138,4 +138,36 @@ it("validates an optional BACKUP_ENCRYPTION_KEY and BACKUP_DIR in production wit
         return true;
       },
     );
+});
+
+it("requires the explicit production database without rewriting an incorrect URI", () => {
+  for (const name of ["", "test", "other_database", "alumni_tracking/", "%ZZ"])
+    assert.throws(
+      () =>
+        validateRuntimeConfig(
+          {
+            ...valid,
+            databaseUrl: syntheticDatabaseUrl("mongodb+srv", "retryWrites=true").replace(
+              "/alumni_tracking?",
+              `/${name}?`,
+            ),
+          },
+          {},
+        ),
+      (error) =>
+        error instanceof Error &&
+        /alumni_tracking/.test(error.message) &&
+        !error.message.includes("SECRET"),
+    );
+  assert.deepEqual(
+    validateRuntimeConfig(
+      {
+        ...valid,
+        nodeEnv: "test",
+        databaseUrl: "mongodb://127.0.0.1:27018/isolated_test?replicaSet=rs0",
+      },
+      {},
+    ),
+    { trustedProxyIps: [] },
+  );
 });

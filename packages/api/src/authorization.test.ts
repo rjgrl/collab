@@ -132,7 +132,7 @@ it("rejects permission escalation and delegated system-role editing", () => {
     /beyond your own/,
   );
   assert.throws(
-    () => assertRoleScope(delegated, [{ key: "viewer", isSystem: true, rolePermissions: [] }]),
+    () => assertRoleScope(delegated, [{ key: "alumni", isSystem: true, rolePermissions: [] }]),
     /system roles/,
   );
 });

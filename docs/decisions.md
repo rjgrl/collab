@@ -168,8 +168,102 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - The README has a "Setup options" table: local clean (`setup:local --no-demo`), local seeded (`setup:local`), hosted clean (`deploy:init`), hosted seeded (`deploy:init --demo`), and hosted with copied data (Atlas runbook).
 - Status: the app is not on Atlas yet. Hosted environments switch by setting `DATABASE_URL`; no Atlas cluster or migration exists yet.
 
-## BukSU-aligned theme and official College of Technologies logo
+## 2026-11-12: BukSU-aligned theme and official College of Technologies logo
 
 - The brand mark is the official `cot-logo.webp` from buksu.edu.ph, cropped to its transparent circular boundary and rendered in a clipped circle.
 - Light mode follows the buksu.edu.ph palette: navy `#001C38`, gold `#D7953E`, blue `#0070BA`, light blue `#8FC3DD`, warm neutrals.
 - Dark mode uses charcoal surfaces (`#17191C`/`#22262B`) with BukSU gold as the primary accent; blue is a supporting/chart color only. Colors change only through semantic tokens in `packages/ui/src/styles/globals.css`.
+
+## 2026-11-13: Alumni profile sections are tabs
+
+- Staff alumni page: tabs under the name and Tracked badge — Details (student details and contacts, default), Employment (jobs, then supporting evidence), Tracking, Change history (heads and Super Admins only). My profile: Employment (default) and Evidence; tracking stays hidden from alumni.
+- Tabs are links in the shared `SectionTabs` bar, the same as Settings (no ARIA tablist), and the open tab is kept in `?tab=`. The default tab adds nothing, so older links still work; old `#evidence-…` notification links open Employment.
+- `useSectionTab` reads the tab from the router location that tab links use, and replaces an unknown or unavailable `tab` in the address. Why: TanStack keeps unknown search keys in `useSearch()`, and route search can lag the location on Back, which marked two tabs current.
+- Only the open tab is mounted, so Tracking and Change history load when opened. Unsaved tracking notes are kept in the page and survive switching tabs.
+
+## 2026-11-13: Sessions are HS256 JWTs tied to the session record
+
+- The course requires JWTs. The session cookie (and optional bearer credential) is an HS256 JWT: `iss`, `aud`, `sub` = user ID, `jti` = random session secret, `iat`, `exp` = session expiry.
+- Owner chose "JWT tied to a session" over access + refresh tokens: every request verifies the JWT and then requires the session whose SHA-256 is stored in `Session`, so sign-out, password reset, role change and MFA freshness stay immediate. Rejected: stateless access tokens (revocation would lag up to their lifetime).
+- HS256, because one server both issues and verifies (owner's choice); ES256 only matters if other systems must verify without being able to issue. The key is HKDF-SHA256 from `SESSION_SECRET` with a fixed purpose label, so BukSU manages no new secret.
+- `jose` verifies with an algorithm allowlist; hand-written JWT code was rejected because algorithm confusion is the classic failure.
+- Existing sessions end once on deploy (their cookies are not JWTs).
+
+## 2026-11-14: Faster CI
+
+- Pull requests run CI once (`pull_request` only); `push` runs only on `main`. Every push to a PR branch used to start two identical runs (4 jobs) that competed for runners.
+- The Playwright suite runs as its own jobs, three Playwright shards per OS, in parallel with the other checks. It took 12–13.5 of the 15–19 minutes when run serially after them. Splitting by viewport instead was tried first; desktop (10 min on Windows) was much longer than mobile, so shards balance better.
+- Chromium for Playwright is cached by lockfile hash (Linux still installs system packages); a download took about 2.5 minutes on Windows.
+
+## 2026-11-14: Only Super Admin administers; Viewer renamed to Alumni; Admin and Staff removed
+
+- Found by the bug-bounty audit: `isAdministrator` also accepted a role keyed `admin`, which no seed creates and role creation did not reserve. A delegated access manager (custom role with `roles.write` + `users.write`) could create a role keyed `admin`, give it to themselves and, after enrolling MFA, download and restore full database backups.
+- Owner decision: remove the `admin`, `staff` and `viewer` roles and nothing else. Custom roles, the permission editor, Edit role and full Super Admin management stay.
+- `isAdministrator` is `super_admin` only. New roles cannot use `super_admin`, `faculty`, `alumni`, `admin`, `staff` or `viewer`.
+- The Alumni role key is now `alumni`. Schema version 2 renames `viewer` in place (same id, grants and permissions) and deletes roles keyed `admin` or `staff` with their grants; dry run reports counts. The server refuses to start while any of those roles remain, because an unmigrated `viewer` role would no longer be recognised as Alumni.
+- Alumni no longer see `tracking.create` or `alumni.assign|reassign|unassign` entries in their audit log (the bug-bounty audit showed staff tracking notes reaching alumni there). Staff still see them.
+
+## 2026-11-14: Remaining bug-bounty findings
+
+- Unconfirmed registrations: a sign-up that never confirmed its email no longer holds the email or student number forever. After 24 hours a new sign-up with either one releases it (account, sessions, challenges, and its student profile while untouched by staff); a verified BukSU Google sign-in of the same email releases it immediately. Confirmed accounts, legacy accounts without required verification, non-Alumni roles and profiles staff have worked on are never released. Logged as `auth.signup.released`. No migration.
+- Limits per alumnus: 50 evidence files and 30 jobs (like the existing 50 contacts), and 20 self-uploads per account per 10 minutes. Staff get one unread evidence notice per alumnus, refreshed by later uploads.
+- Email gateway: addresses are classified after full IPv6 parsing (IPv4 inside mapped, compatible, NAT64 and 6to4 forms counts as that IPv4 address), more reserved ranges are refused, redirects are never followed, and production re-checks the address before every send. Accepted residual risk: DNS can still change between that check and the connection (pinning needs undici), and only a Super Admin can set the address.
+- Evidence on Google Drive or imgBB is streamed to the browser; it previously arrived as `{}`.
+
+## 2026-11-15: Engineering guardrails from the bad-practice review
+
+- `main` is protected: pull request required, all eight CI checks required, linear history, no force-push or deletion, enforced for admins too. Direct pushes (including the owner's) now go through a PR.
+- The test model fixture throws on query or update features it cannot reproduce instead of guessing, and applies sort, skip and limit like MongoDB.
+- Role keys are compared only through `ROLE` and the helpers in `contracts/names.ts`; `source-guards.test.ts` fails on a typed-out role key (including the removed `admin`, `staff`, `viewer`) or on `context.user!` (use `requireUser`).
+- Unattended jobs (restore recovery, backup scheduler, nightly integrity check) report failures through `reportBackgroundFailure`: always a redacted JSON log line, plus a Super Admin notification at most hourly per job. Heartbeat and post-restore audit failures are logged only.
+
+## 2026-11-15: University-wide permissions are Super Admin only
+
+- Owner decision: custom roles stay, but only with permissions that respect college/department scope. Rejected: keeping every permission grantable behind MFA, or scoping only the audit log.
+- `SUPER_ADMIN_ONLY_PERMISSIONS` (`packages/contracts/src/permission-scope.ts`): `users.*`, `roles.*`, `permissions.read`, `departments.write|delete`, `programs.write|delete`, `integrations.*`, `audit.read`.
+- Enforced once, where permissions are resolved at sign-in (`loadAuthUser` via `effectivePermissions`), so every route follows it; stored grants on older roles give nothing and need no migration. Roles cannot be saved with them (400, plain message). Settings › Roles shows them as "Super Admin only" and drops them on save.
+- Heads keep their scoped powers (faculty, assignments, scoped audit) through the Faculty record, which never used these permissions.
+
+## 2026-11-14: Focused sign-up steps and consistent auth-page balance
+
+- Owner approved two steps instead of the previous single-page sign-up decision: Personal details (name and contact), then Studies & password. The one-page layout was cluttered and pushed actions off the laptop screen. Continue validates the first step without submitting; Back preserves entries; only Create account sends the existing registration payload.
+- Sign-in and sign-up share the same equal-width desktop panels and centered content. The owner explicitly rejected keeping the older wider sign-up panel because its dark empty space looked inconsistent with sign-in. Sign-up has a wider content measure within its half for paired fields, not a wider panel.
+- Required fields, institutional-email guidance, optional names/Facebook, password checks, configured Google entry and CAPTCHA are retained. Default steps fit 1366×768 without scrolling; small screens, zoom and expanded optional content may scroll naturally rather than clipping inputs or shrinking controls.
+
+## 2026-11-14: Formal capitalization on public authentication pages
+
+- Owner chose title case for the landing headline, page/group headings, field labels, placeholders and actions (for example “Sign In”, “Create Your Alumni Account” and “Phone Number”). Full sentences, explanatory text and validation/status messages stay in sentence case; university and product names retain proper capitalization.
+- Scope is the public landing/login/sign-up presentation, not a site-wide relabeling of shared account/settings forms. Capitalizing every word in paragraphs was rejected to preserve readability.
+
+## 2026-11-14: Extend formal labels and full branding across Super Admin
+
+- Owner explicitly expanded the capitalization scope to all Super Admin screens, including shared labels visible to other roles. Static interface headings, labels and actions use title case; explanations and status/instruction sentences remain sentence case. This supersedes the earlier restriction to public authentication pages.
+- The sidebar uses the complete landing-page product and institution names, wrapping rather than truncating the university subtitle. Its width, official seal and navigation behavior are retained.
+- System-defined permission/integration labels may be formatted at display time; user-defined role names, person names, academic records, stored values, permission keys and request payloads are never recased. The formatter is not a general text transform.
+
+## 2026-11-14: Password visibility, registration confirmation and abbreviated sidebar subtitle
+
+- Owner approved independent eye-button visibility controls on login and registration, plus a required matching Confirm Password during account creation. The presentation/API boundary and reset behavior are recorded in [Authentication Password Controls](../apps/web/src/components/forms/password-controls.SPEC.md).
+- Review `rc_c7ed30f8` was clarified as shortening the sidebar university name only: “Alumni Tracking System” above “BukSU - College of Technologies”. This supersedes the full-name sidebar subtitle above; the public landing branding remains unchanged.
+
+## 2026-11-14: Organize Reports without removing stored Batch data
+
+- Owner approved labeled, hierarchy-ordered report controls and separate export groups, and explicitly selected Reports-only Batch removal rather than removing it from profile/history surfaces.
+- Existing output scopes, permission gates and the selection-stability rule are recorded in [Reports Interface and Export Scopes](../apps/web/src/routes/_app/reports.SPEC.md). No backend contract or database migration is part of this change.
+
+## 2026-11-15: Stage the Atlas data copy without live cutover or automatic cleanup
+
+- Owner approved copying only the active local application database into the empty Atlas `alumni_tracking` target, keeping the source and a private backup. Other databases are out of scope. Local development/tests remain on native `rs0`; hosted-server configuration and cutover are deferred until the hosting details are provided.
+- Preserve the existing encryption/session keys in restricted backups outside Git. A verified native archive is a point-in-time copy, not live synchronization and not an encrypted `.atsbak` bundle. Existing maintenance mode was used briefly, with consistent source hashes checked before/after the dump and restored BSON data/indexes/options verified against the snapshot.
+- Owner chose inspect-first cleanup and then explicitly **Keep All Records** after reviewing the exact demo/test candidates and dependencies. No unknown collections or broken references were found. Reserved example/test email domains alone do not justify deleting records; all 168 copied records remain, and no data cleanup is authorized.
+
+## 2026-11-15: Reconcile reviewed profile changes without replacing Atlas data
+
+- After a read-only local/Atlas comparison, the owner approved all 35 reviewed profile fields across 12 existing records, including names, gender/Facebook details and department/tracker assignments, together with their 12 source modification timestamps. Apply exactly that allowlist in one transaction, bound to the reviewed hashes and a fresh private backup; preserve every unapproved field and record.
+- Rejected a whole-database replacement or automatic transfer of local authentication/session state and audit history. The 17 new local-only operational records stay separate; no accounts or other data are deleted. Roles, permissions and passwords remain unchanged.
+- This is another point-in-time refresh, not a synchronization feature. Local development/tests remain native; the separately configured hosted backend must use Atlas before future hosted website edits persist there directly.
+
+## 2026-11-15: Document API setup without activating providers
+
+- Owner selected a guide and configuration examples, not missing-adapter implementation or live enablement. Use existing Render secret injection for root keys and the encrypted application credential store for production providers; do not add an external secrets-manager SDK as part of this task.
+- The operational catalog is [Secure API Setup](operations/API_SETUP.md). Its Resend/Twilio examples do not select vendors or authorize billing, messages, uploads, database changes or deployment. Provider choice and implementation gaps remain explicit; strict production verification/readiness is unchanged.

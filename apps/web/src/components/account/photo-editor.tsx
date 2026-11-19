@@ -298,7 +298,7 @@ export function PhotoEditorView({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="Zoom out"
+            aria-label="Zoom Out"
             disabled={disabled || view.zoom <= MIN_ZOOM}
             onClick={() => editor.setZoom(view.zoom - 0.25)}
           >
@@ -319,7 +319,7 @@ export function PhotoEditorView({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="Zoom in"
+            aria-label="Zoom In"
             disabled={disabled || view.zoom >= MAX_ZOOM}
             onClick={() => editor.setZoom(view.zoom + 0.25)}
           >
@@ -329,7 +329,7 @@ export function PhotoEditorView({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="Reset position and zoom"
+            aria-label="Reset Position and Zoom"
             disabled={disabled}
             onClick={editor.recenter}
           >
@@ -346,7 +346,7 @@ export function PhotoEditorView({
           disabled={disabled}
           accessibleLabel={accessibleLabel}
           describedBy={`${inputId}-help`}
-          chooseLabel={source || currentImage ? "Choose another photo" : "Choose photo"}
+          chooseLabel={source || currentImage ? "Choose Another Photo" : "Choose Photo"}
           onChange={(file) => void editor.choose(file)}
         />
         <p id={`${inputId}-help`} className="text-xs text-muted-foreground">

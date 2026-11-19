@@ -14,11 +14,11 @@ function Statistics() {
   return (
     <PageShell>
       <PageHeader
-        title="University statistics"
+        title="University Statistics"
         description="Privacy-safe totals across eligible alumni profiles. These views contain no personal records or exports."
       />
       {result.isPending ? (
-        <FormCard title="Graduate tracking totals">
+        <FormCard title="Graduate Tracking Totals">
           <div role="status" className="grid grid-cols-2 gap-5 md:grid-cols-4">
             <span className="sr-only">Loading statistics…</span>
             {["Graduates", "Tracked", "Untracked", "Tracked percentage"].map((label) => (
@@ -41,7 +41,7 @@ function Statistics() {
           >
             {data.message} Nonzero cohorts smaller than {data.minimumCohort} are withheld.
           </p>
-          <FormCard title="Graduate tracking totals">
+          <FormCard title="Graduate Tracking Totals">
             {data.totals ? (
               <dl className="grid grid-cols-2 gap-x-5 gap-y-6 md:grid-cols-4 md:divide-x">
                 {(
@@ -67,11 +67,11 @@ function Statistics() {
               </p>
             )}
           </FormCard>
-          <FormCard title="By department">
+          <FormCard title="By Department">
             <DataTable
-              headers={["Department", "Graduates", "Tracked", "% tracked"]}
+              headers={["Department", "Graduates", "Tracked", "% Tracked"]}
               isEmpty={!data.byDepartment.length}
-              emptyTitle="Department breakdown withheld"
+              emptyTitle="Department Breakdown Withheld"
               emptyDescription="A breakdown is available only when every cohort meets the privacy threshold."
             >
               {data.byDepartment.map((d) => (

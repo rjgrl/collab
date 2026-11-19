@@ -31,3 +31,32 @@ it("sends no Authorization header when no gateway key is configured", async () =
   const sent = await capture({ smtpUrl: "https://mail.example.test/send" });
   assert.equal(sent.headers.get("authorization"), null);
 });
+
+it("never follows redirects and refuses internal gateways before every production send", async () => {
+  const original = globalThis.fetch;
+  const originalEnv = process.env.NODE_ENV;
+  const calls: RequestInit[] = [];
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    calls.push(init);
+    return new Response(null, { status: 202 });
+  }) as typeof fetch;
+  try {
+    await sendEmail(
+      { smtpUrl: "https://8.8.8.8/send", emailApiKey: "key" },
+      { to: "user@example.com", subject: "Code", text: "123456" },
+    );
+    assert.equal(calls[0]?.redirect, "error");
+
+    process.env.NODE_ENV = "production";
+    for (const smtpUrl of ["https://[::ffff:a9fe:a9fe]/send", "https://127.0.0.1/send"])
+      await assert.rejects(
+        sendEmail({ smtpUrl }, { to: "user@example.com", subject: "Code", text: "123456" }),
+        /public HTTPS address/,
+        smtpUrl,
+      );
+    assert.equal(calls.length, 1, "nothing was sent to an internal address");
+  } finally {
+    globalThis.fetch = original;
+    process.env.NODE_ENV = originalEnv;
+  }
+});

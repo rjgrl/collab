@@ -26,6 +26,7 @@ export function NotificationsBell() {
       await navigate({
         to: "/alumni/$id",
         params: { id: item.alumniId },
+        search: { tab: "employment" },
         hash: `evidence-${item.evidenceId}`,
       });
     },

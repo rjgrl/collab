@@ -40,7 +40,7 @@ function ResetPassword() {
   return (
     <AuthLayout>
       <AuthHeader
-        title={token ? "Choose a new password" : "Reset your password"}
+        title={token ? "Choose a New Password" : "Reset Your Password"}
         description="Reset links expire in 15 minutes and work once. Resetting a password signs out all sessions and keeps your authenticator enabled."
       />
       <form
@@ -79,7 +79,7 @@ function ResetPassword() {
           </p>
         ) : token ? (
           <>
-            <FormField id="reset-password" label="New password" required>
+            <FormField id="reset-password" label="New Password" required>
               <Input
                 id="reset-password"
                 type="password"
@@ -96,7 +96,7 @@ function ResetPassword() {
               />
             </FormField>
             <PasswordChecklist id="reset-guidance" value={password} serverError={screeningError} />
-            <FormField id="reset-confirmation" label="Confirm password" required>
+            <FormField id="reset-confirmation" label="Confirm Password" required>
               <Input
                 id="reset-confirmation"
                 type="password"
@@ -112,7 +112,7 @@ function ResetPassword() {
               pending={pending}
               disabled={!passwordMeetsPolicy(password) || password !== confirmation}
             >
-              Save new password
+              Save New Password
             </PrimaryButton>
           </>
         ) : (
@@ -129,7 +129,7 @@ function ResetPassword() {
               />
             </FormField>
             <PrimaryButton type="submit" pending={pending}>
-              Send reset link
+              Send Reset Link
             </PrimaryButton>
           </>
         )}
@@ -138,7 +138,7 @@ function ResetPassword() {
           className="self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
           to="/login"
         >
-          Back to sign in
+          Back to Sign In
         </Link>
       </form>
     </AuthLayout>

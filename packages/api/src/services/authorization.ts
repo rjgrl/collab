@@ -1,7 +1,8 @@
+import { isSuperAdminOnlyPermission } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import { isPermissionKey, toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Role } from "@Alumni-Tracking-Ss/contracts/roles";
 import type { PublicUser } from "@Alumni-Tracking-Ss/contracts/users";
-import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
+import { formatDisplayName, ROLE, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "../http-error";
 import type { AuthUser } from "../context";
 
@@ -33,7 +34,7 @@ export async function loadRoles(db: Database, ids?: string[]): Promise<Role[]> {
     .exec();
   return roles.map((role) => ({
     ...role,
-    name: role.key === "viewer" || role.key === "alumni" ? "Alumni" : role.name,
+    name: role.key === ROLE.alumni ? "Alumni" : role.name,
     description: role.description ?? "",
     _count: { userRoles: assignments.filter((link) => String(link.roleId) === role.id).length },
     rolePermissions: links
@@ -85,7 +86,7 @@ export async function publicUser(db: Database, userId: string): Promise<PublicUs
 }
 export function assertRoleScope(actor: AuthUser, roles: RoleScope[]) {
   for (const role of roles) {
-    if ((role.key === "super_admin" || role.isSystem) && !actor.roles.includes("super_admin"))
+    if ((role.key === ROLE.superAdmin || role.isSystem) && !isAdministrator(actor))
       throw new ApiError("FORBIDDEN", {
         message: "Only a super administrator can manage system roles.",
       });
@@ -119,6 +120,12 @@ export async function validatePermissionIds(db: Database, actor: AuthUser, ids: 
     });
   if (permissions.some(({ key }) => !isPermissionKey(key) || !actor.permissions.includes(key)))
     throw new ApiError("FORBIDDEN", { message: "You cannot grant permissions you do not hold." });
+  // Only the Super Admin role (never edited through here) may hold university-wide permissions.
+  if (permissions.some(({ key }) => isSuperAdminOnlyPermission(key)))
+    throw new ApiError("BAD_REQUEST", {
+      message:
+        "Managing members, roles, academic structure, integrations and the full audit log is for Super Admins only. Remove those permissions from this role.",
+    });
 }
 export async function authorizationTransaction<T>(
   db: Database,

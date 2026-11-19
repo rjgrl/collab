@@ -9,6 +9,8 @@ import { SCHEMA_VERSION } from "./migration";
 // test until the author deliberately increments SCHEMA_VERSION and records the new reviewed hash.
 const reviewedPipelineHashes: Record<number, string> = {
   1: "5b35e1fa66454dfa1dac60d52932979797642ac174a00028a7d7fcb80c6f5044",
+  // 2: Viewer renamed to Alumni; Staff and Admin roles removed (retire-roles.ts).
+  2: "f8c691cc14806b91a68d05f6b7885790b08480d0cf2944eead0906032f543cd7",
 };
 
 it("requires a schema-version bump whenever the migration pipeline changes", async () => {

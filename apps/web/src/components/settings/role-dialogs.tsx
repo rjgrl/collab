@@ -8,6 +8,7 @@ import {
   togglePermissions,
 } from "@Alumni-Tracking-Ss/contracts/permission-groups";
 import type { PermissionItem } from "@Alumni-Tracking-Ss/contracts/permission-groups";
+import { isSuperAdminOnlyPermission } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -15,8 +16,21 @@ import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
 import { client, queryClient } from "@/lib/api";
+import { formatUiLabel } from "@/lib/ui-label";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
+
+/** Roles configured here are never Super Admin, so university-wide permissions do not apply. */
+const grantable = (session: ReturnType<typeof useSession>, permission: PermissionItem) =>
+  !isSuperAdminOnlyPermission(permission.key) && can(session.data?.permissions, permission.key);
+
+/** Drops permissions a non-Super Admin role cannot hold (older roles may still store some). */
+export function grantablePermissionIds(ids: string[], permissions: PermissionItem[]) {
+  const restricted = new Set(
+    permissions.filter((item) => isSuperAdminOnlyPermission(item.key)).map((item) => item.id),
+  );
+  return ids.filter((id) => !restricted.has(id));
+}
 
 export function PermissionControls({
   permissions,
@@ -38,8 +52,8 @@ export function PermissionControls({
   return (
     <div className="flex flex-col gap-3">
       <Input
-        aria-label="Search permissions"
-        placeholder="Find a permission..."
+        aria-label="Search Permissions"
+        placeholder="Find a Permission..."
         value={search}
         onChange={(event) => setSearch(event.target.value)}
       />
@@ -50,12 +64,12 @@ export function PermissionControls({
         .filter((group) => group.items.some(matches))
         .map((group) => {
           const applicable = group.items
-            .filter((permission) => can(session.data?.permissions, permission.key))
+            .filter((permission) => grantable(session, permission))
             .map((permission) => permission.id);
           const state = groupState(applicable, ids);
           return (
             <fieldset key={group.key} className="rounded-xl border p-4">
-              <legend className="px-1 text-sm font-medium">{group.label}</legend>
+              <legend className="px-1 text-sm font-medium">{formatUiLabel(group.label)}</legend>
               <label className="mb-3 flex min-h-10 items-center gap-3 border-b pb-3 text-sm">
                 <Switch
                   checked={state.checked}
@@ -67,7 +81,7 @@ export function PermissionControls({
                   }
                 />
                 <span>
-                  All applicable permissions{" "}
+                  All Applicable Permissions{" "}
                   <span id={`permission-group-${group.key}`} className="text-muted-foreground">
                     ({state.count}/{applicable.length})
                     {state.indeterminate ? " | Partially enabled" : ""}
@@ -79,15 +93,20 @@ export function PermissionControls({
                   <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
                     <Switch
                       className="mt-1"
-                      checked={ids.includes(permission.id)}
-                      disabled={locked || !can(session.data?.permissions, permission.key)}
+                      checked={grantable(session, permission) && ids.includes(permission.id)}
+                      disabled={locked || !grantable(session, permission)}
                       onCheckedChange={(checked) =>
                         setIds((current) => togglePermissions(current, [permission.id], checked))
                       }
                     />
                     <span>
-                      <span className="font-medium">{permission.name}</span>
+                      <span className="font-medium">{formatUiLabel(permission.name)}</span>
                       <span className="block text-muted-foreground">{permission.description}</span>
+                      {isSuperAdminOnlyPermission(permission.key) ? (
+                        <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
+                          Super Admin only
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 ))}
@@ -131,7 +150,11 @@ export function AddRoleDialog({
   const [newIds, setNewIds] = useState<string[]>(initialPermissionIds);
 
   const create = useMutation({
-    mutationFn: () => client.roles.create({ ...newRole, permissionIds: newIds }),
+    mutationFn: () =>
+      client.roles.create({
+        ...newRole,
+        permissionIds: grantablePermissionIds(newIds, permissions),
+      }),
     onSuccess: async (created) => {
       await queryClient.invalidateQueries();
       setNewIds([]);
@@ -149,11 +172,11 @@ export function AddRoleDialog({
       open
       onOpenChange={onClose}
       pending={create.isPending}
-      title="Add role"
+      title="Add Role"
       description="All permissions start off. Enable only the access this role needs."
       footer={
         <PrimaryButton form="create-role" type="submit" pending={create.isPending}>
-          Create role
+          Create Role
         </PrimaryButton>
       }
     >

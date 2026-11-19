@@ -1,3 +1,4 @@
+import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import type { Types } from "mongoose";
 import { hashPassword, type Database } from "./index";
 import { PERMISSIONS, ROLE_PRESETS } from "./permissions";
@@ -69,6 +70,8 @@ async function seedInTransaction(
     await tx.Permission.updateOne({ key: permission.key }, { $set: permission }, { upsert: true });
   const permissions = await tx.Permission.find().lean();
   const permissionByKey = new Map(permissions.map((item) => [item.key, item]));
+  // Rename Viewer to Alumni in place before upserting presets, so alumni keep their grants.
+  const retired = await retireRoles(tx);
   for (const preset of Object.values(ROLE_PRESETS)) {
     const existing = await tx.Role.findOne({ key: preset.key }).lean();
     const role = await tx.Role.findOneAndUpdate(
@@ -76,7 +79,7 @@ async function seedInTransaction(
       { $set: { name: preset.name, description: preset.description, isSystem: true } },
       { upsert: true, returnDocument: "after" },
     ).orFail();
-    if (existing && preset.key !== "super_admin") continue;
+    if (existing && preset.key !== ROLE.superAdmin) continue;
     for (const key of preset.permissions) {
       const permission = permissionByKey.get(key);
       if (permission)
@@ -87,14 +90,13 @@ async function seedInTransaction(
         );
     }
   }
-  const retired = await retireRoles(tx);
   if (retired.accounts)
     console.warn(
-      `Removed the retired Staff role from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
+      `Removed the ${retired.roles.join(" and ")} role(s) from ${retired.accounts} account(s); ${retired.accountsWithoutRoles} now have no role. Recreate them from the Faculty page if they still need access.`,
     );
   const existingAdmin = await tx.User.findOne({ email }).lean();
   if (!existingAdmin) {
-    const role = await tx.Role.findOne({ key: "super_admin" }).orFail();
+    const role = await tx.Role.findOne({ key: ROLE.superAdmin }).orFail();
     const user = await new tx.User({
       name: "System Administrator",
       email,
@@ -230,7 +232,7 @@ async function seedDemo(db: Database, password: string) {
       }).save();
   }
   // One account per faculty role level; the shared password is the private bootstrap password.
-  const role = await db.Role.findOne({ key: "faculty" }).orFail().lean();
+  const role = await db.Role.findOne({ key: ROLE.faculty }).orFail().lean();
   const faculty = [
     {
       email: "college.head@collab.test",
@@ -349,7 +351,7 @@ async function seedDemo(db: Database, password: string) {
       last: sample.lastName,
       alumniId: profile._id,
     });
-    await grant(user._id, "viewer");
+    await grant(user._id, ROLE.alumni);
   }
 }
 

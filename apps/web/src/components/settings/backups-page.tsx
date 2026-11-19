@@ -251,7 +251,7 @@ export function BackupsPage() {
               pendingLabel="Ending"
               onClick={() => endMaintenance.mutate()}
             >
-              End maintenance mode
+              End Maintenance Mode
             </PrimaryButton>
           ) : null}
           {restoreStatus.data?.status === "succeeded" && (
@@ -261,7 +261,7 @@ export function BackupsPage() {
               className="mt-2"
               onClick={() => (window.location.href = "/login")}
             >
-              Sign in again
+              Sign In Again
             </Button>
           )}
         </div>
@@ -305,7 +305,7 @@ export function BackupsPage() {
                 </FormField>
 
                 {scheduleForm.frequency === "weekly" && (
-                  <FormField id="weekday" label="Day of week" required>
+                  <FormField id="weekday" label="Day of Week" required>
                     <FormSelect
                       id="weekday"
                       value={String(scheduleForm.weekday)}
@@ -319,7 +319,7 @@ export function BackupsPage() {
               </>
             )}
 
-            <FormField id="retention" label="Backups to keep" required>
+            <FormField id="retention" label="Backups to Keep" required>
               <Input
                 id="retention"
                 type="number"
@@ -335,11 +335,11 @@ export function BackupsPage() {
             <div className="flex gap-2 pt-2">
               <PrimaryButton
                 pending={saveDateSchedule.isPending}
-                pendingLabel="Saving schedule"
+                pendingLabel="Saving Schedule"
                 onClick={() => saveDateSchedule.mutate(scheduleForm)}
                 disabled={!isConfigured}
               >
-                Save schedule
+                Save Schedule
               </PrimaryButton>
             </div>
           </CardContent>
@@ -348,20 +348,20 @@ export function BackupsPage() {
         <div className="flex flex-wrap items-end gap-4">
           <PrimaryButton
             pending={backupNow.isPending}
-            pendingLabel="Backing up"
+            pendingLabel="Backing Up"
             onClick={() => backupNow.mutate()}
             disabled={!isConfigured}
           >
-            Back up now
+            Back Up Now
           </PrimaryButton>
-          <FormField id="backup-import" label="Import encrypted backup">
+          <FormField id="backup-import" label="Import Encrypted Backup">
             <FilePicker
               key={importInputKey}
               id="backup-import"
               file={importFile}
               accept=".atsbak,application/octet-stream"
-              accessibleLabel="Import encrypted backup"
-              chooseLabel="Choose backup"
+              accessibleLabel="Import Encrypted Backup"
+              chooseLabel="Choose Backup"
               onChange={(file) => setImportFile(file ?? null)}
               disabled={!isConfigured || importBackup.isPending}
             />
@@ -373,22 +373,22 @@ export function BackupsPage() {
             disabled={!isConfigured || !importFile}
             onClick={() => importFile && importBackup.mutate(importFile)}
           >
-            Import and verify
+            Import and Verify
           </PrimaryButton>
         </div>
 
         {/* Backups table */}
         {backups.length > 0 && (
           <DataTable
-            label="Backups table"
+            label="Backups Table"
             headers={[
               "Date",
               "Type",
               "Size",
               "Status",
-              "Created by",
+              "Created By",
               "Verified",
-              "Off-host",
+              "Off-Host",
               "Actions",
             ]}
             isEmpty={false}
@@ -413,7 +413,7 @@ export function BackupsPage() {
                     size="sm"
                     onClick={() => setRestoreDialog(entry)}
                     disabled={entry.status !== "succeeded" || !entry.verified}
-                    aria-label={`Restore backup from ${formatDateLong(entry.createdAt)}`}
+                    aria-label={`Restore Backup from ${formatDateLong(entry.createdAt)}`}
                   >
                     Restore
                   </Button>
@@ -434,7 +434,7 @@ export function BackupsPage() {
             setRestoreConfirmation("");
           }
         }}
-        title="Restore backup"
+        title="Restore Backup"
         pending={restore.isPending}
         footer={
           <>
@@ -459,7 +459,7 @@ export function BackupsPage() {
               // biome-ignore lint/nursery/noUndefinedElementMatches: <explanation>
               className="destructive"
             >
-              Restore this backup
+              Restore This Backup
             </PrimaryButton>
           </>
         }
@@ -478,13 +478,13 @@ export function BackupsPage() {
               {restoreDialog.manifest && (
                 <>
                   <p>
-                    <strong>App version:</strong> {restoreDialog.manifest.appVersion}
+                    <strong>App Version:</strong> {restoreDialog.manifest.appVersion}
                     {restoreDialog.manifest.appVersion !== running.appVersion && (
                       <span className="ml-1 text-amber-600">(Current: {running.appVersion})</span>
                     )}
                   </p>
                   <p>
-                    <strong>Schema version:</strong> {restoreDialog.manifest.schemaVersion}
+                    <strong>Schema Version:</strong> {restoreDialog.manifest.schemaVersion}
                     {restoreDialog.manifest.schemaVersion !== running.schemaVersion && (
                       <span className="ml-1 text-amber-600">
                         (Current: {running.schemaVersion})
@@ -552,7 +552,7 @@ export function BackupsPage() {
             {/* Authenticator code input */}
             <FormField
               id="restore-code"
-              label="Authenticator code"
+              label="Authenticator Code"
               required
               error={
                 restoreCode.length > 0 && restoreCode.length !== 6
@@ -574,7 +574,7 @@ export function BackupsPage() {
             {/* Confirmation text input */}
             <FormField
               id="restore-confirmation"
-              label="Type RESTORE to confirm"
+              label="Type RESTORE to Confirm"
               required
               error={
                 restoreConfirmation.length > 0 && restoreConfirmation !== "RESTORE"

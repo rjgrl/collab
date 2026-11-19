@@ -58,7 +58,7 @@ it("pauses Admin MFA only for explicit managed local development", () => {
   );
   assert.equal(
     requiresMfa(
-      { roles: ["viewer"], permissions: [], mfaEnrolled: true },
+      { roles: ["alumni"], permissions: [], mfaEnrolled: true },
       { NODE_ENV: "development", LOCAL_DISABLE_MFA: "true" },
     ),
     false,
@@ -113,7 +113,7 @@ it("returns matching frontend/status flags without deleting enrollment or invent
 });
 
 it("never gates Staff or Alumni with old enrollment or stale required flags, but gates mixed Administrator roles", () => {
-  for (const roles of [["staff"], ["viewer"], ["alumni"], ["viewer", "staff"]]) {
+  for (const roles of [["staff"], ["alumni"], ["admin"], ["alumni", "staff"]]) {
     assert.equal(
       requiresMfa(
         { roles, permissions: ["users.write"], mfaEnrolled: true, mfaRequired: true },
@@ -122,7 +122,7 @@ it("never gates Staff or Alumni with old enrollment or stale required flags, but
       false,
     );
   }
-  for (const roles of [["admin"], ["super_admin"], ["viewer", "admin"], ["staff", "super_admin"]]) {
+  for (const roles of [["super_admin"], ["alumni", "super_admin"], ["staff", "super_admin"]]) {
     assert.equal(
       requiresMfa({ roles, permissions: [], mfaEnrolled: false }, { NODE_ENV: "production" }),
       true,

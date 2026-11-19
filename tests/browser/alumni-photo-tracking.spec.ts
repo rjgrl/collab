@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openProfileTab } from "./profile-tabs-helper";
 import AxeBuilder from "@axe-core/playwright";
 import { enrollAdministrator } from "./security-helper";
 
@@ -13,21 +14,21 @@ async function signIn(page: Page, email: string) {
   await page.goto("/login");
   await page.locator("#email").fill(email);
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL("**/dashboard");
 }
 
 async function uploadPhoto(page: Page) {
-  await page.getByRole("button", { name: "Change photo", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });
+  await page.getByRole("button", { name: "Change Photo", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Change Profile Photo", exact: true });
   const before = (await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json())
     .photoUrl;
   await dialog
-    .getByLabel("Choose profile photo", { exact: true })
+    .getByLabel("Choose Profile Photo", { exact: true })
     .setInputFiles({ name: "Graduate.png", mimeType: "image/png", buffer: png });
   // The chosen photo previews immediately, can be zoomed and moved, and is not saved yet.
   await expect(dialog.getByRole("img", { name: /Preview of the chosen photo/ })).toBeVisible();
-  await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await dialog.getByRole("button", { name: "Zoom In", exact: true }).click();
   await expect(dialog.getByRole("slider", { name: "Zoom" })).toHaveValue("1.25");
   const frame = dialog.getByRole("group", { name: /Photo preview/ });
   await frame.focus();
@@ -40,7 +41,7 @@ async function uploadPhoto(page: Page) {
   const dialogBox = (await dialog.boundingBox())!;
   expect(Math.abs(box.x + box.width / 2 - (dialogBox.x + dialogBox.width / 2))).toBeLessThan(4);
   expect(box.width).toBeGreaterThanOrEqual(200);
-  await dialog.getByRole("button", { name: /Upload photo|Replace photo/ }).click();
+  await dialog.getByRole("button", { name: /Upload Photo|Replace photo/ }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Test Alumni's profile photo" })).toBeVisible();
 }
@@ -59,7 +60,7 @@ test("only Super Admins and the assigned faculty tracker change an alumnus photo
   await signIn(page, "staff@example.test");
   await page.goto(PROFILE);
   await expect(page.getByRole("img", { name: "Test Alumni's profile" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Change photo", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Change Photo", exact: true })).toHaveCount(0);
   const denied = await page.request.delete("/api/v1/alumni/000000000000000000000201/photo", {
     headers: { Origin: "http://127.0.0.1:3101" },
   });
@@ -88,13 +89,13 @@ test("only Super Admins and the assigned faculty tracker change an alumnus photo
   const photoBefore = (
     await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json()
   ).photoUrl;
-  await page.getByRole("button", { name: "Change photo", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Change profile photo", exact: true });
+  await page.getByRole("button", { name: "Change Photo", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Change Profile Photo", exact: true });
   const current = dialog.getByRole("group", { name: /Photo preview/ });
   await expect(current.getByRole("img", { name: "Test Alumni's profile photo" })).toBeVisible();
-  const save = dialog.getByRole("button", { name: "Save changes", exact: true });
+  const save = dialog.getByRole("button", { name: "Save Changes", exact: true });
   await expect(save).toBeDisabled();
-  await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await dialog.getByRole("button", { name: "Zoom In", exact: true }).click();
   // Dragging moves the image with a transform, not by re-laying out the page.
   const frameBox = (await current.boundingBox())!;
   await page.mouse.move(frameBox.x + 120, frameBox.y + 120);
@@ -109,8 +110,8 @@ test("only Super Admins and the assigned faculty tracker change an alumnus photo
   ).not.toBe(photoBefore);
 
   // Removing is staged: the dialog stays open and nothing changes until Save.
-  await page.getByRole("button", { name: "Change photo", exact: true }).click();
-  await dialog.getByRole("button", { name: "Remove photo", exact: true }).click();
+  await page.getByRole("button", { name: "Change Photo", exact: true }).click();
+  await dialog.getByRole("button", { name: "Remove Photo", exact: true }).click();
   await expect(dialog).toBeVisible();
   await expect(
     dialog.getByText("Photo will be removed when you save.", { exact: false }),
@@ -118,14 +119,14 @@ test("only Super Admins and the assigned faculty tracker change an alumnus photo
   expect(
     (await (await page.request.get("/api/v1/alumni/000000000000000000000201")).json()).photoUrl,
   ).toBeTruthy();
-  await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("img", { name: "Test Alumni's profile" })).toBeVisible();
 
   // With no photo, there is nothing to reposition: just the placeholder and Choose photo.
-  await page.getByRole("button", { name: "Change photo", exact: true }).click();
+  await page.getByRole("button", { name: "Change Photo", exact: true }).click();
   await expect(dialog.getByRole("group", { name: /Photo preview/ })).toHaveCount(0);
-  await expect(dialog.getByRole("button", { name: "Remove photo", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Remove Photo", exact: true })).toHaveCount(0);
   await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   const audit = await (
     await page.request.get("/api/v1/alumni/000000000000000000000201/history")
@@ -140,7 +141,7 @@ test("only Super Admins and the assigned faculty tracker change an alumnus photo
   await page.goto("/login");
   await page.locator("#email").fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await enrollAdministrator(page);
   await page.goto(PROFILE);
   await uploadPhoto(page);
@@ -153,27 +154,28 @@ test("tracking history is a paginated table", async ({ page, request }) => {
   await request.post(`${FIXTURE}/tracking-events`, { data: { count: 27 } });
   await signIn(page, "staff@example.test");
   await page.goto(PROFILE);
-  const table = page.getByRole("region", { name: "Tracking history" });
+  await openProfileTab(page, "Tracking");
+  const table = page.getByRole("region", { name: "Tracking History" });
   const rows = table.locator("tbody tr");
   await expect(rows).toHaveCount(10);
   // Newest first, with the tracker's name.
   await expect(rows.first()).toContainText("Synthetic tracking note 27");
   await expect(rows.first()).toContainText("Test Staff");
   await expect(page.getByText("Showing 1–10 of 27")).toBeVisible();
-  const pager = page.getByRole("navigation", { name: "Tracking history pages" });
+  const pager = page.getByRole("navigation", { name: "Tracking History Pages" });
   await pager.getByRole("button", { name: "Page 3", exact: true }).click();
   await expect(rows).toHaveCount(7);
   await expect(page.getByText("Showing 21–27 of 27")).toBeVisible();
-  await expect(pager.getByRole("button", { name: "Next page" })).toBeDisabled();
+  await expect(pager.getByRole("button", { name: "Next Page" })).toBeDisabled();
 
-  await page.getByRole("combobox", { name: "Rows per page" }).click();
+  await page.getByRole("combobox", { name: "Rows per Page" }).click();
   await page.getByRole("option", { name: "25", exact: true }).click();
   await expect(rows).toHaveCount(25);
   await expect(page.getByText("Showing 1–25 of 27")).toBeVisible();
 
   // A new event returns to page 1 and appears at the top.
-  await page.getByRole("textbox", { name: "Tracking notes" }).fill("Fresh follow-up");
-  await page.getByRole("button", { name: "Mark tracked", exact: true }).click();
+  await page.getByRole("textbox", { name: "Tracking Notes" }).fill("Fresh follow-up");
+  await page.getByRole("button", { name: "Mark Tracked", exact: true }).click();
   await expect(rows.first()).toContainText("Fresh follow-up");
   await expect(page.getByText("Showing 1–25 of 28")).toBeVisible();
 

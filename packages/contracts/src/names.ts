@@ -39,14 +39,26 @@ export function formatDisplayName(
     .join(" ");
 }
 
+/**
+ * The three built-in role keys. Compare role keys only through these (or the helpers below):
+ * a typed-out key is how a removed alias ("admin") kept granting administrator access.
+ */
+export const ROLE = {
+  superAdmin: "super_admin",
+  faculty: "faculty",
+  alumni: "alumni",
+} as const;
+export type RoleKey = (typeof ROLE)[keyof typeof ROLE];
+
+/** Only Super Admins administer the system; no other role key grants administrator access. */
 export function isAdministrator(user: { roles: readonly string[] }) {
-  return user.roles.some((role) => role === "super_admin" || role === "admin");
+  return user.roles.includes(ROLE.superAdmin);
+}
+
+export function isFacultyAccount(user: { roles: readonly string[] }) {
+  return user.roles.includes(ROLE.faculty);
 }
 
 export function isAlumniAccount(user: { roles: readonly string[] }) {
-  return (
-    user.roles.some((role) => role === "viewer" || role === "alumni") &&
-    !isAdministrator(user) &&
-    !user.roles.includes("faculty")
-  );
+  return user.roles.includes(ROLE.alumni) && !isAdministrator(user) && !isFacultyAccount(user);
 }

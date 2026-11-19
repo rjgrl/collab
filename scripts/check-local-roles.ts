@@ -227,7 +227,7 @@ try {
   });
   assert.equal(legacyResponse.status(), 201);
   const legacy = entity.parse(await legacyResponse.json());
-  const alumniRole = roles.find((row) => row.key === "viewer")!;
+  const alumniRole = roles.find((row) => row.key === "alumni")!;
   const createdResponse = await admin.request.post("/api/users", {
     data: {
       firstName: "Reviewed",

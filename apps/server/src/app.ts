@@ -42,6 +42,8 @@ import { accountPhotoRoutes, ownPhotoRoutes } from "./modules/account-photos/rou
 import { employmentController } from "./modules/alumni/employment.controller";
 import { aggregateController } from "./modules/reports/aggregate.controller";
 import { smsConfigured } from "@Alumni-Tracking-Ss/api/integrations/sms";
+import { databaseHealthy, healthDeadline } from "./health";
+import { validateWebStorage, webHandler } from "./web-serving";
 import { isIntegrationEnabled } from "@Alumni-Tracking-Ss/api/integrations/registry";
 import {
   resolveIntegrationEnv,
@@ -55,12 +57,22 @@ export type AppOptions = {
   sessionLoader?: typeof loadAuthUserFromToken;
   /** Server-only backup settings (BACKUP_ENCRYPTION_KEY, BACKUP_DIR, MONGODB_TOOLS_DIR). */
   backup?: BackupConfig;
+  webRoot?: string;
 };
 
 /** 2026-11-11T00:00:00Z: when the unversioned /api paths were deprecated in favour of /api/v1. */
 const DEPRECATED_UNVERSIONED_API_AT = 1794355200;
 
-export function createApp({ db, config, integrationEnv, sessionLoader, backup }: AppOptions) {
+export function createApp({
+  db,
+  config,
+  integrationEnv,
+  sessionLoader,
+  backup,
+  webRoot,
+}: AppOptions) {
+  if (webRoot) validateWebStorage(webRoot, integrationEnv.uploadDir ?? "./uploads", backup?.dir);
+  const serveWeb = webRoot ? webHandler(webRoot) : undefined;
   const app = express();
   const secureCookies = config.nodeEnv === "production";
   app.disable("x-powered-by");
@@ -110,7 +122,34 @@ export function createApp({ db, config, integrationEnv, sessionLoader, backup }:
     }
     next();
   });
-  app.use(helmet());
+  app.use(
+    helmet(
+      serveWeb
+        ? {
+            contentSecurityPolicy: {
+              directives: {
+                scriptSrc: [
+                  "'self'",
+                  "https://www.google.com/recaptcha/",
+                  "https://www.gstatic.com/recaptcha/",
+                ],
+                connectSrc: [
+                  "'self'",
+                  "https://www.google.com/recaptcha/",
+                  "https://www.gstatic.com/recaptcha/",
+                ],
+                frameSrc: [
+                  "https://www.google.com/recaptcha/",
+                  "https://recaptcha.google.com/recaptcha/",
+                ],
+                imgSrc: ["'self'", "data:", "blob:", "https:"],
+                workerSrc: ["'self'", "blob:"],
+              },
+            },
+          }
+        : {},
+    ),
+  );
   app.use(cookieParser());
   app.use((request, _response, next) => {
     const length = Number(request.get("content-length"));
@@ -138,8 +177,10 @@ export function createApp({ db, config, integrationEnv, sessionLoader, backup }:
   });
   app.use(
     cors({
-      origin: config.origin,
+      origin: (origin, callback) =>
+        callback(null, origin === config.origin ? config.origin : false),
       credentials: true,
+      exposedHeaders: ["Content-Disposition", "X-Request-ID"],
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
     }),
@@ -186,28 +227,36 @@ export function createApp({ db, config, integrationEnv, sessionLoader, backup }:
     next();
   });
   app.use(express.json({ limit: "6mb", strict: true }));
-  app.get("/", (_request, response) => {
-    response.type("text").send("OK");
-  });
+  if (!serveWeb)
+    app.get("/", (_request, response) => {
+      response.type("text").send("OK");
+    });
   app.get("/health/live", (_request, response) => {
     response.json({ ok: true });
   });
+  app.get("/health", async (_request, response) => {
+    const database = await databaseHealthy(db);
+    response
+      .status(database ? 200 : 503)
+      .json({ ok: database, checks: { server: true, database } });
+  });
   app.get("/health/ready", async (_request, response) => {
     try {
-      await db.ready();
-      const hello = await db.connection.db?.command({ hello: 1 });
-      const ready = hello?.isWritablePrimary === true && typeof hello.setName === "string";
-      const resolvedEnv = await resolveIntegrationEnv(db, integrationEnv, {
-        production: secureCookies,
-      });
+      const ready = await databaseHealthy(db);
       const contactVerification =
         !secureCookies ||
-        Boolean(
-          (resolvedEnv.verificationSecret?.length ?? 0) >= 32 &&
-          resolvedEnv.smtpUrl?.startsWith("https://") &&
-          smsConfigured(resolvedEnv) &&
-          (await isIntegrationEnabled(db, "email")),
-        );
+        (ready &&
+          (await healthDeadline(async () => {
+            const resolvedEnv = await resolveIntegrationEnv(db, integrationEnv, {
+              production: true,
+            });
+            return Boolean(
+              (resolvedEnv.verificationSecret?.length ?? 0) >= 32 &&
+              resolvedEnv.smtpUrl?.startsWith("https://") &&
+              smsConfigured(resolvedEnv) &&
+              (await isIntegrationEnabled(db, "email")),
+            );
+          })));
       response.status(ready && contactVerification ? 200 : 503).json({
         ok: ready && contactVerification,
         checks: { database: ready, contactVerification },
@@ -216,6 +265,7 @@ export function createApp({ db, config, integrationEnv, sessionLoader, backup }:
       response.status(503).json({ ok: false });
     }
   });
+  if (serveWeb) app.use(serveWeb);
   app.use(async (request, response, next) => {
     const requestEnv = await resolveIntegrationEnv(db, integrationEnv, {
       production: config.nodeEnv === "production",

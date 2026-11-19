@@ -154,7 +154,7 @@ it("marks a notification read idempotently without permitting another recipient'
 });
 
 it("hides reviewer notifications after permission or role removal, even with legacy broad grants", async () => {
-  for (const roles of [["viewer"], ["super_admin"], ["staff"], ["faculty"]]) {
+  for (const roles of [["alumni"], ["super_admin"], ["staff"], ["faculty"]]) {
     const f = fixture();
     f.context.user!.roles = roles;
     if (roles[0] === "faculty") f.context.user!.permissions = ["alumni.read"];

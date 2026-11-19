@@ -1,6 +1,6 @@
 // Test-only helper for the *-local.ts integration scripts. Never imported by the server.
 import type { Database } from "@Alumni-Tracking-Ss/db";
-import { createSession, storedSessionToken } from "@Alumni-Tracking-Ss/api/services/session";
+import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
 
 /**
  * A session cookie for the seeded bootstrap administrator with MFA already satisfied, so
@@ -18,9 +18,9 @@ export async function adminCookie(db: Database, email = process.env.SEED_ADMIN_E
     },
     { upsert: true },
   );
-  const { token } = await createSession(db, String(admin._id), {});
+  const { token, storageToken } = await createSession(db, String(admin._id), {});
   await db.Session.updateOne(
-    { token: storedSessionToken(token) },
+    { token: storageToken },
     { $set: { mfaVersion: version, mfaVerifiedAt: new Date() } },
   );
   return `ats_session=${token}`;

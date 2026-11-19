@@ -10,6 +10,7 @@ export function AccountProfileFields({
   value,
   onChange,
   compact = false,
+  phoneFullWidth = true,
   showPhone = true,
   showGender = true,
   showFacebook = true,
@@ -18,12 +19,14 @@ export function AccountProfileFields({
   onChange: (value: AccountProfile) => void;
   /** Sign-up layout: phone hint for assistive tech only, Facebook behind "+ Add". */
   compact?: boolean;
+  /** Allow phone and gender to share a row in the focused sign-up step. */
+  phoneFullWidth?: boolean;
   showPhone?: boolean;
   showGender?: boolean;
   showFacebook?: boolean;
 }) {
   const facebook = (
-    <FormField id="facebook-profile" label="Facebook profile link (optional)">
+    <FormField id="facebook-profile" label="Facebook Profile Link (Optional)">
       <Input
         id="facebook-profile"
         type="url"
@@ -37,12 +40,13 @@ export function AccountProfileFields({
   return (
     <>
       {showPhone ? (
-        <div className={compact ? "sm:col-span-2" : undefined}>
-          <FormField id="phone-number" label="Phone number" required>
+        <div className={compact && phoneFullWidth ? "sm:col-span-2" : undefined}>
+          <FormField id="phone-number" label="Phone Number" required>
             <PhoneInput
               id="phone-number"
               type="tel"
               autoComplete="tel"
+              placeholder="Enter Phone Number"
               required
               minLength={7}
               maxLength={30}
@@ -67,7 +71,7 @@ export function AccountProfileFields({
             value={value.gender}
             onValueChange={(selected) => onChange({ ...value, gender: selected })}
             items={[
-              { value: "", label: "Select gender" },
+              { value: "", label: "Select Gender" },
               { value: "Male", label: "Male" },
               { value: "Female", label: "Female" },
             ]}
@@ -77,7 +81,7 @@ export function AccountProfileFields({
       {showFacebook ? (
         compact ? (
           <OptionalFields
-            label="Add Facebook profile"
+            label="Add Facebook Profile"
             defaultOpen={Boolean(value.facebookAccount)}
             className="sm:col-span-2"
           >

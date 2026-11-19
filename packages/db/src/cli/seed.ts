@@ -2,7 +2,7 @@ import "varlock/auto-load";
 import { createDatabase } from "../index";
 import { seedDatabase } from "../seed-data";
 
-const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL ?? "" });
+const db = createDatabase(process.env);
 try {
   await db.ready();
   await seedDatabase(db);

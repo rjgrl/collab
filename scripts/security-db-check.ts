@@ -1,3 +1,4 @@
+import { decodeJwt } from "jose";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { generate } from "otplib";
@@ -54,11 +55,13 @@ try {
       await new tx.UserRole({ userId: user._id, roleId: role._id }).save();
       const session = await createSession(adapter, user._id.toHexString(), {});
       let currentToken = session.token;
+      // Services see the session secret inside the JWT, as the server's request context does.
+      const secretOf = (jwt: string) => String(decodeJwt(jwt).jti);
       const context = {
         db: adapter,
         user: await loadAuthUserFromToken(adapter, currentToken),
-        sessionToken: currentToken,
-        sessionStorageToken: storedSessionToken(currentToken),
+        sessionToken: secretOf(currentToken),
+        sessionStorageToken: storedSessionToken(secretOf(currentToken)),
         ipAddress: null,
         userAgent: null,
         integrationEnv: {
@@ -69,14 +72,17 @@ try {
       } as Context;
       context.onSessionRotation = (next) => {
         currentToken = next.token;
-        context.sessionToken = next.token;
-        context.sessionStorageToken = storedSessionToken(next.token);
+        context.sessionToken = secretOf(next.token);
+        context.sessionStorageToken = storedSessionToken(secretOf(next.token));
       };
       const setup = await beginMfa(context, password);
       const result = await confirmMfa(context, await generate({ secret: setup.secret }));
       assert.equal(await loadAuthUserFromToken(adapter, session.token), null);
       assert.equal((await loadAuthUserFromToken(adapter, currentToken))?.mfaVerified, true);
-      assert.equal(await loadAuthUserFromToken(adapter, storedSessionToken(currentToken)), null);
+      assert.equal(
+        await loadAuthUserFromToken(adapter, storedSessionToken(secretOf(currentToken))),
+        null,
+      );
       const beforeRecovery = currentToken;
       await verifyMfa(context, result.recoveryCodes[0]!);
       assert.notEqual(currentToken, beforeRecovery);
@@ -139,8 +145,8 @@ try {
       const googleContext = {
         ...context,
         user: await loadAuthUserFromToken(adapter, googleSession.token),
-        sessionToken: googleSession.token,
-        sessionStorageToken: storedSessionToken(googleSession.token),
+        sessionToken: secretOf(googleSession.token),
+        sessionStorageToken: googleSession.storageToken,
       } as Context;
       let googleRotated = "";
       googleContext.onSessionRotation = (value) => {

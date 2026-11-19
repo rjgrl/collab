@@ -1,3 +1,4 @@
+import { effectivePermissions } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import { accountAccessPending } from "./verification";
 import { createHash } from "node:crypto";
 import { requiresMfa } from "./mfa-policy";
@@ -5,7 +6,7 @@ import { assertPasswordSafe } from "./password-security";
 import { consumeAuthAttempt, boundedSetting } from "./throttle";
 import type { z } from "zod";
 import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
-import { formatDisplayName, isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { formatDisplayName, isAlumniAccount, ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { loadUserRoles, authorizationTransaction } from "./authorization";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import {
@@ -16,11 +17,12 @@ import {
   toEntity,
 } from "@Alumni-Tracking-Ss/db";
 import { ApiError } from "../http-error";
+import { signSessionToken, verifySessionToken } from "./session-token";
 
 import type { AuthUser } from "../context";
 import { writeAudit } from "../audit";
 import { isDatabaseUnavailable } from "../errors";
-import { createRegistrationProfile } from "./registration";
+import { createRegistrationProfile, releaseUnconfirmedRegistration } from "./registration";
 import {
   assertStaffEmailAllowed,
   assertStaffGoogleIdentity,
@@ -55,11 +57,15 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
     .select("_id roleLevel departmentId")
     .lean()
     .exec();
-  const permissions = [
-    ...new Set(
-      assigned.flatMap((role) => role.rolePermissions.map(({ permission }) => permission.key)),
-    ),
-  ].filter(isPermissionKey);
+  // Stored grants of Super Admin-only permissions give nothing to anyone else.
+  const permissions = effectivePermissions(
+    { roles },
+    [
+      ...new Set(
+        assigned.flatMap((role) => role.rolePermissions.map(({ permission }) => permission.key)),
+      ),
+    ].filter(isPermissionKey),
+  );
   return {
     id: user.id,
     name: formatDisplayName({
@@ -97,10 +103,11 @@ export async function loadAuthUser(db: Database, userId: string): Promise<AuthUs
   };
 }
 
-export async function loadAuthUserFromToken(db: Database, token: string | null) {
-  if (!token || token.startsWith("sha256:")) {
-    return null;
-  }
+/** Loads the signed-in user from a session JWT; the session it names must still be live. */
+export async function loadAuthUserFromToken(db: Database, sessionJwt: string | null) {
+  const claims = await verifySessionToken(sessionJwt);
+  if (!claims) return null;
+  const token = claims.secret;
 
   let session;
   try {
@@ -145,6 +152,7 @@ export async function loadAuthUserFromToken(db: Database, token: string | null) 
   if (lastSeen && lastSeen.getTime() < Date.now() - 60_000)
     await db.Session.updateOne({ _id: session.id }, { $set: { lastSeenAt: new Date() } }).exec();
 
+  if (session.userId !== claims.userId) return null;
   const user = await loadAuthUser(db, session.userId);
   if (user)
     user.mfaVerified = Boolean(
@@ -164,10 +172,10 @@ export async function createSession(
   userId: string,
   meta: { ipAddress?: string | null; userAgent?: string | null; googleVerifiedAt?: Date },
 ) {
-  const token = createSessionToken();
+  const secret = createSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await db.Session.create({
-    token: storedSessionToken(token),
+    token: storedSessionToken(secret),
     userId,
     expiresAt,
     ipAddress: meta.ipAddress ?? undefined,
@@ -175,9 +183,14 @@ export async function createSession(
     googleVerifiedAt: meta.googleVerifiedAt,
     lastSeenAt: new Date(),
   });
-  return { token, expiresAt };
+  return {
+    token: await signSessionToken({ secret, userId, expiresAt }),
+    storageToken: storedSessionToken(secret),
+    expiresAt,
+  };
 }
 
+/** `token` is the raw session secret from the verified JWT (Context.sessionToken). */
 export async function destroySession(db: Database, token: string | null) {
   if (!token) {
     return;
@@ -256,9 +269,16 @@ export async function registerUser(
   await assertPasswordSafe(profile.password);
   const passwordHash = await hashPassword(profile.password);
   return authorizationTransaction(db, async (tx) => {
-    if (await tx.User.findOne({ email }).lean().exec())
+    const holder = await tx.User.findOne({ email }).lean().exec();
+    if (
+      holder &&
+      !(await releaseUnconfirmedRegistration(tx, holder, {
+        reason: "email registered again after 24 hours unconfirmed",
+        ipAddress,
+      }))
+    )
       throw new ApiError("CONFLICT", { message: "An account with that email already exists." });
-    const role = await tx.Role.findOne({ key: "viewer" }).lean().exec();
+    const role = await tx.Role.findOne({ key: ROLE.alumni }).lean().exec();
     if (!role) throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
     const { firstName, middleName, lastName, suffix, phoneNumber, gender, facebookAccount } =
       profile;
@@ -297,7 +317,29 @@ export async function upsertGoogleUser(
   input: { email: string; name: string; image?: string | null; hostedDomain?: string | null },
 ) {
   const email = input.email.trim().toLowerCase();
-  const existingRow = await db.User.findOne({ email }).lean().exec();
+  let existingRow = await db.User.findOne({ email }).lean().exec();
+  // A verified Google identity of this email proves ownership, so it replaces an unconfirmed
+  // password registration (possibly made by someone else) instead of being refused.
+  if (
+    existingRow &&
+    existingRow.status === "active" &&
+    existingRow.verificationRequired &&
+    !existingRow.emailVerified &&
+    existingRow.passwordHash &&
+    publicSignupEnabled()
+  ) {
+    assertStaffGoogleIdentity(email, input.hostedDomain);
+    const stale = existingRow;
+    if (
+      await authorizationTransaction(db, (tx) =>
+        releaseUnconfirmedRegistration(tx, stale, {
+          immediately: true,
+          reason: "claimed by a verified Google sign-in",
+        }),
+      )
+    )
+      existingRow = null;
+  }
   if (existingRow) {
     const existing = toEntity(existingRow);
     if (existing.status !== "active")
@@ -337,7 +379,7 @@ export async function upsertGoogleUser(
   assertStaffGoogleIdentity(email, input.hostedDomain);
   try {
     return await authorizationTransaction(db, async (tx) => {
-      const role = await tx.Role.findOne({ key: "viewer" }).lean().exec();
+      const role = await tx.Role.findOne({ key: ROLE.alumni }).lean().exec();
       if (!role) throw new ApiError("INTERNAL_SERVER_ERROR", { message: "Roles are not seeded." });
       const created = await tx.User.create({
         name: input.name,

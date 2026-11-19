@@ -6,7 +6,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -36,6 +36,12 @@ function DepartmentsPage() {
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<Draft | null>(null);
   const colleges = useCollegeOptions();
+  // A new department defaults to the first college, even if the list arrives after the dialog opens.
+  const firstCollegeId = colleges.data?.[0]?.id;
+  useEffect(() => {
+    if (firstCollegeId && draft && !draft.id && !draft.collegeId)
+      setDraft({ ...draft, collegeId: firstCollegeId });
+  }, [firstCollegeId, draft]);
   const list = useQuery(
     api.departments.list.queryOptions({ input: { search, page, pageSize: 20 } }),
   );
@@ -87,7 +93,7 @@ function DepartmentsPage() {
                 setDraft({ collegeId: colleges.data?.[0]?.id ?? "", name: "", description: "" })
               }
             >
-              Add department
+              Add Department
             </PrimaryButton>
           ) : null
         }
@@ -109,7 +115,7 @@ function DepartmentsPage() {
               </QuietButton>
             </div>
           }
-          title={draft.id ? "Edit department" : "Add department"}
+          title={draft.id ? "Edit Department" : "Add Department"}
         >
           <form
             id="academic-form"
@@ -126,7 +132,7 @@ function DepartmentsPage() {
                 onValueChange={(selected) => setDraft({ ...draft, collegeId: selected })}
                 required
                 items={[
-                  { value: "", label: "Select college" },
+                  { value: "", label: "Select College" },
                   ...(colleges.data?.map((college) => ({
                     value: college.id,
                     label: college.name,
@@ -167,7 +173,7 @@ function DepartmentsPage() {
         searchPlaceholder="Search departments"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
-        emptyTitle="No departments found"
+        emptyTitle="No Departments Found"
         emptyDescription="Add a department to start attaching programs."
       >
         {list.data?.map((row) => (
@@ -201,7 +207,7 @@ function DepartmentsPage() {
                     onClick={async () => {
                       if (
                         await confirmAction({
-                          title: "Remove this department?",
+                          title: "Remove This Department?",
                           description: "This cannot be undone.",
                           confirmLabel: "Remove",
                           destructive: true,

@@ -33,23 +33,27 @@ import { BrandMark } from "@/components/layout/brand-mark";
 import { ModeToggle } from "@/components/layout/mode-toggle";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { queryClient } from "@/lib/api";
-import { can, canAssignFaculty, managesFaculty, useSession } from "@/lib/session";
-import { isAlumniAccount, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
+import { useSession } from "@/lib/session";
+import { canOpenPage } from "@/lib/page-access";
+import { AccessDeniedPage, InAppShell } from "@/components/feedback/status-page";
+import {
+  isAlumniAccount,
+  isAdministrator,
+  isFacultyAccount,
+} from "@Alumni-Tracking-Ss/contracts/names";
 
 const NAV = [
-  { to: "/my-profile", label: "My profile", permission: null, icon: UserRound },
-  { to: "/statistics", label: "University statistics", permission: null, icon: BarChart3 },
-  { to: "/dashboard", label: "Dashboard", permission: "dashboard.read", icon: LayoutDashboard },
-  { to: "/colleges", label: "Colleges", permission: "departments.read", icon: Landmark },
-  { to: "/departments", label: "Departments", permission: "departments.read", icon: Building2 },
-  { to: "/programs", label: "Programs", permission: "programs.read", icon: GraduationCap },
-  { to: "/alumni", label: "Alumni", permission: "alumni.read", icon: UserRound },
-  // Gated by faculty level, not an RBAC key; see canAssignFaculty.
-  { to: "/faculty", label: "Faculty", permission: "faculty", icon: Users },
-  { to: "/reports", label: "Reports", permission: "reports.read", icon: ClipboardList },
-  { to: "/settings", label: "Settings", permission: null, icon: Settings },
-  // Administrators (audit.read) see everything; heads see entries in their scope.
-  { to: "/audit", label: "Audit log", permission: "audit", icon: ScrollText },
+  { to: "/my-profile", label: "My Profile", icon: UserRound },
+  { to: "/statistics", label: "University Statistics", icon: BarChart3 },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/colleges", label: "Colleges", icon: Landmark },
+  { to: "/departments", label: "Departments", icon: Building2 },
+  { to: "/programs", label: "Programs", icon: GraduationCap },
+  { to: "/alumni", label: "Alumni", icon: UserRound },
+  { to: "/faculty", label: "Faculty", icon: Users },
+  { to: "/reports", label: "Reports", icon: ClipboardList },
+  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/audit", label: "Audit Log", icon: ScrollText },
 ] as const;
 
 type NavItem = (typeof NAV)[number];
@@ -57,12 +61,12 @@ type NavItem = (typeof NAV)[number];
 const STAFF_SECTIONS = [
   { label: "Overview", paths: ["/dashboard", "/reports"] },
   { label: "Records", paths: ["/alumni", "/faculty"] },
-  { label: "Academic structure", paths: ["/colleges", "/departments", "/programs"] },
+  { label: "Academic Structure", paths: ["/colleges", "/departments", "/programs"] },
   { label: "Administration", paths: ["/settings", "/audit"] },
 ] as const;
 
 const ALUMNI_SECTIONS = [
-  { label: "My account", paths: ["/my-profile", "/settings", "/audit"] },
+  { label: "My Account", paths: ["/my-profile", "/settings", "/audit"] },
   { label: "University", paths: ["/statistics"] },
 ] as const;
 
@@ -74,11 +78,10 @@ export function AppShell() {
   const session = useSession();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const permissions = session.data?.permissions ?? [];
   const roleLabel = session.data
     ? isAdministrator(session.data)
       ? "Administrator"
-      : session.data.roles.includes("faculty")
+      : isFacultyAccount(session.data)
         ? "Faculty"
         : isAlumniAccount(session.data)
           ? "Alumni"
@@ -88,13 +91,7 @@ export function AppShell() {
   const items = NAV.filter((item) =>
     alumniAccount
       ? ["/my-profile", "/statistics", "/settings", "/audit"].includes(item.to)
-      : !["/my-profile", "/statistics"].includes(item.to) &&
-        (item.permission === null ||
-          (item.permission === "faculty"
-            ? canAssignFaculty(session.data)
-            : item.permission === "audit"
-              ? can(permissions, "audit.read") || managesFaculty(session.data)
-              : can(permissions, item.permission))),
+      : !["/my-profile", "/statistics"].includes(item.to) && canOpenPage(item.to, session.data),
   );
   const sections = (alumniAccount ? ALUMNI_SECTIONS : STAFF_SECTIONS)
     .map((section) => ({
@@ -128,16 +125,18 @@ export function AppShell() {
         href="#main-content"
         className="sr-only fixed top-2 left-2 z-50 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only"
       >
-        Skip to main content
+        Skip to Main Content
       </a>
       <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col overflow-y-auto bg-sidebar text-sidebar-foreground md:flex">
-        <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-          <BrandMark className="size-9" />
+        <div className="flex items-start gap-3 px-5 pt-5 pb-4">
+          <BrandMark className="mt-0.5 size-9 shrink-0" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-sidebar-accent-foreground">
-              Alumni tracking
+            <p className="text-sm leading-snug font-semibold text-sidebar-accent-foreground">
+              Alumni Tracking System
             </p>
-            <p className="truncate text-xs text-sidebar-muted">University registry</p>
+            <p className="mt-1 text-xs leading-relaxed text-sidebar-muted">
+              BukSU - College of Technologies
+            </p>
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 pb-6" aria-label="Main">
@@ -194,14 +193,14 @@ export function AppShell() {
                 <span className="truncate font-medium text-foreground">{current.item.label}</span>
               </>
             ) : (
-              <span className="font-medium text-foreground">Alumni tracking</span>
+              <span className="font-medium text-foreground">Alumni Tracking System</span>
             )}
           </p>
           <div className="flex min-w-0 items-center gap-2 md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
                 <Menu className="size-4" />
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">Open Menu</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-60">
                 {sections.map((section, index) => (
@@ -264,7 +263,7 @@ export function AppShell() {
                   <DropdownMenuItem disabled>{session.data?.email}</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => void logout()}>
                     <LogOut data-icon="inline-start" />
-                    Sign out
+                    Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
               </DropdownMenuContent>
@@ -276,7 +275,13 @@ export function AppShell() {
           tabIndex={-1}
           className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-6 outline-none sm:px-6 md:px-8 md:py-8"
         >
-          <Outlet />
+          <InAppShell.Provider value>
+            {session.data && !canOpenPage(pathname, session.data) ? (
+              <AccessDeniedPage />
+            ) : (
+              <Outlet />
+            )}
+          </InAppShell.Provider>
         </main>
       </div>
     </div>

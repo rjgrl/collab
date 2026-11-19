@@ -1,6 +1,6 @@
 # Integration Credentials Management
 
-This guide documents how integration credentials are stored, encrypted, and rotated in the Alumni Tracking System.
+This guide documents how integration credentials are stored, encrypted, and rotated in the Alumni Tracking System. For provider enablement, least-privilege scopes, verification calls, quotas and the manual checklist, see [Secure API Setup](API_SETUP.md).
 
 ## Overview
 
@@ -26,15 +26,15 @@ The encryption key is set via the `INTEGRATION_ENCRYPTION_KEY` environment varia
 openssl rand -hex 32
 
 # Example (NEVER use this in production)
-INTEGRATION_ENCRYPTION_KEY=a1b2c3d4e5f6...  # 64 hexadecimal characters
+INTEGRATION_ENCRYPTION_KEY=<YOUR_PRIVATE_64_HEX_CHARACTER_KEY>
 ```
 
 ### Key Requirements
 
 - **Format**: Exactly 64 hexadecimal characters (256 bits)
 - **Uniqueness**: Must differ from `MFA_ENCRYPTION_KEY`, `SESSION_SECRET`, and `BACKUP_ENCRYPTION_KEY`
-- **Rotation**: Can be rotated; old credentials remain readable until explicitly decrypted and re-encrypted
-- **Backup**: Never backed up; credentials remain in the database but unreadable without the key
+- **Rotation**: Requires coordinated re-encryption and runtime-key replacement. Changing the environment value alone makes existing ciphertext unreadable.
+- **Backup**: Excluded from in-app/database backup bundles. Preserve a separately access-controlled recovery copy outside Git and outside those bundles; ciphertext cannot be recovered without its original key.
 - **Production**: Required in production; application will not start without it
 
 ## Development Workflow
@@ -89,8 +89,10 @@ When the encryption key must be rotated (e.g., after a compromise):
 2. **Set environment variables** (in your deployment script or manually):
 
    ```bash
-   export INTEGRATION_ENCRYPTION_KEY_OLD="a1b2c3d4..."  # Current key
-   export INTEGRATION_ENCRYPTION_KEY_NEW="e5f6g7h8..."  # New key
+   # Illustrative names only: supply real values through private secret injection,
+   # not literal shell commands/history or CI logs.
+   export INTEGRATION_ENCRYPTION_KEY_OLD="<YOUR_CURRENT_PRIVATE_KEY>"
+   export INTEGRATION_ENCRYPTION_KEY_NEW="<YOUR_NEW_DISTINCT_PRIVATE_KEY>"
    ```
 
 3. **Check first, then run the rotation** (`--dry-run` opens every value with the old key and writes nothing):
