@@ -2,6 +2,12 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (detailed API documentation PDF)
+
+- Generated an endpoint-by-endpoint reference matching the owner's sample: version, documentation date, description, URL, method, configurations, parameters, and response-code tables for all 106 OpenAPI operations plus three health probes. The detailed PDF, HTML source, generator, and verification manifest are local exports under `.thinkrail/context/exports/` (generator under `.thinkrail/context/`); the earlier overview PDF remains unchanged.
+- Verified cookie-based authentication, controller success statuses, and raw-route details against source. Supplemented catalog omissions for Google OAuth callback parameters, upload metadata, evidence preview queries, PDF export filters, and webhook headers. Shared OpenAPI error rows are explicitly identified as a reusable catalog, not endpoint-specific reachability claims; dates are documentation dates, not release dates.
+- Verified: generation and DOM checks found 109 complete endpoint sections, 212 tables, and no detected table overflow; extracted PDF text contains all 109 URLs and all eight required labels for every endpoint. PDF has 180 pages; first endpoint HTML capture visually reviewed. No live API calls, application behavior changes, or full application test suite; provider/SMS readiness is unchanged.
+
 ## 2026-11-15 (secure API setup guide; no live activation)
 
 - Owner selected **Guide and Examples** using existing Render secret injection and the encrypted Settings › Integrations store. Added `docs/operations/API_SETUP.md`: provider enablement, least-privilege credentials/scopes, actual environment mappings, server-only loading examples, minimal manual probes, quota/billing cautions, rotation/revocation and a dashboard checklist.
