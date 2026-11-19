@@ -24,7 +24,9 @@ test("authentication reflows at 320 CSS pixels with password-manager semantics",
   await expect(page.locator("#password")).toHaveCount(0);
   await page.getByRole("textbox", { name: "First Name", exact: true }).fill("Maria");
   await page.getByRole("textbox", { name: "Last Name", exact: true }).fill("Santos");
-  await page.getByRole("textbox", { name: "Email", exact: true }).fill("layout@example.test");
+  await page
+    .getByRole("textbox", { name: "Email", exact: true })
+    .fill("layout@student.buksu.edu.ph");
   await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+639171234567");
   await page.getByRole("combobox", { name: "Gender", exact: true }).click();
   await page.getByRole("option", { name: "Female", exact: true }).click();

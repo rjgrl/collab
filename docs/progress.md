@@ -2,6 +2,17 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (PR #15 CI fixture correction)
+
+- Ubuntu browser shards 1/3 and 3/3 both failed the same 320px authentication-layout test:
+  its layout@example.test signup fixture correctly stayed on Step 1 under BukSU-only validation,
+  so the Step-2 password autocomplete assertion could not find its input.
+- Reproduced both desktop/mobile failures locally, then changed only the fixture to an
+  institutional student address. No product validation, layout/axe assertions, timeout, retry
+  or skip settings were weakened. Existing seeded sign-in fixtures remain unchanged.
+- Verified the corrected 320px test and signup/phone/action-row regression together: 6 passed
+  on desktop/mobile. Required remote CI will rerun on the fix before main can be merged.
+
 ## 2026-11-19 (prepare protected main release and refresh setup guidance)
 
 - Reviewed setup defaults: existing local admin domain exceptions remain sign-in-only; signup
