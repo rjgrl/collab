@@ -2,6 +2,28 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (early institutional signup, Philippine numbers and role dropdown)
+
+- Signup validates exact BukSU/student domains inline and before Step 2, using the same schema
+  as registration. New collab.test registrations are rejected; existing explicitly allowed local
+  demo logins remain usable. Production additionally rejects non-BukSU account access even if
+  a configured allowlist includes a demo exception. No stored addresses or keys were changed.
+- Philippine +63 input removes the trunk zero without breaking pasted international numbers or
+  other countries' significant zeros. CAPTCHA/Forgot Password now share a compact wrapping row;
+  signup's checkbox spacing is reduced while touch targets remain accessible.
+- Role editor defaults to All Members in a single dropdown, with individual-name options and a
+  move-to-new-role notice. Dirty target switches require confirmation/reset. Single-member
+  Faculty/custom roles may split; original Super Admin, self-edit and full-admin-only guards remain.
+- Updated registration fixtures to institutional addresses rather than weakening duplicate,
+  race, release/recovery or Facebook-link assertions. Synthetic account provisioning follows the
+  new signup rule; unrelated existing seeded login fixtures remain unchanged.
+- Verified: pnpm check 7/7, browser types, 450 unit tests; 38 focused browser passes with 2
+  intentional mobile skips; 2 strengthened desktop role tests (dirty-target reset, single-member
+  Faculty split); 6 phone/alignment checks; real-DB completion and penetration checks; secret scan
+  and whitespace checks. The entire browser suite and live Gmail delivery were not rerun/tested.
+- Durable account-access spec is drafted in docs/specs/account-access.md. No production data
+  migration or push was performed; publication remains with the owner.
+
 ## 2026-11-19 (Gmail SMTP replaces Resend; sender-mailbox bootstrap)
 
 - Owner could not register for SMTP2GO and approved Gmail App Passwords. SMTP2GO was never

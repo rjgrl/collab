@@ -1,3 +1,4 @@
+import { signupEmailSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
@@ -69,6 +70,13 @@ function LoginPage() {
         : null,
   );
 
+  const [emailTouched, setEmailTouched] = useState(false);
+  const emailResult = signupEmailSchema.safeParse(email);
+  const emailError =
+    mode === "signup" && emailTouched && !emailResult.success
+      ? emailResult.error.issues[0]?.message
+      : undefined;
+
   const [screeningError, setScreeningError] = useState<string | null>(null);
 
   const recaptcha = config.data?.recaptcha;
@@ -77,6 +85,11 @@ function LoginPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (mode === "signup" && signupStep === 1) {
+      setEmailTouched(true);
+      if (!emailResult.success) {
+        document.getElementById("email")?.focus();
+        return;
+      }
       setSignupStep(2);
       setFormError(null);
       return;
@@ -142,12 +155,16 @@ function LoginPage() {
     </div>
   );
   const emailField = (
-    <FormField id="email" label="Email" required>
+    <FormField id="email" label="Email" required error={emailError}>
       <Input
         id="email"
         type="email"
         autoComplete="email"
-        aria-describedby={signup ? "email-hint" : undefined}
+        aria-invalid={Boolean(emailError) || undefined}
+        aria-describedby={
+          signup ? (emailError ? "email-error email-hint" : "email-hint") : undefined
+        }
+        onBlur={() => setEmailTouched(true)}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         required
@@ -290,21 +307,39 @@ function LoginPage() {
           <>
             {emailField}
             {passwordField}
+          </>
+        )}
+        {signup && finalStep && recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
+          <Recaptcha key={captchaAttempt} siteKey={recaptcha.siteKey} onToken={setRecaptchaToken} />
+        ) : null}
+        {!signup ? (
+          <div className="-mt-1 flex flex-wrap items-center justify-between gap-2">
+            {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
+              <Recaptcha
+                key={captchaAttempt}
+                siteKey={recaptcha.siteKey}
+                onToken={setRecaptchaToken}
+              />
+            ) : needsCheckbox ? (
+              <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
+                I am not a robot
+              </CheckboxRow>
+            ) : (
+              <span />
+            )}
             <Link
-              className="-mt-1 self-end text-sm font-medium text-primary underline-offset-4 hover:underline"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
               to="/reset-password"
             >
               Forgot Password?
             </Link>
-          </>
-        )}
-        {finalStep && recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
-          <Recaptcha key={captchaAttempt} siteKey={recaptcha.siteKey} onToken={setRecaptchaToken} />
-        ) : null}
-        {finalStep && needsCheckbox ? (
-          <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
-            I am not a robot
-          </CheckboxRow>
+          </div>
+        ) : finalStep && needsCheckbox ? (
+          <div className="-mt-1">
+            <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
+              I am not a robot
+            </CheckboxRow>
+          </div>
         ) : null}
         <div className={signup && signupStep === 2 ? "grid grid-cols-[auto_1fr] gap-3" : "grid"}>
           {signup && signupStep === 2 ? (

@@ -6,6 +6,13 @@ import { phoneNumberSchema } from "./phone";
 import { newPasswordSchema } from "./password-policy";
 export { newPasswordSchema } from "./password-policy";
 export const emailSchema = z.string().trim().max(254).email();
+export const BUKSU_EMAIL_DOMAINS = ["buksu.edu.ph", "student.buksu.edu.ph"] as const;
+export const SIGNUP_EMAIL_MESSAGE =
+  "Use your BukSU institutional email (@buksu.edu.ph or @student.buksu.edu.ph).";
+export const signupEmailSchema = emailSchema.refine(
+  (email) => BUKSU_EMAIL_DOMAINS.some((domain) => email.toLowerCase().split("@")[1] === domain),
+  SIGNUP_EMAIL_MESSAGE,
+);
 import { facebookSchema, graduationYearSchema } from "./alumni";
 export { facebookSchema } from "./alumni";
 export const accountProfileSchema = structuredNameSchema
@@ -33,7 +40,7 @@ export const completionProfileSchema = accountProfileSchema
 export const signupSchema = accountProfileSchema
   .extend({
     ...academicProfileSchema.shape,
-    email: emailSchema,
+    email: signupEmailSchema,
     password: newPasswordSchema,
     ...captcha,
   })

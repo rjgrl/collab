@@ -110,7 +110,7 @@ test("local Alumni registration persists academic identity, employment and owned
   await page.getByLabel("Name Extension / Suffix (Optional)").fill("de la Casa");
   await page
     .getByRole("textbox", { name: "Email", exact: true })
-    .fill("registered.alumni@example.test");
+    .fill("registered.alumni@student.buksu.edu.ph");
   await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+639171234567");
   await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
   await page.getByRole("button", { name: "Continue", exact: true }).click();

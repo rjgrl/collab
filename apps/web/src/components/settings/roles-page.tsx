@@ -1,3 +1,4 @@
+import { FormSelect } from "@/components/forms/form-select";
 import { ROLE, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
@@ -170,6 +171,7 @@ function RoleEditor({
   onDone: () => void;
 }) {
   const session = useSession();
+  const confirmTargetChange = useConfirm();
   const [baseline, setBaseline] = useState(() => ({
     version: version(role),
     ids: role.rolePermissions.map((item) => item.permissionId),
@@ -180,14 +182,15 @@ function RoleEditor({
   const [name, setName] = useState(baseline.name);
   const [description, setDescription] = useState(baseline.description);
   const superAdminRole = role.key === ROLE.superAdmin || role.baseRole === ROLE.superAdmin;
-  // "selected": the edited permissions go to a new role holding only the picked members.
-  const [applyTo, setApplyTo] = useState<"all" | "selected">("all");
-  const [picked, setPicked] = useState<string[]>([]);
+  const [selectedMember, setSelectedMember] = useState("");
   const myId = session.data?.id;
+  const picked = selectedMember ? [selectedMember] : [];
   const pickedNames = role.members
-    .filter((member) => picked.includes(member.id))
+    .filter((member) => member.id === selectedMember)
     .map((member) => member.name);
-  const splitName = `${role.name} – ${pickedNames.join(", ")}`.slice(0, 80);
+  const splitName = `${name} – ${pickedNames.join(", ")}`.slice(0, 80);
+  const permissionChanged =
+    ids.length !== baseline.ids.length || ids.some((id) => !baseline.ids.includes(id));
   const dirty =
     ids.length !== baseline.ids.length ||
     ids.some((id) => !baseline.ids.includes(id)) ||
@@ -205,9 +208,8 @@ function RoleEditor({
   const canSplit =
     can(session.data?.permissions, "roles.write") &&
     role.key !== ROLE.alumni &&
-    role.members.length > 1 &&
     role.members.some((member) => member.id !== myId);
-  const splitting = canSplit && applyTo === "selected";
+  const splitting = canSplit && Boolean(selectedMember);
   const duplicateName = name !== baseline.name ? duplicateRoleName(name, allRoles, role.id) : null;
   const split = useMutation({
     mutationFn: () =>
@@ -275,10 +277,10 @@ function RoleEditor({
           {splitting ? (
             <PrimaryButton
               pending={split.isPending}
-              disabled={!picked.length || stale}
+              disabled={!permissionChanged || stale}
               onClick={() => split.mutate()}
             >
-              Save for Selected Members
+              Save for Selected Member
             </PrimaryButton>
           ) : editable ? (
             <PrimaryButton
@@ -303,6 +305,8 @@ function RoleEditor({
               setIds(currentIds);
               setName(role.name);
               setDescription(role.description);
+              setSelectedMember("");
+              split.reset();
               save.reset();
             }}
           >
@@ -313,7 +317,7 @@ function RoleEditor({
       title={role.name}
       description={
         role.key === ROLE.superAdmin
-          ? "Super Admin always has full access. To give someone limited access, choose Only Selected Members."
+          ? "Super Admin always has full access. To give someone limited access, select a member from Apply Changes To."
           : editable
             ? "Edit the name, note, and permissions, then save."
             : "This role is read-only for your account."
@@ -357,13 +361,55 @@ function RoleEditor({
               <p className="py-2 text-sm">{role.name}</p>
             )}
             {role.key !== ROLE.alumni ? (
-              <RoleMembers
-                members={role.members}
-                myId={myId}
-                selectable={splitting}
-                picked={picked}
-                onPick={setPicked}
-              />
+              <div className="mt-3 flex flex-col gap-2">
+                <label htmlFor="role-member-target" className="text-sm font-medium">
+                  Apply Changes To
+                </label>
+                <FormSelect
+                  id="role-member-target"
+                  value={selectedMember || "all"}
+                  disabled={save.isPending || split.isPending}
+                  onValueChange={async (value) => {
+                    if (
+                      dirty &&
+                      !(await confirmTargetChange({
+                        title: "Discard Changes and Switch Member?",
+                        description:
+                          "The permission draft will be reset before changing who it applies to.",
+                        confirmLabel: "Switch Member",
+                      }))
+                    )
+                      return;
+                    setSelectedMember(value === "all" ? "" : value);
+                    // Never carry a single-user permission draft into an All Members save.
+                    setIds(baseline.ids);
+                    setName(baseline.name);
+                    setDescription(baseline.description);
+                    split.reset();
+                    save.reset();
+                  }}
+                  items={[
+                    { value: "all", label: "All Members" },
+                    ...role.members.map((member) => ({
+                      value: member.id,
+                      label: member.name + (member.id === myId ? " (you)" : ""),
+                      disabled: !canSplit || member.id === myId,
+                    })),
+                  ]}
+                />
+                {splitting ? (
+                  <p role="status" className="rounded-lg bg-muted p-3 text-sm">
+                    Only {pickedNames.join(", ")} will receive these permission changes. Saving
+                    moves this user to a new role and signs them out; other members stay unchanged.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {role.key === ROLE.superAdmin
+                      ? "Full Super Admin always keeps all permissions. Select another member to limit their access."
+                      : "Changes apply to everyone in this role. Select a member to change only their permissions."}
+                  </p>
+                )}
+              </div>
             ) : null}
           </FormField>
           <FormField id="role-edit-note" label="Note">
@@ -387,47 +433,6 @@ function RoleEditor({
             )}
           </FormField>
         </div>
-        {canSplit ? (
-          <fieldset className="flex flex-col gap-1 rounded-xl border p-4">
-            <legend className="px-1 text-sm font-medium">Apply Changes To</legend>
-            <label className="flex min-h-10 items-center gap-3 text-sm">
-              <input
-                type="radio"
-                name="role-apply-to"
-                className="size-4 accent-primary"
-                checked={applyTo === "all"}
-                disabled={!editable}
-                onChange={() => setApplyTo("all")}
-              />
-              <span>
-                All Members{" "}
-                <span className="text-muted-foreground">
-                  {editable ? "(changes this role)" : "(this role is protected)"}
-                </span>
-              </span>
-            </label>
-            <label className="flex min-h-10 items-center gap-3 text-sm">
-              <input
-                type="radio"
-                name="role-apply-to"
-                className="size-4 accent-primary"
-                checked={applyTo === "selected"}
-                onChange={() => setApplyTo("selected")}
-              />
-              <span>
-                Only Selected Members{" "}
-                <span className="text-muted-foreground">(moves them to a new role)</span>
-              </span>
-            </label>
-            {splitting ? (
-              <p role="status" className="text-sm text-muted-foreground">
-                {picked.length
-                  ? `New role: "${splitName}". The selected members are signed out so their new access applies.`
-                  : "Tick the members who should get these permissions."}
-              </p>
-            ) : null}
-          </fieldset>
-        ) : null}
         <PermissionControls
           permissions={permissions}
           ids={ids}
@@ -437,57 +442,5 @@ function RoleEditor({
         />
       </div>
     </FormDialog>
-  );
-}
-
-function RoleMembers({
-  members,
-  myId,
-  selectable,
-  picked,
-  onPick,
-}: {
-  members: Role["members"];
-  myId?: string;
-  selectable: boolean;
-  picked: string[];
-  onPick: (ids: string[]) => void;
-}) {
-  if (!members.length) return <p className="mt-2 text-sm text-muted-foreground">No members yet.</p>;
-  return (
-    <div className="mt-3">
-      <p id="role-members-label" className="text-sm font-medium">
-        Members ({members.length})
-      </p>
-      <ul aria-labelledby="role-members-label" className="mt-1 max-h-40 overflow-y-auto text-sm">
-        {members.map((member) => {
-          const self = member.id === myId;
-          return (
-            <li key={member.id} className="flex min-h-9 items-center gap-2">
-              {selectable ? (
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  aria-label={`Select ${member.name}`}
-                  disabled={self}
-                  checked={picked.includes(member.id)}
-                  onChange={(event) =>
-                    onPick(
-                      event.target.checked
-                        ? [...picked, member.id]
-                        : picked.filter((id) => id !== member.id),
-                    )
-                  }
-                />
-              ) : null}
-              <span className="min-w-0 truncate" title={member.email}>
-                {member.name}
-                {self ? <span className="text-muted-foreground"> (you)</span> : null}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
   );
 }

@@ -304,3 +304,25 @@ Append-only. Format: date, decision, why, alternatives rejected.
   only explicit development GMAIL_ADDRESS/GMAIL_APP_PASSWORD fallback remains.
 - Test adapters capture SMTP messages without external delivery; no real App Password is used or
   stored by the agent. The owner must verify live Gmail auth, port reachability and inbox delivery.
+
+## 2026-11-19: BukSU-only signup before Step 2 and targeted role dropdown
+
+- Owner requested Step-1 validation: a shared signupEmailSchema accepts only exact buksu.edu.ph
+  and student.buksu.edu.ph addresses, case-insensitively. Personal, lookalike and collab.test
+  addresses are refused in both the browser and registration API; signup errors list only BukSU.
+- Existing local seeded logins keep their configured exception for now. In production, every
+  account is additionally checked against the two BukSU domains, regardless of a stray configured
+  demo-domain exception. No existing database email is rewritten. Migrate real administrators'
+  addresses before deploying with production settings. The Gmail sending account is unchanged.
+- Philippine national input removes the trunk zero beside +63 while retaining the existing phone
+  library's country detection and other countries' significant zeros. An initial international-
+  formatting approach broke country switching and was replaced, verified by multi-country tests.
+- Sign-in CAPTCHA and Forgot Password share one compact wrapping row (including configured live
+  CAPTCHA); signup's checkbox is also compacted without shrinking accessible controls.
+- Role editor uses one Apply Changes To dropdown: All Members by default, or an individual name.
+  Permission edits for one selected member create a variant and sign them out, with a notice.
+  Switching a dirty target requires confirmation and resets the draft so it cannot accidentally
+  become an All Members change. Full Super Admin/self-edit guards remain intact. A one-member
+  Faculty/custom role may split that member; the original full Super Admin role cannot be emptied.
+- Signup regression fixtures now use institutional addresses, preserving duplicate/race/recovery
+  assertions rather than weakening the new validation. Other existing seeded login fixtures remain.

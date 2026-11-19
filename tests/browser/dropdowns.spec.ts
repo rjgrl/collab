@@ -95,7 +95,9 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
     await page.keyboard.press("Escape");
     await page.getByRole("textbox", { name: "First Name", exact: true }).fill("Maria");
     await page.getByRole("textbox", { name: "Last Name", exact: true }).fill("Santos");
-    await page.getByRole("textbox", { name: "Email", exact: true }).fill("dropdown@example.test");
+    await page
+      .getByRole("textbox", { name: "Email", exact: true })
+      .fill("dropdown@student.buksu.edu.ph");
     await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+12025550123");
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     const program = page.getByRole("combobox", { name: "Degree Program", exact: true });

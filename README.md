@@ -365,3 +365,12 @@ INTEGRATION_ENCRYPTION_KEY on all API servers. Revoke the demo App Password afte
 New local setups require email verification and preserve deliberate existing settings. Atlas
 cannot use localhost-only MFA/contact-verification bypasses. Gmail enables email only; SMS/phone
 verification policy is separate and unchanged. Global API limits are unchanged.
+
+### Institutional signup and demo logins
+
+New public signups always require @buksu.edu.ph or @student.buksu.edu.ph; the first step refuses
+other domains before continuing. The server applies the same rule. Existing local seeded
+collab.test accounts can still sign in through the explicit development allowlist, but cannot
+self-register. Production accepts only BukSU domains for all accounts, even if an old configured
+allowlist includes a demo domain. Change real administrator addresses before production deployment.
+The personal Gmail sending account is not an application-login exception.

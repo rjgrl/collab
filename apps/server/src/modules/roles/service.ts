@@ -194,7 +194,7 @@ export const rolesService = {
         throw new ApiError("BAD_REQUEST", {
           message: "One or more selected people are no longer members of this role.",
         });
-      if (userIds.length === members.length)
+      if (current.key === ROLE.superAdmin && userIds.length === members.length)
         throw new ApiError("BAD_REQUEST", {
           message: "Every member is selected. Choose All members to change the role itself.",
         });

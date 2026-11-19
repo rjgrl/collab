@@ -46,7 +46,8 @@ test("signed-out branding uses the university seal and tinted building", async (
   }
 });
 
-test("signup collects contact details and rejects an existing email", async ({ page }) => {
+test("signup collects contact details and rejects an existing email", async ({ page, request }) => {
+  await request.post("http://127.0.0.1:3100/__test/alumni", { data: { institutional: true } });
   // The institutional-email reminder belongs to sign-up, not sign-in.
   const reminder = "Use your BukSU institutional email. Personal email addresses are not accepted.";
   await expect(page.getByText(reminder)).toHaveCount(0);
@@ -57,7 +58,9 @@ test("signup collects contact details and rejects an existing email", async ({ p
   await expect(page.getByText(reminder)).toBeVisible();
   await page.getByRole("textbox", { name: "First Name", exact: true }).fill("Duplicate");
   await page.getByRole("textbox", { name: "Last Name", exact: true }).fill("Account");
-  await page.getByRole("textbox", { name: "Email", exact: true }).fill("ADMIN@EXAMPLE.TEST");
+  await page
+    .getByRole("textbox", { name: "Email", exact: true })
+    .fill("ALUMNI@STUDENT.BUKSU.EDU.PH");
   const phone = page.getByRole("textbox", { name: "Phone Number", exact: true });
   await expect(phone).toHaveAttribute("required", "");
   await phone.fill("+639171234567");
@@ -130,7 +133,7 @@ test("signup stores separated compound names and the actual custom suffix", asyn
     .fill("de la Casa");
   await page
     .getByRole("textbox", { name: "Email", exact: true })
-    .fill("structured.names@example.test");
+    .fill("structured.names@student.buksu.edu.ph");
   await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+639171234567");
   await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -205,7 +208,9 @@ test("both sign-up steps fit laptop screens and retain entries when going back",
     );
     await page.getByRole("textbox", { name: "First Name", exact: true }).fill("Maria");
     await page.getByRole("textbox", { name: "Last Name", exact: true }).fill("Santos");
-    await page.getByRole("textbox", { name: "Email", exact: true }).fill("steps@example.test");
+    await page
+      .getByRole("textbox", { name: "Email", exact: true })
+      .fill("steps@student.buksu.edu.ph");
     await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+639171234567");
     await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
     if (desktop) {
@@ -253,7 +258,7 @@ test("both sign-up steps fit laptop screens and retain entries when going back",
       "Maria",
     );
     await expect(page.getByRole("textbox", { name: "Email", exact: true })).toHaveValue(
-      "steps@example.test",
+      "steps@student.buksu.edu.ph",
     );
     await expect(page.getByRole("combobox", { name: "Gender", exact: true })).toContainText(
       "Female",

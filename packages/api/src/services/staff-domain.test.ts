@@ -59,6 +59,31 @@ it("restricts every account, Alumni included, to institutional email", () => {
   );
 });
 
+it("keeps explicit seeded-domain login exceptions local and rejects them in production", () => {
+  const configured = { STAFF_EMAIL_DOMAINS: "buksu.edu.ph,student.buksu.edu.ph,collab.test" };
+  assert.equal(
+    staffEmailRejected("admin@collab.test", ["super_admin"], {
+      ...configured,
+      NODE_ENV: "development",
+    }),
+    false,
+  );
+  assert.equal(
+    staffEmailRejected("admin@collab.test", ["super_admin"], {
+      ...configured,
+      NODE_ENV: "production",
+    }),
+    true,
+  );
+  assert.equal(
+    staffEmailRejected("faculty@buksu.edu.ph", ["faculty"], {
+      ...configured,
+      NODE_ENV: "production",
+    }),
+    false,
+  );
+});
+
 it("requires the verified hd claim to be allowlisted for every Google identity", () => {
   assert.doesNotThrow(() =>
     assertStaffGoogleIdentity("head@buksu.edu.ph", "buksu.edu.ph", ["faculty"], settings),

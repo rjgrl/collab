@@ -540,6 +540,11 @@ app.post("/__test/alumni", async (request, response) => {
     { $setOnInsert: { userId: ids.alumni, roleId: ids.viewerRole } },
     { upsert: true },
   ).exec();
+  if (request.body?.institutional === true)
+    await db.User.updateOne(
+      { _id: ids.alumni },
+      { $set: { email: "alumni@student.buksu.edu.ph" } },
+    ).exec();
   await historicalEnrollment(ids.alumni);
   if (request.body?.unlinked === true)
     await db.User.updateOne(

@@ -40,7 +40,9 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.getByRole("textbox", { name: "First Name", exact: true }).fill("Maria");
     await page.getByRole("textbox", { name: "Last Name", exact: true }).fill("Santos");
-    await page.getByRole("textbox", { name: "Email", exact: true }).fill("steps@example.test");
+    await page
+      .getByRole("textbox", { name: "Email", exact: true })
+      .fill("steps@student.buksu.edu.ph");
     await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+639171234567");
     await selectOption(page.getByRole("combobox", { name: "Gender", exact: true }), "Female");
     await page.getByRole("button", { name: "Continue", exact: true }).click();

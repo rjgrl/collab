@@ -46,14 +46,29 @@ test("Super Admin is full access and members can be moved to a limited Super Adm
   await expect(dialog.getByRole("switch").first()).toBeVisible();
   await expect(dialog.getByRole("switch", { checked: false })).toHaveCount(0);
   await expect(dialog.getByText("Super Admin only", { exact: true })).toHaveCount(0);
-  await expect(dialog.getByRole("radio", { name: /All Members/ })).toBeDisabled();
-  await expect(dialog.getByText("Second Admin", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("(you)")).toBeVisible();
-
-  // Limit only the second admin: they move to a new role without the integrations permissions.
-  await dialog.getByRole("radio", { name: /Only Selected Members/ }).check();
-  await expect(dialog.getByRole("checkbox", { name: "Select Test Administrator" })).toBeDisabled();
-  await dialog.getByRole("checkbox", { name: "Select Second Admin" }).check();
+  const target = dialog.getByRole("combobox", { name: "Apply Changes To", exact: true });
+  await expect(target).toContainText("All Members");
+  await target.click();
+  await expect(
+    page.getByRole("option", { name: "Test Administrator (you)", exact: true }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await page.getByRole("option", { name: "Second Admin", exact: true }).click();
+  await expect(
+    dialog.getByRole("status").filter({ hasText: "moves this user to a new role" }),
+  ).toBeVisible();
+  await dialog.getByRole("switch", { name: /^Enable all integrations permissions/i }).click();
+  // A per-user draft cannot silently become an All Members change.
+  await target.click();
+  await page.getByRole("option", { name: "All Members", exact: true }).click();
+  const changeTarget = page.getByRole("alertdialog", {
+    name: "Discard Changes and Switch Member?",
+    exact: true,
+  });
+  await expect(changeTarget).toBeVisible();
+  await changeTarget.getByRole("button", { name: "Switch Member", exact: true }).click();
+  await expect(dialog.getByRole("switch", { checked: false })).toHaveCount(0);
+  await target.click();
+  await page.getByRole("option", { name: "Second Admin", exact: true }).click();
   await dialog.getByRole("switch", { name: /^Enable all integrations permissions/i }).click();
   expect(
     (
@@ -62,7 +77,7 @@ test("Super Admin is full access and members can be moved to a limited Super Adm
         .analyze()
     ).violations,
   ).toEqual([]);
-  await dialog.getByRole("button", { name: "Save for Selected Members", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save for Selected Member", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Test Admin – Second Admin/ })).toBeVisible();
 
@@ -130,8 +145,30 @@ test("Faculty changes can apply to selected members only", async ({ page, reques
   await page.goto("/settings/roles");
   await page.getByRole("button", { name: /Test Staff/ }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Test Staff", { exact: true }).first()).toBeVisible();
-  // A single-member role has nobody to split off: the role is edited as a whole.
+  await expect(
+    dialog.getByRole("combobox", { name: "Apply Changes To", exact: true }),
+  ).toBeVisible();
+  // Even a single-member Faculty role can target that member without editing the source role.
   await expect(dialog.getByRole("radio", { name: /Only Selected Members/ })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Save Changes", exact: true })).toBeVisible();
+  await dialog.getByRole("combobox", { name: "Apply Changes To", exact: true }).click();
+  await page.getByRole("option", { name: "Test Staff", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Save for Selected Member" })).toBeDisabled();
+  await dialog.getByRole("switch", { name: /^View Alumni/i }).click();
+  await dialog.getByRole("button", { name: "Save for Selected Member" }).click();
+  await expect(dialog).toHaveCount(0);
+  const roles = await (await page.request.get(`${API}/roles`)).json();
+  const source = roles.find((role: { id: string }) => role.id === "000000000000000000000102");
+  expect(source.members).toHaveLength(0);
+  const variant = roles.find(
+    (role: { id: string; members: { id: string }[] }) =>
+      role.id !== source.id &&
+      role.members.some((member) => member.id === "000000000000000000000002"),
+  );
+  expect(variant).toBeTruthy();
+  expect(
+    variant.rolePermissions.some(
+      (link: { permission: { key: string } }) => link.permission.key === "alumni.read",
+    ),
+  ).toBe(false);
 });
