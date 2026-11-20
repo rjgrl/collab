@@ -49,6 +49,33 @@ export function timestampOwnerKey(userId: string, sessionIdentity: string) {
   return digest(`${userId}\0${sessionIdentity}`);
 }
 
+const REQUIRED_INDEXES = {
+  TimestampClock: ["TimestampClock_key_key"],
+  AlumniTimestamp: ["AlumniTimestamp_key_key"],
+  TimestampEdit: ["TimestampEdit_tokenHash_key", "TimestampEdit_expiresAt_ttl"],
+} as const;
+/**
+ * Without the schema-3 unique indexes, concurrent first use could create duplicate clocks or
+ * resources and silently weaken ordering. The server refuses to start until they exist.
+ */
+export async function timestampOrderingReady(db: Database) {
+  const native = db.connection.db;
+  if (!native) return false;
+  const names = new Set(
+    (await native.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name),
+  );
+  for (const [collection, required] of Object.entries(REQUIRED_INDEXES)) {
+    if (!names.has(collection)) return false;
+    const present = new Set(
+      (await native.collection(collection).listIndexes().toArray()).map((index) =>
+        String(index.name),
+      ),
+    );
+    if (required.some((name) => !present.has(name))) return false;
+  }
+  return true;
+}
+
 export async function reserveTransactionTimestamp(db: Database): Promise<TransactionTimestamp> {
   const clock = await db.TimestampClock.findOneAndUpdate(
     { key: CLOCK_KEY },

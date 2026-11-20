@@ -51,7 +51,11 @@ human edit into a newer write. Data, audit, ordering state and consumption roll 
 
 Conflict/expiry preserves the draft and applies none of that save. Reload Latest is explicit
 and confirms before replacing unsaved entries. Server-only writers follow the same ordering
-rules. Application integration is pending while this draft's persistence/rule layer is built.
+rules. POST /alumni/timestamp-edits issues contexts; interactive writes send them in the
+X-Timestamp-Edit header. Server-only writers (tracking, archive/restore, faculty deactivation,
+imports, unconfirmed-registration release) allocate their own timestamp inside their transaction.
+The server refuses to start until schema-3 unique/TTL indexes exist, because missing uniqueness
+could create duplicate clocks or resources and silently weaken ordering.
 
 ## Out of scope
 

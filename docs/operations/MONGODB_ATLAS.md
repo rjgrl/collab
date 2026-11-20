@@ -57,6 +57,22 @@ pnpm --filter @Alumni-Tracking-Ss/db db:verify-transactions   # rollback-only pr
 pnpm --filter @Alumni-Tracking-Ss/db db:migrate --dry-run     # reports, writes nothing
 ```
 
+## Existing Atlas database: schema 3 (timestamp ordering)
+
+The presentation Atlas database already holds data, so apply only the additive migration. Stop
+the app on **every** laptop that uses it first, then from one laptop with the private Atlas
+`MONGO_URI` loaded:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --filter @Alumni-Tracking-Ss/db db:migrate --dry-run   # expect TimestampClock, AlumniTimestamp, TimestampEdit missing; no conflicts
+pnpm --filter @Alumni-Tracking-Ss/db db:migrate --apply
+```
+
+It adds three collections and four indexes and changes no existing record. Existing keys, uploads and
+logins are unaffected. Then update and start the app on each laptop; an old version would write
+alumni data without the ordering checks, and a new version refuses to start until the migration ran.
+
 ## Fresh database (no data to copy)
 
 With `MONGO_URI` (or the identical legacy `DATABASE_URL`) pointing at the empty Atlas database and the first Super Admin in `packages/db/.env` (`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`):
@@ -132,7 +148,7 @@ With the private Atlas `MONGO_URI` loaded in the approved host's secret environm
 
 ```bash
 pnpm --filter @Alumni-Tracking-Ss/db db:migrate --dry-run   # no missing indexes or conflicts
-pnpm --filter @Alumni-Tracking-Ss/db db:migrate --apply     # if the dry run lists missing indexes or roles to rename/remove (viewer → alumni, admin, staff); the server will not start until it has run
+pnpm --filter @Alumni-Tracking-Ss/db db:migrate --apply     # if the dry run lists missing indexes or roles to rename/remove (viewer → alumni, admin, staff), or the schema-3 timestamp-ordering collections; the server will not start until it has run
 pnpm --filter @Alumni-Tracking-Ss/db db:check-references    # must report no broken references
 ```
 

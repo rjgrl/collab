@@ -8,6 +8,7 @@ import {
   readAlumniTimestamps,
   reserveTransactionTimestamp,
   runTimestampOperation,
+  timestampOrderingReady,
   timestampOwnerKey,
   TimestampConflictError,
   writeAlumniTimestamps,
@@ -24,7 +25,9 @@ const hash = (token: string) => createHash("sha256").update(token).digest("hex")
 const checks: string[] = [];
 const unavailable = (error: unknown) => error instanceof TimestampConflictError;
 try {
+  assert.equal(await timestampOrderingReady(db), false, "an unmigrated database is not ready");
   assert.deepEqual((await migrateDatabase(db, "apply")).conflicts, []);
+  assert.equal(await timestampOrderingReady(db), true);
   await peer.ready();
   const ttl = (await db.TimestampEdit.collection.listIndexes().toArray()).find(
     (index) => index.name === "TimestampEdit_expiresAt_ttl",

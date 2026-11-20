@@ -143,6 +143,35 @@ Read the dry-run's `orgStructure` section first (colleges, programs, faculty nee
 
 This update also adds the `AccountPhoto` collection and its user/date index. For an existing database, run `pnpm db:migrate --dry-run`, review the plan and back up your data, then run `pnpm setup:local --update-existing` (or `pnpm db:migrate --apply`). The migration adds missing collections/indexes without deleting existing records. Department codes are absent from the active model, forms and API; legacy stored fields/indexes are not destructively removed.
 
+### Updating an existing database to schema version 3 (timestamp ordering)
+
+Schema 3 adds three metadata collections (`TimestampClock`, `AlumniTimestamp`, `TimestampEdit`) and their indexes. It changes no existing records. The server refuses to start until they exist. Stop **every** running API instance first (all laptops sharing one Atlas database), so no old version writes alumni data without the new checks:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm db:migrate --dry-run
+pnpm db:migrate --apply
+pnpm dev
+```
+
+For a shared Atlas database, run the migration once (see [MongoDB Atlas](docs/operations/MONGODB_ATLAS.md)); do not run `setup:local`, `db:seed` or `deploy:init` against it. Restore clock and resource metadata together with the rest of a backup; never reset only the clock.
+
+## Timestamp concurrency control (Group 5)
+
+The instructor assigned this group the **Timestamp** concurrency-control technique. It applies to the core alumni workflow: student details, faculty assignment/reassignment, tracking and employment, including indirect writers (imports, faculty deactivation, linked-account name changes). Each alumnus is one ordering resource; ordinary browsing and reports do not participate. Design and rules: [docs/specs/timestamp-ordering.md](docs/specs/timestamp-ordering.md).
+
+- MongoDB issues a unique, increasing transaction timestamp T (not the browser clock). Each alumnus stores a read timestamp R_TS and a write timestamp W_TS.
+- **Read rule:** reject if T < W_TS; otherwise R_TS = max(R_TS, T).
+- **Write rule:** reject if T < R_TS or T < W_TS; otherwise W_TS = T, atomically with the data and audit log. Older writes are rejected, never silently skipped.
+- Opening an editor starts a transaction (timestamp + authorized snapshot) valid for 30 minutes. No database lock is held while someone types. A rejected or expired save keeps the draft, applies nothing, and requires **Reload Latest** (with confirmation) before saving again.
+
+Demonstration:
+
+1. `pnpm test:timestamp-local` runs the rules against a disposable local database and prints each accepted/rejected case (including "T21 write rejected after T22 read").
+2. In the app, open **Edit details** on an alumnus in two browser windows (for example the assigned Faculty and the Department Head). Save in the window opened second, then save in the first: the first is rejected with **This Edit Could Not Be Saved** and its entries stay on screen.
+
+Authorization still decides who may edit; timestamp ordering decides whether a permitted transaction may proceed. Authentication, settings, backups and contacts/photos are outside this boundary.
+
 ## Connect using MongoDB Compass
 
 1. Run `pnpm setup:local` or `pnpm dev` so the server is running.
