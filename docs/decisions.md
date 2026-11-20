@@ -305,6 +305,20 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Test adapters capture SMTP messages without external delivery; no real App Password is used or
   stored by the agent. The owner must verify live Gmail auth, port reachability and inbox delivery.
 
+## 2026-11-19: Google sign-in requires BukSU Workspace in every environment
+
+- Reuse the configured/enabled Google OAuth flow, not a separate provider or a Gmail App Password.
+  Both exact BukSU email and verified Workspace hosted-domain claims are required even with
+  missing/permissive development allowlists. Local demo password exceptions never apply to Google.
+- Server-side verified token claims are authoritative; an account-picker/request domain hint is
+  not authentication. Existing state, signature, issuer/audience/expiry, verified email, linking,
+  enrollment and MFA gates remain. See [account-access policy](specs/account-access.md).
+- Google OAuth credentials remain operator-owned and encrypted in settings; no live Google login
+  is claimed without credentials and browser acceptance. Updated Google fixtures instead of
+  weakening security tests, and shared rejection wording now covers all roles.
+- The security spec directory was previously ignored by the documentation allowlist. Explicitly
+  retain only account-access.md so the policy is shared across checkouts, not just local context.
+
 ## 2026-11-19: BukSU-only signup before Step 2 and targeted role dropdown
 
 - Owner requested Step-1 validation: a shared signupEmailSchema accepts only exact buksu.edu.ph

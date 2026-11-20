@@ -2,6 +2,23 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (BukSU-only Google sign-in)
+
+- Reused the existing Sign In/Sign Up with Google buttons and OAuth flow. Exact BukSU/student
+  emails and a verified BukSU Workspace hosted-domain claim are now mandatory in every
+  environment, even when local domain restrictions are absent or permit personal/demo domains.
+  Existing configured local password-login exceptions remain; no accounts or keys were rewritten.
+- Added signed-token callback and policy tests proving personal/demo/lookalike emails and
+  missing/foreign Workspace claims issue no account/session. Valid Google fixtures now carry
+  institutional emails/claims, preserving linking, photos, completion and cookie assertions.
+- Replaced staff-only rejection text with shared all-account guidance. README/API setup explains
+  Google OAuth Web client credentials, exact unversioned callback, encrypted settings and enabling
+  the button; Gmail App Passwords do not configure Google sign-in. The account-access spec is
+  now explicitly Git-allowlisted, rather than remaining only on this checkout.
+- Verified 452 unit tests, pnpm check 7/7, browser types, 20 desktop/mobile signup/Google/320px
+  browser tests and real-DB completion checks; secret/whitespace checks clean. No live Google
+  login or operator OAuth configuration is claimed. PR #15 must re-pass CI before main merge.
+
 ## 2026-11-19 (PR #15 CI fixture correction)
 
 - Ubuntu browser shards 1/3 and 3/3 both failed the same 320px authentication-layout test:
