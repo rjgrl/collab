@@ -1,0 +1,57 @@
+# Reference only. Do not apply to an existing service without reviewing its
+# service name, linked branch, paid plan/disk costs and production release gates.
+# SMS is not implemented: /health/ready intentionally prevents a production release.
+services:
+  - type: web
+    name: alumni-tracking
+    runtime: node
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    buildCommand: >-
+      npm exec --yes --package=pnpm@12.5.1 -- pnpm install --frozen-lockfile --prod=false
+      && npm exec --yes --package=pnpm@12.5.1 -- pnpm env:generate
+      && npm exec --yes --package=pnpm@12.5.1 -- pnpm build
+    startCommand: umask 077 && cd apps/server && node dist/index.mjs
+    healthCheckPath: /health/ready
+    disk:
+      name: private-uploads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 26.10.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: SERVE_WEB
+        value: 'true'
+      - key: MONGO_URI
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: VITE_SERVER_URL
+        sync: false
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: SESSION_SECRET
+        sync: false
+      - key: MFA_ENCRYPTION_KEY
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
+        sync: false
+      - key: STAFF_EMAIL_DOMAINS
+        value: buksu.edu.ph,student.buksu.edu.ph
+      - key: AUTH_IP_STORE
+        value: mongodb
+      - key: ALLOW_PUBLIC_SIGNUP
+        value: 'false'
+      - key: LOCAL_DISABLE_MFA
+        value: 'false'
+      - key: LOCAL_REQUIRE_EMAIL_VERIFICATION
+        value: 'true'
+      - key: LOCAL_REQUIRE_PHONE_VERIFICATION
+        value: 'true'

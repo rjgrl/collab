@@ -1,4 +1,5 @@
-import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
+import { randomBytes } from "node:crypto";
+import { ROLE, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import type { RoleInput } from "@Alumni-Tracking-Ss/contracts/roles";
 import { toEntity, isPermissionKey, RESERVED_ROLE_KEYS } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
@@ -6,11 +7,40 @@ import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/a
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { writeAudit, describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
 import {
+  assertFullSuperAdmin,
   assertRoleScope,
   authorizationTransaction,
+  isSuperAdminKind,
   loadRoles,
   validatePermissionIds,
 } from "@Alumni-Tracking-Ss/api/services/authorization";
+import type { Database } from "@Alumni-Tracking-Ss/db";
+
+/** Member names for roles that can be split; Alumni is excluded (one entry per graduate). */
+async function roleMembers(db: Database, roleId: string) {
+  const links = await db.UserRole.find({ roleId }).select("userId").lean().exec();
+  const users = await db.User.find({ _id: { $in: links.map((link) => link.userId) } })
+    .select("name firstName middleName lastName suffix email")
+    .sort({ lastName: 1, firstName: 1, name: 1 })
+    .lean()
+    .exec();
+  return users.map((user) => ({
+    id: String(user._id),
+    email: user.email,
+    name: formatDisplayName({
+      name: user.name,
+      firstName: user.firstName ?? undefined,
+      middleName: user.middleName ?? undefined,
+      lastName: user.lastName ?? undefined,
+      suffix: user.suffix ?? undefined,
+    }),
+  }));
+}
+/** Which kind of account a role (or a role split from it) gives its members. */
+function baseOf(role: { key: string; baseRole?: string | null }) {
+  if (role.baseRole) return role.baseRole;
+  return role.key === ROLE.superAdmin || role.key === ROLE.faculty ? role.key : null;
+}
 
 export const rolesService = {
   async list(context: Context, _input: RoleInput<"list">) {
@@ -24,6 +54,7 @@ export const rolesService = {
           isPermissionKey(permission.key),
         ),
         _count: { userRoles: await context.db.UserRole.countDocuments({ roleId: role.id }).exec() },
+        members: role.key === ROLE.alumni ? [] : await roleMembers(context.db, role.id),
       })),
     );
   },
@@ -66,7 +97,8 @@ export const rolesService = {
       assertRoleScope(actor, [current]);
       if (current.key === ROLE.superAdmin)
         throw new ApiError("FORBIDDEN", { message: "The super administrator role is protected." });
-      if (input.permissionIds) await validatePermissionIds(tx, actor, input.permissionIds);
+      if (isSuperAdminKind(current)) await assertFullSuperAdmin(tx, actor);
+      if (input.permissionIds) await validatePermissionIds(tx, actor, input.permissionIds, current);
       const updatedAt = new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1));
       const set = {
         updatedAt,
@@ -135,6 +167,86 @@ export const rolesService = {
       return role;
     });
   },
+  async split(context: Context, input: RoleInput<"split">) {
+    rejectAlumniManagement(context);
+    const actor = requireAccess(context, "roles.write");
+    return authorizationTransaction(context.db, async (tx) => {
+      const current = (await loadRoles(tx, [input.id]))[0];
+      if (!current) throw new ApiError("NOT_FOUND", { message: "Role not found." });
+      if (current.key === ROLE.alumni)
+        throw new ApiError("BAD_REQUEST", { message: "Alumni accounts cannot be split." });
+      // The full Super Admin role holds every permission, which assertRoleScope requires of the
+      // actor; limited Super Admins therefore cannot split it. Variants need a full one too.
+      if (isSuperAdminKind(current)) await assertFullSuperAdmin(tx, actor);
+      assertRoleScope(actor, [current]);
+      if (current.updatedAt.toISOString() !== input.expectedUpdatedAt)
+        throw new ApiError("CONFLICT", {
+          message: "This role changed. Reload the latest permissions before saving.",
+        });
+      const userIds = [...new Set(input.userIds)];
+      if (userIds.includes(actor.id))
+        throw new ApiError("BAD_REQUEST", {
+          message: "You cannot move yourself to a role with different permissions.",
+        });
+      const links = await tx.UserRole.find({ roleId: input.id }).select("userId").lean().exec();
+      const members = links.map((link) => String(link.userId));
+      if (userIds.some((id) => !members.includes(id)))
+        throw new ApiError("BAD_REQUEST", {
+          message: "One or more selected people are no longer members of this role.",
+        });
+      if (current.key === ROLE.superAdmin && userIds.length === members.length)
+        throw new ApiError("BAD_REQUEST", {
+          message: "Every member is selected. Choose All members to change the role itself.",
+        });
+      const baseRole = baseOf(current);
+      await validatePermissionIds(tx, actor, input.permissionIds, { key: current.key, baseRole });
+      const row = await tx.Role.create({
+        key: `${current.key.slice(0, 50)}_${randomBytes(4).toString("hex")}`,
+        name: input.name,
+        description: input.description ?? "",
+        baseRole,
+      });
+      const roleId = String(row._id);
+      if (input.permissionIds.length)
+        await tx.RolePermission.insertMany(
+          input.permissionIds.map((permissionId) => ({ roleId, permissionId })),
+          { ordered: true },
+        );
+      await tx.UserRole.updateMany(
+        { roleId: input.id, userId: { $in: userIds } },
+        { $set: { roleId } },
+      ).exec();
+      // Membership of the original role changed: stale editors must reload before saving.
+      await tx.Role.updateOne(
+        { _id: input.id },
+        { $set: { updatedAt: new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1)) } },
+        { timestamps: false },
+      ).exec();
+      await tx.Session.deleteMany({ userId: { $in: userIds } }).exec();
+      const moved = await roleMembers(tx, roleId);
+      const role = (await loadRoles(tx, [roleId]))[0]!;
+      await writeAudit(tx, {
+        actor,
+        action: "roles.split",
+        entity: "role",
+        entityId: roleId,
+        summary: `Moved ${moved.map((member) => member.name).join(", ")} from role ${JSON.stringify(current.name)} to new role ${JSON.stringify(role.name)}: ${describeAuditChanges(
+          {
+            permissionKeys: current.rolePermissions.map(({ permission }) => permission.key).sort(),
+          },
+          { permissionKeys: role.rolePermissions.map(({ permission }) => permission.key).sort() },
+        )}`,
+        metadata: {
+          fromRoleId: input.id,
+          userIds,
+          before: current.rolePermissions.map(({ permission }) => permission.key),
+          after: role.rolePermissions.map(({ permission }) => permission.key),
+        },
+        ipAddress: context.ipAddress,
+      });
+      return { ...role, members: moved };
+    });
+  },
   async delete(context: Context, input: RoleInput<"delete">) {
     rejectAlumniManagement(context);
     const actor = requireAccess(context, "roles.delete");
@@ -144,6 +256,7 @@ export const rolesService = {
       assertRoleScope(actor, [role]);
       if (role.isSystem)
         throw new ApiError("BAD_REQUEST", { message: "System roles cannot be deleted." });
+      if (isSuperAdminKind(role)) await assertFullSuperAdmin(tx, actor);
       const assigned = await tx.UserRole.find({ roleId: input.id }).lean().exec();
       const claimed = await tx.Role.deleteOne({ _id: input.id, updatedAt: role.updatedAt }).exec();
       if (claimed.deletedCount !== 1)

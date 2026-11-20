@@ -59,6 +59,31 @@ it("restricts every account, Alumni included, to institutional email", () => {
   );
 });
 
+it("keeps explicit seeded-domain login exceptions local and rejects them in production", () => {
+  const configured = { STAFF_EMAIL_DOMAINS: "buksu.edu.ph,student.buksu.edu.ph,collab.test" };
+  assert.equal(
+    staffEmailRejected("admin@collab.test", ["super_admin"], {
+      ...configured,
+      NODE_ENV: "development",
+    }),
+    false,
+  );
+  assert.equal(
+    staffEmailRejected("admin@collab.test", ["super_admin"], {
+      ...configured,
+      NODE_ENV: "production",
+    }),
+    true,
+  );
+  assert.equal(
+    staffEmailRejected("faculty@buksu.edu.ph", ["faculty"], {
+      ...configured,
+      NODE_ENV: "production",
+    }),
+    false,
+  );
+});
+
 it("requires the verified hd claim to be allowlisted for every Google identity", () => {
   assert.doesNotThrow(() =>
     assertStaffGoogleIdentity("head@buksu.edu.ph", "buksu.edu.ph", ["faculty"], settings),
@@ -81,6 +106,51 @@ it("requires the verified hd claim to be allowlisted for every Google identity",
     () => assertStaffGoogleIdentity("grad@gmail.com", null, ["alumni"], settings),
     StaffDomainError,
   );
+});
+
+it("Google always requires BukSU email and Workspace claims, even with permissive local settings", () => {
+  for (const config of [
+    { NODE_ENV: "development" },
+    { NODE_ENV: "test" },
+    {
+      NODE_ENV: "development",
+      STAFF_EMAIL_DOMAINS: "buksu.edu.ph,student.buksu.edu.ph,gmail.com,collab.test",
+    },
+    {
+      NODE_ENV: "production",
+      STAFF_EMAIL_DOMAINS: "buksu.edu.ph,student.buksu.edu.ph,gmail.com,collab.test",
+    },
+  ]) {
+    for (const email of [
+      "person@gmail.com",
+      "admin@collab.test",
+      "x@buksu.edu.ph.evil.test",
+      "x@sub.buksu.edu.ph",
+    ])
+      assert.throws(
+        () => assertStaffGoogleIdentity(email, "buksu.edu.ph", ["alumni"], config),
+        StaffDomainError,
+      );
+    for (const hd of [undefined, null, "", "gmail.com", "collab.test", "buksu.edu.ph.evil.test"])
+      assert.throws(
+        () => assertStaffGoogleIdentity("person@buksu.edu.ph", hd, ["super_admin"], config),
+        StaffDomainError,
+      );
+    assert.doesNotThrow(() =>
+      assertStaffGoogleIdentity("faculty@buksu.edu.ph", "BUKSU.EDU.PH", ["faculty"], config),
+    );
+    assert.doesNotThrow(() =>
+      assertStaffGoogleIdentity("student@student.buksu.edu.ph", "buksu.edu.ph", ["alumni"], config),
+    );
+    assert.doesNotThrow(() =>
+      assertStaffGoogleIdentity(
+        "student@student.buksu.edu.ph",
+        "student.buksu.edu.ph",
+        ["alumni"],
+        config,
+      ),
+    );
+  }
 });
 
 async function withDomains<T>(work: () => Promise<T>) {

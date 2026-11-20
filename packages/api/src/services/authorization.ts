@@ -9,6 +9,7 @@ import type { AuthUser } from "../context";
 export type RoleScope = {
   key: string;
   isSystem: boolean;
+  baseRole?: string | null;
   rolePermissions: { permission: { key: string } }[];
 };
 export async function loadRoles(db: Database, ids?: string[]): Promise<Role[]> {
@@ -36,6 +37,9 @@ export async function loadRoles(db: Database, ids?: string[]): Promise<Role[]> {
     ...role,
     name: role.key === ROLE.alumni ? "Alumni" : role.name,
     description: role.description ?? "",
+    baseRole:
+      role.baseRole === ROLE.superAdmin || role.baseRole === ROLE.faculty ? role.baseRole : null,
+    members: [],
     _count: { userRoles: assignments.filter((link) => String(link.roleId) === role.id).length },
     rolePermissions: links
       .filter((link) => link.roleId === role.id)
@@ -46,6 +50,38 @@ export async function loadRoles(db: Database, ids?: string[]): Promise<Role[]> {
           : [];
       }),
   }));
+}
+/**
+ * Role keys an account counts as: each role's own key plus, for a role split from Super Admin or
+ * Faculty, that base key. Use this wherever role keys decide what kind of account someone is.
+ */
+export function roleKeys(roles: { key: string; baseRole?: string | null }[]) {
+  return [
+    ...new Set(roles.flatMap((role) => (role.baseRole ? [role.key, role.baseRole] : [role.key]))),
+  ];
+}
+/** The original Super Admin role or a limited one split from it. */
+export function isSuperAdminKind(role: { key: string; baseRole?: string | null }) {
+  return role.key === ROLE.superAdmin || role.baseRole === ROLE.superAdmin;
+}
+/** A member of the original, full-access Super Admin role (not a limited one). */
+export async function isFullSuperAdmin(db: Database, userId: string) {
+  const links = await db.UserRole.find({ userId }).select("roleId").lean().exec();
+  return (
+    links.length > 0 &&
+    Boolean(
+      await db.Role.exists({
+        key: ROLE.superAdmin,
+        _id: { $in: links.map((link) => link.roleId) },
+      }),
+    )
+  );
+}
+export async function assertFullSuperAdmin(db: Database, actor: AuthUser) {
+  if (!(await isFullSuperAdmin(db, actor.id)))
+    throw new ApiError("FORBIDDEN", {
+      message: "Only a full Super Admin can manage Super Admin access.",
+    });
 }
 export async function loadUserRoles(db: Database, userId: string) {
   const links = (await db.UserRole.find({ userId }).lean().exec()).map((row) => toEntity(row));
@@ -86,7 +122,7 @@ export async function publicUser(db: Database, userId: string): Promise<PublicUs
 }
 export function assertRoleScope(actor: AuthUser, roles: RoleScope[]) {
   for (const role of roles) {
-    if ((role.key === ROLE.superAdmin || role.isSystem) && !isAdministrator(actor))
+    if ((isSuperAdminKind(role) || role.isSystem) && !isAdministrator(actor))
       throw new ApiError("FORBIDDEN", {
         message: "Only a super administrator can manage system roles.",
       });
@@ -110,7 +146,12 @@ export async function validateRoleIds(db: Database, actor: AuthUser, ids: string
   assertRoleScope(actor, roles);
   return roles;
 }
-export async function validatePermissionIds(db: Database, actor: AuthUser, ids: string[]) {
+export async function validatePermissionIds(
+  db: Database,
+  actor: AuthUser,
+  ids: string[],
+  target?: { key: string; baseRole?: string | null },
+) {
   const permissions = await db.Permission.find({ _id: { $in: ids } })
     .lean()
     .exec();
@@ -120,8 +161,12 @@ export async function validatePermissionIds(db: Database, actor: AuthUser, ids: 
     });
   if (permissions.some(({ key }) => !isPermissionKey(key) || !actor.permissions.includes(key)))
     throw new ApiError("FORBIDDEN", { message: "You cannot grant permissions you do not hold." });
-  // Only the Super Admin role (never edited through here) may hold university-wide permissions.
-  if (permissions.some(({ key }) => isSuperAdminOnlyPermission(key)))
+  // Only Super Admin roles (the original or a limited one split from it) may hold
+  // university-wide permissions.
+  if (
+    !(target && isSuperAdminKind(target)) &&
+    permissions.some(({ key }) => isSuperAdminOnlyPermission(key))
+  )
     throw new ApiError("BAD_REQUEST", {
       message:
         "Managing members, roles, academic structure, integrations and the full audit log is for Super Admins only. Remove those permissions from this role.",

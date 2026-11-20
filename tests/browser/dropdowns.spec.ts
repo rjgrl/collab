@@ -14,17 +14,18 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
   page,
   request,
 }, info) => {
+  test.setTimeout(60_000);
   await request.post("http://127.0.0.1:3100/__test/reset");
   for (const theme of ["light", "dark"]) {
     await page.goto("/login");
     await page.evaluate((value) => localStorage.setItem("vite-ui-theme", value), theme);
     await page.reload();
-    await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+    await page.getByRole("button", { name: "Need an account? Sign Up" }).click();
     // Optional name parts sit behind a disclosure; opening it focuses the middle name.
-    await page.getByRole("button", { name: "Add middle name or suffix", exact: true }).click();
-    await expect(page.getByRole("textbox", { name: "Middle name (optional)" })).toBeFocused();
+    await page.getByRole("button", { name: "Add Middle Name or Suffix", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Middle Name (Optional)" })).toBeFocused();
     const suffix = page.getByRole("combobox", {
-      name: "Name extension / suffix (optional)",
+      name: "Name Extension / Suffix (Optional)",
       exact: true,
     });
     await suffix.click();
@@ -46,17 +47,11 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
     const gender = page.getByRole("combobox", { name: "Gender", exact: true });
     expect(
       await page
-        .locator('input[name="registration-program"]')
-        .evaluate((input: HTMLInputElement) => input.validity.valueMissing),
-    ).toBe(true);
-    expect(
-      await page
         .locator('input[name="account-gender"]')
         .evaluate((input: HTMLInputElement) => input.validity.valueMissing),
     ).toBe(true);
     await gender.click();
-    // Base UI keeps a closed, hidden panel for a dropdown that has had focus (Tab from the suffix
-    // reaches Degree program first), so look only for the open one.
+    // Base UI may retain a closed panel after focus moves, so inspect only the open one.
     await expect(page.locator('[data-slot="select-content"][data-open]')).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(gender).toBeFocused();
@@ -74,15 +69,7 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
         .evaluate((input: HTMLInputElement) => input.checkValidity()),
     ).toBe(true);
     await selectOption(gender, "Male");
-    const program = page.getByRole("combobox", { name: "Degree program", exact: true });
-    await selectOption(program, "000000000000000000000302");
-    expect(
-      await page
-        .locator('input[name="registration-program"]')
-        .evaluate((input: HTMLInputElement) => input.checkValidity()),
-    ).toBe(true);
-
-    const country = page.getByRole("combobox", { name: "Country calling code", exact: true });
+    const country = page.getByRole("combobox", { name: "Country Calling Code", exact: true });
     await selectOption(country, "US");
     await expect(country).toHaveText("US +1");
     await country.click();
@@ -106,5 +93,28 @@ test("styled dropdowns support keyboard, custom suffixes and both themes", async
       fullPage: true,
     });
     await page.keyboard.press("Escape");
+    await page.getByRole("textbox", { name: "First Name", exact: true }).fill("Maria");
+    await page.getByRole("textbox", { name: "Last Name", exact: true }).fill("Santos");
+    await page
+      .getByRole("textbox", { name: "Email", exact: true })
+      .fill("dropdown@student.buksu.edu.ph");
+    await page.getByRole("textbox", { name: "Phone Number", exact: true }).fill("+12025550123");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    const program = page.getByRole("combobox", { name: "Degree Program", exact: true });
+    await expect
+      .poll(() =>
+        page
+          .locator('input[name="registration-program"]')
+          .evaluate((input: HTMLInputElement) => input.validity.valueMissing),
+      )
+      .toBe(true);
+    await selectOption(program, "000000000000000000000302");
+    await expect
+      .poll(() =>
+        page
+          .locator('input[name="registration-program"]')
+          .evaluate((input: HTMLInputElement) => input.checkValidity()),
+      )
+      .toBe(true);
   }
 });

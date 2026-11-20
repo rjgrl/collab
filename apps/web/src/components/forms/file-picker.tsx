@@ -9,7 +9,7 @@ export function FilePicker({
   required,
   disabled,
   onChange,
-  chooseLabel = "Choose file",
+  chooseLabel = "Choose File",
   accessibleLabel,
   describedBy,
 }: {

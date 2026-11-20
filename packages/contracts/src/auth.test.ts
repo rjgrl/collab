@@ -78,7 +78,7 @@ it("allows an empty optional Facebook link without throwing while rejecting malf
     signupSchema.safeParse({
       firstName: "Ana",
       lastName: "Reyes",
-      email: "ana@example.test",
+      email: "ana@student.buksu.edu.ph",
       password: "A private synthetic passphrase 42",
       phoneNumber: "+639171234567",
       gender: "Female",

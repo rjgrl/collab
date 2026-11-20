@@ -3,9 +3,7 @@ import { createDatabase } from "../index";
 
 import { verifyTransactionSupport } from "../transactions";
 
-if (!process.env.DATABASE_URL)
-  throw new Error("Configure DATABASE_URL privately before the rollback-only transaction probe");
-const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL });
+const db = createDatabase(process.env);
 try {
   await verifyTransactionSupport(db);
   console.log(

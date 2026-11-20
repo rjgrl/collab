@@ -1,3 +1,4 @@
+import { captureEmail } from "./test-utils/email-capture";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { it } from "node:test";
@@ -19,10 +20,11 @@ it("lets an existing password account confirm its email without adding phone res
   const f = fixture();
   f.user.verificationRequired = false;
   let code = "";
-  t.mock.method(globalThis, "fetch", async (_input: unknown, init?: RequestInit) => {
-    code = JSON.parse(String(init?.body)).text.match(/\b\d{6}\b/)[0];
-    return Response.json({ ok: true });
-  });
+  t.after(
+    captureEmail((message) => {
+      code = message.text.match(/\b\d{6}\b/)![0];
+    }),
+  );
   await startVerification(f.context, "email");
   await confirmVerification(f.context, "email", code);
   assert.equal(f.user.emailVerified, true);
@@ -76,7 +78,12 @@ function fixture() {
     db,
     user: { id: user.id, status: "active" },
     sessionToken: session.token,
-    integrationEnv: { verificationSecret: secret, smtpUrl: "https://mail.example.test" },
+    integrationEnv: {
+      verificationSecret: secret,
+      gmailAppPassword: "api-test-key",
+      smtpFrom: "sender@example.test",
+      smtpUrl: "https://mail.example.test",
+    },
   } as unknown as Context;
   context.onSessionRotation = (value) => {
     context.sessionToken = value.token;
@@ -201,10 +208,11 @@ it("cannot verify a changed email or reuse a failed transaction's consumption", 
 it("email delivery stores a keyed digest, rotates codes, and enforces resend cooldown", async (t) => {
   const f = fixture();
   let delivered = "";
-  t.mock.method(globalThis, "fetch", async (_input: unknown, init: RequestInit) => {
-    delivered = String(init.body);
-    return Response.json({ ok: true });
-  });
+  t.after(
+    captureEmail((message) => {
+      delivered = message.text;
+    }),
+  );
   const result = await startVerification(f.context, "email");
   const code = delivered.match(/\b[0-9]{6}\b/)?.[0];
   assert.ok(code);
@@ -219,7 +227,7 @@ it("the SMS stub and missing mail credentials never verify contact ownership", a
   const f = fixture();
   await assert.rejects(() => sendPhoneCode({}, f.user.phoneNumber), /not connected/);
   await assert.rejects(() => startVerification(f.context, "phone"), /not configured/);
-  f.context.integrationEnv.smtpUrl = undefined;
+  f.context.integrationEnv.gmailAppPassword = undefined;
   await assert.rejects(() => startVerification(f.context, "email"), /unavailable/);
   assert.equal(f.user.phoneVerified, false);
   assert.equal(f.user.emailVerified, false);

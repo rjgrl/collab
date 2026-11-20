@@ -107,7 +107,7 @@ function AlumniPage() {
           pending={assign.isPending}
           title={
             assigning.length === 1
-              ? "Assign faculty"
+              ? "Assign Faculty"
               : `Assign faculty to ${assigning.length} alumni`
           }
           footer={
@@ -139,7 +139,7 @@ function AlumniPage() {
               if (facultyId) assign.mutate({ alumniIds: assigning, facultyId });
             }}
           >
-            <FormField id="assign-faculty" label="Faculty tracker" required>
+            <FormField id="assign-faculty" label="Faculty Tracker" required>
               <FormSelect
                 id="assign-faculty"
                 value={facultyId}
@@ -148,7 +148,7 @@ function AlumniPage() {
                 items={[
                   {
                     value: "",
-                    label: facultyOptions.isPending ? "Loading faculty…" : "Select faculty",
+                    label: facultyOptions.isPending ? "Loading Faculty…" : "Select Faculty",
                   },
                   ...(facultyOptions.data?.map((f) => ({
                     value: f.id,
@@ -175,7 +175,7 @@ function AlumniPage() {
         </ErrorAlert>
       ) : null}
       <DataTable
-        label="Alumni registry profiles"
+        label="Alumni Registry Profiles"
         headers={[
           ...(assigner ? ["Select"] : []),
           "Student #",
@@ -183,7 +183,7 @@ function AlumniPage() {
           "Program",
           "Contact",
           "Tracking",
-          "Assigned to",
+          "Assigned To",
           "Actions",
         ]}
         search={search}
@@ -202,7 +202,7 @@ function AlumniPage() {
                   setAssigning(selected);
                 }}
               >
-                Assign {selected.length} selected
+                Assign {selected.length} Selected
               </PrimaryButton>
             ) : null}
             {assigner ? (
@@ -217,7 +217,7 @@ function AlumniPage() {
                     )
                   }
                 />
-                Select page
+                Select Page
               </label>
             ) : null}
             <FormSelect
@@ -229,10 +229,10 @@ function AlumniPage() {
               }}
               aria-label="Assignment"
               items={[
-                { value: "all", label: "All assignments" },
-                ...(isFaculty ? [{ value: "mine", label: "My assigned alumni" }] : []),
+                { value: "all", label: "All Assignments" },
+                ...(isFaculty ? [{ value: "mine", label: "My Assigned Alumni" }] : []),
                 { value: "unassigned", label: "Unassigned" },
-                { value: "needs_reassignment", label: "Needs reassignment" },
+                { value: "needs_reassignment", label: "Needs Reassignment" },
               ]}
             />
             <FormSelect
@@ -244,7 +244,7 @@ function AlumniPage() {
               }}
               aria-label="Department"
               items={[
-                { value: "", label: "All departments" },
+                { value: "", label: "All Departments" },
                 ...(departments.data?.map((department) => ({
                   value: department.id,
                   label: department.name,
@@ -260,7 +260,7 @@ function AlumniPage() {
               }}
               aria-label="Tracking"
               items={[
-                { value: "all", label: "All tracking" },
+                { value: "all", label: "All Tracking" },
                 { value: "tracked", label: "Tracked" },
                 { value: "untracked", label: "Untracked" },
               ]}
@@ -269,7 +269,7 @@ function AlumniPage() {
         }
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
-        emptyTitle="No alumni found"
+        emptyTitle="No Alumni Found"
         emptyDescription="Alumni profiles appear after self-registration or an approved import."
       >
         {list.data?.map((row) => (
@@ -327,20 +327,20 @@ function AlumniPage() {
               <RowActions>
                 {assigner ? (
                   <QuietButton
-                    aria-label={`Assign faculty to ${formatDisplayName(row)}`}
+                    aria-label={`Assign Faculty to ${formatDisplayName(row)}`}
                     onClick={() => {
                       setFacultyId(row.assignedFacultyId ?? "");
                       setAssigning([row.id]);
                     }}
                   >
-                    Assign faculty
+                    Assign Faculty
                   </QuietButton>
                 ) : null}
                 <QuietButton
                   nativeButton={false}
                   render={<Link to="/alumni/$id" params={{ id: row.id }} />}
                 >
-                  View profile
+                  View Profile
                 </QuietButton>
                 {can(session.data?.permissions, "alumni.delete") ? (
                   <QuietButton
@@ -368,7 +368,7 @@ function AlumniPage() {
         ))}
       </DataTable>
       <TablePagination
-        label="Alumni profiles pagination"
+        label="Alumni Profiles Pagination"
         page={page}
         onPage={setPage}
         hasNext={list.data?.length === 20}
@@ -376,7 +376,7 @@ function AlumniPage() {
       />
       <section className="space-y-4 border-t pt-6" aria-labelledby="pending-alumni-heading">
         <h2 id="pending-alumni-heading" className="text-base font-semibold">
-          Accounts awaiting profile completion
+          Accounts Awaiting Profile Completion
         </h2>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
           These alumni accounts still need student and program details. They appear here until their
@@ -389,11 +389,11 @@ function AlumniPage() {
           </ErrorAlert>
         ) : null}
         <DataTable
-          label="Alumni accounts awaiting profile completion"
+          label="Alumni Accounts Awaiting Profile Completion"
           headers={["Name", "Email", "Status"]}
           loading={pendingAccounts.isPending}
           isEmpty={pendingAccounts.data?.length === 0}
-          emptyTitle="No accounts awaiting profile completion"
+          emptyTitle="No Accounts Awaiting Profile Completion"
           emptyDescription="All matching alumni accounts have a linked registry profile."
         >
           {pendingAccounts.data?.map((account) => (
@@ -411,7 +411,7 @@ function AlumniPage() {
           ))}
         </DataTable>
         <TablePagination
-          label="Pending alumni accounts pagination"
+          label="Pending Alumni Accounts Pagination"
           page={pendingPage}
           onPage={setPendingPage}
           hasNext={pendingAccounts.data?.length === 20}

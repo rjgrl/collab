@@ -93,7 +93,7 @@ function DepartmentsPage() {
                 setDraft({ collegeId: colleges.data?.[0]?.id ?? "", name: "", description: "" })
               }
             >
-              Add department
+              Add Department
             </PrimaryButton>
           ) : null
         }
@@ -115,7 +115,7 @@ function DepartmentsPage() {
               </QuietButton>
             </div>
           }
-          title={draft.id ? "Edit department" : "Add department"}
+          title={draft.id ? "Edit Department" : "Add Department"}
         >
           <form
             id="academic-form"
@@ -132,7 +132,7 @@ function DepartmentsPage() {
                 onValueChange={(selected) => setDraft({ ...draft, collegeId: selected })}
                 required
                 items={[
-                  { value: "", label: "Select college" },
+                  { value: "", label: "Select College" },
                   ...(colleges.data?.map((college) => ({
                     value: college.id,
                     label: college.name,
@@ -173,7 +173,7 @@ function DepartmentsPage() {
         searchPlaceholder="Search departments"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
-        emptyTitle="No departments found"
+        emptyTitle="No Departments Found"
         emptyDescription="Add a department to start attaching programs."
       >
         {list.data?.map((row) => (
@@ -207,7 +207,7 @@ function DepartmentsPage() {
                     onClick={async () => {
                       if (
                         await confirmAction({
-                          title: "Remove this department?",
+                          title: "Remove This Department?",
                           description: "This cannot be undone.",
                           confirmLabel: "Remove",
                           destructive: true,

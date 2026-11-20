@@ -29,7 +29,7 @@ test("toasts form a list of at most three, newest kept, duplicates shown once", 
   await page.goto("/login");
   await page.locator("#email").fill("staff@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL("**/dashboard");
   await page.locator("[data-sonner-toast]").first().waitFor();
   await fire(page, [

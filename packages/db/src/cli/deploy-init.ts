@@ -1,6 +1,6 @@
 import "varlock/auto-load";
 import { passwordMeetsPolicy } from "@Alumni-Tracking-Ss/contracts/password-policy";
-import { createDatabase } from "../index";
+import { createDatabase, resolveDatabaseUrl } from "../index";
 import { migrateDatabase } from "../migration";
 import { DEMO_ACCOUNTS, DatabaseNotEmptyError, initializeEmptyDatabase } from "../seed-data";
 
@@ -16,11 +16,10 @@ if (args.some((arg) => arg !== "--demo")) {
   process.exit(1);
 }
 const demo = args.includes("--demo");
-const url = process.env.DATABASE_URL;
+const url = resolveDatabaseUrl(process.env);
 const email = process.env.SEED_ADMIN_EMAIL?.trim();
 const password = process.env.SEED_ADMIN_PASSWORD ?? "";
 const problems = [
-  !url && "DATABASE_URL is not set (apps/server/.env or the shell environment).",
   !email && "SEED_ADMIN_EMAIL is not set (packages/db/.env or the shell environment).",
   !passwordMeetsPolicy(password) &&
     "SEED_ADMIN_PASSWORD must meet the app's password policy: 15–128 characters with an uppercase letter, a lowercase letter, a number and a special character or space.",
@@ -36,7 +35,7 @@ if (demo && process.env.NODE_ENV === "production") {
   process.exit(1);
 }
 
-const db = createDatabase({ DATABASE_URL: url! });
+const db = createDatabase({ DATABASE_URL: url });
 try {
   await db.ready();
   if (await db.User.countDocuments({}).catch(() => 0))

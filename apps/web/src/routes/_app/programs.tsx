@@ -89,7 +89,7 @@ function ProgramsPage() {
                 })
               }
             >
-              Add program
+              Add Program
             </PrimaryButton>
           ) : null
         }
@@ -111,7 +111,7 @@ function ProgramsPage() {
               </QuietButton>
             </div>
           }
-          title={draft.id ? "Edit program" : "Add program"}
+          title={draft.id ? "Edit Program" : "Add Program"}
         >
           <form
             id="academic-form"
@@ -128,7 +128,7 @@ function ProgramsPage() {
                 onValueChange={(selected) => setDraft({ ...draft, departmentId: selected })}
                 required
                 items={[
-                  { value: "", label: "Select department" },
+                  { value: "", label: "Select Department" },
                   ...(departments.data?.map((department) => ({
                     value: department.id,
                     label: department.name,
@@ -177,7 +177,7 @@ function ProgramsPage() {
         searchPlaceholder="Search programs"
         loading={list.isPending}
         isEmpty={list.data?.length === 0}
-        emptyTitle="No programs found"
+        emptyTitle="No Programs Found"
         emptyDescription="Add a program and attach it to a department."
       >
         {list.data?.map((row) => (
@@ -215,7 +215,7 @@ function ProgramsPage() {
                     onClick={async () => {
                       if (
                         await confirmAction({
-                          title: "Remove this program?",
+                          title: "Remove This Program?",
                           description: "This cannot be undone.",
                           confirmLabel: "Remove",
                           destructive: true,

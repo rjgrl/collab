@@ -38,7 +38,7 @@ if (oldKey.toString("hex").toLowerCase() === newKey.toString("hex").toLowerCase(
   process.exit(1);
 }
 
-const db = createDatabase({ DATABASE_URL: process.env.DATABASE_URL ?? "" });
+const db = createDatabase(process.env);
 
 try {
   await db.ready();
@@ -50,8 +50,8 @@ try {
     console.log(`Rotated credentials for: ${report.keysRotated.join(", ")}`);
     console.log(`Total credentials rotated: ${report.credentialsCount}`);
   }
-} catch (error) {
-  console.error("Rotation failed:", error instanceof Error ? error.message : "Unknown error");
+} catch {
+  console.error("Rotation failed; private connection and key details withheld.");
   process.exitCode = 1;
 } finally {
   await db.disconnect();

@@ -49,7 +49,7 @@ export function AlumniPhotoDialog({
       open
       onOpenChange={(open) => !open && onClose()}
       pending={save.isPending}
-      title="Change profile photo"
+      title="Change Profile Photo"
       description={`Set, adjust or remove the photo shown for ${name}.`}
     >
       <form
@@ -64,7 +64,7 @@ export function AlumniPhotoDialog({
           currentImage={photoUrl}
           name={name}
           inputId={`${id}-photo`}
-          accessibleLabel="Choose profile photo"
+          accessibleLabel="Choose Profile Photo"
           accept="image/jpeg,image/png,image/webp"
           disabled={save.isPending}
           help="JPEG, PNG or WebP, up to 10 MB."
@@ -82,7 +82,7 @@ export function AlumniPhotoDialog({
             pendingLabel="Saving"
             disabled={!editor.dirty}
           >
-            {editor.isNewFile ? "Upload photo" : "Save changes"}
+            {editor.isNewFile ? "Upload Photo" : "Save Changes"}
           </PrimaryButton>
           {editor.dirty ? (
             <Button
@@ -91,7 +91,7 @@ export function AlumniPhotoDialog({
               disabled={save.isPending}
               onClick={editor.discard}
             >
-              Discard changes
+              Discard Changes
             </Button>
           ) : null}
           {photoUrl && !editor.removed ? (
@@ -101,7 +101,7 @@ export function AlumniPhotoDialog({
               disabled={save.isPending}
               onClick={editor.remove}
             >
-              Remove photo
+              Remove Photo
             </Button>
           ) : null}
         </div>

@@ -1,3 +1,5 @@
+import { captureEmail } from "@Alumni-Tracking-Ss/api/test-utils/email-capture";
+import { sendEmail } from "@Alumni-Tracking-Ss/api/integrations/email";
 import path from "node:path";
 import { startCiReplicaSet } from "./local/ci-replica-set";
 import { existsSync } from "node:fs";
@@ -46,18 +48,21 @@ const password = "BrowserTest123!";
 const passwordHash = await hashPassword(password);
 let resetLink = "",
   emailCode = "",
+  lastEmailRecipient = "",
   failNext = false;
 const verificationEnv: IntegrationEnv = {
   uploadDir: path.resolve(".tools/browser-uploads", databaseName),
   googleClientId: "synthetic-browser-client",
   googleClientSecret: "synthetic-browser-secret",
   appUrl: "http://127.0.0.1:3100",
-  smtpUrl: "https://mail.example.test",
+  gmailAppPassword: "api-test-key",
+  smtpFrom: "sender@example.test",
+  smtpUrl: "smtps://smtp.gmail.com:465",
   verificationSecret: "synthetic-test-only-verification-key-1234567890",
   mfaEncryptionKey: "12".repeat(32),
   webOrigin: "http://127.0.0.1:3101",
   integrationEncryptionKey: "34".repeat(32),
-  connectionTester: async (_key, values) => {
+  connectionTester: async (key, values) => {
     // Reject if any value contains "reject"
     for (const value of Object.values(values)) {
       if (typeof value === "string" && value.includes("reject")) {
@@ -66,18 +71,18 @@ const verificationEnv: IntegrationEnv = {
         });
       }
     }
+    if (key === "email")
+      await sendEmail(
+        { smtpFrom: values.fromAddress, gmailAppPassword: values.gmailAppPassword },
+        { to: values.fromAddress!, subject: "Email test", text: "Email delivery is connected." },
+      );
   },
 };
-const nativeFetch = globalThis.fetch;
-globalThis.fetch = async (input, init) => {
-  if (String(input) === "https://mail.example.test") {
-    const body = JSON.parse(String(init?.body)) as { text: string };
-    emailCode = body.text.match(/\b[0-9]{6}\b/)?.[0] ?? "";
-    resetLink = body.text.match(/https?:\/\/[^\s]+\/reset-password#[^\s]+/)?.[0] ?? "";
-    return Response.json({ ok: true });
-  }
-  return nativeFetch(input, init);
-};
+captureEmail((message) => {
+  lastEmailRecipient = message.to[0] ?? "";
+  emailCode = message.text.match(/\b[0-9]{6}\b/)?.[0] ?? "";
+  resetLink = message.text.match(/https?:\/\/[^\s]+\/reset-password#[^\s]+/)?.[0] ?? "";
+});
 function createTestApplication() {
   const toolsDir = path.resolve(
     process.env.MONGODB_TOOLS_DIR ??
@@ -221,6 +226,23 @@ app.post("/__test/local-contact-policy", (request, response) => {
   process.env.LOCAL_REQUIRE_PHONE_VERIFICATION = enabled ? "false" : "true";
   response.json({ ok: true });
 });
+// Marks a newly created managed account as having completed its profile and contacts.
+app.post("/__test/complete-account", async (request, response) => {
+  await db.User.updateOne(
+    { email: String(request.body?.email ?? "").toLowerCase() },
+    {
+      $set: {
+        phoneNumber: "+639171234567",
+        gender: "Female",
+        emailVerified: true,
+        phoneVerified: true,
+        verificationRequired: false,
+        needsProfileCompletion: false,
+      },
+    },
+  ).exec();
+  response.json({ ok: true });
+});
 app.post("/__test/google", async (_request, response) => {
   await db.IntegrationSetting.updateOne({ key: "google_auth" }, { $set: { enabled: true } }).exec();
   response.json({ ok: true });
@@ -230,7 +252,7 @@ app.post("/__test/incomplete", async (_request, response) => {
   response.json({ ok: true });
 });
 app.get("/__test/code", (_request, response) => {
-  response.json({ emailCode });
+  response.json({ emailCode, lastEmailRecipient });
 });
 app.get("/__test/reset-link", (_request, response) => {
   response.json({ resetLink });
@@ -518,6 +540,11 @@ app.post("/__test/alumni", async (request, response) => {
     { $setOnInsert: { userId: ids.alumni, roleId: ids.viewerRole } },
     { upsert: true },
   ).exec();
+  if (request.body?.institutional === true)
+    await db.User.updateOne(
+      { _id: ids.alumni },
+      { $set: { email: "alumni@student.buksu.edu.ph" } },
+    ).exec();
   await historicalEnrollment(ids.alumni);
   if (request.body?.unlinked === true)
     await db.User.updateOne(

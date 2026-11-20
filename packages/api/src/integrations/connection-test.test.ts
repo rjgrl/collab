@@ -1,3 +1,4 @@
+import { gmailSmtp, type GmailMessage } from "./email";
 import assert from "node:assert/strict";
 import { it, describe } from "node:test";
 import { isPrivateAddress, testIntegrationConnection } from "./connection-test";
@@ -105,47 +106,49 @@ describe("connection-test", () => {
     );
   });
 
-  it("email gateway failures are rejected without echoing the key or URL", async () => {
-    await assert.rejects(
-      () =>
-        testIntegrationConnection(
-          "email",
-          {
-            gatewayUrl: "https://gateway.example.com",
-            fromAddress: "test@example.com",
-            apiKey: "secret-api-key-12345",
-          },
-          options(reply(500, {})),
-        ),
-      (error: { code?: string; message: string }) => {
-        assert.equal(error.code, "BAD_REQUEST");
-        assert.ok(!error.message.includes("secret-api-key"));
-        assert.ok(!error.message.includes("gateway.example.com"));
-        return true;
+  it("Gmail authentication failures reject saving without exposing credentials", async (t) => {
+    t.mock.method(gmailSmtp, "create", () => ({
+      sendMail: async () => {
+        throw new Error("secret app password diagnostics");
       },
+      close: () => {},
+    }));
+    await rejectsWith(
+      testIntegrationConnection(
+        "email",
+        {
+          fromAddress: "sender@gmail.com",
+          gmailAppPassword: "abcdefghijklmnop",
+        },
+        options(reply(200, {})),
+      ),
+      "Gmail did not accept",
     );
   });
 
-  it("production rejects email gateways on internal addresses", async (t) => {
-    const previous = process.env.NODE_ENV;
-    t.after(() => {
-      process.env.NODE_ENV = previous;
+  it("tests Gmail at the sender mailbox even when the admin uses an undeliverable seeded email", async (t) => {
+    let target = "";
+    t.mock.method(gmailSmtp, "create", (config: Parameters<typeof gmailSmtp.create>[0]) => {
+      assert.equal(config.host, "smtp.gmail.com");
+      return {
+        sendMail: async (message: GmailMessage) => {
+          target = message.to[0]!;
+          assert.equal(message.from, "sender@gmail.com");
+          return { accepted: message.to, rejected: [] };
+        },
+        close: () => {},
+      };
     });
-    process.env.NODE_ENV = "production";
-    for (const gatewayUrl of [
-      "https://127.0.0.1/send",
-      "https://10.1.2.3/send",
-      "https://[::1]/send",
-      "https://169.254.169.254/latest",
-    ])
-      await rejectsWith(
-        testIntegrationConnection(
-          "email",
-          { gatewayUrl, fromAddress: "a@example.com", apiKey: "k" },
-          options(reply(200, {})),
-        ),
-        "public HTTPS address",
-      );
+    await testIntegrationConnection(
+      "email",
+      {
+        gatewayUrl: "https://127.0.0.1/never-used",
+        fromAddress: "sender@gmail.com",
+        gmailAppPassword: "abcdefghijklmnop",
+      },
+      { env: {}, adminEmail: "admin@collab.test" },
+    );
+    assert.equal(target, "sender@gmail.com");
     for (const address of [
       "8.8.8.8",
       "2001:4860:4860::8888",

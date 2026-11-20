@@ -37,7 +37,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: "Alumni tracking system",
+        title: "Alumni Tracking System",
       },
       {
         name: "description",

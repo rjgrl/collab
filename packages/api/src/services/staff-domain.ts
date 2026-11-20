@@ -1,3 +1,7 @@
+import {
+  BUKSU_EMAIL_DOMAINS,
+  GOOGLE_SIGNIN_EMAIL_MESSAGE,
+} from "@Alumni-Tracking-Ss/contracts/auth";
 import { ROLE } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "../http-error";
 
@@ -56,7 +60,10 @@ export function staffEmailRejected(
   settings: NodeJS.ProcessEnv = process.env,
 ) {
   const domains = staffEmailDomains(settings);
-  return Boolean(domains && !emailDomainAllowed(email, domains));
+  return Boolean(
+    (settings.NODE_ENV === "production" && !emailDomainAllowed(email, BUKSU_EMAIL_DOMAINS)) ||
+    (domains && !emailDomainAllowed(email, domains)),
+  );
 }
 
 export function assertStaffEmailAllowed(
@@ -66,7 +73,10 @@ export function assertStaffEmailAllowed(
 ) {
   if (staffEmailRejected(email, roles, settings))
     throw new StaffDomainError(
-      `Use your BukSU institutional email (${staffEmailDomains(settings)!
+      `Use your BukSU institutional email (${(settings.NODE_ENV === "production"
+        ? [...BUKSU_EMAIL_DOMAINS]
+        : staffEmailDomains(settings)!
+      )
         .map((domain) => `@${domain}`)
         .join(", ")}).`,
     );
@@ -82,8 +92,14 @@ export function assertStaffGoogleIdentity(
   roles: readonly string[] = [],
   settings: NodeJS.ProcessEnv = process.env,
 ) {
+  if (
+    !emailDomainAllowed(email, BUKSU_EMAIL_DOMAINS) ||
+    !hostedDomain ||
+    !BUKSU_EMAIL_DOMAINS.some((domain) => domain === hostedDomain.toLowerCase())
+  )
+    throw new StaffDomainError(GOOGLE_SIGNIN_EMAIL_MESSAGE);
   assertStaffEmailAllowed(email, roles, settings);
   const domains = staffEmailDomains(settings);
-  if (domains && !(hostedDomain && domains.includes(hostedDomain.toLowerCase())))
-    throw new StaffDomainError("Sign in with your BukSU Google Workspace account.");
+  if (domains && !domains.includes(hostedDomain.toLowerCase()))
+    throw new StaffDomainError(GOOGLE_SIGNIN_EMAIL_MESSAGE);
 }

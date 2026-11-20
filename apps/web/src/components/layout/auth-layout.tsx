@@ -16,8 +16,8 @@ const HIGHLIGHTS = [
  */
 export function AuthLayout({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <main className="grid min-h-svh bg-card lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <div className="relative hidden overflow-hidden bg-sidebar p-12 text-sidebar-foreground lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
+    <main className="grid min-h-svh bg-card lg:grid-cols-2">
+      <div className="relative hidden overflow-hidden bg-sidebar p-8 text-sidebar-foreground lg:sticky lg:top-0 lg:flex lg:min-h-svh lg:flex-col lg:justify-center lg:self-start xl:p-12">
         <img
           src="/brand/cot-building.webp"
           alt=""
@@ -40,34 +40,38 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
           aria-hidden="true"
           className="pointer-events-none absolute -right-24 -bottom-40 size-[28rem] rounded-full bg-sidebar-accent blur-3xl"
         />
-        <div className="relative z-10 flex items-center gap-3 text-sidebar-accent-foreground">
-          <BrandMark className="size-12" />
-          <div className="min-w-0 leading-tight">
-            <p className="text-sm font-semibold">Bukidnon State University</p>
-            <p className="mt-0.5 text-xs text-sidebar-foreground">Alumni tracking system</p>
+        <div className="relative z-10 mx-auto flex w-full max-w-md flex-col gap-12">
+          <div className="flex items-center gap-3 text-sidebar-accent-foreground">
+            <BrandMark className="size-12" />
+            <div className="min-w-0 leading-tight">
+              <p className="text-xl leading-snug font-bold">Alumni Tracking System</p>
+              <p className="mt-0.5 text-xs text-sidebar-foreground">
+                Bukidnon State University - College of Technologies
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="relative z-10 mt-auto max-w-md">
-          <p className="text-3xl leading-tight font-semibold tracking-tight text-balance text-sidebar-accent-foreground">
-            Keep every graduate connected to Bukidnon State University.
-          </p>
-          <p className="mt-3 text-base leading-relaxed text-sidebar-foreground">
-            A secure university registry for alumni profiles, employment records and supporting
-            evidence across every college.
-          </p>
-          <ul className="mt-8 flex flex-col gap-3 text-sm">
-            {HIGHLIGHTS.map((item) => (
-              <li key={item} className="flex items-center gap-3">
-                <span
-                  aria-hidden="true"
-                  className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-primary"
-                >
-                  <Check className="size-3.5" />
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
+          <div>
+            <p className="text-3xl leading-tight font-semibold tracking-tight text-balance text-sidebar-accent-foreground">
+              Keep Every Graduate Connected to Bukidnon State University.
+            </p>
+            <p className="mt-3 text-base leading-relaxed text-sidebar-foreground">
+              A secure university registry for alumni profiles, employment records and supporting
+              evidence across every college.
+            </p>
+            <ul className="mt-8 flex flex-col gap-3 text-sm">
+              {HIGHLIGHTS.map((item) => (
+                <li key={item} className="flex items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-primary"
+                  >
+                    <Check className="size-3.5" />
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
       <div
@@ -76,15 +80,15 @@ export function AuthLayout({ children, wide = false }: { children: ReactNode; wi
           wide ? "py-6 sm:py-8 lg:py-4" : "py-8 sm:py-12",
         )}
       >
-        <div className={cn("flex w-full flex-col", wide ? "max-w-3xl" : "max-w-md")}>
+        <div className={cn("flex w-full flex-col", wide ? "max-w-xl" : "max-w-md")}>
           <p
             className={cn(
-              "flex items-center gap-3 text-sm font-semibold lg:hidden",
+              "flex items-center gap-3 text-lg font-bold lg:hidden",
               wide ? "mb-6" : "mb-8",
             )}
           >
             <BrandMark className="size-9" />
-            Alumni tracking system
+            Alumni Tracking System
           </p>
           {children}
         </div>

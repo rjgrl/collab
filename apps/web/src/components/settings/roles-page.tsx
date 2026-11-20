@@ -1,3 +1,4 @@
+import { FormSelect } from "@/components/forms/form-select";
 import { ROLE, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
@@ -38,7 +39,7 @@ export function RolesPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Roles and permissions"
+        title="Roles and Permissions"
         description="Select a role to review and manage its permissions."
         actions={
           can(session.data?.permissions, "roles.write") ? (
@@ -48,7 +49,7 @@ export function RolesPage() {
                 setCreating(true);
               }}
             >
-              Add role
+              Add Role
             </PrimaryButton>
           ) : null
         }
@@ -87,8 +88,8 @@ export function RolesPage() {
               if (
                 !dirty ||
                 (await confirmAction({
-                  title: "Discard unsaved changes?",
-                  confirmLabel: "Discard changes",
+                  title: "Discard Unsaved Changes?",
+                  confirmLabel: "Discard Changes",
                   destructive: true,
                 }))
               ) {
@@ -130,12 +131,16 @@ export function RolesPage() {
           permissions={permissions.data}
           allRoles={roles.data || []}
           onDirty={setDirty}
+          onDone={() => {
+            setSelected(null);
+            setDirty(false);
+          }}
           onClose={async () => {
             if (
               !dirty ||
               (await confirmAction({
-                title: "Discard unsaved changes?",
-                confirmLabel: "Discard changes",
+                title: "Discard Unsaved Changes?",
+                confirmLabel: "Discard Changes",
                 destructive: true,
               }))
             ) {
@@ -154,6 +159,7 @@ function RoleEditor({
   permissions,
   allRoles,
   onDirty,
+  onDone,
   onClose,
 }: {
   role: Role;
@@ -161,8 +167,11 @@ function RoleEditor({
   allRoles: { id: string; name: string }[];
   onDirty: (dirty: boolean) => void;
   onClose: () => void;
+  /** Closes without asking: the draft was saved elsewhere (split into a new role). */
+  onDone: () => void;
 }) {
   const session = useSession();
+  const confirmTargetChange = useConfirm();
   const [baseline, setBaseline] = useState(() => ({
     version: version(role),
     ids: role.rolePermissions.map((item) => item.permissionId),
@@ -172,6 +181,16 @@ function RoleEditor({
   const [ids, setIds] = useState(baseline.ids);
   const [name, setName] = useState(baseline.name);
   const [description, setDescription] = useState(baseline.description);
+  const superAdminRole = role.key === ROLE.superAdmin || role.baseRole === ROLE.superAdmin;
+  const [selectedMember, setSelectedMember] = useState("");
+  const myId = session.data?.id;
+  const picked = selectedMember ? [selectedMember] : [];
+  const pickedNames = role.members
+    .filter((member) => member.id === selectedMember)
+    .map((member) => member.name);
+  const splitName = `${name} – ${pickedNames.join(", ")}`.slice(0, 80);
+  const permissionChanged =
+    ids.length !== baseline.ids.length || ids.some((id) => !baseline.ids.includes(id));
   const dirty =
     ids.length !== baseline.ids.length ||
     ids.some((id) => !baseline.ids.includes(id)) ||
@@ -181,9 +200,34 @@ function RoleEditor({
   const editable =
     can(session.data?.permissions, "roles.write") &&
     role.key !== ROLE.superAdmin &&
+    (!superAdminRole || (session.data ? isAdministrator(session.data) : false)) &&
     (!role.isSystem || (session.data ? isAdministrator(session.data) : false)) &&
     role.rolePermissions.every(({ permission }) => can(session.data?.permissions, permission.key));
+  // Splitting is offered for Faculty, custom and Super Admin roles (not Alumni), even when the
+  // role itself is protected: only the moved members get the new permissions.
+  const canSplit =
+    can(session.data?.permissions, "roles.write") &&
+    role.key !== ROLE.alumni &&
+    role.members.some((member) => member.id !== myId);
+  const splitting = canSplit && Boolean(selectedMember);
   const duplicateName = name !== baseline.name ? duplicateRoleName(name, allRoles, role.id) : null;
+  const split = useMutation({
+    mutationFn: () =>
+      client.roles.split({
+        id: role.id,
+        expectedUpdatedAt: baseline.version,
+        userIds: picked,
+        name: splitName,
+        description,
+        permissionIds: grantablePermissionIds(ids, permissions, superAdminRole),
+      }),
+    onSuccess: async (created) => {
+      toast.success(`Moved ${pickedNames.join(", ")} to "${created.name}"`);
+      onDone();
+      await queryClient.invalidateQueries();
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const save = useMutation({
     mutationFn: () =>
       client.roles.update({
@@ -191,7 +235,7 @@ function RoleEditor({
         expectedUpdatedAt: baseline.version,
         name: name !== baseline.name ? name : undefined,
         description: description !== baseline.description ? description : undefined,
-        permissionIds: grantablePermissionIds(ids, permissions),
+        permissionIds: grantablePermissionIds(ids, permissions, superAdminRole),
       }),
     onSuccess: async (saved) => {
       const savedIds = saved.rolePermissions.map((item) => item.permissionId);
@@ -220,7 +264,7 @@ function RoleEditor({
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
-  const locked = !editable || save.isPending;
+  const locked = (!editable && !splitting) || save.isPending || split.isPending;
   return (
     <FormDialog
       open
@@ -230,13 +274,21 @@ function RoleEditor({
       pending={save.isPending}
       footer={
         <div className="flex flex-wrap gap-3">
-          {editable ? (
+          {splitting ? (
+            <PrimaryButton
+              pending={split.isPending}
+              disabled={!permissionChanged || stale}
+              onClick={() => split.mutate()}
+            >
+              Save for Selected Member
+            </PrimaryButton>
+          ) : editable ? (
             <PrimaryButton
               pending={save.isPending}
               disabled={!dirty || stale}
               onClick={() => save.mutate()}
             >
-              Save changes
+              Save Changes
             </PrimaryButton>
           ) : null}
           <PrimaryButton
@@ -253,18 +305,22 @@ function RoleEditor({
               setIds(currentIds);
               setName(role.name);
               setDescription(role.description);
+              setSelectedMember("");
+              split.reset();
               save.reset();
             }}
           >
-            {stale ? "Load latest permissions" : "Discard changes"}
+            {stale ? "Load Latest Permissions" : "Discard Changes"}
           </PrimaryButton>
         </div>
       }
       title={role.name}
       description={
-        editable
-          ? "Edit the name, note, and permissions, then save."
-          : "This role is read-only for your account."
+        role.key === ROLE.superAdmin
+          ? "Super Admin always has full access. To give someone limited access, select a member from Apply Changes To."
+          : editable
+            ? "Edit the name, note, and permissions, then save."
+            : "This role is read-only for your account."
       }
     >
       <div className="flex flex-col gap-5">
@@ -304,6 +360,57 @@ function RoleEditor({
             ) : (
               <p className="py-2 text-sm">{role.name}</p>
             )}
+            {role.key !== ROLE.alumni ? (
+              <div className="mt-3 flex flex-col gap-2">
+                <label htmlFor="role-member-target" className="text-sm font-medium">
+                  Apply Changes To
+                </label>
+                <FormSelect
+                  id="role-member-target"
+                  value={selectedMember || "all"}
+                  disabled={save.isPending || split.isPending}
+                  onValueChange={async (value) => {
+                    if (
+                      dirty &&
+                      !(await confirmTargetChange({
+                        title: "Discard Changes and Switch Member?",
+                        description:
+                          "The permission draft will be reset before changing who it applies to.",
+                        confirmLabel: "Switch Member",
+                      }))
+                    )
+                      return;
+                    setSelectedMember(value === "all" ? "" : value);
+                    // Never carry a single-user permission draft into an All Members save.
+                    setIds(baseline.ids);
+                    setName(baseline.name);
+                    setDescription(baseline.description);
+                    split.reset();
+                    save.reset();
+                  }}
+                  items={[
+                    { value: "all", label: "All Members" },
+                    ...role.members.map((member) => ({
+                      value: member.id,
+                      label: member.name + (member.id === myId ? " (you)" : ""),
+                      disabled: !canSplit || member.id === myId,
+                    })),
+                  ]}
+                />
+                {splitting ? (
+                  <p role="status" className="rounded-lg bg-muted p-3 text-sm">
+                    Only {pickedNames.join(", ")} will receive these permission changes. Saving
+                    moves this user to a new role and signs them out; other members stay unchanged.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {role.key === ROLE.superAdmin
+                      ? "Full Super Admin always keeps all permissions. Select another member to limit their access."
+                      : "Changes apply to everyone in this role. Select a member to change only their permissions."}
+                  </p>
+                )}
+              </div>
+            ) : null}
           </FormField>
           <FormField id="role-edit-note" label="Note">
             {editable ? (
@@ -326,7 +433,13 @@ function RoleEditor({
             )}
           </FormField>
         </div>
-        <PermissionControls permissions={permissions} ids={ids} setIds={setIds} locked={locked} />
+        <PermissionControls
+          permissions={permissions}
+          ids={ids}
+          setIds={setIds}
+          locked={locked}
+          superAdminRole={superAdminRole}
+        />
       </div>
     </FormDialog>
   );

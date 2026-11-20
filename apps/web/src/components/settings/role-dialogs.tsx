@@ -16,15 +16,26 @@ import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
 import { client, queryClient } from "@/lib/api";
+import { formatUiLabel } from "@/lib/ui-label";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 
-/** Roles configured here are never Super Admin, so university-wide permissions do not apply. */
-const grantable = (session: ReturnType<typeof useSession>, permission: PermissionItem) =>
-  !isSuperAdminOnlyPermission(permission.key) && can(session.data?.permissions, permission.key);
+/** University-wide permissions apply only to Super Admin roles (the original or a limited one). */
+const grantable = (
+  session: ReturnType<typeof useSession>,
+  permission: PermissionItem,
+  superAdminRole: boolean,
+) =>
+  (superAdminRole || !isSuperAdminOnlyPermission(permission.key)) &&
+  can(session.data?.permissions, permission.key);
 
 /** Drops permissions a non-Super Admin role cannot hold (older roles may still store some). */
-export function grantablePermissionIds(ids: string[], permissions: PermissionItem[]) {
+export function grantablePermissionIds(
+  ids: string[],
+  permissions: PermissionItem[],
+  superAdminRole = false,
+) {
+  if (superAdminRole) return ids;
   const restricted = new Set(
     permissions.filter((item) => isSuperAdminOnlyPermission(item.key)).map((item) => item.id),
   );
@@ -36,11 +47,14 @@ export function PermissionControls({
   ids,
   setIds,
   locked,
+  superAdminRole = false,
 }: {
   permissions: PermissionItem[];
   ids: string[];
   setIds: React.Dispatch<React.SetStateAction<string[]>>;
   locked: boolean;
+  /** The role is Super Admin or a limited Super Admin, so university-wide permissions apply. */
+  superAdminRole?: boolean;
 }) {
   const session = useSession();
   const [search, setSearch] = useState("");
@@ -51,8 +65,8 @@ export function PermissionControls({
   return (
     <div className="flex flex-col gap-3">
       <Input
-        aria-label="Search permissions"
-        placeholder="Find a permission..."
+        aria-label="Search Permissions"
+        placeholder="Find a Permission..."
         value={search}
         onChange={(event) => setSearch(event.target.value)}
       />
@@ -63,12 +77,12 @@ export function PermissionControls({
         .filter((group) => group.items.some(matches))
         .map((group) => {
           const applicable = group.items
-            .filter((permission) => grantable(session, permission))
+            .filter((permission) => grantable(session, permission, superAdminRole))
             .map((permission) => permission.id);
           const state = groupState(applicable, ids);
           return (
             <fieldset key={group.key} className="rounded-xl border p-4">
-              <legend className="px-1 text-sm font-medium">{group.label}</legend>
+              <legend className="px-1 text-sm font-medium">{formatUiLabel(group.label)}</legend>
               <label className="mb-3 flex min-h-10 items-center gap-3 border-b pb-3 text-sm">
                 <Switch
                   checked={state.checked}
@@ -80,7 +94,7 @@ export function PermissionControls({
                   }
                 />
                 <span>
-                  All applicable permissions{" "}
+                  All Applicable Permissions{" "}
                   <span id={`permission-group-${group.key}`} className="text-muted-foreground">
                     ({state.count}/{applicable.length})
                     {state.indeterminate ? " | Partially enabled" : ""}
@@ -92,16 +106,19 @@ export function PermissionControls({
                   <label key={permission.id} className="flex min-h-10 items-start gap-3 text-sm">
                     <Switch
                       className="mt-1"
-                      checked={grantable(session, permission) && ids.includes(permission.id)}
-                      disabled={locked || !grantable(session, permission)}
+                      checked={
+                        (superAdminRole || !isSuperAdminOnlyPermission(permission.key)) &&
+                        ids.includes(permission.id)
+                      }
+                      disabled={locked || !grantable(session, permission, superAdminRole)}
                       onCheckedChange={(checked) =>
                         setIds((current) => togglePermissions(current, [permission.id], checked))
                       }
                     />
                     <span>
-                      <span className="font-medium">{permission.name}</span>
+                      <span className="font-medium">{formatUiLabel(permission.name)}</span>
                       <span className="block text-muted-foreground">{permission.description}</span>
-                      {isSuperAdminOnlyPermission(permission.key) ? (
+                      {!superAdminRole && isSuperAdminOnlyPermission(permission.key) ? (
                         <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
                           Super Admin only
                         </span>
@@ -171,11 +188,11 @@ export function AddRoleDialog({
       open
       onOpenChange={onClose}
       pending={create.isPending}
-      title="Add role"
+      title="Add Role"
       description="All permissions start off. Enable only the access this role needs."
       footer={
         <PrimaryButton form="create-role" type="submit" pending={create.isPending}>
-          Create role
+          Create Role
         </PrimaryButton>
       }
     >

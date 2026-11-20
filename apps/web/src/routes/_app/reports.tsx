@@ -6,10 +6,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { FormSelect } from "@/components/forms/form-select";
-import { FilterBar } from "@/components/data/filter-bar";
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
-import { PrimaryButton } from "@/components/forms/form-layout";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { QuietButton } from "@/components/data/data-table";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { can, useSession } from "@/lib/session";
@@ -23,13 +22,12 @@ export const Route = createFileRoute("/_app/reports")({
 
 function ReportsPage() {
   const session = useSession();
+  const canExport = can(session.data?.permissions, "reports.export");
   const [departmentId, setDepartmentId] = useState("");
   const [tracked, setTracked] = useState<"all" | "tracked" | "untracked">("all");
-  // Export-only filters; the summary totals above use department and tracking only.
   const [collegeId, setCollegeId] = useState("");
   const [programId, setProgramId] = useState("");
   const [graduationYear, setGraduationYear] = useState("");
-  const [batch, setBatch] = useState("");
   const colleges = useCollegeOptions();
   const programs = useProgramOptions();
   const exportFilters = {
@@ -37,7 +35,6 @@ function ReportsPage() {
     departmentId: departmentId || undefined,
     programId: programId || undefined,
     graduationYear: graduationYear ? Number(graduationYear) : undefined,
-    batch: batch || undefined,
     tracked,
   };
   const pdf = useMutation({
@@ -48,6 +45,9 @@ function ReportsPage() {
     onSuccess: () => toast.success("PDF downloaded"),
     onError: (error) => toast.error(error.message),
   });
+  const departmentOptions = useQuery(
+    api.reports.summary.queryOptions({ input: { tracked: "all" } }),
+  );
   const summary = useQuery(
     api.reports.summary.queryOptions({
       input: { departmentId: departmentId || undefined, tracked },
@@ -84,7 +84,7 @@ function ReportsPage() {
       />
       <Card>
         <CardHeader>
-          <CardTitle>Current totals</CardTitle>
+          <CardTitle>Current Totals</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-4 sm:grid-cols-3 sm:divide-x">
@@ -93,7 +93,7 @@ function ReportsPage() {
                 ["Graduates", summary.data?.graduates.toLocaleString()],
                 ["Tracked", summary.data?.tracked.toLocaleString()],
                 [
-                  "% tracked",
+                  "% Tracked",
                   summary.data ? `${summary.data.percentTracked.toFixed(2)}%` : undefined,
                 ],
               ] as const
@@ -106,6 +106,9 @@ function ReportsPage() {
               </div>
             ))}
           </dl>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Totals reflect Department and Tracking Status.
+          </p>
           {summary.isError ? (
             <ErrorAlert className="mt-4" onRetry={() => void summary.refetch()}>
               Could not load report totals.
@@ -115,107 +118,149 @@ function ReportsPage() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Export alumni</CardTitle>
+          <CardTitle>Export Alumni</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-5">
-          <FilterBar>
-            <FormSelect
-              className="w-full sm:w-auto sm:min-w-44"
-              value={departmentId}
-              onValueChange={(selected) => setDepartmentId(selected)}
-              aria-label="Department"
-              items={[
-                { value: "", label: "All departments" },
-                ...(summary.data?.departments.map((department) => ({
-                  value: department.id,
-                  label: department.name,
-                })) ?? []),
-              ]}
-            />
-            <FormSelect
-              className="w-full sm:w-auto sm:min-w-44"
-              value={tracked}
-              onValueChange={(selected) => setTracked(selected as typeof tracked)}
-              aria-label="Tracking"
-              items={[
-                { value: "all", label: "All tracking" },
-                { value: "tracked", label: "Tracked" },
-                { value: "untracked", label: "Untracked" },
-              ]}
-            />
-            <FormSelect
-              className="w-full sm:w-auto sm:min-w-44"
-              value={collegeId}
-              onValueChange={setCollegeId}
-              aria-label="College"
-              items={[
-                { value: "", label: "All colleges" },
-                ...(colleges.data?.map((college) => ({ value: college.id, label: college.name })) ??
-                  []),
-              ]}
-            />
-            <FormSelect
-              className="w-full sm:w-auto sm:min-w-44"
-              value={programId}
-              onValueChange={setProgramId}
-              aria-label="Program"
-              items={[
-                { value: "", label: "All programs" },
-                ...(programs.data?.map((program) => ({
-                  value: program.id,
-                  label: `${program.code} — ${program.name}`,
-                })) ?? []),
-              ]}
-            />
-            <Input
-              className="w-full sm:w-32"
-              type="number"
-              min={1950}
-              max={2100}
-              inputMode="numeric"
-              placeholder="Grad. year"
-              aria-label="Graduation year"
-              value={graduationYear}
-              onChange={(event) => setGraduationYear(event.target.value)}
-            />
-            <Input
-              className="w-full sm:w-32"
-              maxLength={40}
-              placeholder="Batch"
-              aria-label="Batch"
-              value={batch}
-              onChange={(event) => setBatch(event.target.value)}
-            />
-          </FilterBar>
-          {can(session.data?.permissions, "reports.export") ? (
-            <div className="flex flex-wrap gap-2">
-              <PrimaryButton
-                onClick={() => exportCsv.mutate()}
-                pending={exportCsv.isPending}
-                pendingLabel="Downloading"
-              >
-                Download CSV
-              </PrimaryButton>
-              <QuietButton onClick={() => pdf.mutate("alumni")} disabled={pdf.isPending}>
-                Download PDF
-              </QuietButton>
-              <QuietButton onClick={() => pdf.mutate("assignments")} disabled={pdf.isPending}>
-                Assignment report (PDF)
-              </QuietButton>
-              {session.data && isAdministrator(session.data) ? (
-                <QuietButton
-                  onClick={() => exportSheets.mutate()}
-                  disabled={exportSheets.isPending}
-                >
-                  {exportSheets.isPending ? "Exporting..." : "Export to Google Sheets"}
-                </QuietButton>
+        <CardContent className="flex flex-col gap-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FormField id="report-college" label="College">
+              <FormSelect
+                id="report-college"
+                className="w-full"
+                value={collegeId}
+                onValueChange={setCollegeId}
+                items={[
+                  { value: "", label: "All Colleges" },
+                  ...(colleges.data?.map((college) => ({
+                    value: college.id,
+                    label: college.name,
+                  })) ?? []),
+                ]}
+              />
+            </FormField>
+            <FormField id="report-department" label="Department">
+              <FormSelect
+                id="report-department"
+                className="w-full"
+                value={departmentId}
+                onValueChange={setDepartmentId}
+                disabled={departmentOptions.isPending || departmentOptions.isError}
+                items={[
+                  { value: "", label: "All Departments" },
+                  ...(departmentOptions.data?.departments.map((department) => ({
+                    value: department.id,
+                    label: department.name,
+                  })) ?? []),
+                ]}
+              />
+              {departmentOptions.isError ? (
+                <ErrorAlert onRetry={() => void departmentOptions.refetch()}>
+                  Could not load department options.
+                </ErrorAlert>
               ) : null}
+            </FormField>
+            <FormField id="report-program" label="Program">
+              <FormSelect
+                id="report-program"
+                className="w-full"
+                value={programId}
+                onValueChange={setProgramId}
+                items={[
+                  { value: "", label: "All Programs" },
+                  ...(programs.data?.map((program) => ({
+                    value: program.id,
+                    label: `${program.code} — ${program.name}`,
+                  })) ?? []),
+                ]}
+              />
+            </FormField>
+            <FormField id="report-graduation-year" label="Graduation Year">
+              <Input
+                id="report-graduation-year"
+                type="number"
+                min={1950}
+                max={2100}
+                inputMode="numeric"
+                placeholder="All Years"
+                value={graduationYear}
+                onChange={(event) => setGraduationYear(event.target.value)}
+              />
+            </FormField>
+            <FormField id="report-tracking" label="Tracking Status">
+              <FormSelect
+                id="report-tracking"
+                className="w-full"
+                value={tracked}
+                onValueChange={(selected) => setTracked(selected as typeof tracked)}
+                items={[
+                  { value: "all", label: "All Tracking" },
+                  { value: "tracked", label: "Tracked" },
+                  { value: "untracked", label: "Untracked" },
+                ]}
+              />
+            </FormField>
+          </div>
+          {canExport ? (
+            <div className="flex flex-col gap-4 border-t pt-5 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">Alumni Downloads</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  CSV and alumni PDF use all filters above.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <PrimaryButton
+                  onClick={() => exportCsv.mutate()}
+                  pending={exportCsv.isPending}
+                  pendingLabel="Downloading"
+                >
+                  Download CSV
+                </PrimaryButton>
+                <QuietButton onClick={() => pdf.mutate("alumni")} disabled={pdf.isPending}>
+                  Download PDF
+                </QuietButton>
+              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">You can view totals but cannot export.</p>
           )}
         </CardContent>
       </Card>
+      {canExport ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Other Exports</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-6 lg:grid-cols-2">
+            <div className="flex flex-col items-start gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Faculty Assignments</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  All assignments in your authorized scope. Alumni filters do not apply.
+                </p>
+              </div>
+              <QuietButton onClick={() => pdf.mutate("assignments")} disabled={pdf.isPending}>
+                Assignment Report (PDF)
+              </QuietButton>
+            </div>
+            {session.data && isAdministrator(session.data) ? (
+              <div className="flex flex-col items-start gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Google Sheets</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Uses Department and Tracking Status only.
+                  </p>
+                </div>
+                <QuietButton
+                  onClick={() => exportSheets.mutate()}
+                  disabled={exportSheets.isPending}
+                >
+                  {exportSheets.isPending ? "Exporting..." : "Export to Google Sheets"}
+                </QuietButton>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
     </PageShell>
   );
 }

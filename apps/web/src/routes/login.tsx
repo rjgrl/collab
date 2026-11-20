@@ -1,20 +1,25 @@
+import {
+  signupEmailSchema,
+  signupSchema,
+  GOOGLE_SIGNIN_EMAIL_MESSAGE,
+} from "@Alumni-Tracking-Ss/contracts/auth";
 import { Button } from "@Alumni-Tracking-Ss/ui/components/button";
 import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AccountProfileFields } from "@/components/forms/account-profile-fields";
 import { NameFields, emptyName } from "@/components/forms/name-fields";
 import { AcademicProfileFields, emptyAcademic } from "@/components/forms/academic-profile-fields";
 import { PasswordChecklist } from "@/components/forms/password-checklist";
+import { PasswordInput } from "@/components/forms/password-input";
 import { CheckboxRow } from "@/components/forms/checkbox-row";
 import { Recaptcha } from "@/components/forms/recaptcha";
 import { ErrorAlert } from "@/components/feedback/error-alert";
-import { FormField, NumberedLegend, PrimaryButton } from "@/components/forms/form-layout";
+import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { AuthHeader, AuthLayout } from "@/components/layout/auth-layout";
-import { signupSchema } from "@Alumni-Tracking-Ss/contracts/auth";
 import {
   isPasswordScreeningMessage,
   passwordMeetsPolicy,
@@ -42,22 +47,38 @@ function LoginPage() {
   const search = Route.useSearch();
   const config = useQuery(api.auth.config.queryOptions());
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [signupStep, setSignupStep] = useState<1 | 2>(1);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (mode === "signup") stepHeading.current?.focus();
+  }, [mode, signupStep]);
   const [profile, setProfile] = useState({ phoneNumber: "", gender: "", facebookAccount: "" });
   const [names, setNames] = useState(emptyName);
   const [academic, setAcademic] = useState(emptyAcademic);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [confirmationTouched, setConfirmationTouched] = useState(false);
+  const confirmationInput = useRef<HTMLInputElement>(null);
   const [fallbackChecked, setFallbackChecked] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState<string | undefined>();
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(
     search.error === "google_domain"
-      ? "Admin and faculty accounts must sign in with a BukSU institutional Google account."
+      ? GOOGLE_SIGNIN_EMAIL_MESSAGE
       : search.error === "google"
         ? "Google sign-in could not be completed. Please try again or sign in with your password."
         : null,
   );
+
+  const [emailTouched, setEmailTouched] = useState(false);
+  const emailResult = signupEmailSchema.safeParse(email);
+  const emailError =
+    mode === "signup" && emailTouched && !emailResult.success
+      ? emailResult.error.issues[0]?.message
+      : undefined;
 
   const [screeningError, setScreeningError] = useState<string | null>(null);
 
@@ -66,6 +87,21 @@ function LoginPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (mode === "signup" && signupStep === 1) {
+      setEmailTouched(true);
+      if (!emailResult.success) {
+        document.getElementById("email")?.focus();
+        return;
+      }
+      setSignupStep(2);
+      setFormError(null);
+      return;
+    }
+    if (mode === "signup" && confirmation !== password) {
+      setConfirmationTouched(true);
+      confirmationInput.current?.focus();
+      return;
+    }
     setPending(true);
     setFormError(null);
     setScreeningError(null);
@@ -104,7 +140,9 @@ function LoginPage() {
   }
 
   const signup = mode === "signup";
-  const googleLabel = signup ? "Sign up with Google" : "Sign in with Google";
+  const finalStep = !signup || signupStep === 2;
+  const confirmationError = confirmationTouched && confirmation !== password;
+  const googleLabel = signup ? "Sign Up with Google" : "Sign In with Google";
   // Google sign-in only appears when it is configured and enabled; no disabled placeholder.
   const google = config.data?.google.enabled ? (
     <Button variant="outline" nativeButton={false} render={<a href="/api/auth/google" />}>
@@ -120,12 +158,16 @@ function LoginPage() {
     </div>
   );
   const emailField = (
-    <FormField id="email" label="Email" required>
+    <FormField id="email" label="Email" required error={emailError}>
       <Input
         id="email"
         type="email"
         autoComplete="email"
-        aria-describedby={signup ? "email-hint" : undefined}
+        aria-invalid={Boolean(emailError) || undefined}
+        aria-describedby={
+          signup ? (emailError ? "email-error email-hint" : "email-hint") : undefined
+        }
+        onBlur={() => setEmailTouched(true)}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         required
@@ -139,9 +181,9 @@ function LoginPage() {
   );
   const passwordField = (
     <FormField id="password" label="Password" required>
-      <Input
+      <PasswordInput
+        key={signup ? "signup-password" : "login-password"}
         id="password"
-        type="password"
         autoComplete={signup ? "new-password" : "current-password"}
         value={password}
         onChange={(event) => {
@@ -159,10 +201,10 @@ function LoginPage() {
   return (
     <AuthLayout wide={signup}>
       <AuthHeader
-        title={signup ? "Create your alumni account" : "Sign in"}
+        title={signup ? "Create Your Alumni Account" : "Sign In"}
         description={
           signup
-            ? "Use the BukSU email you will sign in with. It takes about two minutes."
+            ? "Use your BukSU email. Complete two short steps."
             : "Sign in to manage academic structure, alumni profiles, and graduate tracking."
         }
         className={signup ? "mb-4" : undefined}
@@ -170,17 +212,38 @@ function LoginPage() {
       <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
         {signup ? (
           <>
-            {google ? (
+            <ol
+              aria-label="Account creation progress"
+              className="grid grid-cols-2 gap-3 border-b border-border pb-4 text-sm"
+            >
+              {["Personal Details", "Studies & Password"].map((label, index) => (
+                <li
+                  key={label}
+                  aria-current={signupStep === index + 1 ? "step" : undefined}
+                  className={
+                    signupStep === index + 1
+                      ? "font-semibold text-foreground"
+                      : "text-muted-foreground"
+                  }
+                >
+                  <span className="mr-2 tabular-nums">{index + 1}.</span>
+                  {label}
+                </li>
+              ))}
+            </ol>
+            <h2 ref={stepHeading} tabIndex={-1} className="sr-only">
+              {signupStep === 1 ? "Step 1: Personal Details" : "Step 2: Studies and Password"}
+            </h2>
+            {signupStep === 1 ? (
               <>
-                {google}
-                {divider}
-              </>
-            ) : null}
-            {/* Two independent columns, so a short group leaves no gap beside a tall one. */}
-            <div className="grid items-start gap-x-8 gap-y-6 lg:grid-cols-2">
-              <div className="flex flex-col gap-6">
+                {google ? (
+                  <>
+                    {google}
+                    {divider}
+                  </>
+                ) : null}
                 <fieldset className="grid content-start gap-3 sm:grid-cols-2">
-                  <NumberedLegend step={1}>About you</NumberedLegend>
+                  <legend className="sr-only">Your Name</legend>
                   <NameFields
                     value={names}
                     onChange={setNames}
@@ -189,59 +252,128 @@ function LoginPage() {
                     optionalBehindLink
                   />
                 </fieldset>
-                <AcademicProfileFields value={academic} onChange={setAcademic} compact />
-              </div>
-              <div className="flex flex-col gap-6">
-                <fieldset className="grid content-start gap-3 sm:grid-cols-2">
-                  <NumberedLegend step={3}>Contact</NumberedLegend>
+                <fieldset className="grid content-start gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                  <legend className="sr-only">Contact Details</legend>
                   <div className="sm:col-span-2">{emailField}</div>
-                  <AccountProfileFields value={profile} onChange={setProfile} compact />
+                  <AccountProfileFields
+                    value={profile}
+                    onChange={setProfile}
+                    compact
+                    phoneFullWidth={false}
+                  />
                 </fieldset>
+              </>
+            ) : (
+              <>
+                <AcademicProfileFields value={academic} onChange={setAcademic} compact />
                 <fieldset className="grid content-start gap-3">
-                  <NumberedLegend step={4}>Password</NumberedLegend>
-                  {passwordField}
+                  <legend className="mb-3 text-sm font-semibold">Secure Your Account</legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {passwordField}
+                    <FormField id="password-confirmation" label="Confirm Password" required>
+                      <PasswordInput
+                        id="password-confirmation"
+                        ref={confirmationInput}
+                        visibilityLabel="Confirm Password"
+                        autoComplete="new-password"
+                        value={confirmation}
+                        onChange={(event) => setConfirmation(event.target.value)}
+                        onBlur={() => setConfirmationTouched(true)}
+                        required
+                        maxLength={256}
+                        aria-invalid={confirmationError || undefined}
+                        aria-describedby="password-confirmation-message"
+                      />
+                      <p
+                        id="password-confirmation-message"
+                        aria-live="polite"
+                        className={
+                          confirmationError
+                            ? "text-xs text-destructive"
+                            : "text-xs text-muted-foreground"
+                        }
+                      >
+                        {confirmationError ? "Passwords do not match." : "Re-enter your password."}
+                      </p>
+                    </FormField>
+                  </div>
                   <PasswordChecklist
                     id="signup-password-guidance"
                     value={password}
                     serverError={screeningError}
                   />
                 </fieldset>
-              </div>
-            </div>
+              </>
+            )}
           </>
         ) : (
           <>
             {emailField}
             {passwordField}
-            <Link
-              className="-mt-1 self-end text-sm font-medium text-primary underline-offset-4 hover:underline"
-              to="/reset-password"
-            >
-              Forgot password?
-            </Link>
           </>
         )}
-        {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
+        {signup && finalStep && recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
           <Recaptcha key={captchaAttempt} siteKey={recaptcha.siteKey} onToken={setRecaptchaToken} />
         ) : null}
-        {needsCheckbox ? (
-          <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
-            I am not a robot
-          </CheckboxRow>
+        {!signup ? (
+          <div className="-mt-1 flex flex-wrap items-center justify-between gap-2">
+            {recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
+              <Recaptcha
+                key={captchaAttempt}
+                siteKey={recaptcha.siteKey}
+                onToken={setRecaptchaToken}
+              />
+            ) : needsCheckbox ? (
+              <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
+                I am not a robot
+              </CheckboxRow>
+            ) : (
+              <span />
+            )}
+            <Link
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              to="/reset-password"
+            >
+              Forgot Password?
+            </Link>
+          </div>
+        ) : finalStep && needsCheckbox ? (
+          <div className="-mt-1">
+            <CheckboxRow checked={fallbackChecked} onCheckedChange={setFallbackChecked}>
+              I am not a robot
+            </CheckboxRow>
+          </div>
         ) : null}
-        <PrimaryButton
-          type="submit"
-          pending={pending}
-          disabled={
-            config.isPending ||
-            config.isError ||
-            Boolean(recaptcha?.enabled && recaptcha.live && !recaptchaToken) ||
-            (signup && !passwordMeetsPolicy(password))
-          }
-          pendingLabel={signup ? "Creating" : "Signing in"}
-        >
-          {signup ? "Create account" : "Sign in"}
-        </PrimaryButton>
+        <div className={signup && signupStep === 2 ? "grid grid-cols-[auto_1fr] gap-3" : "grid"}>
+          {signup && signupStep === 2 ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                setFormError(null);
+                setSignupStep(1);
+              }}
+            >
+              Back
+            </Button>
+          ) : null}
+          <PrimaryButton
+            type="submit"
+            pending={pending}
+            disabled={
+              config.isPending ||
+              config.isError ||
+              (finalStep && Boolean(recaptcha?.enabled && recaptcha.live && !recaptchaToken)) ||
+              (signup &&
+                signupStep === 2 &&
+                (!passwordMeetsPolicy(password) || confirmation !== password))
+            }
+            pendingLabel={signup ? "Creating" : "Signing In"}
+          >
+            {signup ? (signupStep === 1 ? "Continue" : "Create Account") : "Sign In"}
+          </PrimaryButton>
+        </div>
         {formError ? <ErrorAlert>{formError}</ErrorAlert> : null}
         {signup || !google ? null : (
           <>
@@ -256,10 +388,13 @@ function LoginPage() {
             onClick={() => {
               setFormError(null);
               setScreeningError(null);
+              setSignupStep(1);
+              setConfirmation("");
+              setConfirmationTouched(false);
               setMode(signup ? "login" : "signup");
             }}
           >
-            {signup ? "Already registered? Sign in" : "Need an account? Sign up"}
+            {signup ? "Already registered? Sign In" : "Need an account? Sign Up"}
           </button>
         ) : null}
       </form>

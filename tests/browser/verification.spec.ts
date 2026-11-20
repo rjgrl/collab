@@ -7,7 +7,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await enrollAdministrator(page);
 });
 
@@ -19,14 +19,14 @@ test("Google users must create a matching password after recent verification", a
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/complete-profile$/);
   await expect(
-    page.getByRole("heading", { name: "Create your password (required)" }),
+    page.getByRole("heading", { name: "Create Your Password (Required)" }),
   ).toBeVisible();
   await expect(page.locator('input[autocomplete="current-password"]')).toHaveCount(0);
   await page.locator("#setup-password").fill("NewSyntheticPassword123!");
   await page.locator("#setup-confirmation").fill("DifferentSyntheticPassword123!");
-  await expect(page.getByRole("button", { name: "Create password", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Create Password", exact: true })).toBeDisabled();
   await page.locator("#setup-confirmation").fill("NewSyntheticPassword123!");
-  await page.getByRole("button", { name: "Create password", exact: true }).click();
+  await page.getByRole("button", { name: "Create Password", exact: true }).click();
   await page.waitForURL("**/dashboard");
 });
 
@@ -39,7 +39,7 @@ test("expired Google verification cannot create a password or enter the app", as
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/complete-profile$/);
   await expect(page.locator("#setup-password")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Verify with Google again" })).toHaveAttribute(
+  await expect(page.getByRole("button", { name: "Verify with Google Again" })).toHaveAttribute(
     "href",
     "/api/auth/google",
   );
@@ -59,13 +59,13 @@ test("email confirmation is enforced and SMS remains disconnected until a provid
     )
     .toMatch(/^[0-9]{6}$/);
   const { emailCode } = await (await request.get("http://127.0.0.1:3100/__test/code")).json();
-  await page.getByRole("textbox", { name: "Email verification code", exact: true }).fill(emailCode);
-  await page.getByRole("button", { name: "Confirm email", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Verify your email", exact: true })).toHaveCount(
+  await page.getByRole("textbox", { name: "Email Verification Code", exact: true }).fill(emailCode);
+  await page.getByRole("button", { name: "Confirm Email", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Verify Your Email", exact: true })).toHaveCount(
     0,
   );
   await expect(page.getByText(/SMS delivery is unavailable/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send SMS code" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Send SMS Code" })).toBeDisabled();
   await expect(page).toHaveURL(/\/complete-profile$/);
   expect(
     (
@@ -77,10 +77,10 @@ test("email confirmation is enforced and SMS remains disconnected until a provid
   // This isolated fixture provides an in-memory adapter; production has no SMS provider.
   await request.post("http://127.0.0.1:3100/__test/connect-sms");
   await page.reload();
-  await page.getByRole("button", { name: "Send SMS code" }).click();
+  await page.getByRole("button", { name: "Send SMS Code" }).click();
   // Like a person waiting for the text message: confirm only once the code has been sent.
   await expect(page.getByRole("button", { name: /^Resend/ })).toBeVisible();
-  await page.getByRole("textbox", { name: "SMS verification code" }).fill("654321");
-  await page.getByRole("button", { name: "Confirm phone", exact: true }).click();
+  await page.getByRole("textbox", { name: "SMS Verification Code" }).fill("654321");
+  await page.getByRole("button", { name: "Confirm Phone", exact: true }).click();
   await page.waitForURL("**/dashboard");
 });

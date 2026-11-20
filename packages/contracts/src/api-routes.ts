@@ -100,6 +100,7 @@ export const API_ROUTES = {
     create: route(rolesSchemas.create, "POST", "/roles"),
     update: route(rolesSchemas.update, "PATCH", "/roles/:id"),
     delete: route(rolesSchemas.delete, "DELETE", "/roles/:id"),
+    split: route(rolesSchemas.split, "POST", "/roles/:id/split"),
   },
   permissions: { list: route(permissionsSchemas.list, "GET", "/permissions") },
   colleges: {
@@ -131,6 +132,8 @@ export const API_ROUTES = {
   alumni: {
     pendingAccounts: route(alumniSchemas.pendingAccounts, "GET", "/alumni/pending-accounts"),
     list: route(alumniSchemas.list, "GET", "/alumni"),
+    archived: route(alumniSchemas.archived, "GET", "/alumni/archived"),
+    restore: route(alumniSchemas.restore, "POST", "/alumni/:id/restore"),
     get: route(alumniSchemas.get, "GET", "/alumni/:id"),
     history: route(alumniSchemas.history, "GET", "/alumni/:id/history"),
     update: route(alumniSchemas.update, "PATCH", "/alumni/:id"),

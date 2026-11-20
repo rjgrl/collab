@@ -43,8 +43,8 @@ import {
 } from "@Alumni-Tracking-Ss/contracts/names";
 
 const NAV = [
-  { to: "/my-profile", label: "My profile", icon: UserRound },
-  { to: "/statistics", label: "University statistics", icon: BarChart3 },
+  { to: "/my-profile", label: "My Profile", icon: UserRound },
+  { to: "/statistics", label: "University Statistics", icon: BarChart3 },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/colleges", label: "Colleges", icon: Landmark },
   { to: "/departments", label: "Departments", icon: Building2 },
@@ -53,7 +53,8 @@ const NAV = [
   { to: "/faculty", label: "Faculty", icon: Users },
   { to: "/reports", label: "Reports", icon: ClipboardList },
   { to: "/settings", label: "Settings", icon: Settings },
-  { to: "/audit", label: "Audit log", icon: ScrollText },
+  { to: "/audit", label: "Audit Log", icon: ScrollText },
+  { to: "/archive", label: "Archive", icon: ScrollText },
 ] as const;
 
 type NavItem = (typeof NAV)[number];
@@ -61,12 +62,12 @@ type NavItem = (typeof NAV)[number];
 const STAFF_SECTIONS = [
   { label: "Overview", paths: ["/dashboard", "/reports"] },
   { label: "Records", paths: ["/alumni", "/faculty"] },
-  { label: "Academic structure", paths: ["/colleges", "/departments", "/programs"] },
-  { label: "Administration", paths: ["/settings", "/audit"] },
+  { label: "Academic Structure", paths: ["/colleges", "/departments", "/programs"] },
+  { label: "Administration", paths: ["/settings", "/audit", "/archive"] },
 ] as const;
 
 const ALUMNI_SECTIONS = [
-  { label: "My account", paths: ["/my-profile", "/settings", "/audit"] },
+  { label: "My Account", paths: ["/my-profile", "/settings", "/audit"] },
   { label: "University", paths: ["/statistics"] },
 ] as const;
 
@@ -125,16 +126,18 @@ export function AppShell() {
         href="#main-content"
         className="sr-only fixed top-2 left-2 z-50 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only"
       >
-        Skip to main content
+        Skip to Main Content
       </a>
       <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col overflow-y-auto bg-sidebar text-sidebar-foreground md:flex">
-        <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-          <BrandMark className="size-9" />
+        <div className="flex items-start gap-3 px-5 pt-5 pb-4">
+          <BrandMark className="mt-0.5 size-9 shrink-0" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-sidebar-accent-foreground">
-              Alumni tracking
+            <p className="text-sm leading-snug font-semibold text-sidebar-accent-foreground">
+              Alumni Tracking System
             </p>
-            <p className="truncate text-xs text-sidebar-muted">University registry</p>
+            <p className="mt-1 text-xs leading-relaxed text-sidebar-muted">
+              BukSU - College of Technologies
+            </p>
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 pb-6" aria-label="Main">
@@ -191,14 +194,14 @@ export function AppShell() {
                 <span className="truncate font-medium text-foreground">{current.item.label}</span>
               </>
             ) : (
-              <span className="font-medium text-foreground">Alumni tracking</span>
+              <span className="font-medium text-foreground">Alumni Tracking System</span>
             )}
           </p>
           <div className="flex min-w-0 items-center gap-2 md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
                 <Menu className="size-4" />
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">Open Menu</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-60">
                 {sections.map((section, index) => (
@@ -261,7 +264,7 @@ export function AppShell() {
                   <DropdownMenuItem disabled>{session.data?.email}</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => void logout()}>
                     <LogOut data-icon="inline-start" />
-                    Sign out
+                    Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
               </DropdownMenuContent>

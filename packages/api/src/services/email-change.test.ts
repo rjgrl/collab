@@ -1,3 +1,4 @@
+import { captureEmail } from "../test-utils/email-capture";
 import { decodeJwt } from "jose";
 import assert from "node:assert/strict";
 import { it } from "node:test";
@@ -55,7 +56,9 @@ async function fixture() {
     userAgent: null,
     integrationEnv: {
       verificationSecret: "test-only-verification-key-with-32-characters",
-      smtpUrl: "https://mail.example.test",
+      gmailAppPassword: "api-test-key",
+      smtpFrom: "sender@example.test",
+      smtpUrl: "smtps://smtp.gmail.com:465",
     },
     onSessionRotation: (session) => {
       rotated = String(decodeJwt(session.token).jti);
@@ -71,18 +74,15 @@ async function fixture() {
   };
 }
 async function issue(f: Awaited<ReturnType<typeof fixture>>, email = "new@example.test") {
-  const native = globalThis.fetch;
   let code = "";
+  const restore = captureEmail((message) => {
+    assert.deepEqual(message.to, [email]);
+    code = message.text.match(/\b\d{6}\b/)![0];
+  });
   try {
-    globalThis.fetch = async (_url, init) => {
-      const message = JSON.parse(String(init?.body));
-      assert.equal(message.to, email);
-      code = message.text.match(/\b\d{6}\b/)[0];
-      return Response.json({ ok: true });
-    };
     await authService.requestEmailChange(f.context, { email, currentPassword: password });
   } finally {
-    globalThis.fetch = native;
+    restore();
   }
   assert.match(code, /^\d{6}$/);
   return code;

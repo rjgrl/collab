@@ -23,7 +23,7 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
     await staff.goto("/login");
     await staff.locator("#email").fill("staff@example.test");
     await staff.locator("#password").fill("BrowserTest123!");
-    await staff.getByRole("button", { name: "Sign in", exact: true }).click();
+    await staff.getByRole("button", { name: "Sign In", exact: true }).click();
     await staff.waitForURL("**/dashboard");
     const untrack = await staff.request.post(
       "/api/alumni/000000000000000000000201/tracking-events",
@@ -36,18 +36,18 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
     await page.goto("/login");
     await page.locator("#email").fill("alumni@example.test");
     await page.locator("#password").fill("BrowserTest123!");
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
     await page.waitForURL("**/my-profile");
-    await expect(page.getByRole("heading", { name: "Personal details", exact: true })).toHaveCount(
+    await expect(page.getByRole("heading", { name: "Personal Details", exact: true })).toHaveCount(
       0,
     );
     await openProfileTab(page, "Evidence");
-    await page.getByLabel("Choose evidence file").setInputFiles({
+    await page.getByLabel("Choose Evidence File").setInputFiles({
       name: "Tracking proof.png",
       mimeType: "image/png",
       buffer: png,
     });
-    await page.getByRole("button", { name: "Upload file", exact: true }).click();
+    await page.getByRole("button", { name: "Upload File", exact: true }).click();
     await expect(
       page.getByRole("link", { name: "Preview Tracking proof.png", exact: true }),
     ).toBeVisible();

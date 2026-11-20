@@ -63,7 +63,7 @@ function StatusPage({
 function BackButton() {
   return (
     <Button variant="outline" onClick={() => window.history.back()}>
-      <ArrowLeft aria-hidden="true" /> Go back
+      <ArrowLeft aria-hidden="true" /> Go Back
     </Button>
   );
 }
@@ -72,7 +72,7 @@ function HomeButton({ variant }: { variant?: "outline" }) {
   // "/" sends signed-in users to their start page and everyone else to sign-in.
   return (
     <Button variant={variant} nativeButton={false} render={<Link to="/" />}>
-      Go to home page
+      Go to Home Page
     </Button>
   );
 }
@@ -82,7 +82,7 @@ export function NotFoundPage() {
     <StatusPage
       code="404"
       icon={FileQuestion}
-      title="Page not found"
+      title="Page Not Found"
       description="The link may be old or mistyped, or the page may have moved. Check the address, or start again from the home page."
       actions={
         <>
@@ -100,7 +100,7 @@ export function AccessDeniedPage() {
     <StatusPage
       code="403"
       icon={ShieldX}
-      title="Access denied"
+      title="Access Denied"
       description="Your role doesn't include this page. If you need it for your work, ask an administrator to review your role."
       actions={
         <>
@@ -119,7 +119,7 @@ export function ErrorPage({ reset }: { reset?: () => void }) {
     <StatusPage
       code="500"
       icon={ServerCrash}
-      title="Something went wrong"
+      title="Something Went Wrong"
       description="We couldn't load this page. Check your connection and try again. If it keeps happening, contact the system administrator."
       actions={
         <>
@@ -130,7 +130,7 @@ export function ErrorPage({ reset }: { reset?: () => void }) {
               void router.invalidate();
             }}
           >
-            <RefreshCw aria-hidden="true" /> Try again
+            <RefreshCw aria-hidden="true" /> Try Again
           </Button>
         </>
       }

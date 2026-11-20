@@ -206,6 +206,26 @@ export const alumniHistoryEntrySchema = z.object({
   details: z.array(z.string()).default([]),
 });
 export const alumniSchemas = {
+  archived: {
+    input: paginationSchema.strict(),
+    output: z.object({
+      items: z.array(
+        z.object({
+          id: objectIdSchema,
+          studentNumber: z.string(),
+          firstName: z.string(),
+          lastName: z.string(),
+          middleName: text,
+          suffix: text,
+          deletedAt: dateSchema,
+        }),
+      ),
+      total: z.number().int().nonnegative(),
+      page: z.number().int(),
+      pageSize: z.number().int(),
+    }),
+  },
+  restore: { input: idInputSchema, output: okSchema },
   pendingAccounts: {
     input: paginationSchema.strict(),
     output: z.array(

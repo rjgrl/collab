@@ -33,7 +33,7 @@ function MyProfile() {
   return (
     <PageShell>
       <PageHeader
-        title="My profile"
+        title="My Profile"
         description="Your academic record, employment history and supporting evidence."
       />
       {profile.isPending ? (
@@ -48,13 +48,13 @@ function MyProfile() {
           </div>
         </div>
       ) : profile.isError ? (
-        <FormCard title="Profile unavailable" description={profile.error.message}>
+        <FormCard title="Profile Unavailable" description={profile.error.message}>
           <p>
             Ask an administrator to link your account to the correct alumni record. Your account
             email or name does not automatically establish a link.
           </p>
           <QuietButton className="mt-3" onClick={() => void profile.refetch()}>
-            Try again
+            Try Again
           </QuietButton>
         </FormCard>
       ) : profile.data ? (
@@ -82,7 +82,7 @@ function MyProfile() {
             <CardContent>
               <dl className="grid gap-5 border-t pt-5 text-sm sm:grid-cols-3">
                 <div className="min-w-0">
-                  <dt className="text-muted-foreground">Student number</dt>
+                  <dt className="text-muted-foreground">Student Number</dt>
                   <dd className="mt-1 break-words font-medium tabular-nums">
                     {profile.data.studentNumber}
                   </dd>
@@ -94,7 +94,7 @@ function MyProfile() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Graduation year</dt>
+                  <dt className="text-muted-foreground">Graduation Year</dt>
                   <dd className="mt-1 font-medium tabular-nums">
                     {profile.data.graduationYear ?? "Not recorded"}
                   </dd>
@@ -105,7 +105,7 @@ function MyProfile() {
               </p>
             </CardContent>
           </Card>
-          <SectionTabs label="Profile sections">
+          <SectionTabs label="Profile Sections">
             <Link
               to="/my-profile"
               search={{}}

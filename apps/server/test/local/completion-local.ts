@@ -53,7 +53,7 @@ try {
     firstName: "María José",
     lastName: "Dela Cruz-O'Neill",
     suffix: "de la Casa",
-    email: "alumni@example.test",
+    email: "alumni@student.buksu.edu.ph",
     password: "Synthetic registration passphrase 123!",
     phoneNumber: "+639171234567",
     gender: "Female",
@@ -242,7 +242,7 @@ try {
       request(app)
         .post("/api/auth/signup")
         .set("Origin", origin)
-        .send({ ...signup, email: `${name}@example.test`, studentNumber: "RACE" }),
+        .send({ ...signup, email: `${name}@student.buksu.edu.ph`, studentNumber: "RACE" }),
     ),
   );
   assert.deepEqual(duplicates.map((r) => r.status).sort(), [201, 409]);
@@ -253,17 +253,18 @@ try {
     firstName: "Imported",
     lastName: "Graduate",
     programId: program._id,
-    personalEmail: "claim@example.test",
+    personalEmail: "claim@student.buksu.edu.ph",
   });
   const claim = await request(app)
     .post("/api/auth/signup")
     .set("Origin", origin)
-    .send({ ...signup, email: "claim@example.test", studentNumber: "LEGACY" });
+    .send({ ...signup, email: "claim@student.buksu.edu.ph", studentNumber: "LEGACY" });
   assert.equal(claim.status, 409);
   assert.match(claim.body.error, /review|administrator/i);
-  assert.equal(await db.User.countDocuments({ email: "claim@example.test" }), 0);
+  assert.equal(await db.User.countDocuments({ email: "claim@student.buksu.edu.ph" }), 0);
   const google = await upsertGoogleUser(db, {
-    email: "google@example.test",
+    email: "google@student.buksu.edu.ph",
+    hostedDomain: "buksu.edu.ph",
     name: "Unsplit provider name",
   });
   assert.equal(google.name, "Unsplit provider name");
@@ -442,7 +443,8 @@ try {
   );
   assert.equal(await db.User.countDocuments({ email: "rejected@example.test" }), 0);
   const pendingGoogle = await upsertGoogleUser(db, {
-    email: "pending@example.test",
+    email: "pending@student.buksu.edu.ph",
+    hostedDomain: "buksu.edu.ph",
     name: "Pending Graduate",
   });
   const viewerRole = await db.Role.findOne({ key: "alumni" }).lean().orFail();
@@ -461,7 +463,7 @@ try {
   assert.equal(pending.status, 200, JSON.stringify(pending.body));
   assert.deepEqual(
     pending.body.map((u: { email: string }) => u.email),
-    ["pending@example.test"],
+    ["pending@student.buksu.edu.ph"],
   );
   assert.deepEqual(Object.keys(pending.body[0]).sort(), ["createdAt", "email", "id", "name"]);
   assert.equal(

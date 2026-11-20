@@ -97,7 +97,8 @@ if (process.argv[2] === "--start") {
     mfaEncryptionKey: randomBytes(32).toString("hex"),
     accounts: ["Administrator", "Faculty", "Alumni"].map((role) => ({
       role,
-      email: `${role.toLowerCase()}@collab.test`,
+      email:
+        role === "Alumni" ? "alumni@student.buksu.edu.ph" : `${role.toLowerCase()}@collab.test`,
       password: randomBytes(24).toString("base64url"),
     })),
   });

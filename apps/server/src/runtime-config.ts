@@ -1,5 +1,7 @@
 import { isIP } from "node:net";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { validateWebStorage } from "./web-serving";
 import { boundedSetting } from "@Alumni-Tracking-Ss/api/services/throttle";
 import { localMfaDisabled } from "@Alumni-Tracking-Ss/api/services/mfa-policy";
 import { contactVerificationPolicy } from "@Alumni-Tracking-Ss/api/services/contact-policy";
@@ -25,6 +27,14 @@ export function resolveClientAddress(
   // Missing/chained/malformed headers share the fail-closed unknown budget.
   return forwarded && isIP(forwarded.trim()) ? normalizeIp(forwarded.trim()) : null;
 }
+export function listenerOptions(settings: NodeJS.ProcessEnv = process.env) {
+  const rawPort = settings.PORT?.trim();
+  const port = rawPort ? Number(rawPort) : 5000;
+  if (!Number.isInteger(port) || port < 1 || port > 65535 || (rawPort && !/^\d+$/.test(rawPort)))
+    throw new Error("PORT must be an integer between 1 and 65535.");
+  return { port, host: settings.HOST?.trim() || "127.0.0.1" };
+}
+
 export function validateRuntimeConfig(
   input: {
     nodeEnv: string;
@@ -35,6 +45,7 @@ export function validateRuntimeConfig(
     mfaEncryptionKey: string | undefined;
     integrationEncryptionKey: string | undefined;
     uploadDir: string | undefined;
+    webRoot?: string;
   },
   settings: NodeJS.ProcessEnv = process.env,
 ) {
@@ -72,15 +83,8 @@ export function validateRuntimeConfig(
       );
   }
   const backupDir = settings.BACKUP_DIR?.trim();
-  if (backupDir) {
-    const uploads = path.resolve(input.uploadDir ?? "./uploads");
-    const inside = (parent: string) => {
-      const relative = path.relative(parent, path.resolve(backupDir));
-      return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-    };
-    if (!path.isAbsolute(backupDir) || inside(uploads) || inside(path.resolve("apps/web/dist")))
-      throw Error("BACKUP_DIR must be an absolute directory outside UPLOAD_DIR and the web build.");
-  }
+  if (backupDir && !path.isAbsolute(backupDir))
+    throw Error("BACKUP_DIR must be an absolute directory outside UPLOAD_DIR and the web build.");
   if (!encKeyPattern.test(input.integrationEncryptionKey ?? ""))
     throw Error(
       "Production requires valid INTEGRATION_ENCRYPTION_KEY (64 hexadecimal characters).",
@@ -118,6 +122,11 @@ export function validateRuntimeConfig(
     throw Error("Production requires valid MFA_ENCRYPTION_KEY and SESSION_SECRET.");
   if (!input.uploadDir || !path.isAbsolute(input.uploadDir))
     throw Error("Production UPLOAD_DIR must be an absolute persistent directory.");
+  validateWebStorage(
+    input.webRoot ?? fileURLToPath(new URL("../../web/dist/", import.meta.url)),
+    input.uploadDir,
+    backupDir,
+  );
   if (settings.AUTH_IP_STORE && settings.AUTH_IP_STORE !== "mongodb")
     throw Error("Production authentication budgets require MongoDB storage.");
   const match = input.databaseUrl.match(/^(mongodb(?:\+srv)?):\/\/([^/?#]+)(?:\/|\?|$)/);
@@ -145,6 +154,16 @@ export function validateRuntimeConfig(
           security.get(key.toLowerCase())![0] !== "false"),
     )
   )
-    throw Error("Production DATABASE_URL requires credentials and verified TLS.");
+    throw Error("Production MONGO_URI/DATABASE_URL requires credentials and verified TLS.");
+  let databaseName = "";
+  try {
+    databaseName = decodeURIComponent(
+      input.databaseUrl.match(/^mongodb(?:\+srv)?:\/\/[^/?#]+\/([^/?#]+)(?:\?|$)/)?.[1] ?? "",
+    );
+  } catch {
+    // Invalid encoding must not select a driver's implicit default database.
+  }
+  if (databaseName !== "alumni_tracking")
+    throw Error("Production database URI must explicitly select alumni_tracking.");
   return { trustedProxyIps };
 }

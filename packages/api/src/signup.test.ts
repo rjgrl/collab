@@ -10,7 +10,7 @@ const input = {
   middleName: "",
   lastName: "Member",
   suffix: "",
-  email: " NEW@Example.test ",
+  email: " NEW@Student.BukSU.edu.ph ",
   password: "SyntheticPassword123!",
   phoneNumber: "+639171234567",
   gender: "Female" as const,
@@ -21,7 +21,7 @@ const input = {
 };
 function fixture(existing: Record<string, unknown> | null = null, collide = false) {
   const f = modelFixture({
-    User: existing ? [{ email: "new@example.test", ...existing }] : [],
+    User: existing ? [{ email: "new@student.buksu.edu.ph", ...existing }] : [],
     Role: [{ id: "alumni", _id: "alumni", key: "alumni" }],
     Program: [
       { id: input.programId, _id: input.programId, departmentId: "222222222222222222222222" },
@@ -44,7 +44,9 @@ function fixture(existing: Record<string, unknown> | null = null, collide = fals
             return await target.transaction(() => work(db));
           } catch (error) {
             if (collide)
-              f.tables.User = [{ id: "winner", email: "new@example.test", status: "active" }];
+              f.tables.User = [
+                { id: "winner", email: "new@student.buksu.edu.ph", status: "active" },
+              ];
             throw error;
           }
         };
@@ -72,11 +74,11 @@ function fixture(existing: Record<string, unknown> | null = null, collide = fals
 it("stores signup contact fields with a normalized unique email and hashed password", async () => {
   const f = fixture();
   await registerUser(f.db, input);
-  assert.deepEqual(f.lookups, ["new@example.test"]);
+  assert.deepEqual(f.lookups, ["new@student.buksu.edu.ph"]);
   assert.equal(f.writes[0]?.phoneNumber, input.phoneNumber);
   assert.equal(f.writes[0]?.gender, "Female");
   assert.equal(f.writes[0]?.facebookAccount, input.facebookAccount);
-  assert.equal(f.writes[0]?.email, "new@example.test");
+  assert.equal(f.writes[0]?.email, "new@student.buksu.edu.ph");
   assert.notEqual(f.writes[0]?.passwordHash, input.password);
   assert.equal(f.tables.UserRole?.[0]?.roleId, "alumni");
   assert.equal(f.tables.User?.[0]?.alumniId, f.tables.Alumni?.[0]?.id);
@@ -134,18 +136,26 @@ it("reports a conflict when another signup wins the unique-email race", async ()
 it("reuses a Google account matching an existing email without replacing its password", async () => {
   const f = fixture({
     id: "existing",
-    email: "new@example.test",
+    email: "new@student.buksu.edu.ph",
     status: "active",
     passwordHash: "existing-hash",
   });
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(user.id, "existing");
   assert.equal(user.passwordHash, "existing-hash");
   assert.equal(f.writes.length, 0);
 });
 it("new Google accounts are passwordless, use Viewer, and require profile completion", async () => {
   const f = fixture();
-  await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(f.writes[0]?.needsProfileCompletion, true);
   assert.equal(f.writes[0]?.emailVerified, true);
   assert.equal(f.writes[0]?.passwordHash, null);
@@ -153,13 +163,22 @@ it("new Google accounts are passwordless, use Viewer, and require profile comple
 });
 it("simultaneous Google signups reuse the winning account", async () => {
   const f = fixture(null, true);
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(user.id, "winner");
 });
 it("Google sign-in rejects disabled existing accounts", async () => {
   const f = fixture({ id: "disabled", status: "disabled" });
   await assert.rejects(
-    () => upsertGoogleUser(f.db, { email: input.email, name: "Google name" }),
+    () =>
+      upsertGoogleUser(f.db, {
+        email: input.email,
+        name: "Google name",
+        hostedDomain: "buksu.edu.ph",
+      }),
     /disabled/,
   );
   assert.equal(f.writes.length, 0);
@@ -179,7 +198,11 @@ it("lets a verified Google identity take over an unconfirmed password registrati
   });
   f.tables.UserRole = [{ userId: "pending", roleId: "alumni" }];
   f.tables.Session = [{ userId: "pending", token: "sha256:squatter" }];
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Google name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Google name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.notEqual(user.id, "pending");
   assert.equal(user.emailVerified, true);
   assert.equal(user.passwordHash ?? null, null);
@@ -226,7 +249,11 @@ it("Google does not overwrite confirmed structured or legacy account names", asy
     passwordHash: "existing-hash",
     status: "active",
   });
-  const user = await upsertGoogleUser(f.db, { email: input.email, name: "Provider Edited Name" });
+  const user = await upsertGoogleUser(f.db, {
+    email: input.email,
+    name: "Provider Edited Name",
+    hostedDomain: "buksu.edu.ph",
+  });
   assert.equal(user.name, "Ana Mar?a Dela Cruz Jr.");
   assert.equal(user.firstName, "Ana");
   assert.equal(user.lastName, "Dela Cruz");
@@ -235,7 +262,7 @@ it("Google does not overwrite confirmed structured or legacy account names", asy
 
 it("frees an email and student number held by a registration unconfirmed for over 24 hours", async () => {
   const day = 24 * 60 * 60 * 1000;
-  const squatter = (createdAt: Date, email = "new@example.test") => ({
+  const squatter = (createdAt: Date, email = "new@student.buksu.edu.ph") => ({
     _id: "squatter",
     id: "squatter",
     email,
@@ -263,7 +290,7 @@ it("frees an email and student number held by a registration unconfirmed for ove
   stale.tables.Alumni = [heldProfile];
   stale.tables.UserRole = [{ userId: "squatter", roleId: "alumni" }];
   const user = await registerUser(stale.db, input);
-  assert.equal(user.email, "new@example.test");
+  assert.equal(user.email, "new@student.buksu.edu.ph");
   assert.equal(
     stale.tables.User!.some((row) => row.id === "squatter"),
     false,

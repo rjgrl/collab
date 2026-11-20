@@ -32,3 +32,28 @@ For checks: `pnpm --filter web build`, `pnpm check-types`, `pnpm test:browser-ty
 Each laptop should run its own loopback instance. LAN sharing is opt-in and requires an explicit network/authentication/TLS review; changing HOST alone is insufficient because CORS, cookies, browser origin and firewall rules must agree. Never expose the unauthenticated development MongoDB server. No staging provisioning or deployment is performed by setup.
 
 Current architecture and database cutover instructions: [migration runbook](migrations/MONGOOSE_REST.md). Existing names, ObjectIds and records are preserved; migration is dry-run by default.
+
+### Gmail and presentation verification
+
+Email uses Gmail SMTP with an App Password. After pulling, run pnpm install --frozen-lockfile
+and restart the API, not only the browser. In your personal Google Account, enable 2-Step
+Verification and create an App Password for this demo. Enter that Gmail address and the App
+Password (not your normal Google password) in Settings → Integrations → Email. Test and Enable
+or update the existing credentials. The test goes to the Gmail sender's own inbox, so a seeded
+admin@collab.test account can configure email without first changing its account address.
+
+No purchased domain, Resend key or SMTP2GO account is needed. Real email requires network access
+to smtp.gmail.com:465; some hosts/networks block outbound SMTP. Sending is subject to Google's
+limits and anti-abuse checks. Look in Spam if Gmail accepted the message but it is not in Inbox.
+The Gmail sender need not match the application's administrator address. Once configured, use
+Settings → Account to change the administrator to a real institutional email through normal
+verification. Do not add personal Gmail to allowed application domains just to use it as a sender.
+
+Old Resend/SMTP2GO keys are not reused. Gmail stores its own encrypted gmailAppPassword field;
+you must enter a new App Password even if Email was previously enabled. Never commit/share the
+App Password in chat. For shared Atlas, configure Email once and preserve the same existing
+INTEGRATION_ENCRYPTION_KEY on all API servers. Revoke the demo App Password after the presentation.
+
+New local setups require email verification and preserve deliberate existing settings. Atlas
+cannot use localhost-only MFA/contact-verification bypasses. Gmail enables email only; SMS/phone
+verification policy is separate and unchanged. Global API limits are unchanged.

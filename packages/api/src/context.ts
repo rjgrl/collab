@@ -14,7 +14,7 @@ export type IntegrationEnv = {
   googleFormsWebhookSecret?: string;
   smtpUrl?: string;
   smtpFrom?: string;
-  emailApiKey?: string;
+  gmailAppPassword?: string;
   verificationSecret?: string;
   mfaEncryptionKey?: string;
   integrationEncryptionKey?: string;

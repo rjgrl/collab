@@ -1,3 +1,4 @@
+import { captureEmail } from "../packages/api/src/test-utils/email-capture";
 import { decodeJwt } from "jose";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
@@ -28,7 +29,7 @@ const peer = createDatabase({ DATABASE_URL: url });
 await db.ready();
 const schema = await migrateDatabase(db, "apply");
 assert.deepEqual(schema.conflicts, []);
-const nativeFetch = globalThis.fetch;
+let restoreEmail = () => {};
 try {
   assert.equal(await db.User.countDocuments(), 0);
   await Promise.all(
@@ -67,7 +68,9 @@ try {
         integrationEnv: {
           mfaEncryptionKey: "56".repeat(32),
           webOrigin: "https://app.example.test",
-          smtpUrl: "https://mail.example.test",
+          smtpUrl: "smtps://smtp.gmail.com:465",
+          smtpFrom: "sender@example.test",
+          gmailAppPassword: "api-test-key",
         },
       } as Context;
       context.onSessionRotation = (next) => {
@@ -104,14 +107,11 @@ try {
       assert.ok(!credential.recoveryHashes.includes(result.recoveryCodes[1]!));
       await new tx.IntegrationSetting({ key: "email", enabled: true }).save();
       let resetToken = "";
-      globalThis.fetch = async (input, init) => {
-        assert.equal(String(input), "https://mail.example.test");
-        const text = JSON.parse(String(init?.body)).text;
+      restoreEmail = captureEmail((message) => {
         resetToken = new URLSearchParams(
-          new URL(text.match(/https:\/\/[^\s]+/)[0]).hash.slice(1),
+          new URL(message.text.match(/https:\/\/[^\s]+/)![0]).hash.slice(1),
         ).get("token")!;
-        return Response.json({ ok: true });
-      };
+      });
       await requestPasswordReset(context, user.email);
       assert.ok(await tx.PasswordReset.findOne({ tokenHash: digest(resetToken) }));
       await resetPassword(context, resetToken, "Replacement private database passphrase 8776");
@@ -168,7 +168,7 @@ try {
     "PASS: real isolated MongoDB indexes, shared counters across clients, MFA enrollment/rotation/recovery, encrypted secrets, reset/revocation and transaction rollback. No application database records changed.",
   );
 } finally {
-  globalThis.fetch = nativeFetch;
+  restoreEmail();
   await peer.disconnect();
   await db.disconnect();
 }

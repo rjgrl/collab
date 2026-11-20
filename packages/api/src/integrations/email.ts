@@ -1,34 +1,57 @@
+import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import type { IntegrationEnv } from "../context";
-import { assertPublicHost } from "./connection-test";
+
+export type GmailMessage = { from: string; to: string[]; subject: string; text: string };
+type GmailTransport = {
+  sendMail: (message: GmailMessage) => Promise<{ accepted: unknown[]; rejected: unknown[] }>;
+  close: () => void;
+};
+/** Transport factory; tests replace this with a capture adapter rather than contacting Gmail. */
+export const gmailSmtp = {
+  create: (options: SMTPTransport.Options): GmailTransport => nodemailer.createTransport(options),
+};
+
+export function emailConfigured(env: IntegrationEnv) {
+  return Boolean(env.smtpFrom && env.gmailAppPassword);
+}
 
 export async function sendEmail(
   env: IntegrationEnv,
   input: { to: string; subject: string; text: string },
 ) {
-  if (!env.smtpUrl) throw new Error("Email delivery is not configured.");
-
-  if (env.smtpUrl.startsWith("https://")) {
-    if (process.env.NODE_ENV === "production") await assertPublicHost(env.smtpUrl);
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (env.emailApiKey) {
-      headers["Authorization"] = `Bearer ${env.emailApiKey}`;
-    }
-    const response = await fetch(env.smtpUrl, {
-      method: "POST",
-      signal: AbortSignal.timeout(15_000),
-      // Never follow a redirect: it could point the request at an internal address.
-      redirect: "error",
-      headers,
-      body: JSON.stringify({
-        from: env.smtpFrom || "alumni-tracking@localhost",
-        ...input,
-      }),
+  if (!emailConfigured(env)) throw new Error("Gmail email delivery is not configured.");
+  const transport = gmailSmtp.create({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: { user: env.smtpFrom!, pass: env.gmailAppPassword!.replace(/\s/g, "") },
+    tls: { rejectUnauthorized: true, minVersion: "TLSv1.2", servername: "smtp.gmail.com" },
+    dnsTimeout: 10000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    disableFileAccess: true,
+    disableUrlAccess: true,
+    logger: false,
+    debug: false,
+  });
+  try {
+    const result = await transport.sendMail({
+      from: env.smtpFrom!,
+      to: [input.to],
+      subject: input.subject,
+      text: input.text,
     });
-    if (!response.ok) {
-      throw new Error(`Email endpoint failed: ${response.status}`);
-    }
-    return { mode: "live" as const };
+    if (result.accepted.length !== 1 || result.rejected.length !== 0)
+      throw new Error("Email was not accepted.");
+  } catch {
+    // SMTP diagnostics can contain addresses and auth details. Never reflect or log them.
+    throw new Error(
+      "Gmail could not send the email. Check the Gmail address, App Password and sending limits.",
+    );
+  } finally {
+    transport.close();
   }
-
-  throw new Error("SMTP_URL must be an HTTPS JSON mail gateway. Direct SMTP is not supported.");
+  return { mode: "live" as const };
 }

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseEnv } from "node:util";
+import { resolveDatabaseUrl } from "../packages/db/src/config.ts";
 
 export const LOCAL_DATABASE_URL = "mongodb://127.0.0.1:27018/alumni_tracking?replicaSet=rs0";
 
@@ -34,27 +35,32 @@ export async function readLocalConfig(root, inherited = process.env) {
   const server = await readEnv(path.join(root, "apps/server/.env"));
   const web = await readEnv(path.join(root, "apps/web/.env"));
   const database = await readEnv(path.join(root, "packages/db/.env"));
+  const configuredUri = (env) =>
+    env.MONGO_URI || env.DATABASE_URL ? resolveDatabaseUrl(env) : undefined;
+  const serverUri = configuredUri(server);
+  const databaseUri = configuredUri(database);
   if (
+    !inherited.MONGO_URI &&
     !inherited.DATABASE_URL &&
-    server.DATABASE_URL &&
-    database.DATABASE_URL &&
-    server.DATABASE_URL !== database.DATABASE_URL
+    serverUri &&
+    databaseUri &&
+    serverUri !== databaseUri
   )
     throw new Error(
-      "Server and DB environment files point to different databases. Existing values were preserved; make their DATABASE_URL values agree before continuing.",
+      "Server and DB environment files point to different databases. Existing values were preserved; make their MONGO_URI/DATABASE_URL values agree before continuing.",
     );
-  return {
-    server,
-    web,
-    database,
-    effective: {
-      ...server,
-      ...database,
-      ...Object.fromEntries(
-        Object.entries(inherited).filter(([, value]) => value !== undefined && value !== ""),
-      ),
-    },
+  /** @type {Record<string, string>} */
+  const effective = {
+    PORT: "3000",
+    ...server,
+    ...database,
+    ...Object.fromEntries(
+      Object.entries(inherited).filter(([, value]) => value !== undefined && value !== ""),
+    ),
   };
+  if (effective.MONGO_URI || effective.DATABASE_URL)
+    effective.DATABASE_URL = resolveDatabaseUrl(effective);
+  return { server, web, database, effective };
 }
 
 async function fillMissingEnv(file, defaults) {
@@ -78,10 +84,17 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     throw new Error(
       "setup:local refuses production environments. Use docs/deployment.md for deployment.",
     );
-  for (const candidate of [server.DATABASE_URL, database.DATABASE_URL, inherited.DATABASE_URL]) {
+  for (const candidate of [
+    server.DATABASE_URL,
+    server.MONGO_URI,
+    database.DATABASE_URL,
+    database.MONGO_URI,
+    inherited.DATABASE_URL,
+    inherited.MONGO_URI,
+  ]) {
     if (candidate?.trim() && !isManagedLocalDatabase(candidate))
       throw new Error(
-        "Existing DATABASE_URL is not the managed localhost:27018 rs0 database. It was preserved. Use the manual setup guide for a custom database.",
+        "Existing MONGO_URI/DATABASE_URL is not the managed localhost:27018 rs0 database. It was preserved. Use the manual setup guide for a custom database.",
       );
   }
   // Each checkout gets its own persistent development database. Never silently
@@ -95,11 +108,16 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     throw new Error(
       "Existing bootstrap credentials are invalid. Set a valid SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD of at least 12 characters privately.",
     );
+  // Keep the existing local admin login usable; public signup separately requires BukSU domains.
+  const institutionalDomains = ["buksu.edu.ph", "student.buksu.edu.ph"];
+  const adminDomain = email.split("@")[1].toLowerCase();
   await fillMissingEnv(path.join(root, "apps/server/.env"), {
     NODE_ENV: "development",
+    STAFF_EMAIL_DOMAINS: [...new Set([...institutionalDomains, adminDomain])].join(","),
+    PORT: "3000",
     LOCAL_DISABLE_MFA: "true",
     ALLOW_PUBLIC_SIGNUP: "true",
-    LOCAL_REQUIRE_EMAIL_VERIFICATION: "false",
+    LOCAL_REQUIRE_EMAIL_VERIFICATION: "true",
     LOCAL_REQUIRE_PHONE_VERIFICATION: "false",
     CORS_ORIGIN: "http://localhost:3001",
     APP_URL: "http://localhost:3000",

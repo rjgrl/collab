@@ -51,6 +51,8 @@ export interface RoleRecord extends Timestamped {
   name: string;
   description: string;
   isSystem: boolean;
+  /** Set on a role split from a system role: its members still count as that role's kind. */
+  baseRole?: string | null;
 }
 export interface PermissionRecord extends Timestamped {
   key: string;
@@ -358,6 +360,7 @@ export const schemas = {
     name: requiredString,
     description: text,
     isSystem: no,
+    baseRole: { type: String, default: null },
   }),
   Permission: schema<PermissionRecord>("Permission", {
     key: requiredString,

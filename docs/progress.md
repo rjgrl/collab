@@ -2,6 +2,164 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (Windows CI profile-draft race)
+
+- The remaining Windows profile-history failure was a real editor race: record-refresh effects
+  overwrote an open Student Details draft after the previous save, so the next request could
+  become a no-op rather than the expected Batch A to Batch B change.
+- Removed continuous record-to-form synchronization; the existing edit action now owns the
+  initial snapshot, and is disabled while a save/refetch is pending. Backend audit and scope
+  guards are unchanged. Draft ownership is recorded in docs/specs/profile-editing.md.
+- Added a deterministic regression that updates an isolated synthetic profile and refreshes the
+  query while its dialog remains open. It failed against the old behavior (draft overwritten)
+  and passes with the fix. All 8 profile-table tests passed desktop/mobile, including unchanged
+  audit-transition assertions. Required CI still gates the main merge.
+
+## 2026-11-19 (BukSU-only Google sign-in)
+
+- Reused the existing Sign In/Sign Up with Google buttons and OAuth flow. Exact BukSU/student
+  emails and a verified BukSU Workspace hosted-domain claim are now mandatory in every
+  environment, even when local domain restrictions are absent or permit personal/demo domains.
+  Existing configured local password-login exceptions remain; no accounts or keys were rewritten.
+- Added signed-token callback and policy tests proving personal/demo/lookalike emails and
+  missing/foreign Workspace claims issue no account/session. Valid Google fixtures now carry
+  institutional emails/claims, preserving linking, photos, completion and cookie assertions.
+- Replaced staff-only rejection text with shared all-account guidance. README/API setup explains
+  Google OAuth Web client credentials, exact unversioned callback, encrypted settings and enabling
+  the button; Gmail App Passwords do not configure Google sign-in. The account-access spec is
+  now explicitly Git-allowlisted, rather than remaining only on this checkout.
+- Verified 452 unit tests, pnpm check 7/7, browser types, 20 desktop/mobile signup/Google/320px
+  browser tests and real-DB completion checks; secret/whitespace checks clean. No live Google
+  login or operator OAuth configuration is claimed. PR #15 must re-pass CI before main merge.
+
+## 2026-11-19 (PR #15 CI fixture correction)
+
+- Ubuntu browser shards 1/3 and 3/3 both failed the same 320px authentication-layout test:
+  its layout@example.test signup fixture correctly stayed on Step 1 under BukSU-only validation,
+  so the Step-2 password autocomplete assertion could not find its input.
+- Reproduced both desktop/mobile failures locally, then changed only the fixture to an
+  institutional student address. No product validation, layout/axe assertions, timeout, retry
+  or skip settings were weakened. Existing seeded sign-in fixtures remain unchanged.
+- Completed Windows logs also exposed two readiness races: trace timestamps show Save was
+  clicked before college options returned, and the program's native input was temporarily
+  disabled during initialization. Department creation now waits for its default college;
+  native-validity assertions auto-wait for their original expected states rather than reading
+  an intermediate mount state. No arbitrary sleep, test retry or timeout increase was added.
+- Verified all affected department, dropdown, 320px and signup/phone/action-row tests together:
+  12 passed on desktop/mobile. Required remote CI reruns on the fix before main can be merged.
+
+## 2026-11-19 (prepare protected main release and refresh setup guidance)
+
+- Reviewed setup defaults: existing local admin domain exceptions remain sign-in-only; signup
+  always uses exact BukSU domains. No new setup flags, credentials or migrations are required.
+- Replaced stale HTTPS-gateway/Resend setup instructions in README, deployment, API setup and
+  account-security docs with Gmail SMTP's tested encrypted-settings flow. Removed obsolete
+  email-seeding examples; production ignores provider env credentials. Existing Atlas data,
+  uploads and encryption keys must be preserved. SMS/production-readiness caveats remain.
+- Publication requested through a merge-commit PR into main, retaining collaborator history.
+  Required CI and branch-protection outcome will be reported separately after GitHub confirms it.
+
+## 2026-11-19 (early institutional signup, Philippine numbers and role dropdown)
+
+- Signup validates exact BukSU/student domains inline and before Step 2, using the same schema
+  as registration. New collab.test registrations are rejected; existing explicitly allowed local
+  demo logins remain usable. Production additionally rejects non-BukSU account access even if
+  a configured allowlist includes a demo exception. No stored addresses or keys were changed.
+- Philippine +63 input removes the trunk zero without breaking pasted international numbers or
+  other countries' significant zeros. CAPTCHA/Forgot Password now share a compact wrapping row;
+  signup's checkbox spacing is reduced while touch targets remain accessible.
+- Role editor defaults to All Members in a single dropdown, with individual-name options and a
+  move-to-new-role notice. Dirty target switches require confirmation/reset. Single-member
+  Faculty/custom roles may split; original Super Admin, self-edit and full-admin-only guards remain.
+- Updated registration fixtures to institutional addresses rather than weakening duplicate,
+  race, release/recovery or Facebook-link assertions. Synthetic account provisioning follows the
+  new signup rule; unrelated existing seeded login fixtures remain unchanged.
+- Verified: pnpm check 7/7, browser types, 450 unit tests; 38 focused browser passes with 2
+  intentional mobile skips; 2 strengthened desktop role tests (dirty-target reset, single-member
+  Faculty split); 6 phone/alignment checks; real-DB completion and penetration checks; secret scan
+  and whitespace checks. The entire browser suite and live Gmail delivery were not rerun/tested.
+- Durable account-access spec is drafted in docs/specs/account-access.md. No production data
+  migration or push was performed; publication remains with the owner.
+
+## 2026-11-19 (Gmail SMTP replaces Resend; sender-mailbox bootstrap)
+
+- Owner could not register for SMTP2GO and approved Gmail App Passwords. SMTP2GO was never
+  committed/pushed; it was replaced by Nodemailer with fixed smtp.gmail.com:465, verified TLS,
+  TLS 1.2 minimum, bounded timeouts and no SMTP debug/file/URL access.
+- Email settings now ask for Gmail Address and Gmail App Password. The same address is both SMTP
+  username and sender. Provider tests go to that sender's own inbox instead of the seeded admin
+  address, eliminating the setup deadlock without bypassing account-email verification.
+- New encrypted gmailAppPassword field means old provider API keys are never reused. Grouped and
+  ungrouped 16-character App Passwords are supported. Production ignores provider env credentials;
+  development fallback is GMAIL_ADDRESS/GMAIL_APP_PASSWORD. Account-domain/MFA/rate limits remain.
+- Added tests for TLS, auth normalization, no diagnostic leakage, rejection/cleanup, sender-mailbox
+  testing with a seeded admin, legacy-key isolation and credential formatting. Mail mocks now use
+  an isolated SMTP capture transport rather than fake HTTP-provider payloads.
+- Verified so far: 448 unit tests, pnpm check 7/7, browser types, dependency audit, real-DB security
+  and integration acceptance, server build/artifact checks. The 16 recovery/account/security browser
+  checks passed; the new Gmail setup test then passed on desktop and mobile after fixing its
+  exact-label locator (required-field asterisk). Archive/global behavior is unchanged; the prior
+  full regression was 157 passed, 5 intentional skips.
+  Real Gmail authentication/inbox delivery still needs the owner's App Password and network access.
+
+## 2026-11-19 (integrate phase 6 remote commits; no push)
+
+- Fetched origin and fast-forwarded `development/phase6-cross-device-testing` from `03c5884` to `7a347a2`, incorporating remote commits `18937f9` and `7a347a2`. The working tree was clean; there were no divergent local commits or conflicts. No history rewriting, force-push or push was performed.
+- Verified both the previous local tip and fetched remote tip remain ancestors of HEAD, with zero ahead/behind immediately after integration. Application tests were not rerun for this conflict-free fast-forward. This progress note is a separate local documentation commit; publication remains with the owner.
+
+## 2026-11-19 (Resend, global API budgets and account/archive bug fixes)
+
+- Email settings now use Resend only (verified sender + encrypted API key), with a fixed send endpoint and provider check before save. Generic gateway URL is removed; old internal SMTP names remain compatibility/readiness fields, not custom destinations. Verification, email change and password reset all use Resend. No live key/domain was supplied, so real mailbox delivery remains an operator acceptance step.
+- Global MongoDB-backed API limits: 300 requests/minute per signed-in user or anonymous IP and 3000/minute per shared IP before authentication; aliases/refreshes/instances share counters. Existing stricter auth limits stay. HTTP 429 carries Retry-After and the client displays a wait message.
+- Reported BUG-002/003/004: Resend delivery, existing new-account verification guards preserved, and new local setup defaults to requiring email verification. This machine was configured accordingly; explicit older local overrides must be changed for presentation. Phone policy unchanged. BUG-007 exact institutional email rules retained.
+- BUG-006: new Super Admin-only Alumni Archive with paginated search, confirmation and audited restore. No permanent deletion. Inactive academic parents block restoration; unavailable assigned faculty is cleared and reassignment flagged.
+- Verified: pnpm check 7/7, pnpm test 441/441, browser types green, 24 focused browser tests pass desktop/mobile (Archive axe/access/restore, email verification/reset and integration screens); real-DB security check and dependency audit pass; no high-confidence secrets. Full browser regression later completed: 157 passed, 5 intentional skips.
+- Test adaptations are explicit: mail mocks now expect the Resend endpoint and recipient array; HTTP fixtures supply global counters, and negative authorization assertions ignore only AuthThrottle writes while still requiring zero business-data mutation. Red-covered bug rows were unreadable and remain out of scope.
+
+## 2026-11-19 (detailed API documentation PDF)
+
+- Generated an endpoint-by-endpoint reference matching the owner's sample: version, documentation date, description, URL, method, configurations, parameters, and response-code tables for all 106 OpenAPI operations plus three health probes. The detailed PDF, HTML source, generator, and verification manifest are local exports under `.thinkrail/context/exports/` (generator under `.thinkrail/context/`); the earlier overview PDF remains unchanged.
+- Verified cookie-based authentication, controller success statuses, and raw-route details against source. Supplemented catalog omissions for Google OAuth callback parameters, upload metadata, evidence preview queries, PDF export filters, and webhook headers. Shared OpenAPI error rows are explicitly identified as a reusable catalog, not endpoint-specific reachability claims; dates are documentation dates, not release dates.
+- Verified: generation and DOM checks found 109 complete endpoint sections, 212 tables, and no detected table overflow; extracted PDF text contains all 109 URLs and all eight required labels for every endpoint. PDF has 180 pages; first endpoint HTML capture visually reviewed. No live API calls, application behavior changes, or full application test suite; provider/SMS readiness is unchanged.
+
+## 2026-11-15 (secure API setup guide; no live activation)
+
+- Owner selected **Guide and Examples** using existing Render secret injection and the encrypted Settings › Integrations store. Added `docs/operations/API_SETUP.md`: provider enablement, least-privilege credentials/scopes, actual environment mappings, server-only loading examples, minimal manual probes, quota/billing cautions, rotation/revocation and a dashboard checklist.
+- Added `config/apis/.env.example` with placeholder values only and a narrow documentation ignore exception. Clarified encryption-key recovery/rotation in the existing credential guide; keys must stay outside database backup bundles but require a separate protected recovery copy.
+- Flagged important limits: production provider env values are ignored; Sheets needs its own UI-entered service account for separation; Drive photo/backup paths reuse the Drive identity; ImgBB images are public; Forms needs an authorized sender/retry contract; SMS is still unimplemented. Resend and Twilio are documented examples, not selected/activated vendors.
+- Verified documentation formatting, 36 placeholder-only assignments and their supported/manual mappings, section completeness, local links, private `.env` ignore coverage and example/doc visibility; all 12 JS/TS snippets parsed without execution (not full typechecking); secret scan checked 513 eligible files without high-confidence findings; whitespace check passed. No authenticated provider API tests, sends, credential creation, API enablement, billing changes, Atlas writes or deployment were performed.
+- Earlier hosting regression/spec reconciliation remains pending after the last private-path tightening. Actual Render cutover and SMS release readiness are not complete; this documentation task does not change that status.
+
+## 2026-11-15 (approved Atlas profile refresh; no live synchronization)
+
+- Investigated account-name differences: the website backend is still configured for native MongoDB on port 27018. The previous Atlas import was a one-time snapshot. Read-only comparison found 35 changed profile fields across 6 users, 4 faculty profiles and 2 alumni profiles, plus 17 new local-only audit/throttle/session records.
+- Owner reviewed the exact old/new values and approved **All Profile Changes**, including the listed department/tracker assignments. Created a new ACL-restricted native Atlas backup outside Git and revalidated the reviewed source/target hashes before updating anything.
+- Applied only the approved 35 fields and 12 corresponding modification timestamps in one majority-committed Atlas transaction. No record additions, deletions, database replacement or source changes. All 156 unaffected records and every unapproved field remain unchanged; passwords, role grants, permissions, audit/security/session data, indexes and collection options were preserved.
+- Verified: the atomic refresh and whole-dataset preservation checks passed; `pnpm exec tsx .thinkrail/context/verify-atlas-profile-refresh.ts` confirmed all 21 User/Faculty/Alumni profiles match the local source, zero broken references and 168 Atlas records across 27 collections. Recorded the verified post-refresh manifest without overwriting the original backup.
+- The 13 audit entries, 3 throttle entries and 1 local session were deliberately not transferred. Local environment files and app configuration were not changed, and no automated test was pointed at Atlas. Future local website edits still will not synchronize automatically; hosted configuration/cutover remains deferred until hosting details are provided.
+
+## 2026-11-15 (verified local-data snapshot in Atlas; cutover deferred)
+
+- Copied the active application's local database into the approved, freshly checked empty Atlas `alumni_tracking` database: 168 records across 27 collections. No other database or existing target data was deleted. The machine-specific `BackupState` collection remains local, as required by the Atlas runbook.
+- Created an ACL-restricted native archive and verified environment/key backups outside Git. The archive is not an encrypted in-app backup bundle; `BACKUP_ENCRYPTION_KEY` is not configured locally. No local photo/evidence file references or upload files were found.
+- Briefly used existing maintenance mode during backup, verified its 503 response, and restored its original state. Consistent source-snapshot BSON hashes matched before/after mongodump; every restored collection's hashes/counts, indexes and options match the backup. The local API is available again.
+- Read-only cleanup inspection found no broken references or unknown collections. Eight users, four faculty profiles and four alumni profiles had reserved example/test email domains, with 12 linked supporting records. After reviewing the exact 28-record proposed set, the owner chose **Keep All Records**. Zero records were deleted; no cleanup is authorized.
+- Atlas migration dry-run reported no conflicts, missing indexes, legacy-role changes or missing integration defaults. Inspection left all copied record hashes unchanged. No schema migration was applied, no application code changed, and no automated test was pointed at Atlas.
+- Hosted-server configuration and live cutover are still deferred until the owner supplies the hosting provider, service and API URL. The app and local tests still use the original native database; this snapshot does not synchronize subsequent local writes. The deployment URI must explicitly select `alumni_tracking`, retain the source encryption keys and use the host's approved Atlas egress allowlist.
+
+## 2026-11-15 (prepare publication of all interface changes)
+
+- User approved publishing all committed work on a new `alumni-interface-updates` branch instead of pushing protected `main`. No PR or merge was requested. UI changes are committed in `8951eb0`, on top of the history-preserving integration of `origin/main`.
+- Confirmed the worktree was clean and all 85 UI/test/doc files were in the commit. Credentials, `.tools` and `.thinkrail` context are excluded from publication. Safety stash and backup branch remain local.
+- Verified: fresh fetch and base ancestry check; publication diff whitespace clean; `pnpm check:secrets` checked 499 eligible files with no high-confidence findings. Reused unchanged-source evidence from integration: `pnpm check` 7/7, browser types pass, `pnpm test` 427/427. Remote CI/merge readiness is not claimed; no PR is being created by this action.
+
+## 2026-11-15 (integrate diverged origin/main without pushing)
+
+- Fetched and merged remote `0360744` into local `050fb23` as merge commit `bc93216`, preserving both original histories (3 local-only and 8 remote-only commits). Branch is 4 ahead / 0 behind the fetched `origin/main`; nothing was pushed.
+- Protected work with `backup/main-before-origin-merge-20261115-145215`, a binary patch and `stash@{0}` including untracked files. Restored pending UI work afterward; 66 files not touched remotely and all 10 untracked files matched their snapshots exactly before a required tuple-type annotation in `admin-copy.spec.ts`.
+- Reconciled history conflicts in CI configuration, app-shell imports and decisions; retained the remote security/refactor additions. Stash restoration conflicted only in progress/decisions, where both sets of entries were kept. Existing UI changes remain uncommitted and unstaged; safety stash/branch are retained. No database migration was run.
+- Verified after integration/restoration: `pnpm check` 7/7; `pnpm test:browser-types` passes; `pnpm test` 427/427; no unresolved paths or staged changes. Full browser suite not rerun. Repository docs note that remote `main` is protected and requires a PR independently of ancestry.
+
 ## 2026-11-14/15 (JWT sessions, error pages, faster CI, bug-bounty fixes)
 
 - Merged: #5 (tabs, JWT sessions, skeletons, phone-safe toasts; #6 folded in), #7 (404/403/500 pages, session-ended notice), #8 (CI ~8 min: one run per PR, 3 browser shards per OS, cached Chromium), #9 (only `super_admin` administers; `admin`, `staff` and `viewer` roles removed, `viewer` renamed to `alumni` by schema version 2; tracking hidden from the alumni audit log; toast list), #10 (unconfirmed-registration release, alumni upload/job caps and rate limit, email-gateway address hardening, Drive/imgBB download streaming).
@@ -10,6 +168,49 @@ Newest first. One entry per session: date, what changed, what was verified, what
 - `main` history: the empty duplicate #5 commit was removed with a lease-guarded force-push; the owner's PRODUCT.md commit was kept. Other clones must reset to `origin/main` (see known issues).
 - Verified: `pnpm test` 418/418; 13/13 real-DB checks; full browser suite 127 passed, 3 skipped; CI green on every merged PR.
 - Still to do: migrate the presentation device and any hosted/Atlas database (`db:migrate --dry-run`, then `--apply`); the open items under "Security follow-ups" in known-issues.
+
+## 2026-11-14 (organized Reports and Reports-only Batch removal)
+
+- Reports now has visible labels in College → Department → Program order, then Graduation Year and Tracking Status. Alumni CSV/PDF downloads are grouped separately from assignment/Google Sheets exports, with concise notes explaining their different filter scopes.
+- Removed only the Reports Batch control/state/request field. Profile fields, stored values/history, server schemas and authorization remain unchanged, as explicitly approved.
+- Payload tests exposed an existing bug: refetching totals after changing tracking temporarily emptied Department options and cleared the selection. Department options now use a stable subscription to the same scoped Reports summary endpoint; no new academic-directory permission is required.
+- Added draft `apps/web/src/routes/_app/reports.SPEC.md`. Verified: `pnpm exec playwright test tests/browser/reports-layout.spec.ts --max-failures=1` 4/4 (desktop/320px phone, light/dark, axe, filter order, selection retention, mocked CSV/PDF/Sheets request construction and UI permission gates); `pnpm check` 7/7; `pnpm test` 410/410; rendered desktop/mobile screenshots reviewed. Full browser suite not run; exported file contents were not tested by the new mocked payload checks.
+
+## 2026-11-14 (password visibility, confirmation and BukSU sidebar)
+
+- Login and registration now have independent masked-by-default Show/Hide controls. Registration requires matching Confirm Password, with inline feedback and a submit-handler equality check. Confirmation is not sent to the API. Desktop password fields share a row; phones stack naturally.
+- Resolved review `rc_c7ed30f8`: kept the sidebar product title and shortened only its subtitle to “BukSU - College of Technologies”; updated the mockup and browser expectation. Public landing branding is unchanged.
+- Added password-control browser coverage (masking, keyboard, independent toggles, no toggle submissions, mismatch prevention, reset-on-navigation, autocomplete, accessibility and fit), preserved registration checks and verified that confirmation never enters the request. Draft owning spec: `apps/web/src/components/forms/password-controls.SPEC.md`.
+- Verified: password/signup/CAPTCHA suites 20/20; additional password/admin/local-registration selection 10/10 with a 60-second per-test budget (supersedes a resource-contended timeout). `pnpm test` 410/410; `pnpm check` 7/7. Dark-mode desktop password screenshot reviewed. Full browser suite not run.
+
+## 2026-11-14 (Super Admin branding and formal labels)
+
+- Sidebar now shows “Alumni Tracking System” and “Bukidnon State University - College of Technologies”, wrapping without truncation inside the existing width. Header fallback matches the product name.
+- Extended title case across admin navigation, page/dialog headings, field labels, table headers, actions and placeholders. Shared labels also apply to other roles. Descriptions, instructions, status messages, stored names and data retain their original text/case; permission keys and guards are unchanged.
+- Added a tested formatter only for system-defined permission/integration labels and admin browser coverage across twelve module routes, both themes and desktop/phone. Updated existing copy-sensitive selectors; no behavioral checks were removed.
+- Verified: `pnpm check` 7/7, `pnpm test` 410/410. Focused admin/account/security/settings browser run passed 23 cases before the 480-second command limit; the remaining mobile Settings suite was rerun and passed 9/9 (30 distinct cases covered across runs). Initial selector mismatches and a transient Vite connection failure were corrected/retried. Full browser suite was not run. Desktop branding screenshot reviewed.
+
+## 2026-11-14 (formal authentication-page capitalization)
+
+- Landing headline, sign-in/sign-up headings, actions, field labels, optional disclosures, placeholders and browser title now use consistent title case. Full sentences, hints and validation messages retain sentence case. Shared account/settings labels are unchanged.
+- Updated browser selectors and completed two-step navigation in the existing completion, dropdown and 320px-layout scenarios. The dropdown test budget is now 60 seconds for both themes, multiple popup axe scans and step navigation; no assertions were removed.
+- Verified: six focused browser suites produced 30 passes and two dropdown timeouts at the original 30-second limit; rerunning dropdowns with the appropriate budget passed 2/2. `pnpm check` 7/7 with no warnings; `git diff --check` clean. Full browser suite and unit suite were not rerun for this copy-only revision.
+
+## 2026-11-14 (organized sign-up and consistent auth spacing)
+
+- Replaced the uneven single-page registration form with two focused steps: Personal details, then Studies & password. Continue validates without submitting; Back retains values and moves focus appropriately. All existing registration fields, optional disclosures, password guidance, Google availability and final CAPTCHA remain.
+- Follow-up spacing correction: sign-up now uses the same 50/50 desktop split as sign-in, with the form centered in its panel. Both default steps fit 1366×768 without page scrolling; narrow screens can scroll naturally without clipping content.
+- Verified: `pnpm exec playwright test tests/browser/signup.spec.ts tests/browser/signup-steps.spec.ts tests/browser/auth-layout.spec.ts` 20 passed (desktop/mobile, light/dark, axe, laptop fit, panel balance, registration and navigation). `pnpm check` 7/7; `pnpm test` 409/409. Rendered screenshots reviewed. Full browser suite not run.
+
+## Sign-in spacing and typography
+
+- Sign-in now has equal-width desktop panels with vertically centered brand content and a centered form. Sign-up initially kept its wider form panel; the follow-up above replaces that with the same equal split. Brand title is larger and bold on desktop and mobile; official imagery and authentication behavior are unchanged.
+- Verified: `pnpm exec playwright test tests/browser/auth-layout.spec.ts` 4 passed (desktop/mobile, light/dark, axe, 320–1920px widths); focused formatting/lint passed. The combined sign-up regression run was interrupted after seven passing desktop checks and is not claimed complete.
+
+## Sign-in branding copy update
+
+- Swapped the desktop auth brand lines: “Alumni Tracking System” above “Bukidnon State University - College of Technologies”. Logo, styling, mobile branding and application behavior are unchanged.
+- Verified: `pnpm exec vp check apps/web/src/components/layout/auth-layout.tsx` passes formatting/lint; `git diff --check` passes. Live browser rendering not checked.
 
 ## 2026-11-13 (theme, logo and alumni profile tabs)
 

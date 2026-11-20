@@ -7,4 +7,5 @@ export const rolesController = {
   create: controller(rolesSchemas.create, rolesService.create, "body", 201),
   update: controller(rolesSchemas.update, rolesService.update, "combined", 200),
   delete: controller(rolesSchemas.delete, rolesService.delete, "params", 200),
+  split: controller(rolesSchemas.split, rolesService.split, "combined", 201),
 };

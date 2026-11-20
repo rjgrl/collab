@@ -96,7 +96,7 @@ export function EditRoleDialog({
         open
         onOpenChange={onClose}
         pending={updateUser.isPending}
-        title={`Edit role for ${user.name}`}
+        title={`Edit Role for ${user.name}`}
         description="Pick a role, or adjust permissions to find the role that matches exactly."
         footer={
           <PrimaryButton
@@ -109,14 +109,14 @@ export function EditRoleDialog({
               const confirmed = await confirmAction({
                 title: `Change ${user.name}'s role to ${role.name}?`,
                 description: `${user.name} will be signed out of every session and must sign in again.`,
-                confirmLabel: "Change role",
+                confirmLabel: "Change Role",
               });
               if (!confirmed) return;
               setError(null);
               updateUser.mutate(role.id);
             }}
           >
-            Save role
+            Save Role
           </PrimaryButton>
         }
       >
@@ -192,7 +192,7 @@ export function EditRoleDialog({
                 <div className="flex items-center justify-between">
                   <span>No role has exactly these permissions.</span>
                   <PrimaryButton variant="outline" size="sm" onClick={() => setCreatingRole(true)}>
-                    Create a new role with these permissions
+                    Create a New Role with These Permissions
                   </PrimaryButton>
                 </div>
               )}

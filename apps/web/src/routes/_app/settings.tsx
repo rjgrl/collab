@@ -11,7 +11,7 @@ function SettingsLayout() {
   const sections = [
     { to: "/settings", label: "Account" },
     { to: "/settings/users", label: "Members" },
-    { to: "/settings/roles", label: "Roles and permissions" },
+    { to: "/settings/roles", label: "Roles and Permissions" },
     { to: "/settings/integrations", label: "Integrations" },
     { to: "/settings/backups", label: "Backups" },
   ] as const;

@@ -11,7 +11,7 @@ test("audit details, integration statuses and account controls remain compact an
   await page.goto("/login");
   await page.locator("#email").fill("admin@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await enrollAdministrator(page);
   const departments = await (await page.request.get("/api/departments")).json();
   const department = departments[0];
@@ -34,13 +34,13 @@ test("audit details, integration statuses and account controls remain compact an
   await expect(enableDialog).toBeVisible();
   await expect(enableDialog).toContainText("A webhook secret will be generated");
   await enableDialog
-    .getByRole("button", { name: "Generate secret and enable", exact: true })
+    .getByRole("button", { name: "Generate Secret and Enable", exact: true })
     .click();
   await page.waitForLoadState("networkidle");
 
   // Reveal dialog should show the secret
   const revealDialog = page.getByRole("dialog", {
-    name: "Google Forms webhook secret",
+    name: "Google Forms Webhook Secret",
     exact: true,
   });
   await expect(revealDialog).toBeVisible();
@@ -67,7 +67,7 @@ test("audit details, integration statuses and account controls remain compact an
   await forms.getByRole("button", { name: "Disable Google Forms", exact: true }).click();
   const disableConfirm = page.getByRole("alertdialog", { name: /Disable Google Forms/i });
   await expect(disableConfirm).toBeVisible();
-  await disableConfirm.getByRole("button", { name: "Disable and erase", exact: true }).click();
+  await disableConfirm.getByRole("button", { name: "Disable and Erase", exact: true }).click();
   await page.waitForLoadState("networkidle");
   await expect(forms.getByText("Disabled", { exact: true })).toBeVisible();
 
@@ -104,11 +104,11 @@ test("audit details, integration statuses and account controls remain compact an
       );
       await inspect(`audit-compact-${theme}-${width}`);
       await trigger.click();
-      const dialog = page.getByRole("dialog", { name: "Audit event details", exact: true });
+      const dialog = page.getByRole("dialog", { name: "Audit Event Details", exact: true });
       await expect(dialog).toContainText(description);
       await inspect(`audit-full-summary-${theme}-${width}`);
       const body = dialog.locator("[data-dialog-body]");
-      await dialog.getByRole("region", { name: "Full summary", exact: true }).focus();
+      await dialog.getByRole("region", { name: "Full Summary", exact: true }).focus();
       if (await body.evaluate((element) => element.scrollHeight > element.clientHeight)) {
         await body.evaluate((element) => {
           element.scrollTop = 0;
@@ -138,15 +138,15 @@ test("audit details, integration statuses and account controls remain compact an
       await inspect(`integrations-${theme}-${width}`);
       await page.goto("/settings");
       await expect(
-        page.getByRole("status", { name: "Email verification", exact: true }),
+        page.getByRole("status", { name: "Email Verification", exact: true }),
       ).toHaveText("Verified");
       await page.getByRole("button", { name: "Edit contact", exact: true }).click();
-      const contact = page.getByRole("dialog", { name: "Edit contact details", exact: true });
+      const contact = page.getByRole("dialog", { name: "Edit Contact Details", exact: true });
       const country = contact.getByRole("combobox", {
-        name: "Country calling code",
+        name: "Country Calling Code",
         exact: true,
       });
-      const phone = contact.getByRole("textbox", { name: "Phone number", exact: true });
+      const phone = contact.getByRole("textbox", { name: "Phone Number", exact: true });
       const left = (await country.boundingBox())!;
       const right = (await phone.boundingBox())!;
       expect(Math.abs(left.y - right.y)).toBeLessThanOrEqual(1);
@@ -162,12 +162,12 @@ test("audit details, integration statuses and account controls remain compact an
   }
   await request.post("http://127.0.0.1:3100/__test/legacy-unverified-email");
   await page.goto("/settings");
-  await expect(page.getByText("Not verified", { exact: true })).toBeVisible();
-  const verify = page.getByRole("button", { name: "Verify recovery email", exact: true });
+  await expect(page.getByText("Not Verified", { exact: true })).toBeVisible();
+  const verify = page.getByRole("button", { name: "Verify Recovery Email", exact: true });
   await expect(verify).toBeVisible();
   await inspect(`account-unverified-${info.project.name}`);
   await verify.click();
   await expect(
-    page.getByRole("dialog", { name: "Verify recovery email", exact: true }),
+    page.getByRole("dialog", { name: "Verify Recovery Email", exact: true }),
   ).toBeVisible();
 });

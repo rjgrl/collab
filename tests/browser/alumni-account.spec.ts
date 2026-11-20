@@ -16,33 +16,33 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
   await page.goto("/login");
   await page.locator("#email").fill("alumni@example.test");
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
   await page.waitForURL("**/my-profile");
   await openProfileTab(page, "Evidence");
   await expect(
-    page.getByRole("heading", { name: "Supporting evidence", exact: true }),
+    page.getByRole("heading", { name: "Supporting Evidence", exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Personal details", exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("Choose profile photo")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Personal Details", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Choose Profile Photo")).toHaveCount(0);
   await page.goto("/settings");
   await page
-    .getByRole("heading", { name: "Personal details", exact: true })
+    .getByRole("heading", { name: "Personal Details", exact: true })
     .locator("..")
     .getByRole("button", { name: "Edit", exact: true })
     .click();
-  const personalDialog = page.getByRole("dialog", { name: "Edit personal details", exact: true });
+  const personalDialog = page.getByRole("dialog", { name: "Edit Personal Details", exact: true });
   await selectOption(personalDialog.getByRole("combobox", { name: "Gender", exact: true }), "Male");
-  await personalDialog.getByRole("button", { name: "Save personal details", exact: true }).click();
+  await personalDialog.getByRole("button", { name: "Save Personal Details", exact: true }).click();
   await expect(personalDialog).toHaveCount(0);
 
   const openContactDialog = async () => {
     await page.getByRole("button", { name: "Edit contact", exact: true }).click();
-    return page.getByRole("dialog", { name: "Edit contact details", exact: true });
+    return page.getByRole("dialog", { name: "Edit Contact Details", exact: true });
   };
 
   let contactDialog = await openContactDialog();
   let countries = contactDialog.getByRole("combobox", {
-    name: "Country calling code",
+    name: "Country Calling Code",
     exact: true,
   });
   await expect(countries).toHaveText("PH +63");
@@ -61,10 +61,10 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
   ] as const) {
     contactDialog = await openContactDialog();
     countries = contactDialog.getByRole("combobox", {
-      name: "Country calling code",
+      name: "Country Calling Code",
       exact: true,
     });
-    const phone = contactDialog.getByRole("textbox", { name: "Phone number", exact: true });
+    const phone = contactDialog.getByRole("textbox", { name: "Phone Number", exact: true });
     await selectOption(countries, country);
     await phone.fill(national);
     await phone.blur();
@@ -73,7 +73,7 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
         response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
       { timeout: 15_000 },
     );
-    await contactDialog.getByRole("button", { name: "Save contact details", exact: true }).click();
+    await contactDialog.getByRole("button", { name: "Save Contact Details", exact: true }).click();
     const response = await saved;
     expect(response.request().postDataJSON().phoneNumber).toBe(canonical);
     expect(response.status()).toBe(200);
@@ -81,7 +81,7 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
     await page.reload();
     contactDialog = await openContactDialog();
     countries = contactDialog.getByRole("combobox", {
-      name: "Country calling code",
+      name: "Country Calling Code",
       exact: true,
     });
     await expect(countries).toContainText(country);
@@ -105,10 +105,10 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
   await page.reload();
   contactDialog = await openContactDialog();
   countries = contactDialog.getByRole("combobox", {
-    name: "Country calling code",
+    name: "Country Calling Code",
     exact: true,
   });
-  const phone = contactDialog.getByRole("textbox", { name: "Phone number", exact: true });
+  const phone = contactDialog.getByRole("textbox", { name: "Phone Number", exact: true });
   await phone.fill("+81 90-1234-5678");
   await expect(countries).toHaveText("JP +81");
   const saved = page.waitForResponse(
@@ -116,12 +116,12 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
       response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
     { timeout: 15_000 },
   );
-  await contactDialog.getByRole("button", { name: "Save contact details", exact: true }).click();
+  await contactDialog.getByRole("button", { name: "Save Contact Details", exact: true }).click();
   expect((await saved).status()).toBe(200);
   await page.reload();
   contactDialog = await openContactDialog();
   countries = contactDialog.getByRole("combobox", {
-    name: "Country calling code",
+    name: "Country Calling Code",
     exact: true,
   });
   await expect(countries).toHaveText("JP +81");

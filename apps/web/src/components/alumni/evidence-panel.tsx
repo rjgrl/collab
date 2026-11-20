@@ -73,10 +73,10 @@ export function EvidencePanel({
     <FormCard
       title={
         fixedKind === "image"
-          ? "Profile photo"
+          ? "Profile Photo"
           : fixedKind === "evidence"
-            ? "Supporting evidence"
-            : "Photo and evidence"
+            ? "Supporting Evidence"
+            : "Photo and Evidence"
       }
       description={
         fixedKind === "image"
@@ -188,7 +188,7 @@ export function EvidencePanel({
           }}
         >
           {!fixedKind ? (
-            <FormField id={`${fieldId}-kind`} label="File purpose">
+            <FormField id={`${fieldId}-kind`} label="File Purpose">
               <FormSelect
                 id={`${fieldId}-kind`}
                 value={kind}
@@ -196,21 +196,21 @@ export function EvidencePanel({
                   if (selected === "image" || selected === "evidence") setKind(selected);
                 }}
                 items={[
-                  { value: "evidence", label: "Private employment evidence" },
-                  { value: "image", label: "Profile photo" },
+                  { value: "evidence", label: "Private Employment Evidence" },
+                  { value: "image", label: "Profile Photo" },
                 ]}
               />
             </FormField>
           ) : null}
           {kind === "evidence" ? (
             <div className={fixedKind ? "sm:col-span-2" : undefined}>
-              <FormField id={`${fieldId}-employment`} label="Related employment (optional)">
+              <FormField id={`${fieldId}-employment`} label="Related Employment (Optional)">
                 <FormSelect
                   id={`${fieldId}-employment`}
                   value={employmentId}
                   onValueChange={(selected) => setEmploymentId(selected)}
                   items={[
-                    { value: "", label: "General profile evidence" },
+                    { value: "", label: "General Profile Evidence" },
                     ...jobs.map((j) => ({ value: j.id, label: j.employer })),
                   ]}
                 />
@@ -220,7 +220,7 @@ export function EvidencePanel({
           <div className="sm:col-span-2">
             <FormField
               id={`${fieldId}-file`}
-              label={kind === "image" ? "Choose profile photo" : "Choose evidence file"}
+              label={kind === "image" ? "Choose Profile Photo" : "Choose Evidence File"}
               required
             >
               <FilePicker
@@ -233,8 +233,8 @@ export function EvidencePanel({
                     : "image/jpeg,image/png,image/webp,application/pdf"
                 }
                 required
-                accessibleLabel={kind === "image" ? "Choose profile photo" : "Choose evidence file"}
-                chooseLabel={kind === "image" ? "Choose photo" : "Choose evidence"}
+                accessibleLabel={kind === "image" ? "Choose Profile Photo" : "Choose Evidence File"}
+                chooseLabel={kind === "image" ? "Choose Photo" : "Choose Evidence"}
                 onChange={setFile}
               />
             </FormField>
@@ -246,7 +246,7 @@ export function EvidencePanel({
           {upload.isPending ? (
             <div className="sm:col-span-2">
               <label htmlFor={`${fieldId}-progress`} className="text-sm">
-                Uploading {progress}%{progress === 100 ? " — saving file…" : ""}
+                Uploading {progress}%{progress === 100 ? " — Saving File…" : ""}
               </label>
               <progress
                 id={`${fieldId}-progress`}
@@ -268,7 +268,7 @@ export function EvidencePanel({
           ) : null}
           <div className="sm:col-span-2">
             <PrimaryButton type="submit" pending={upload.isPending} pendingLabel="Uploading">
-              {fixedKind === "image" ? "Upload photo" : "Upload file"}
+              {fixedKind === "image" ? "Upload Photo" : "Upload File"}
             </PrimaryButton>
           </div>
         </form>
@@ -280,7 +280,7 @@ export function EvidencePanel({
       ) : null}
       {!canUpload && !visibleFiles.length ? (
         <Button variant="ghost" disabled>
-          Uploads require file permission
+          Uploads Require File Permission
         </Button>
       ) : null}
     </FormCard>

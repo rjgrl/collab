@@ -8,7 +8,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { EmptyState } from "@/components/layout/page";
 
 export function DataTable({
-  label = "Scrollable records table",
+  label = "Scrollable Records Table",
   headers,
   children,
   search,

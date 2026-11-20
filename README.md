@@ -101,7 +101,7 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 | `faculty.education@collab.test`                           | Faculty (Secondary Education), assigned Graduate Three |
 | `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles               |
 
-Use `pnpm setup:local --no-demo` to skip demo data. If `STAFF_EMAIL_DOMAINS` is set locally, include `collab.test` or every demo login is refused. Hosted deployments get demo data only from `pnpm deploy:init --demo`, which is refused when `NODE_ENV=production`.
+Use `pnpm setup:local --no-demo` to skip demo data. `pnpm setup:local` sets `STAFF_EMAIL_DOMAINS=buksu.edu.ph,student.buksu.edu.ph,collab.test` when it is missing, so generated `collab.test` accounts can still sign in locally. Public sign-up independently accepts only `buksu.edu.ph` and `student.buksu.edu.ph`, never `collab.test`. An existing value is never overwritten; if you set it yourself, include `collab.test` or every demo login is refused. Hosted deployments get demo data only from `pnpm deploy:init --demo`, which is refused when `NODE_ENV=production`.
 
 There is no shared, hardcoded administrator password. Changing a password in Account settings does not cause setup to reset it. If you rerun setup after changing it, use the current password; the initial-login file may contain the original password.
 
@@ -223,11 +223,14 @@ Settings contains Account, Members, Roles and permissions, Integrations and Back
 
 ## Google login and signup
 
-Create a Google Cloud **Web application** OAuth client and configure the consent screen and test users. In your private apps/server/.env, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET. Keep APP_URL=http://localhost:3000 for the default local server. Register this exact authorized redirect URI:
+1. Create a Google Cloud **Web application** OAuth client. Configure the consent screen and add the intended BukSU users as test users if the consent app is in Testing and requires them.
+2. Register the exact callback: `http://localhost:3000/api/auth/google/callback` for the default local `APP_URL=http://localhost:3000`. For a shared/hosted deployment, use its actual public HTTPS `APP_URL` plus `/api/auth/google/callback`. This callback is intentionally unversioned, not `/api/v1/...`.
+3. As a Super Admin, open **Settings > Integrations > Google Sign-In**, enter the OAuth Client ID and Client Secret, complete the connection test, then save/enable. Preserve the existing integration encryption key. These OAuth credentials are **not** a Gmail App Password; never post the secret in chat or Git. Production uses encrypted database credentials only. `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are development fallbacks; restart the API after changing private env settings.
+4. Refresh `/login`: **Sign In with Google** appears when configured/enabled, with **Sign Up with Google** in signup mode. If it is absent, verify the integration is enabled and credentials are configured. Password sign-in still works.
 
-`http://localhost:3000/api/auth/google/callback`
+Every Google identity must have both an exact `buksu.edu.ph` or `student.buksu.edu.ph` email and a signed, verified BukSU Workspace hosted-domain claim, in **all environments**. Personal Gmail, demo domains, lookalikes and consumer accounts without Workspace claims are refused, even with a permissive development allowlist. Existing local seeded password-login exceptions do not apply to Google. OAuth account selection or a request `hd` hint is not authorization; the server checks the verified token. Institution administrator approval may be required by Workspace policy.
 
-In production, new-account registration also requires ALLOW_PUBLIC_SIGNUP=true; existing accounts can still sign in when registration is disabled. Restart the server, then enable **Google sign-in** in Settings > Integrations. Both sign-in and signup use the same Google button. Without credentials or with the integration disabled, the button is unavailable; local password sign-in still works. For a shared deployment, set APP_URL to the public origin serving /api/auth/google and register that origin's HTTPS callback. See [Google's OAuth setup instructions](https://developers.google.com/identity/openid-connect/openid-connect#settingup).
+In production, new-account registration also requires `ALLOW_PUBLIC_SIGNUP=true`; existing accounts can still sign in when registration is disabled. Real Google account sign-in requires operator-owned OAuth credentials and a browser acceptance test; automated tests use signed synthetic tokens, not live Google logins. See [Google's OAuth setup instructions](https://developers.google.com/identity/openid-connect/openid-connect#settingup).
 
 Email signup requires separate first/last names, optional middle/suffix fields, phone number, Male/Female selection, and password; the Facebook profile URL is optional. Emails are trimmed and stored in lowercase. Existing emails are rejected, including concurrent signup attempts protected by MongoDB's unique email index. Google sign-in reuses an existing account with the verified email instead of creating a duplicate. New Google accounts receive the Alumni role (legacy internal key `viewer`) and must create a password after a fresh Google verification, without a current-password field. The Google proof expires after five minutes, is bound to the current session, and is consumed once; creating a password also revokes other sessions. Future password changes require the current password. No automatic/shared password is generated.
 
@@ -237,9 +240,9 @@ After pulling model/index changes, review `pnpm db:migrate --dry-run`. Back up l
 
 New form signups must confirm their email with a six-digit code and verify their phone before protected app access. Google already confirms email ownership; its new accounts must save contact details, create their required password, and verify their phone. These requirements are enforced on protected APIs and private file access, not just navigation. Existing password accounts and the seeded administrator remain usable; an existing Google-only account is routed through required setup on its next Google sign-in.
 
-Email confirmation uses the existing HTTPS JSON mail gateway: configure SMTP_URL and SMTP_FROM in the private server environment and enable Email in Settings > Integrations. The gateway receives a POST body with from, to, subject, and text and must actually deliver the message. Direct smtp:// connections are not supported. SESSION_SECRET must contain at least 32 characters; local setup generates it. Codes are never returned by production APIs or written to logs: only a keyed hash is stored. Codes expire in 10 minutes, permit five attempts, and can be consumed once. Resends wait 60 seconds; changing contact information invalidates the previous verification.
+Email confirmation uses Gmail SMTP. Run `pnpm install --frozen-lockfile` after pulling, then open Settings > Integrations > Email, enter the Gmail Address and Gmail App Password, and complete its connection test before saving. The test goes to the sender's own inbox; confirm actual receipt privately. Production uses encrypted database credentials only; `GMAIL_ADDRESS`/`GMAIL_APP_PASSWORD` are development fallbacks. Old gateway URLs and Resend/SMTP2GO keys are not reused. See [integration setup](docs/operations/INTEGRATIONS.md). SESSION_SECRET must contain at least 32 characters; local setup generates it. Codes are never returned by production APIs or written to logs: only a keyed hash is stored. Codes expire in 10 minutes, permit five attempts, and can be consumed once. Resends wait 60 seconds; changing contact information invalidates the previous verification.
 
-**SMS delivery is unimplemented.** Local contact exemptions let functionality tests proceed without pretending contacts are verified or sending codes. Strict verification remains blocked until the SMS adapter and enabled email gateway are configured and accepted. Production refuses local exemptions; `/health/ready` returns 503 when mandatory verification providers are unavailable. The isolated test SMS adapter is never installed in the application.
+**SMS delivery is unimplemented.** Local contact exemptions let functionality tests proceed without pretending contacts are verified or sending codes. Strict verification remains blocked until the SMS adapter and enabled Gmail email integration are configured and accepted. Production refuses local exemptions; `/health/ready` returns 503 when mandatory verification providers are unavailable. The isolated test SMS adapter is never installed in the application.
 
 Google sign-in does not silently activate a pending, unconfirmed password registration with the same email. Confirm the original registration email and sign in with that password before linking Google; this prevents a pre-registered password or phone from becoming trusted through someone else's Google verification.
 
@@ -257,7 +260,7 @@ Graduation year is required for registration, academic saves and imports (1950�
 
 Phone numbers are cleaned on blur and validated on submission/API input using country numbering metadata. Redundant trunk zeros after international calling codes are removed where applicable; significant zeros, including Italian numbers, are preserved. Stored international numbers contain only `+` and digits.
 
-Changing email requires the current password and a code delivered to the new address, even when local signup verification is relaxed. The old address remains active until confirmation succeeds. Confirmation verifies the new address, synchronizes the linked Alumni contact, invalidates password-reset links and signs out other sessions while preserving the current session's MFA proof. Live email changes need the enabled HTTPS mail gateway described above.
+Changing email requires the current password and a code delivered to the new address, even when local signup verification is relaxed. The old address remains active until confirmation succeeds. Confirmation verifies the new address, synchronizes the linked Alumni contact, invalidates password-reset links and signs out other sessions while preserving the current session's MFA proof. Live email changes need the enabled Gmail SMTP integration described above.
 
 **My Profile** contains Alumni academic identity, employment and supporting evidence. Tracking status is staff-only: Alumni never see whether they are tracked, and their own profile API omits it. Administrators and in-scope faculty maintain student numbers, academic assignments and tracking decisions. Employment/file edits do not automatically mark a record tracked. Alumni evidence uploads notify the assigned faculty member and the heads of that alumnus's department and college through the header bell.
 
@@ -294,7 +297,7 @@ Alumni detail pages show the photo, name, program and Tracked/Untracked status a
 
 ## BukSU institutional email
 
-**Every account, Alumni included,** must use an email domain from `STAFF_EMAIL_DOMAINS` (comma-separated, exact match; subdomains and look-alikes such as `buksu.edu.ph.evil.com` are rejected; the variable name predates the rule covering Alumni). It is enforced server-side on sign-up, password sign-in, first-time Google sign-in, every authenticated request, account creation and email changes. Production refuses to start without it; when it is unset in development the check is off and the server prints a warning.
+Public signup always requires exact `buksu.edu.ph` or `student.buksu.edu.ph`, before Step 2 and on the server. Production account access also requires those domains regardless of configured demo exceptions. Existing local demo logins may use an explicit development exception, but cannot self-register. Additionally, **every account, Alumni included,** must use an email domain from `STAFF_EMAIL_DOMAINS` (comma-separated, exact match; subdomains and look-alikes such as `buksu.edu.ph.evil.com` are rejected; the variable name predates the rule covering Alumni). It is enforced server-side on sign-up, password sign-in, first-time Google sign-in, every authenticated request, account creation and email changes. Production refuses to start without it; when it is unset in development the check is off and the server prints a warning.
 
 Existing accounts with a personal email (for example Alumni who registered before this rule) are signed out and refused on their next request. Before turning this on in production, list them (`db.User.find({ email: { $not: /@(student\.)?buksu\.edu\.ph$/ } })`) and have each one change to a BukSU email, or decide how they will regain access. Graduates whose BukSU accounts are deactivated after graduation cannot sign in.
 
@@ -340,3 +343,37 @@ Run `pnpm accounts:local` to provision fresh generated Admin, Faculty (college h
 For automated role checks, install Chromium once with `pnpm exec playwright install chromium`. With those servers running, `pnpm test:roles-local` rehearses normal UI login for all three roles, the configured Admin MFA policy, Admin-only integrations, role/session revocation and disabled sessions. It saves synthetic screenshots and private authenticator/recovery artifacts under `.tools/role-browser/`. These files contain secrets: do not share or commit them. The tool only accepts the generated synthetic namespace; it has no production endpoint or fixed test password.
 
 Public registration requires `ALLOW_PUBLIC_SIGNUP=true`; local role demonstrations set this explicitly without changing your private working configuration.
+
+### Gmail and presentation verification
+
+Email uses Gmail SMTP with an App Password. After pulling, run pnpm install --frozen-lockfile
+and restart the API, not only the browser. In your personal Google Account, enable 2-Step
+Verification and create an App Password for this demo. Enter that Gmail address and the App
+Password (not your normal Google password) in Settings → Integrations → Email. Test and Enable
+or update the existing credentials. The test goes to the Gmail sender's own inbox, so a seeded
+admin@collab.test account can configure email without first changing its account address.
+
+No purchased domain, Resend key or SMTP2GO account is needed. Real email requires network access
+to smtp.gmail.com:465; some hosts/networks block outbound SMTP. Sending is subject to Google's
+limits and anti-abuse checks. Look in Spam if Gmail accepted the message but it is not in Inbox.
+The Gmail sender need not match the application's administrator address. Once configured, use
+Settings → Account to change the administrator to a real institutional email through normal
+verification. Do not add personal Gmail to allowed application domains just to use it as a sender.
+
+Old Resend/SMTP2GO keys are not reused. Gmail stores its own encrypted gmailAppPassword field;
+you must enter a new App Password even if Email was previously enabled. Never commit/share the
+App Password in chat. For shared Atlas, configure Email once and preserve the same existing
+INTEGRATION_ENCRYPTION_KEY on all API servers. Revoke the demo App Password after the presentation.
+
+New local setups require email verification and preserve deliberate existing settings. Atlas
+cannot use localhost-only MFA/contact-verification bypasses. Gmail enables email only; SMS/phone
+verification policy is separate and unchanged. Global API limits are unchanged.
+
+### Institutional signup and demo logins
+
+New public signups always require @buksu.edu.ph or @student.buksu.edu.ph; the first step refuses
+other domains before continuing. The server applies the same rule. Existing local seeded
+collab.test accounts can still sign in through the explicit development allowlist, but cannot
+self-register. Production accepts only BukSU domains for all accounts, even if an old configured
+allowlist includes a demo domain. Change real administrator addresses before production deployment.
+The personal Gmail sending account is not an application-login exception.

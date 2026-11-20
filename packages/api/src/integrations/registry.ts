@@ -1,3 +1,4 @@
+import { emailConfigured } from "./email";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import { ApiError } from "../http-error";
 import type { IntegrationEnv } from "../context";
@@ -116,7 +117,7 @@ export function isConfigured(key: IntegrationKey, env: IntegrationEnv) {
     case "google_drive":
       return Boolean(env.googleServiceAccountJson && env.googleDriveFolderId);
     case "email":
-      return Boolean(env.smtpUrl?.startsWith("https://"));
+      return emailConfigured(env);
     case "image_host":
       return Boolean(env.imgbbApiKey || env.googleServiceAccountJson);
     case "google_forms":

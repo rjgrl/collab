@@ -6,7 +6,7 @@ async function signIn(page: Page, email: string) {
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email", exact: true }).fill(email);
   await page.locator("#password").fill("BrowserTest123!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
 }
 test.beforeEach(async ({ request }) => {
   await request.post("http://127.0.0.1:3100/__test/reset");
@@ -22,36 +22,36 @@ test("Alumni with historical MFA enrollment edit personal details only in Settin
   });
   await signIn(page, "alumni@example.test");
   await expect(page).toHaveURL(/\/my-profile$/);
-  await expect(page.getByRole("heading", { name: "My profile", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My Profile", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Alumni", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Members", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("textbox", { name: "First name", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "First Name", exact: true })).toHaveCount(0);
   await page.goto("/settings");
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  const personal = page.getByRole("dialog", { name: "Edit personal details", exact: true });
-  await personal.getByRole("textbox", { name: "First name", exact: true }).fill("María José");
-  await personal.getByRole("textbox", { name: "Middle name (optional)", exact: true }).fill("");
-  await personal.getByRole("textbox", { name: "Last name", exact: true }).fill("Dela Cruz-O’Neill");
+  const personal = page.getByRole("dialog", { name: "Edit Personal Details", exact: true });
+  await personal.getByRole("textbox", { name: "First Name", exact: true }).fill("María José");
+  await personal.getByRole("textbox", { name: "Middle Name (Optional)", exact: true }).fill("");
+  await personal.getByRole("textbox", { name: "Last Name", exact: true }).fill("Dela Cruz-O’Neill");
   await personal
-    .getByRole("combobox", { name: "Name extension / suffix (optional)", exact: true })
+    .getByRole("combobox", { name: "Name Extension / Suffix (Optional)", exact: true })
     .fill("de la Casa");
   await selectOption(personal.getByRole("combobox", { name: "Gender", exact: true }), "Female");
   const saved = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/v1/auth/profile") && response.request().method() === "PATCH",
   );
-  await personal.getByRole("button", { name: "Save personal details", exact: true }).click();
+  await personal.getByRole("button", { name: "Save Personal Details", exact: true }).click();
   expect((await saved).status()).toBe(200);
   await page.reload();
   await expect(page.getByText("María José", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  const savedPersonal = page.getByRole("dialog", { name: "Edit personal details", exact: true });
-  await expect(savedPersonal.getByRole("textbox", { name: "First name", exact: true })).toHaveValue(
+  const savedPersonal = page.getByRole("dialog", { name: "Edit Personal Details", exact: true });
+  await expect(savedPersonal.getByRole("textbox", { name: "First Name", exact: true })).toHaveValue(
     "María José",
   );
   await expect(
     savedPersonal.getByRole("combobox", {
-      name: "Name extension / suffix (optional)",
+      name: "Name Extension / Suffix (Optional)",
       exact: true,
     }),
   ).toHaveValue("de la Casa");
@@ -179,9 +179,9 @@ test("Alumni see only their own entries in the audit log", async ({ page, reques
   await signIn(page, "alumni@example.test");
   await page.waitForURL("**/my-profile");
   const mobile = testInfo.project.name === "mobile";
-  if (mobile) await page.getByRole("button", { name: "Open menu" }).click();
+  if (mobile) await page.getByRole("button", { name: "Open Menu" }).click();
   // The mobile navigation is a dropdown menu; desktop uses sidebar links.
-  const link = page.getByRole(mobile ? "menuitem" : "link", { name: "Audit log", exact: true });
+  const link = page.getByRole(mobile ? "menuitem" : "link", { name: "Audit Log", exact: true });
   await expect(link).toBeVisible();
   await link.click();
   await expect(page).toHaveURL(/\/audit$/);

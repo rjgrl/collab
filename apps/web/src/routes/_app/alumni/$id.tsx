@@ -8,7 +8,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
@@ -32,7 +32,7 @@ const profileTabs = [
   { key: "details", label: "Details" },
   { key: "employment", label: "Employment" },
   { key: "tracking", label: "Tracking" },
-  { key: "history", label: "Change history" },
+  { key: "history", label: "Change History" },
 ] as const;
 type LinkedTab = Exclude<(typeof profileTabs)[number]["key"], "details">;
 // Evidence links that predate the tabs carry only the file anchor.
@@ -76,23 +76,6 @@ function AlumniDetailPage() {
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [trackingPage, setTrackingPage] = useState(1);
 
-  useEffect(() => {
-    if (!record) {
-      return;
-    }
-    setForm({
-      firstName: record.firstName,
-      middleName: record.middleName ?? "",
-      lastName: record.lastName,
-      suffix: record.suffix ?? "",
-      gender: record.gender ?? "",
-      batch: record.batch ?? "",
-      studentNumber: record.studentNumber,
-      graduationYear: record.graduationYear ? String(record.graduationYear) : "",
-      programId: record.programId,
-    });
-  }, [record]);
-
   const save = useMutation({
     mutationFn: () =>
       client.alumni.update({
@@ -131,7 +114,7 @@ function AlumniDetailPage() {
   if (!record) {
     return (
       <PageShell>
-        <PageHeader title="Alumni profile" description="This alumni record could not be found." />
+        <PageHeader title="Alumni Profile" description="This alumni record could not be found." />
         {alumni.isError ? (
           <ErrorAlert onRetry={() => void alumni.refetch()}>{alumni.error.message}</ErrorAlert>
         ) : null}
@@ -159,7 +142,7 @@ function AlumniDetailPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {record.canManagePhoto ? (
-              <QuietButton onClick={() => setEditingPhoto(true)}>Change photo</QuietButton>
+              <QuietButton onClick={() => setEditingPhoto(true)}>Change Photo</QuietButton>
             ) : null}
             {can(session.data?.permissions, "reports.export") ? (
               <QuietButton
@@ -175,7 +158,7 @@ function AlumniDetailPage() {
           </div>
         }
       />
-      <SectionTabs label="Profile sections">
+      <SectionTabs label="Profile Sections">
         {visibleTabs.map((item) => (
           <Link
             key={item.key}
@@ -194,8 +177,9 @@ function AlumniDetailPage() {
       {tab === "details" ? (
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <SummaryCard
-            title="Student details"
+            title="Student Details"
             actionLabel={canWrite ? "Edit details" : undefined}
+            actionDisabled={save.isPending || alumni.isFetching}
             onAction={
               canWrite
                 ? () => {
@@ -215,11 +199,11 @@ function AlumniDetailPage() {
                 : undefined
             }
           >
-            <DetailRow label="Full name" value={formatDisplayName(record)} />
-            <DetailRow label="Student number" value={record.studentNumber} />
+            <DetailRow label="Full Name" value={formatDisplayName(record)} />
+            <DetailRow label="Student Number" value={record.studentNumber} />
             <DetailRow label="Program" value={`${record.program.code} — ${record.program.name}`} />
             <DetailRow label="Department" value={record.program.department.name} />
-            <DetailRow label="Graduation year" value={record.graduationYear ?? "Not recorded"} />
+            <DetailRow label="Graduation Year" value={record.graduationYear ?? "Not recorded"} />
             <DetailRow label="Gender" value={record.gender || "Not recorded"} />
             <DetailRow label="Batch" value={record.batch || "Not recorded"} />
             <DetailRow label="Employment" value={record.employmentStatus} />
@@ -249,7 +233,7 @@ function AlumniDetailPage() {
       {editingDetails ? (
         <FormDialog
           open
-          title="Edit student details"
+          title="Edit Student Details"
           description="Update the alumni record. Employment status remains derived from job history."
           pending={save.isPending}
           onOpenChange={setEditingDetails}
@@ -261,7 +245,7 @@ function AlumniDetailPage() {
               save.mutate();
             }}
           >
-            <FormField id="firstName" label="First name" required>
+            <FormField id="firstName" label="First Name" required>
               <Input
                 id="firstName"
                 required
@@ -269,14 +253,14 @@ function AlumniDetailPage() {
                 onChange={(event) => setForm({ ...form, firstName: event.target.value })}
               />
             </FormField>
-            <FormField id="middleName" label="Middle name">
+            <FormField id="middleName" label="Middle Name">
               <Input
                 id="middleName"
                 value={form.middleName}
                 onChange={(event) => setForm({ ...form, middleName: event.target.value })}
               />
             </FormField>
-            <FormField id="lastName" label="Last name" required>
+            <FormField id="lastName" label="Last Name" required>
               <Input
                 id="lastName"
                 required
@@ -297,7 +281,7 @@ function AlumniDetailPage() {
                 value={form.gender}
                 onValueChange={(selected) => setForm({ ...form, gender: selected })}
                 items={[
-                  { value: "", label: "Not specified" },
+                  { value: "", label: "Not Specified" },
                   { value: "Female", label: "Female" },
                   { value: "Male", label: "Male" },
                 ]}
@@ -324,14 +308,14 @@ function AlumniDetailPage() {
                 }
               />
             </FormField>
-            <FormField id="studentNumber" label="Student number">
+            <FormField id="studentNumber" label="Student Number">
               <Input
                 id="studentNumber"
                 value={form.studentNumber}
                 onChange={(event) => setForm({ ...form, studentNumber: event.target.value })}
               />
             </FormField>
-            <FormField id="graduationYear" label="Graduation year" required>
+            <FormField id="graduationYear" label="Graduation Year" required>
               <Input
                 id="graduationYear"
                 type="number"
@@ -347,7 +331,7 @@ function AlumniDetailPage() {
             ) : null}
             <div className="md:col-span-2">
               <PrimaryButton type="submit" pending={save.isPending}>
-                Save student details
+                Save Student Details
               </PrimaryButton>
             </div>
           </form>
@@ -375,7 +359,7 @@ function AlumniDetailPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-muted-foreground">Current status</span>
+              <span className="text-muted-foreground">Current Status</span>
               <StatusBadge tone={record.isTracked ? "tracked" : "untracked"} />
             </div>
             <TrackingTable alumniId={id} page={trackingPage} onPageChange={setTrackingPage} />
@@ -384,14 +368,14 @@ function AlumniDetailPage() {
                 <Textarea
                   value={trackingNotes}
                   onChange={(event) => setTrackingNotes(event.target.value)}
-                  placeholder="Tracking notes"
-                  aria-label="Tracking notes"
+                  placeholder="Tracking Notes"
+                  aria-label="Tracking Notes"
                 />
                 <div className="flex flex-wrap gap-2">
                   <PrimaryButton onClick={() => track.mutate(true)} pending={track.isPending}>
-                    Mark tracked
+                    Mark Tracked
                   </PrimaryButton>
-                  <QuietButton onClick={() => track.mutate(false)}>Mark untracked</QuietButton>
+                  <QuietButton onClick={() => track.mutate(false)}>Mark Untracked</QuietButton>
                 </div>
               </div>
             ) : null}
@@ -402,7 +386,7 @@ function AlumniDetailPage() {
       {tab === "history" ? (
         <Card>
           <CardHeader>
-            <CardTitle>Change history</CardTitle>
+            <CardTitle>Change History</CardTitle>
           </CardHeader>
           <CardContent>
             <ChangeHistoryTable alumniId={id} />

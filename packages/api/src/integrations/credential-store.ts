@@ -117,7 +117,8 @@ export function withoutIntegrationCredentials(env: IntegrationEnv): IntegrationE
     "googleFormsWebhookSecret",
     "smtpUrl",
     "smtpFrom",
-    "emailApiKey",
+    "gmailAppPassword",
+    "emailApiKey", // Scrub legacy provider credentials supplied by older callers too.
     "imgbbApiKey",
     "imageHostProvider",
   ];
@@ -191,9 +192,12 @@ export async function resolveIntegrationEnv(
           if (stored.values.apiKey) env.imgbbApiKey = stored.values.apiKey;
           break;
         case "email":
-          if (stored.values.gatewayUrl) env.smtpUrl = stored.values.gatewayUrl;
-          if (stored.values.fromAddress) env.smtpFrom = stored.values.fromAddress;
-          if (stored.values.apiKey) env.emailApiKey = stored.values.apiKey;
+          // Provider-specific storage prevents reusing Resend/SMTP2GO API keys as Gmail credentials.
+          if (stored.values.gmailAppPassword) {
+            env.smtpUrl = "smtps://smtp.gmail.com:465";
+            env.smtpFrom = stored.values.fromAddress;
+            env.gmailAppPassword = stored.values.gmailAppPassword;
+          }
           break;
         case "google_forms":
           if (stored.values.webhookSecret)

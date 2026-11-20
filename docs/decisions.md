@@ -223,3 +223,127 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - `SUPER_ADMIN_ONLY_PERMISSIONS` (`packages/contracts/src/permission-scope.ts`): `users.*`, `roles.*`, `permissions.read`, `departments.write|delete`, `programs.write|delete`, `integrations.*`, `audit.read`.
 - Enforced once, where permissions are resolved at sign-in (`loadAuthUser` via `effectivePermissions`), so every route follows it; stored grants on older roles give nothing and need no migration. Roles cannot be saved with them (400, plain message). Settings › Roles shows them as "Super Admin only" and drops them on save.
 - Heads keep their scoped powers (faculty, assignments, scoped audit) through the Faculty record, which never used these permissions.
+
+## 2026-11-14: Focused sign-up steps and consistent auth-page balance
+
+- Owner approved two steps instead of the previous single-page sign-up decision: Personal details (name and contact), then Studies & password. The one-page layout was cluttered and pushed actions off the laptop screen. Continue validates the first step without submitting; Back preserves entries; only Create account sends the existing registration payload.
+- Sign-in and sign-up share the same equal-width desktop panels and centered content. The owner explicitly rejected keeping the older wider sign-up panel because its dark empty space looked inconsistent with sign-in. Sign-up has a wider content measure within its half for paired fields, not a wider panel.
+- Required fields, institutional-email guidance, optional names/Facebook, password checks, configured Google entry and CAPTCHA are retained. Default steps fit 1366×768 without scrolling; small screens, zoom and expanded optional content may scroll naturally rather than clipping inputs or shrinking controls.
+
+## 2026-11-14: Formal capitalization on public authentication pages
+
+- Owner chose title case for the landing headline, page/group headings, field labels, placeholders and actions (for example “Sign In”, “Create Your Alumni Account” and “Phone Number”). Full sentences, explanatory text and validation/status messages stay in sentence case; university and product names retain proper capitalization.
+- Scope is the public landing/login/sign-up presentation, not a site-wide relabeling of shared account/settings forms. Capitalizing every word in paragraphs was rejected to preserve readability.
+
+## 2026-11-14: Extend formal labels and full branding across Super Admin
+
+- Owner explicitly expanded the capitalization scope to all Super Admin screens, including shared labels visible to other roles. Static interface headings, labels and actions use title case; explanations and status/instruction sentences remain sentence case. This supersedes the earlier restriction to public authentication pages.
+- The sidebar uses the complete landing-page product and institution names, wrapping rather than truncating the university subtitle. Its width, official seal and navigation behavior are retained.
+- System-defined permission/integration labels may be formatted at display time; user-defined role names, person names, academic records, stored values, permission keys and request payloads are never recased. The formatter is not a general text transform.
+
+## 2026-11-14: Password visibility, registration confirmation and abbreviated sidebar subtitle
+
+- Owner approved independent eye-button visibility controls on login and registration, plus a required matching Confirm Password during account creation. The presentation/API boundary and reset behavior are recorded in [Authentication Password Controls](../apps/web/src/components/forms/password-controls.SPEC.md).
+- Review `rc_c7ed30f8` was clarified as shortening the sidebar university name only: “Alumni Tracking System” above “BukSU - College of Technologies”. This supersedes the full-name sidebar subtitle above; the public landing branding remains unchanged.
+
+## 2026-11-14: Organize Reports without removing stored Batch data
+
+- Owner approved labeled, hierarchy-ordered report controls and separate export groups, and explicitly selected Reports-only Batch removal rather than removing it from profile/history surfaces.
+- Existing output scopes, permission gates and the selection-stability rule are recorded in [Reports Interface and Export Scopes](../apps/web/src/routes/_app/reports.SPEC.md). No backend contract or database migration is part of this change.
+
+## 2026-11-15: Stage the Atlas data copy without live cutover or automatic cleanup
+
+- Owner approved copying only the active local application database into the empty Atlas `alumni_tracking` target, keeping the source and a private backup. Other databases are out of scope. Local development/tests remain on native `rs0`; hosted-server configuration and cutover are deferred until the hosting details are provided.
+- Preserve the existing encryption/session keys in restricted backups outside Git. A verified native archive is a point-in-time copy, not live synchronization and not an encrypted `.atsbak` bundle. Existing maintenance mode was used briefly, with consistent source hashes checked before/after the dump and restored BSON data/indexes/options verified against the snapshot.
+- Owner chose inspect-first cleanup and then explicitly **Keep All Records** after reviewing the exact demo/test candidates and dependencies. No unknown collections or broken references were found. Reserved example/test email domains alone do not justify deleting records; all 168 copied records remain, and no data cleanup is authorized.
+
+## 2026-11-15: Reconcile reviewed profile changes without replacing Atlas data
+
+- After a read-only local/Atlas comparison, the owner approved all 35 reviewed profile fields across 12 existing records, including names, gender/Facebook details and department/tracker assignments, together with their 12 source modification timestamps. Apply exactly that allowlist in one transaction, bound to the reviewed hashes and a fresh private backup; preserve every unapproved field and record.
+- Rejected a whole-database replacement or automatic transfer of local authentication/session state and audit history. The 17 new local-only operational records stay separate; no accounts or other data are deleted. Roles, permissions and passwords remain unchanged.
+- This is another point-in-time refresh, not a synchronization feature. Local development/tests remain native; the separately configured hosted backend must use Atlas before future hosted website edits persist there directly.
+
+## 2026-11-15: Document API setup without activating providers
+
+- Owner selected a guide and configuration examples, not missing-adapter implementation or live enablement. Use existing Render secret injection for root keys and the encrypted application credential store for production providers; do not add an external secrets-manager SDK as part of this task.
+- The operational catalog is [Secure API Setup](operations/API_SETUP.md). Its Resend/Twilio examples do not select vendors or authorize billing, messages, uploads, database changes or deployment. Provider choice and implementation gaps remain explicit; strict production verification/readiness is unchanged.
+
+## 2026-11-19: Role changes can apply to selected members; limited Super Admins
+
+- Decision: the role editor lists a role's members. "Apply Changes To" offers All Members (edits the role) or Only Selected Members, which moves the picked members to a new role holding the edited permissions (`POST /roles/:id/split`, one transaction, audited as `roles.split`; moved members are signed out). Works for Faculty, custom and Super Admin roles, not Alumni.
+- This keeps "no per-user permissions" (2026-11-09): every account's access is still exactly its role's permissions. Per-user overrides were offered and rejected because they make access hard to audit.
+- A role split from Super Admin or Faculty records `baseRole`; `roleKeys()` adds that base key to the account's roles, so a limited Super Admin is still an administrator (university-wide scope, MFA) and a split Faculty member keeps Faculty menus, notifications and scope. Permissions come only from the new role's grants.
+- Owner requirement: several Super Admins may exist with limited access. The original Super Admin role is read-only with every permission on. Only a full Super Admin (member of that role) may split Super Admin members or edit, delete, re-assign or disable a limited one; nobody can split themself; the full role can never be emptied by a split.
+- University-wide ("Super Admin only") permissions may be held by Super Admin roles and their limited variants only; Faculty and custom roles still cannot hold them.
+
+## Resend, global API budgets and account/archive bug fixes
+
+- Email is Resend-only, using its fixed HTTPS send endpoint, encrypted API key and verified sender.
+  Old internal mail property names remain for compatibility; custom gateway URLs are ignored.
+  Provider checks send a real test email before credentials are committed. No live credentials were
+  supplied during implementation, so mailbox delivery must be checked on the presentation device.
+- Global limits: 300/minute per account or anonymous IP, plus 3000/minute per shared IP before
+  authentication; MongoDB counters persist across refreshes and instances. Existing stricter auth
+  limits stay. Only explicit non-production memory storage is permitted.
+- Owner clarified BUG-003 as verification of the recipient's email, not extra administrator MFA.
+  Managed accounts already require verification; local setup now defaults to email verification on.
+  BUG-006 is an Alumni-only browse/restore Archive for Super Admins, without permanent deletion.
+  BUG-007 retains exact institutional domains and the local-only collab.test demo exception.
+
+## 2026-11-19: Gmail App Passwords replace Resend; SMTP2GO was not shipped
+
+- Owner approved Gmail SMTP after SMTP2GO signup was blocked. Use Nodemailer, fixed
+  smtp.gmail.com:465 with verified implicit TLS and TLS 1.2 minimum, not a configurable gateway.
+- One Gmail address is the SMTP username and sender. Setup tests go to that sender's own inbox,
+  not to the seeded administrator address. This allows email configuration before account email
+  change without bypassing recipient verification or institutional login rules.
+- The new encrypted gmailAppPassword field prevents reusing old Resend/SMTP2GO API keys. Google
+  App Passwords can be pasted grouped or ungrouped; whitespace is stripped only for SMTP login.
+- Transport errors are sanitized, resources closed, timeouts bounded and debug/file/URL access
+  disabled. Gmail's SMTP recipient acceptance is checked. Production uses encrypted DB credentials;
+  only explicit development GMAIL_ADDRESS/GMAIL_APP_PASSWORD fallback remains.
+- Test adapters capture SMTP messages without external delivery; no real App Password is used or
+  stored by the agent. The owner must verify live Gmail auth, port reachability and inbox delivery.
+
+## 2026-11-19: Student Details drafts belong to the open editor
+
+- Initialize managed-profile drafts only on opening; background data refresh cannot replace
+  unsaved edits. Wait for previous saves/refetches before starting another edit. This fixes the
+  Windows CI no-op audit race without weakening audit expectations or changing backend scope.
+  See [profile-editing boundary](specs/profile-editing.md).
+
+## 2026-11-19: Google sign-in requires BukSU Workspace in every environment
+
+- Reuse the configured/enabled Google OAuth flow, not a separate provider or a Gmail App Password.
+  Both exact BukSU email and verified Workspace hosted-domain claims are required even with
+  missing/permissive development allowlists. Local demo password exceptions never apply to Google.
+- Server-side verified token claims are authoritative; an account-picker/request domain hint is
+  not authentication. Existing state, signature, issuer/audience/expiry, verified email, linking,
+  enrollment and MFA gates remain. See [account-access policy](specs/account-access.md).
+- Google OAuth credentials remain operator-owned and encrypted in settings; no live Google login
+  is claimed without credentials and browser acceptance. Updated Google fixtures instead of
+  weakening security tests, and shared rejection wording now covers all roles.
+- The security spec directory was previously ignored by the documentation allowlist. Explicitly
+  retain only account-access.md so the policy is shared across checkouts, not just local context.
+
+## 2026-11-19: BukSU-only signup before Step 2 and targeted role dropdown
+
+- Owner requested Step-1 validation: a shared signupEmailSchema accepts only exact buksu.edu.ph
+  and student.buksu.edu.ph addresses, case-insensitively. Personal, lookalike and collab.test
+  addresses are refused in both the browser and registration API; signup errors list only BukSU.
+- Existing local seeded logins keep their configured exception for now. In production, every
+  account is additionally checked against the two BukSU domains, regardless of a stray configured
+  demo-domain exception. No existing database email is rewritten. Migrate real administrators'
+  addresses before deploying with production settings. The Gmail sending account is unchanged.
+- Philippine national input removes the trunk zero beside +63 while retaining the existing phone
+  library's country detection and other countries' significant zeros. An initial international-
+  formatting approach broke country switching and was replaced, verified by multi-country tests.
+- Sign-in CAPTCHA and Forgot Password share one compact wrapping row (including configured live
+  CAPTCHA); signup's checkbox is also compacted without shrinking accessible controls.
+- Role editor uses one Apply Changes To dropdown: All Members by default, or an individual name.
+  Permission edits for one selected member create a variant and sign them out, with a notice.
+  Switching a dirty target requires confirmation and resets the draft so it cannot accidentally
+  become an All Members change. Full Super Admin/self-edit guards remain intact. A one-member
+  Faculty/custom role may split that member; the original full Super Admin role cannot be emptied.
+- Signup regression fixtures now use institutional addresses, preserving duplicate/race/recovery
+  assertions rather than weakening the new validation. Other existing seeded login fixtures remain.
