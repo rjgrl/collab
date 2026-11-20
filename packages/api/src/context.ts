@@ -1,5 +1,6 @@
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import type { AuthUser } from "@Alumni-Tracking-Ss/contracts/auth";
+import type { TransactionTimestamp } from "@Alumni-Tracking-Ss/db/timestamp-ordering";
 export type { AuthUser } from "@Alumni-Tracking-Ss/contracts/auth";
 
 export type IntegrationEnv = {
@@ -34,6 +35,8 @@ export type Context = {
   db: Database;
   sessionToken: string | null;
   sessionStorageToken?: string | null;
+  timestampEditToken?: string | null;
+  timestampWrite?: { stamp: TransactionTimestamp; alumniIds: readonly string[] };
   onSessionRotation?: (session: { token: string; expiresAt: Date }) => void;
   user: AuthUser | null;
   ipAddress: string | null;

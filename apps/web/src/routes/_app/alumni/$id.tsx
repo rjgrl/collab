@@ -27,6 +27,9 @@ import { AccountAvatar } from "@/components/account/account-avatar";
 import { AlumniPhotoDialog } from "@/components/alumni/alumni-photo-dialog";
 import { TrackingTable } from "@/components/alumni/tracking-table";
 import { ChangeHistoryTable } from "@/components/alumni/change-history-table";
+import { TimestampConflictAlert } from "@/components/feedback/timestamp-conflict-alert";
+import { useTimestampEdit } from "@/lib/timestamp-edit";
+import type { TimestampEdit } from "@Alumni-Tracking-Ss/contracts/timestamp";
 
 const profileTabs = [
   { key: "details", label: "Details" },
@@ -75,21 +78,48 @@ function AlumniDetailPage() {
   const [editingDetails, setEditingDetails] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [trackingPage, setTrackingPage] = useState(1);
+  const detailsEdit = useTimestampEdit();
+  // The editor's draft starts from the authorized snapshot issued with its edit timestamp.
+  const startDetailsEdit = async () => {
+    const started: TimestampEdit = await detailsEdit.begin("details", [id]);
+    const snapshot = started.snapshot[0]!;
+    setForm({
+      ...snapshot.names,
+      gender: snapshot.details?.gender ?? "",
+      batch: snapshot.details?.batch ?? "",
+      studentNumber: snapshot.details?.studentNumber ?? "",
+      graduationYear: snapshot.details?.graduationYear
+        ? String(snapshot.details.graduationYear)
+        : "",
+      programId: snapshot.details?.programId ?? "",
+    });
+  };
+  const openDetails = useMutation({
+    mutationFn: startDetailsEdit,
+    onSuccess: () => setEditingDetails(true),
+    onError: (error) => toast.error(error.message),
+  });
 
   const save = useMutation({
     mutationFn: () =>
-      client.alumni.update({
-        id,
-        ...form,
-        gender: form.gender === "Male" || form.gender === "Female" ? form.gender : undefined,
-        graduationYear: Number(form.graduationYear),
-      }),
+      client.alumni.update(
+        {
+          id,
+          ...form,
+          gender: form.gender === "Male" || form.gender === "Female" ? form.gender : undefined,
+          graduationYear: Number(form.graduationYear),
+        },
+        detailsEdit.options,
+      ),
     onSuccess: async () => {
       toast.success("Alumni profile saved");
       setEditingDetails(false);
+      detailsEdit.reset();
       await queryClient.invalidateQueries();
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (!detailsEdit.handle(error)) toast.error(error.message);
+    },
   });
 
   const track = useMutation({
@@ -179,25 +209,8 @@ function AlumniDetailPage() {
           <SummaryCard
             title="Student Details"
             actionLabel={canWrite ? "Edit details" : undefined}
-            actionDisabled={save.isPending || alumni.isFetching}
-            onAction={
-              canWrite
-                ? () => {
-                    setForm({
-                      firstName: record.firstName,
-                      middleName: record.middleName ?? "",
-                      lastName: record.lastName,
-                      suffix: record.suffix ?? "",
-                      gender: record.gender ?? "",
-                      batch: record.batch ?? "",
-                      studentNumber: record.studentNumber,
-                      graduationYear: record.graduationYear ? String(record.graduationYear) : "",
-                      programId: record.programId,
-                    });
-                    setEditingDetails(true);
-                  }
-                : undefined
-            }
+            actionDisabled={save.isPending || openDetails.isPending || alumni.isFetching}
+            onAction={canWrite ? () => openDetails.mutate() : undefined}
           >
             <DetailRow label="Full Name" value={formatDisplayName(record)} />
             <DetailRow label="Student Number" value={record.studentNumber} />
@@ -236,7 +249,13 @@ function AlumniDetailPage() {
           title="Edit Student Details"
           description="Update the alumni record. Employment status remains derived from job history."
           pending={save.isPending}
-          onOpenChange={setEditingDetails}
+          onOpenChange={(open) => {
+            setEditingDetails(open);
+            if (!open) {
+              detailsEdit.reset();
+              save.reset();
+            }
+          }}
         >
           <form
             className="grid gap-4 md:grid-cols-2"
@@ -326,11 +345,21 @@ function AlumniDetailPage() {
                 onChange={(event) => setForm({ ...form, graduationYear: event.target.value })}
               />
             </FormField>
-            {save.error ? (
+            {detailsEdit.conflict ? (
+              <div className="md:col-span-2">
+                <TimestampConflictAlert
+                  onReload={async () => {
+                    save.reset();
+                    await queryClient.invalidateQueries();
+                    await startDetailsEdit();
+                  }}
+                />
+              </div>
+            ) : save.error ? (
               <ErrorAlert className="md:col-span-2">{save.error.message}</ErrorAlert>
             ) : null}
             <div className="md:col-span-2">
-              <PrimaryButton type="submit" pending={save.isPending}>
+              <PrimaryButton type="submit" pending={save.isPending} disabled={detailsEdit.conflict}>
                 Save Student Details
               </PrimaryButton>
             </div>

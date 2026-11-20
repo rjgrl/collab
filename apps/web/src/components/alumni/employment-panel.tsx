@@ -17,6 +17,9 @@ import { BriefcaseBusiness } from "lucide-react";
 import { useConfirm } from "@/components/feedback/confirm-provider";
 import { DataTable, TableCell, TableRow } from "@/components/data/data-table";
 import { PageControls, usePagedRows } from "@/components/data/page-controls";
+import { TimestampConflictAlert } from "@/components/feedback/timestamp-conflict-alert";
+import { useTimestampEdit, withTimestampEdit } from "@/lib/timestamp-edit";
+import { useSession } from "@/lib/session";
 
 const Muted = ({ children }: { children: string }) => (
   <span className="text-muted-foreground">{children}</span>
@@ -47,23 +50,44 @@ export function EmploymentPanel({
   const paged = usePagedRows(jobs);
   const [editing, setEditing] = useState<Employment | null | undefined>();
   const [draft, setDraft] = useState(emptyJob);
-  function edit(job: Employment | null) {
+  const session = useSession();
+  // Managed profiles name the alumnus; My Profile edits the signed-in alumnus's own record.
+  const ownerId = alumniId ?? session.data?.alumniId ?? null;
+  const jobEdit = useTimestampEdit();
+  // Each dialog is one timestamped edit; its draft starts from the authorized snapshot.
+  async function startEdit(job: Employment | null) {
+    if (!ownerId) throw new Error("Your account is not linked to an alumni profile.");
+    const started = await jobEdit.begin("employment", [ownerId]);
+    const current = job
+      ? started.snapshot[0]?.employments?.find((item) => item.id === job.id)
+      : null;
+    if (job && !current) throw new Error("This job was removed. Reload the profile.");
     setDraft(
-      job
+      current
         ? {
-            employer: job.employer,
-            jobTitle: job.jobTitle ?? "",
-            industry: job.industry ?? "",
-            location: job.location ?? "",
-            startDate: dateValue(job.startDate),
-            endDate: dateValue(job.endDate),
-            isCurrent: job.isCurrent,
-            notes: job.notes,
+            employer: current.employer,
+            jobTitle: current.jobTitle ?? "",
+            industry: current.industry ?? "",
+            location: current.location ?? "",
+            startDate: dateValue(current.startDate),
+            endDate: dateValue(current.endDate),
+            isCurrent: current.isCurrent,
+            notes: current.notes,
           }
         : emptyJob,
     );
     setEditing(job);
   }
+  const open = useMutation({
+    mutationFn: startEdit,
+    onError: (error) => toast.error(error.message),
+  });
+  const edit = (job: Employment | null) => open.mutate(job);
+  const close = () => {
+    setEditing(undefined);
+    jobEdit.reset();
+    save.reset();
+  };
   const save = useMutation({
     mutationFn: async () => {
       const data = selfEmploymentInputSchema.parse({
@@ -71,23 +95,34 @@ export function EmploymentPanel({
         startDate: draft.startDate ? `${draft.startDate}T00:00:00Z` : undefined,
         endDate: draft.endDate ? `${draft.endDate}T00:00:00Z` : undefined,
       });
+      const options = jobEdit.options;
       if (editing)
         return alumniId
-          ? client.alumni.updateEmployment({ ...data, id: editing.id })
-          : client.me.employment.update({ ...data, id: editing.id });
+          ? client.alumni.updateEmployment({ ...data, id: editing.id }, options)
+          : client.me.employment.update({ ...data, id: editing.id }, options);
       return alumniId
-        ? client.alumni.addEmployment({ ...data, alumniId })
-        : client.me.employment.create(data);
+        ? client.alumni.addEmployment({ ...data, alumniId }, options)
+        : client.me.employment.create(data, options);
     },
     onSuccess: async () => {
       setEditing(undefined);
+      jobEdit.reset();
       toast.success("Employment saved");
       await queryClient.invalidateQueries();
     },
+    onError: (error) => {
+      jobEdit.handle(error);
+    },
   });
   const remove = useMutation({
-    mutationFn: (id: string) =>
-      alumniId ? client.alumni.deleteEmployment({ id }) : client.me.employment.remove({ id }),
+    mutationFn: (id: string) => {
+      if (!ownerId) throw new Error("Your account is not linked to an alumni profile.");
+      return withTimestampEdit("employment", [ownerId], (options) =>
+        alumniId
+          ? client.alumni.deleteEmployment({ id }, options)
+          : client.me.employment.remove({ id }, options),
+      );
+    },
     onSuccess: async () => {
       toast.success("Employment removed");
       await queryClient.invalidateQueries();
@@ -100,7 +135,7 @@ export function EmploymentPanel({
           {jobs.length} {jobs.length === 1 ? "job" : "jobs"} recorded
         </p>
         {canWrite ? (
-          <Button size="sm" onClick={() => edit(null)}>
+          <Button size="sm" disabled={open.isPending} onClick={() => edit(null)}>
             Add Employment
           </Button>
         ) : null}
@@ -158,7 +193,12 @@ export function EmploymentPanel({
                 {canWrite ? (
                   <TableCell>
                     <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => edit(job)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={open.isPending}
+                        onClick={() => edit(job)}
+                      >
                         Edit<span className="sr-only"> {job.employer}</span>
                       </Button>
                       <Button
@@ -206,19 +246,20 @@ export function EmploymentPanel({
           open
           title={editing ? "Edit Employment" : "Add Employment"}
           pending={save.isPending}
-          onOpenChange={(open) => {
-            if (!open) setEditing(undefined);
+          onOpenChange={(isOpen) => {
+            if (!isOpen) close();
           }}
           footer={
             <div className="flex gap-2">
-              <PrimaryButton type="submit" form="employment-form" pending={save.isPending}>
+              <PrimaryButton
+                type="submit"
+                form="employment-form"
+                pending={save.isPending}
+                disabled={jobEdit.conflict}
+              >
                 Save Employment
               </PrimaryButton>
-              <Button
-                variant="outline"
-                disabled={save.isPending}
-                onClick={() => setEditing(undefined)}
-              >
+              <Button variant="outline" disabled={save.isPending} onClick={close}>
                 Cancel
               </Button>
             </div>
@@ -291,7 +332,20 @@ export function EmploymentPanel({
                 />
               </FormField>
             </div>
-            {save.error ? (
+            {jobEdit.conflict ? (
+              <div className="sm:col-span-2">
+                <TimestampConflictAlert
+                  onReload={async () => {
+                    save.reset();
+                    await queryClient.invalidateQueries();
+                    await startEdit(editing ?? null).catch((error: Error) => {
+                      toast.error(error.message);
+                      close();
+                    });
+                  }}
+                />
+              </div>
+            ) : save.error ? (
               <p role="alert" className="text-sm text-destructive sm:col-span-2">
                 {save.error.message}
               </p>

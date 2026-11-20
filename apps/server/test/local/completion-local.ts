@@ -8,6 +8,7 @@ import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
+import { agentTimestampHeaders } from "./timestamp-helper";
 import {
   createSession,
   loadAuthUser,
@@ -86,13 +87,22 @@ try {
     startDate: "2025-01-01T00:00:00Z",
     isCurrent: true,
   };
-  const added = await agent.post("/api/me/employments").set("Origin", origin).send(job);
+  const edit = agentTimestampHeaders(agent, db, origin);
+  const addHeaders = await edit("POST", "/api/me/employments");
+  const added = await agent
+    .post("/api/me/employments")
+    .set("Origin", origin)
+    .set(addHeaders)
+    .send(job);
+  const editAdded = () => edit("PATCH", `/api/me/employments/${added.body.id}`);
+  let headers = await editAdded();
   assert.equal(added.status, 201, JSON.stringify(added.body));
   assert.equal(
     (
       await agent
         .patch(`/api/me/employments/${added.body.id}`)
         .set("Origin", origin)
+        .set(headers)
         .send({ ...job, jobTitle: "Graduate researcher" })
     ).status,
     200,
@@ -127,11 +137,13 @@ try {
       endDate: new Date("2025-01-01"),
     },
   ]);
+  headers = await editAdded();
   assert.equal(
     (
       await agent
         .patch(`/api/me/employments/${added.body.id}`)
         .set("Origin", origin)
+        .set(headers)
         .send({ ...job, isCurrent: false })
     ).status,
     200,
@@ -149,18 +161,25 @@ try {
     }),
     0,
   );
+  // Timestamp ordering: both edits are open (A older, then B); B's read outranks A's write.
+  const olderEdit = await edit("POST", "/api/me/employments");
+  const newerEdit = await edit("POST", "/api/me/employments");
   const concurrentJobs = await Promise.all(
-    ["A", "B"].map((employer) =>
+    [
+      ["A", olderEdit],
+      ["B", newerEdit],
+    ].map(([employer, headers]) =>
       agent
         .post("/api/me/employments")
         .set("Origin", origin)
+        .set(headers as Record<string, string>)
         .send({ ...job, employer }),
     ),
   );
-  assert.ok(
-    concurrentJobs.every((r) => r.status === 201),
-    JSON.stringify(concurrentJobs.map((r) => r.body)),
-  );
+  assert.equal(concurrentJobs[0]!.status, 409, JSON.stringify(concurrentJobs[0]!.body));
+  assert.equal(concurrentJobs[0]!.body.code, "TIMESTAMP_CONFLICT");
+  assert.equal(concurrentJobs[1]!.status, 201, JSON.stringify(concurrentJobs[1]!.body));
+  assert.equal(await db.Employment.countDocuments({ alumniId: user.alumniId, employer: "A" }), 0);
   assert.equal(await db.Employment.countDocuments({ alumniId: user.alumniId, isCurrent: true }), 1);
   assert.equal(
     (await db.Alumni.findById(user.alumniId).lean().orFail()).employmentStatus,
@@ -223,11 +242,18 @@ try {
   );
   assert.ok((await db.EvidenceFile.findById(uploaded.body.id).lean().orFail()).deletedAt);
   assert.equal((await agent.get(`/api/me/files/${uploaded.body.id}`)).status, 404);
-  for (const ownJob of await db.Employment.find({ alumniId: user.alumniId }).lean())
+  for (const ownJob of await db.Employment.find({ alumniId: user.alumniId }).lean()) {
+    const removeHeaders = await edit("DELETE", `/api/me/employments/${ownJob._id}`);
     assert.equal(
-      (await agent.delete(`/api/me/employments/${ownJob._id}`).set("Origin", origin)).status,
+      (
+        await agent
+          .delete(`/api/me/employments/${ownJob._id}`)
+          .set("Origin", origin)
+          .set(removeHeaders)
+      ).status,
       200,
     );
+  }
   assert.equal(
     (await db.Alumni.findById(user.alumniId).lean().orFail()).employmentStatus,
     "unknown",

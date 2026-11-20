@@ -28,6 +28,8 @@ import { AccountPhotoControls } from "@/components/account/account-photo-control
 import { AccountAvatar } from "@/components/account/account-avatar";
 import { EmailChange } from "@/components/account/email-change";
 import { DetailRow, SummaryCard } from "@/components/account/summary-card";
+import { TimestampConflictAlert } from "@/components/feedback/timestamp-conflict-alert";
+import { useTimestampEdit } from "@/lib/timestamp-edit";
 
 export const Route = createFileRoute("/_app/settings/")({ component: AccountSettings });
 
@@ -54,10 +56,37 @@ function AccountSettings() {
     gender: verification.data?.gender ?? "",
     facebookAccount: verification.data?.facebookAccount ?? "",
   };
-  const openProfileDialog = (next: "personal" | "contact") => {
-    setNames(nameDraft(session.data));
-    setContact(savedContact);
-    setDialog(next);
+  const accountEdit = useTimestampEdit();
+  // A linked alumni account edits protected alumni names, so it opens a timestamped edit.
+  const startProfileEdit = async () => {
+    const linked = session.data?.alumniId;
+    if (!linked) {
+      setNames(nameDraft(session.data));
+      setContact(savedContact);
+      return;
+    }
+    const snapshot = (await accountEdit.begin("account", [linked])).snapshot[0];
+    setNames(nameDraft(snapshot?.names ?? session.data));
+    setContact(snapshot?.account ?? savedContact);
+  };
+  const openProfile = useMutation({
+    mutationFn: async (next: "personal" | "contact") => {
+      await startProfileEdit();
+      return next;
+    },
+    onSuccess: (next) => setDialog(next),
+    onError: (error) => toast.error(error.message),
+  });
+  const openProfileDialog = (next: "personal" | "contact") => openProfile.mutate(next);
+  const closeProfileDialog = () => {
+    setDialog(null);
+    accountEdit.reset();
+    profile.reset();
+  };
+  const reloadProfile = async () => {
+    profile.reset();
+    await queryClient.invalidateQueries();
+    await startProfileEdit();
   };
   const profile = useMutation({
     mutationFn: () =>
@@ -71,13 +100,17 @@ function AccountSettings() {
               }
             : { ...names, ...contact },
         ),
+        accountEdit.options,
       ),
     onSuccess: async () => {
       toast.success("Account updated");
       setDialog(null);
+      accountEdit.reset();
       await queryClient.invalidateQueries();
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (!accountEdit.handle(error)) toast.error(error.message);
+    },
   });
   const changePassword = useMutation({
     mutationFn: () => client.auth.changePassword({ currentPassword, password }),
@@ -138,7 +171,7 @@ function AccountSettings() {
         <SummaryCard
           title="Personal Details"
           actionLabel="Edit"
-          actionDisabled={!verification.data}
+          actionDisabled={!verification.data || openProfile.isPending}
           onAction={() => openProfileDialog("personal")}
         >
           <DetailRow label="First Name" value={valueOrDash(session.data?.firstName)} />
@@ -151,7 +184,7 @@ function AccountSettings() {
         <SummaryCard
           title="Contact"
           actionLabel="Edit contact"
-          actionDisabled={!verification.data}
+          actionDisabled={!verification.data || openProfile.isPending}
           onAction={() => openProfileDialog("contact")}
         >
           <DetailRow label="Email" value={session.data?.email ?? "—"} action={<EmailChange />} />
@@ -215,7 +248,7 @@ function AccountSettings() {
       {dialog === "personal" ? (
         <FormDialog
           open
-          onOpenChange={(open) => !open && setDialog(null)}
+          onOpenChange={(open) => !open && closeProfileDialog()}
           pending={profile.isPending}
           title="Edit Personal Details"
           description="Update your name or gender."
@@ -239,10 +272,18 @@ function AccountSettings() {
               showPhone={false}
               showFacebook={false}
             />
-            {profile.isError ? (
+            {accountEdit.conflict ? (
+              <div className="sm:col-span-2">
+                <TimestampConflictAlert onReload={reloadProfile} />
+              </div>
+            ) : profile.isError ? (
               <ErrorAlert className="sm:col-span-2">{profile.error.message}</ErrorAlert>
             ) : null}
-            <PrimaryButton type="submit" pending={profile.isPending}>
+            <PrimaryButton
+              type="submit"
+              pending={profile.isPending}
+              disabled={accountEdit.conflict}
+            >
               Save Personal Details
             </PrimaryButton>
           </form>
@@ -252,7 +293,7 @@ function AccountSettings() {
       {dialog === "contact" ? (
         <FormDialog
           open
-          onOpenChange={(open) => !open && setDialog(null)}
+          onOpenChange={(open) => !open && closeProfileDialog()}
           pending={profile.isPending}
           title="Edit Contact Details"
           description="Changing your phone number clears its verification."
@@ -266,8 +307,16 @@ function AccountSettings() {
           >
             <AccountProfileFields value={contact} onChange={setContact} showGender={false} />
             {verification.isError ? <ErrorAlert>{verification.error.message}</ErrorAlert> : null}
-            {profile.isError ? <ErrorAlert>{profile.error.message}</ErrorAlert> : null}
-            <PrimaryButton type="submit" pending={profile.isPending}>
+            {accountEdit.conflict ? (
+              <TimestampConflictAlert onReload={reloadProfile} />
+            ) : profile.isError ? (
+              <ErrorAlert>{profile.error.message}</ErrorAlert>
+            ) : null}
+            <PrimaryButton
+              type="submit"
+              pending={profile.isPending}
+              disabled={accountEdit.conflict}
+            >
               Save Contact Details
             </PrimaryButton>
           </form>

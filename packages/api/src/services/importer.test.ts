@@ -58,8 +58,34 @@ function query<T>(value: T) {
     lean() {
       return this;
     },
+    session() {
+      return this;
+    },
+    orFail() {
+      return this;
+    },
     exec: () => promise,
   });
+}
+function timestampModels() {
+  let clock = 0;
+  const state = { epoch: "synthetic", readTimestamp: 0, writeTimestamp: 0 };
+  return {
+    TimestampClock: {
+      findOneAndUpdate: () =>
+        query({ value: ++clock, epoch: "synthetic", allocatedAt: new Date() }),
+    },
+    AlumniTimestamp: {
+      findOneAndUpdate: () => query({ ...state }),
+      updateOne: (_filter: unknown, update: Record<string, Record<string, number>>) => {
+        Object.assign(state, update.$set ?? {});
+        if (update.$max)
+          state.readTimestamp = Math.max(state.readTimestamp, update.$max.readTimestamp!);
+        return query({ matchedCount: 1 });
+      },
+    },
+    state,
+  };
 }
 const row = alumniImportRowSchema.parse({
   studentNumber: "SYN-1",
@@ -76,7 +102,9 @@ function fixture(existing: object | null = null) {
     events: Array<unknown> = [],
     audits: Array<unknown> = [];
   let transactions = 0;
+  const ordering = timestampModels();
   const db = {
+    ...ordering,
     Department: { find: () => ({ limit: () => query([{ _id: departmentId, name: "IT" }]) }) },
     Program: {
       findOne: () =>
@@ -132,6 +160,7 @@ function fixture(existing: object | null = null) {
     events,
     audits,
     transactions: () => transactions,
+    ordering: ordering.state,
   };
 }
 it("batch importer uses an independent transaction for each valid row and reports invalid rows", async () => {

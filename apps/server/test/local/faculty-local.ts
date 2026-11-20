@@ -7,6 +7,7 @@ import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
 import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
+import { protectedRequest } from "./timestamp-helper";
 
 // Faculty management, role limits, assignment and academic delete guards on seeded demo data.
 if (process.env.NODE_ENV === "production") throw new Error("Synthetic local acceptance only.");
@@ -36,14 +37,12 @@ try {
   for (const name of ["college.head", "department.head", "faculty.it", "faculty.education"])
     cookies[name] = await cookieFor(`${name}@collab.test`);
   cookies.admin = await adminCookie(db);
+  const send = protectedRequest(app, db, origin);
   const as = (name: string) => ({
     get: (url: string) => request(app).get(url).set("Cookie", cookies[name]!),
-    post: (url: string, body: object) =>
-      request(app).post(url).set("Cookie", cookies[name]!).set("Origin", origin).send(body),
-    patch: (url: string, body: object) =>
-      request(app).patch(url).set("Cookie", cookies[name]!).set("Origin", origin).send(body),
-    delete: (url: string) =>
-      request(app).delete(url).set("Cookie", cookies[name]!).set("Origin", origin),
+    post: (url: string, body: object) => send(cookies[name]!, "post", url, body),
+    patch: (url: string, body: object) => send(cookies[name]!, "patch", url, body),
+    delete: (url: string) => send(cookies[name]!, "delete", url),
   });
 
   const dept = async (name: string) =>

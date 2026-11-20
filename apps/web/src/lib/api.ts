@@ -5,6 +5,7 @@ import { errorResponseSchema } from "@Alumni-Tracking-Ss/contracts/common";
 import { uploadOutputSchema } from "@Alumni-Tracking-Ss/contracts/alumni";
 import { backupsSchemas } from "@Alumni-Tracking-Ss/contracts/backups";
 import { API_PREFIX, API_ROUTES } from "@Alumni-Tracking-Ss/contracts/api-routes";
+import { TIMESTAMP_EDIT_HEADER } from "@Alumni-Tracking-Ss/contracts/timestamp";
 import { ENV } from "@/env";
 import { markSessionEnded } from "@/lib/session-ended";
 
@@ -40,6 +41,8 @@ export async function readJson<O>(response: Response, schema: z.ZodType<O>): Pro
   return parsed.data;
 }
 
+/** Protected alumni writes carry the one-shot timestamp-edit context. */
+export type RequestOptions = { timestampEdit?: string };
 type InputArgs<S extends z.ZodType> =
   undefined extends z.input<S> ? [input?: z.input<S>] : [input: z.input<S>];
 type QueryArgs<S extends z.ZodType> =
@@ -53,7 +56,11 @@ function endpoint<I extends z.ZodType, O>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
 ) {
-  async function request(input: z.input<I> | undefined, signal?: AbortSignal): Promise<O> {
+  async function request(
+    input: z.input<I> | undefined,
+    signal?: AbortSignal,
+    options: RequestOptions = {},
+  ): Promise<O> {
     const parsed: unknown = contract.input.parse(input);
     const fields =
       parsed && typeof parsed === "object" ? Object.fromEntries(Object.entries(parsed)) : {};
@@ -79,17 +86,29 @@ function endpoint<I extends z.ZodType, O>(
         signal,
         ...(method === "GET"
           ? {}
-          : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields) }),
+          : {
+              headers: {
+                "Content-Type": "application/json",
+                ...(options.timestampEdit
+                  ? { [TIMESTAMP_EDIT_HEADER]: options.timestampEdit }
+                  : {}),
+              },
+              body: JSON.stringify(fields),
+            }),
       }),
       contract.output,
     );
   }
-  return Object.assign((...args: InputArgs<I>) => request(args[0]), {
-    queryOptions: (...args: QueryArgs<I>) => ({
-      queryKey: ["rest", method, path, args[0]?.input ?? null] as const,
-      queryFn: ({ signal }: { signal: AbortSignal }) => request(args[0]?.input, signal),
-    }),
-  });
+  return Object.assign(
+    (...args: [...InputArgs<I>, options?: RequestOptions]) =>
+      request(args[0] as z.input<I> | undefined, undefined, (args[1] as RequestOptions) ?? {}),
+    {
+      queryOptions: (...args: QueryArgs<I>) => ({
+        queryKey: ["rest", method, path, args[0]?.input ?? null] as const,
+        queryFn: ({ signal }: { signal: AbortSignal }) => request(args[0]?.input, signal),
+      }),
+    },
+  );
 }
 
 type RouteEndpoint<R> = R extends {

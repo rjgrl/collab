@@ -11,6 +11,20 @@ export function matches(row: Row, filter: Row): boolean {
   return Object.entries(filter).every(([key, expected]) => {
     if (key === "$or") return (expected as Row[]).some((part) => matches(row, part));
     if (key === "$and") return (expected as Row[]).every((part) => matches(row, part));
+    if (key === "$expr") {
+      const expression = expected as Row;
+      const operands = expression.$gt;
+      if (
+        Object.keys(expression).length !== 1 ||
+        !Array.isArray(operands) ||
+        operands.length !== 2 ||
+        typeof operands[0] !== "string" ||
+        !operands[0].startsWith("$") ||
+        operands[1] !== "$$NOW"
+      )
+        throw unsupported("this database-time expression");
+      return Number(row[operands[0].slice(1)]) > Date.now();
+    }
     if (key.startsWith("$")) throw unsupported(`the query operator ${key}`);
     const actual =
       key === "_id"
@@ -60,13 +74,14 @@ function compare(a: unknown, b: unknown) {
   if (typeof x === "number" && typeof y === "number") return x - y;
   return String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0;
 }
-export function query<T>(work: () => T | Promise<T>) {
+export function query<T>(work: (mode: { detached: boolean }) => T | Promise<T>) {
+  let detached = false;
   let failure: (() => Error) | undefined;
   let order: [string, number][] = [];
   let skipped = 0;
   let limited = 0;
   const result = Promise.resolve().then(async () => {
-    let value: unknown = await work();
+    let value: unknown = await work({ detached });
     if (value == null && failure) throw failure();
     if (Array.isArray(value)) {
       // Applied like MongoDB: sort, then skip, then limit (limit 0 means no limit).
@@ -87,6 +102,11 @@ export function query<T>(work: () => T | Promise<T>) {
   });
   const q = Object.assign(result, {
     lean: () => q,
+    session: (session: unknown) => {
+      if (session !== null) throw unsupported("explicit transactional sessions");
+      detached = true;
+      return q;
+    },
     sort: (spec: Record<string, 1 | -1 | "asc" | "desc">) => {
       if (typeof spec !== "object" || spec === null) throw unsupported("non-object sort specs");
       order = Object.entries(spec).map(([field, direction]) => [
@@ -105,7 +125,7 @@ export function query<T>(work: () => T | Promise<T>) {
     },
     // Field projection is not reproduced; services must not rely on fields being absent.
     select: (_fields: unknown) => q,
-    orFail: (makeError: () => Error) => {
+    orFail: (makeError: () => Error = () => new Error("Record not found.")) => {
       failure = makeError;
       return q;
     },
@@ -115,6 +135,7 @@ export function query<T>(work: () => T | Promise<T>) {
 }
 export function modelFixture(initial: Record<string, Row[]> = {}) {
   const tables: Record<string, Row[]> = initial;
+  const snapshots: Record<string, Row[]>[] = [];
   const operations: { model: string; method: string; filter?: Row; update?: Row }[] = [];
   const writeFailures = new Map<string, Error>();
   function record(operation: (typeof operations)[number]) {
@@ -126,13 +147,19 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
   let transactionFailure: Error | undefined;
   function apply(row: Row, update: Row) {
     for (const operator of Object.keys(update))
-      if (!["$set", "$unset", "$inc", "$setOnInsert"].includes(operator))
+      if (!["$set", "$unset", "$inc", "$setOnInsert", "$max", "$currentDate"].includes(operator))
         throw unsupported(
           operator.startsWith("$")
             ? `the update operator ${operator}`
             : "replacement-style updates (use $set)",
         );
     Object.assign(row, update.$set ?? {});
+    for (const [key, value] of Object.entries((update.$max as Row) ?? {}))
+      if (row[key] === undefined || compare(row[key], value) < 0) row[key] = value;
+    for (const [key, value] of Object.entries((update.$currentDate as Row) ?? {})) {
+      if (value !== true) throw unsupported("non-date $currentDate values");
+      row[key] = new Date();
+    }
     for (const key of Object.keys((update.$unset as Row) ?? {})) delete row[key];
     for (const [key, amount] of Object.entries((update.$inc as Row) ?? {}))
       row[key] = Number(row[key] ?? 0) + Number(amount);
@@ -145,6 +172,7 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
           return async (work: (tx: Database) => Promise<unknown>) => {
             record({ model: "Database", method: "transaction" });
             const before = structuredClone(tables);
+            snapshots.push(before);
             try {
               const result = await work(db as Database);
               if (transactionFailure) throw transactionFailure;
@@ -162,6 +190,8 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
                 });
               }
               throw error;
+            } finally {
+              snapshots.splice(snapshots.indexOf(before), 1);
             }
           };
         const model = String(name);
@@ -191,7 +221,7 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
               return structuredClone(tables[model]!.find((row) => matches(row, filter)) ?? null);
             }),
           findOneAndUpdate: (filter: Row, update: Row, options?: { upsert?: boolean }) =>
-            query(() => {
+            query((mode) => {
               record({ model, method: "findOneAndUpdate", filter, update });
               let row = tables[model]!.find((item) => matches(item, filter));
               if (!row && options?.upsert) {
@@ -206,6 +236,8 @@ export function modelFixture(initial: Record<string, Row[]> = {}) {
               }
               if (!row) return null;
               apply(row, update);
+              if (mode.detached)
+                for (const snapshot of snapshots) snapshot[model] = structuredClone(tables[model]!);
               return structuredClone(row);
             }),
           create: async (data: Row) => {

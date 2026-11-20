@@ -23,6 +23,7 @@ import { Checkbox } from "@Alumni-Tracking-Ss/ui/components/checkbox";
 import { FormDialog } from "@Alumni-Tracking-Ss/ui/components/form-dialog";
 import { toast } from "sonner";
 import { api, client, queryClient } from "@/lib/api";
+import { withTimestampEdit } from "@/lib/timestamp-edit";
 import { useConfirm } from "@/components/feedback/confirm-provider";
 
 export const Route = createFileRoute("/_app/alumni/")({
@@ -79,8 +80,11 @@ function AlumniPage() {
   });
 
   const assign = useMutation({
+    // All-or-nothing: one timestamped edit covers every selected alumnus.
     mutationFn: (value: { alumniIds: string[]; facultyId: string | null }) =>
-      client.faculty.assign(value),
+      withTimestampEdit("assignment", value.alumniIds, (options) =>
+        client.faculty.assign(value, options),
+      ),
     onSuccess: async (result, value) => {
       toast.success(
         value.facultyId

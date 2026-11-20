@@ -7,6 +7,7 @@ import {
 import { verifySessionToken } from "@Alumni-Tracking-Ss/api/services/session-token";
 import type { Database } from "@Alumni-Tracking-Ss/db";
 import { resolveClientAddress } from "./runtime-config";
+import { TIMESTAMP_EDIT_HEADER } from "@Alumni-Tracking-Ss/contracts/timestamp";
 
 export const SESSION_COOKIE = "ats_session";
 export function readPeerAddress(request: Request, trustedProxyIps: readonly string[] = []) {
@@ -86,6 +87,7 @@ export async function createContext(options: {
     db,
     sessionToken: token,
     sessionStorageToken: token ? storedSessionToken(token) : null,
+    timestampEditToken: request.get(TIMESTAMP_EDIT_HEADER) ?? null,
     onSessionRotation: request.get("authorization")?.startsWith("Bearer ")
       ? undefined
       : (session) => {

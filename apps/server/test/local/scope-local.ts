@@ -9,6 +9,7 @@ import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession, loadAuthUser } from "@Alumni-Tracking-Ss/api/services/session";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { createApp } from "../../src/app";
+import { protectedRequest } from "./timestamp-helper";
 import { alumniService } from "../../src/modules/alumni/service";
 import { reportsService } from "../../src/modules/reports/service";
 
@@ -97,14 +98,13 @@ try {
     const user = await db.User.findOne({ email }).orFail().lean();
     tokens.set(email, (await createSession(db, String(user._id), {})).token);
   }
+  const send = protectedRequest(app, db, origin);
   const as = (email: string) => {
     const cookie = `ats_session=${tokens.get(email)!}`;
     return {
       get: (url: string) => request(app).get(url).set("Cookie", cookie),
-      patch: (url: string, body: object) =>
-        request(app).patch(url).set("Cookie", cookie).set("Origin", origin).send(body),
-      post: (url: string, body: object) =>
-        request(app).post(url).set("Cookie", cookie).set("Origin", origin).send(body),
+      patch: (url: string, body: object) => send(cookie, "patch", url, body),
+      post: (url: string, body: object) => send(cookie, "post", url, body),
     };
   };
 

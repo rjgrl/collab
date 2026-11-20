@@ -270,12 +270,12 @@ it("frees an email and student number held by a registration unconfirmed for ove
     verificationRequired: true,
     emailVerified: false,
     passwordHash: "attacker-hash",
-    alumniId: "held-profile",
+    alumniId: "444444444444444444444444",
     createdAt,
   });
   const heldProfile = {
-    _id: "held-profile",
-    id: "held-profile",
+    _id: "444444444444444444444444",
+    id: "444444444444444444444444",
     studentNumber: input.studentNumber,
   };
 
@@ -299,7 +299,7 @@ it("frees an email and student number held by a registration unconfirmed for ove
     stale.tables.Alumni!.filter((row) => row.studentNumber === input.studentNumber).length,
     1,
   );
-  assert.notEqual(stale.tables.Alumni![0]!.id, "held-profile");
+  assert.notEqual(stale.tables.Alumni![0]!.id, "444444444444444444444444");
 
   // Student number only (squatter used another email): released the same way.
   const other = fixture(null);
@@ -316,8 +316,8 @@ it("frees an email and student number held by a registration unconfirmed for ove
   const touched = fixture(null);
   touched.tables.User = [squatter(new Date(Date.now() - 2 * day), "someone.else@example.test")];
   touched.tables.Alumni = [heldProfile];
-  touched.tables.TrackingEvent = [{ alumniId: "held-profile" }];
+  touched.tables.TrackingEvent = [{ alumniId: "444444444444444444444444" }];
   touched.tables.UserRole = [{ userId: "squatter", roleId: "alumni" }];
   await assert.rejects(() => registerUser(touched.db, input), /existing profile/);
-  assert.ok(touched.tables.Alumni!.some((row) => row.id === "held-profile"));
+  assert.ok(touched.tables.Alumni!.some((row) => row.id === "444444444444444444444444"));
 });

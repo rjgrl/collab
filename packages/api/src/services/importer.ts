@@ -9,6 +9,8 @@ import {
   graduationYearSchema,
 } from "@Alumni-Tracking-Ss/contracts/alumni";
 import { writeAudit, describeAuditChanges } from "../audit";
+import { protectAlumniWrite } from "./timestamp-writes";
+import { TimestampConflictError } from "@Alumni-Tracking-Ss/db/timestamp-ordering";
 export class ImportRowError extends Error {}
 export async function importAlumniRows(
   db: Database,
@@ -35,7 +37,7 @@ export async function importAlumniRows(
       errors.push({
         row: index + 1,
         message:
-          error instanceof ImportRowError
+          error instanceof ImportRowError || error instanceof TimestampConflictError
             ? error.message
             : "Unable to import row. Try again or contact an administrator.",
       });
@@ -112,6 +114,7 @@ export async function upsertImportedAlumni(
     isTracked: tracked,
     lastTrackedAt: trackingSupplied ? (tracked ? new Date() : null) : existing?.lastTrackedAt,
   };
+  if (existing) await protectAlumniWrite(db, [existing.id]);
   const alumni = existing
     ? await db.Alumni.findOneAndUpdate(
         { _id: existing.id, deletedAt: null },

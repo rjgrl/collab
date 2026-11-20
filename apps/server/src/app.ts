@@ -34,6 +34,7 @@ import { auditRoutes } from "./modules/audit/routes";
 import { notificationsRoutes } from "./modules/notifications/routes";
 import { backupsRoutes } from "./modules/backups/routes";
 import { API_PREFIX } from "@Alumni-Tracking-Ss/contracts/api-routes";
+import { TIMESTAMP_EDIT_HEADER } from "@Alumni-Tracking-Ss/contracts/timestamp";
 import type { BackupConfig } from "@Alumni-Tracking-Ss/api/backups/backup-service";
 import { maintenanceState } from "@Alumni-Tracking-Ss/api/backups/restore";
 import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
@@ -184,7 +185,7 @@ export function createApp({
       credentials: true,
       exposedHeaders: ["Content-Disposition", "X-Request-ID", "Retry-After"],
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
+      allowedHeaders: ["Content-Type", "Authorization", TIMESTAMP_EDIT_HEADER],
     }),
   );
   const globalLimits = apiRateLimits(db, config.nodeEnv, config.trustedProxyIps);

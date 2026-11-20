@@ -3,13 +3,18 @@ import { ZodError } from "zod";
 import { MulterError } from "multer";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { isDatabaseUnavailable } from "@Alumni-Tracking-Ss/api/errors";
+import { TimestampConflictError } from "@Alumni-Tracking-Ss/db/timestamp-ordering";
 
 export const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
   if (response.headersSent) return _next(error);
   let status = 500;
   let code = "INTERNAL_SERVER_ERROR";
   let message = "Request failed.";
-  if (error instanceof ApiError) {
+  if (error instanceof TimestampConflictError) {
+    status = error.status;
+    code = error.code;
+    message = error.message;
+  } else if (error instanceof ApiError) {
     status = error.status;
     code = error.code;
     message = error.message;
