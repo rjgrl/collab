@@ -2,6 +2,24 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-20 (scoped timestamp ordering — infrastructure slice)
+
+- Owner approved true timestamp ordering for core alumni details, assignments, tracking and
+  employment, including necessary indirect writers. Per-alumnus ordering, edits only (not normal
+  browsing/reporting), 30-minute contexts, draft-preserving conflict/reload and existing bulk
+  transaction boundaries are recorded in docs/specs/timestamp-ordering.md.
+- Added monotonic MongoDB clock allocation independent of business rollback, per-alumnus R_TS/W_TS,
+  opaque hashed actor/session-bound one-shot edit contexts, database-time expiry and atomic
+  state/data/audit/consumption rollback helpers. Clock/resource epoch mismatch fails closed.
+- Schema version 3 adds metadata collections/indexes; TTL applies only to ephemeral contexts.
+  Migration preflight now detects TTL-option mismatches rather than silently ignoring them.
+- Verified pnpm check 7/7 and 458 unit tests. pnpm test:timestamp-local passed on an isolated
+  disposable loopback database: independent-client timestamp uniqueness, no timestamp reuse on
+  rollback, read/write ordering conflicts, ordinary reads unchanged, owner/session/resource
+  binding, expiry/replay, atomic rollback and independent alumni.
+- Infrastructure only: existing application paths and UI are not wired yet. No push/merge until
+  all protected writers, draft handling, setup instructions and full verification are complete.
+
 ## 2026-11-19 (Windows CI profile-draft race)
 
 - The remaining Windows profile-history failure was a real editor race: record-refresh effects

@@ -46,6 +46,28 @@ export interface SessionRecord extends Timestamped {
   mfaVerifiedAt?: Date | null;
   lastSeenAt?: Date | null;
 }
+export interface TimestampClockRecord extends Timestamped {
+  key: string;
+  value: number;
+  epoch: string;
+  allocatedAt: Date;
+}
+export interface AlumniTimestampRecord extends Timestamped {
+  key: string;
+  epoch: string;
+  readTimestamp: number;
+  writeTimestamp: number;
+}
+export interface TimestampEditRecord extends Timestamped {
+  tokenHash: string;
+  ownerKey: string;
+  resources: string[];
+  timestamp: number;
+  epoch: string;
+  startedAt: Date;
+  expiresAt: Date;
+  consumedAt?: Date | null;
+}
 export interface RoleRecord extends Timestamped {
   key: string;
   name: string;
@@ -325,6 +347,28 @@ const createdOnly = { createdAt: true, updatedAt: false };
 const updatedOnly = { createdAt: false, updatedAt: true };
 
 export const schemas = {
+  TimestampClock: schema<TimestampClockRecord>("TimestampClock", {
+    key: requiredString,
+    value: { type: Number, default: 0, min: 0, max: Number.MAX_SAFE_INTEGER },
+    epoch: requiredString,
+    allocatedAt: { type: Date, required: true },
+  }),
+  AlumniTimestamp: schema<AlumniTimestampRecord>("AlumniTimestamp", {
+    key: requiredString,
+    epoch: requiredString,
+    readTimestamp: { type: Number, default: 0, min: 0, max: Number.MAX_SAFE_INTEGER },
+    writeTimestamp: { type: Number, default: 0, min: 0, max: Number.MAX_SAFE_INTEGER },
+  }),
+  TimestampEdit: schema<TimestampEditRecord>("TimestampEdit", {
+    tokenHash: requiredString,
+    ownerKey: requiredString,
+    resources: { type: [String], required: true },
+    timestamp: { type: Number, required: true, min: 1, max: Number.MAX_SAFE_INTEGER },
+    epoch: requiredString,
+    startedAt: { type: Date, required: true },
+    expiresAt: { type: Date, required: true },
+    consumedAt: Date,
+  }),
   User: schema<UserRecord>("User", {
     name: requiredString,
     email: requiredString,
@@ -733,8 +777,22 @@ schemas.PasswordReset.index({ userId: 1 }, { name: "PasswordReset_userId_idx" })
 schemas.PasswordReset.index({ expiresAt: 1 }, { name: "PasswordReset_expiresAt_idx" });
 schemas.FormsReceipt.index({ keyHash: 1 }, { unique: true, name: "FormsReceipt_keyHash_key" });
 
+schemas.TimestampClock.index({ key: 1 }, { unique: true, name: "TimestampClock_key_key" });
+schemas.AlumniTimestamp.index({ key: 1 }, { unique: true, name: "AlumniTimestamp_key_key" });
+schemas.TimestampEdit.index(
+  { tokenHash: 1 },
+  { unique: true, name: "TimestampEdit_tokenHash_key" },
+);
+schemas.TimestampEdit.index(
+  { expiresAt: 1 },
+  { expireAfterSeconds: 0, name: "TimestampEdit_expiresAt_ttl" },
+);
+
 export function createModels(connection: Connection) {
   return {
+    TimestampClock: connection.model("TimestampClock", schemas.TimestampClock),
+    AlumniTimestamp: connection.model("AlumniTimestamp", schemas.AlumniTimestamp),
+    TimestampEdit: connection.model("TimestampEdit", schemas.TimestampEdit),
     BackupState: connection.model("BackupState", schemas.BackupState),
     User: connection.model("User", schemas.User),
     Session: connection.model("Session", schemas.Session),

@@ -10,7 +10,7 @@ import {
 import { createIntegrationDefaults, type IntegrationDefaultsReport } from "./integration-defaults";
 
 /** Schema version; must be incremented whenever a migration step is added. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type MigrationMode = "dry-run" | "apply" | "rollback";
 export interface ExistingIndex {
@@ -18,6 +18,7 @@ export interface ExistingIndex {
   key: Record<string, unknown>;
   unique?: boolean;
   sparse?: boolean;
+  expireAfterSeconds?: number;
   partialFilterExpression?: unknown;
   collation?: unknown;
 }
@@ -26,6 +27,7 @@ export interface PlannedIndex {
   name: string;
   key: Record<string, 1 | -1>;
   unique: boolean;
+  expireAfterSeconds?: number;
   partialFilterExpression?: IndexOptions["partialFilterExpression"];
 }
 export interface IndexInspection extends PlannedIndex {
@@ -65,6 +67,7 @@ export function inspectIndex(plan: PlannedIndex, indexes: ExistingIndex[]): Inde
     sameKey(index.key, plan.key) &&
     Boolean(index.unique) === plan.unique &&
     !index.sparse &&
+    index.expireAfterSeconds === plan.expireAfterSeconds &&
     (!index.collation || stable(index.collation) === stable({ locale: "simple" })) &&
     stable(index.partialFilterExpression) === stable(plan.partialFilterExpression);
   if (named && !compatible(named))
@@ -96,6 +99,9 @@ export function plannedIndexes(): PlannedIndex[] {
         name: options.name,
         key: Object.fromEntries(entries),
         unique: Boolean(options.unique),
+        ...(options.expireAfterSeconds !== undefined
+          ? { expireAfterSeconds: Number(options.expireAfterSeconds) }
+          : {}),
         ...(options.partialFilterExpression
           ? { partialFilterExpression: options.partialFilterExpression }
           : {}),
@@ -308,6 +314,9 @@ export async function migrateDatabase(
     await native.collection(index.collection).createIndex(index.key, {
       name: index.name,
       unique: index.unique,
+      ...(index.expireAfterSeconds !== undefined
+        ? { expireAfterSeconds: index.expireAfterSeconds }
+        : {}),
       ...(index.partialFilterExpression
         ? { partialFilterExpression: index.partialFilterExpression }
         : {}),
