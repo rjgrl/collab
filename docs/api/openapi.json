@@ -1464,6 +1464,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
           }
         ],
         "requestBody": {
@@ -2770,6 +2780,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
           }
         ],
         "requestBody": {
@@ -3953,6 +3973,18 @@
         "tags": [
           "faculty"
         ],
+        "parameters": [
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -4146,6 +4178,321 @@
                     ],
                     "additionalProperties": false
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alumni/timestamp-edits": {
+      "post": {
+        "operationId": "alumni.beginEdit",
+        "summary": "Alumni: begin edit",
+        "tags": [
+          "alumni"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "details",
+                      "employment",
+                      "assignment",
+                      "account"
+                    ]
+                  },
+                  "alumniIds": {
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-f\\d]{24}$"
+                    }
+                  }
+                },
+                "required": [
+                  "purpose",
+                  "alumniIds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/E400",
+            "description": "Invalid input"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401",
+            "description": "Sign-in required"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403",
+            "description": "Not allowed (permission, scope, MFA or origin)"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404",
+            "description": "Not found"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409",
+            "description": "Conflict (stale version, duplicate or wrong state)"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429",
+            "description": "Too many requests"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503",
+            "description": "Unavailable (maintenance mode, or a required service is not configured)"
+          },
+          "2XX": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "pattern": "^[a-f\\d]{64}$"
+                    },
+                    "timestamp": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "snapshot": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f\\d]{24}$"
+                          },
+                          "names": {
+                            "type": "object",
+                            "properties": {
+                              "firstName": {
+                                "type": "string"
+                              },
+                              "middleName": {
+                                "type": "string"
+                              },
+                              "lastName": {
+                                "type": "string"
+                              },
+                              "suffix": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "firstName",
+                              "middleName",
+                              "lastName",
+                              "suffix"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "details": {
+                            "type": "object",
+                            "properties": {
+                              "studentNumber": {
+                                "type": "string"
+                              },
+                              "programId": {
+                                "type": "string",
+                                "pattern": "^[a-f\\d]{24}$"
+                              },
+                              "graduationYear": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "gender": {
+                                "type": "string"
+                              },
+                              "batch": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "studentNumber",
+                              "programId",
+                              "graduationYear",
+                              "gender",
+                              "batch"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "employments": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f\\d]{24}$"
+                                },
+                                "alumniId": {
+                                  "type": "string",
+                                  "pattern": "^[a-f\\d]{24}$"
+                                },
+                                "employer": {
+                                  "type": "string"
+                                },
+                                "jobTitle": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "industry": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "location": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "startDate": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "endDate": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "isCurrent": {
+                                  "type": "boolean"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "employed",
+                                    "unemployed",
+                                    "unknown"
+                                  ]
+                                },
+                                "notes": {
+                                  "default": "",
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "updatedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "alumniId",
+                                "employer",
+                                "isCurrent",
+                                "status",
+                                "notes"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "assignedFacultyId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[a-f\\d]{24}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "account": {
+                            "type": "object",
+                            "properties": {
+                              "phoneNumber": {
+                                "type": "string"
+                              },
+                              "gender": {
+                                "type": "string"
+                              },
+                              "facebookAccount": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "phoneNumber",
+                              "gender",
+                              "facebookAccount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "names"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "timestamp",
+                    "expiresAt",
+                    "snapshot"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -5817,6 +6164,18 @@
         "summary": "Auth: update profile",
         "tags": [
           "auth"
+        ],
+        "parameters": [
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": false,
+            "description": "Required when this request changes names/fields synchronized to a linked alumni profile; unrelated accounts do not require a token.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -9144,6 +9503,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
           }
         ],
         "responses": {
@@ -9209,6 +9578,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
             }
           }
         ],
@@ -11532,6 +11911,18 @@
         "tags": [
           "me"
         ],
+        "parameters": [
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -11748,6 +12139,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
           }
         ],
         "requestBody": {
@@ -11963,6 +12364,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": true,
+            "description": "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
             }
           }
         ],
@@ -16964,6 +17375,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "X-Timestamp-Edit",
+            "in": "header",
+            "required": false,
+            "description": "Required when this request changes names/fields synchronized to a linked alumni profile; unrelated accounts do not require a token.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
             }
           }
         ],

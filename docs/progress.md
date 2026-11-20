@@ -2,6 +2,40 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-20 (scoped timestamp ordering — application integration)
+
+- POST /alumni/timestamp-edits issues an authorized snapshot plus a one-shot context; student details,
+  managed/self employment, head assignment and linked-account name changes require it. Tracking,
+  archive/restore, faculty deactivation, imports and unconfirmed-registration release use short
+  server-timestamped operations. Authorization is checked before context handling and re-checked
+  inside the commit transaction.
+- Web: editors begin a context on open and seed drafts from its snapshot; conflicts keep the draft,
+  disable saving and offer Reload Latest with discard confirmation. Deletes/assignments begin and
+  commit in one step.
+- Server refuses to start without schema-3 collections/indexes (prevents duplicate clocks). README,
+  Atlas, deployment and known-issues updated; README documents the instructor demonstration.
+- Test updates: real-DB scripts obtain genuine contexts through a helper; the completion script's
+  concurrent-job check now asserts the deterministic timestamp rule; mongoose-db-check counts were
+  already stale on main (26/4 vs 27/3) and now match the real 30 collections/50 indexes/3 roles.
+
+## 2026-11-20 (scoped timestamp ordering — infrastructure slice)
+
+- Owner approved true timestamp ordering for core alumni details, assignments, tracking and
+  employment, including necessary indirect writers. Per-alumnus ordering, edits only (not normal
+  browsing/reporting), 30-minute contexts, draft-preserving conflict/reload and existing bulk
+  transaction boundaries are recorded in docs/specs/timestamp-ordering.md.
+- Added monotonic MongoDB clock allocation independent of business rollback, per-alumnus R_TS/W_TS,
+  opaque hashed actor/session-bound one-shot edit contexts, database-time expiry and atomic
+  state/data/audit/consumption rollback helpers. Clock/resource epoch mismatch fails closed.
+- Schema version 3 adds metadata collections/indexes; TTL applies only to ephemeral contexts.
+  Migration preflight now detects TTL-option mismatches rather than silently ignoring them.
+- Verified pnpm check 7/7 and 458 unit tests. pnpm test:timestamp-local passed on an isolated
+  disposable loopback database: independent-client timestamp uniqueness, no timestamp reuse on
+  rollback, read/write ordering conflicts, ordinary reads unchanged, owner/session/resource
+  binding, expiry/replay, atomic rollback and independent alumni.
+- Infrastructure only: existing application paths and UI are not wired yet. No push/merge until
+  all protected writers, draft handling, setup instructions and full verification are complete.
+
 ## 2026-11-19 (Windows CI profile-draft race)
 
 - The remaining Windows profile-history failure was a real editor race: record-refresh effects

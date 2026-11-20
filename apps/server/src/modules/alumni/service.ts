@@ -328,7 +328,7 @@ export const alumniService = {
       const owner = await tx.User.findOne({ alumniId: id }).select("_id").lean();
       // A registered alumnus's name lives on their account; updateAccountNames keeps both in sync.
       if (Object.keys(names).length && owner)
-        await updateAccountNames(tx, String(owner._id), names);
+        await updateAccountNames(tx, String(owner._id), names, {}, context.timestampWrite);
       await tx.Alumni.updateOne(
         { _id: id, ...active },
         { $set: { ...data, ...(owner ? {} : names) } },

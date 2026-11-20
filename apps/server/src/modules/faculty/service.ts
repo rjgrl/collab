@@ -8,6 +8,7 @@ import { describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
 import { authorizationTransaction } from "@Alumni-Tracking-Ss/api/services/authorization";
 import { assertPasswordSafe } from "@Alumni-Tracking-Ss/api/services/password-security";
 import { assertStaffEmailAllowed } from "@Alumni-Tracking-Ss/api/services/staff-domain";
+import { protectAlumniWrite } from "@Alumni-Tracking-Ss/api/services/timestamp-writes";
 import {
   alumniScope,
   canGrantLevel,
@@ -74,13 +75,18 @@ function assertGrant(
 
 /** Unassigns alumni the faculty member can no longer track and flags them for reassignment. */
 async function releaseAssignments(tx: Database, facultyId: string, keepProgramIds?: string[]) {
-  const result = await tx.Alumni.updateMany(
-    {
-      assignedFacultyId: facultyId,
-      ...(keepProgramIds ? { programId: { $nin: keepProgramIds } } : {}),
-    },
-    { $set: { assignedFacultyId: null, needsReassignment: true } },
+  const filter = {
+    assignedFacultyId: facultyId,
+    ...(keepProgramIds ? { programId: { $nin: keepProgramIds } } : {}),
+  };
+  const rows = await tx.Alumni.find(filter).select("_id").lean();
+  await protectAlumniWrite(
+    tx,
+    rows.map((row) => String(row._id)),
   );
+  const result = await tx.Alumni.updateMany(filter, {
+    $set: { assignedFacultyId: null, needsReassignment: true },
+  });
   return result.modifiedCount;
 }
 

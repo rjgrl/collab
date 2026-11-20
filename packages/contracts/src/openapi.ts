@@ -7,6 +7,7 @@ import {
   type ApiRoute,
 } from "./api-routes";
 import { errorResponseSchema } from "./common";
+import { TIMESTAMP_EDIT_HEADER } from "./timestamp";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -63,6 +64,17 @@ function operation(key: string, route: ApiRoute) {
     required: true,
     schema: { type: "string" },
   }));
+  if (route.timestamp)
+    parameters.push({
+      name: TIMESTAMP_EDIT_HEADER,
+      in: "header",
+      required: route.timestamp === "required",
+      description:
+        route.timestamp === "required"
+          ? "One-shot, session-bound edit token from POST /alumni/timestamp-edits; expires after 30 minutes. Missing, expired or conflicting edits return 409 without applying the save."
+          : "Required when this request changes names/fields synchronized to a linked alumni profile; unrelated accounts do not require a token.",
+      schema: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    });
   let requestBody: JsonSchema | undefined;
   if (!isEmptyInput(input)) {
     const schema = jsonSchema(input, "input");

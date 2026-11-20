@@ -5,6 +5,8 @@ import {
   type StructuredName,
 } from "@Alumni-Tracking-Ss/contracts/names";
 import { ApiError } from "../http-error";
+import type { Context } from "../context";
+import { protectAlumniWrite } from "./timestamp-writes";
 
 // Call only inside the caller's transaction: account fields own linked profile names.
 export async function updateAccountNames(
@@ -12,6 +14,7 @@ export async function updateAccountNames(
   userId: string,
   input: Partial<StructuredName>,
   extra: Record<string, unknown> = {},
+  timestampWrite?: Context["timestampWrite"],
 ) {
   const row = await tx.User.findById(userId).lean().exec();
   if (!row) throw new ApiError("NOT_FOUND", { message: "User not found." });
@@ -23,6 +26,17 @@ export async function updateAccountNames(
     suffix: current.suffix ?? "",
     ...input,
   });
+  if (current.alumniId) {
+    const linked = await tx.Alumni.findOne({ _id: current.alumniId, deletedAt: null })
+      .lean()
+      .exec();
+    if (!linked)
+      throw new ApiError("CONFLICT", {
+        message:
+          "The linked alumni profile is unavailable. Ask an administrator to review the link.",
+      });
+    await protectAlumniWrite(tx, [String(current.alumniId)], timestampWrite);
+  }
   const claim = await tx.User.updateOne(
     { _id: current.id, updatedAt: current.updatedAt },
     {
@@ -38,14 +52,6 @@ export async function updateAccountNames(
   if (claim.modifiedCount !== 1)
     throw new ApiError("CONFLICT", { message: "Account changed. Reload before saving." });
   if (current.alumniId) {
-    const alumni = await tx.Alumni.findOne({ _id: current.alumniId, deletedAt: null })
-      .lean()
-      .exec();
-    if (!alumni)
-      throw new ApiError("CONFLICT", {
-        message:
-          "The linked alumni profile is unavailable. Ask an administrator to review the link.",
-      });
     const synchronized = await tx.Alumni.updateOne(
       { _id: current.alumniId, deletedAt: null },
       {

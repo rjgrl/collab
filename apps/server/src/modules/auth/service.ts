@@ -256,6 +256,7 @@ export const authService = {
           ...contact,
           ...(phoneChanged ? { phoneVerified: false } : {}),
         },
+        context.timestampWrite,
       );
       if (phoneChanged)
         await tx.VerificationChallenge.deleteMany({ userId: actor.id, kind: "phone" }).exec();

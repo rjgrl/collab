@@ -74,7 +74,7 @@ describe("non-destructive index migration preflight", () => {
       "conflict",
     );
   });
-  it("retains important legacy uniqueness and adds no automatic TTL index", () => {
+  it("retains legacy uniqueness and expires only ephemeral timestamp edit contexts", () => {
     const indexes = plannedIndexes();
     for (const name of [
       "User_email_key",
@@ -87,6 +87,23 @@ describe("non-destructive index migration preflight", () => {
     assert.ok(
       indexes.some((index) => index.name === "AuthThrottle_expiresAt_idx" && !index.unique),
     );
+    assert.deepEqual(
+      indexes.filter((index) => "expireAfterSeconds" in index).map((index) => index.name),
+      ["TimestampEdit_expiresAt_ttl"],
+    );
+  });
+  it("treats missing or different timestamp-edit TTL enforcement as a conflict", () => {
+    const ttl = {
+      collection: "TimestampEdit",
+      name: "TimestampEdit_expiresAt_ttl",
+      key: { expiresAt: 1 as const },
+      unique: false,
+      expireAfterSeconds: 0,
+    };
+    assert.equal(inspectIndex(ttl, [{ name: ttl.name, key: ttl.key }]).state, "conflict");
+    const matching = { name: ttl.name, key: ttl.key, expireAfterSeconds: 0 };
+    assert.equal(inspectIndex(ttl, [matching]).state, "present");
+    assert.equal(inspectIndex(ttl, [{ ...matching, expireAfterSeconds: 60 }]).state, "conflict");
   });
 });
 

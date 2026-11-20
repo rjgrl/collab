@@ -5,6 +5,7 @@ import { readIntegrationEnv } from "./context";
 import { ENV } from "./env.server";
 import { db, databaseUrl } from "./services";
 import { hasLegacyRoles } from "@Alumni-Tracking-Ss/db";
+import { timestampOrderingReady } from "@Alumni-Tracking-Ss/db/timestamp-ordering";
 import { drainAndDisconnect } from "./shutdown";
 import { listenerOptions, validateRuntimeConfig } from "./runtime-config";
 import { fileURLToPath } from "node:url";
@@ -72,6 +73,13 @@ try {
 if (await hasLegacyRoles(db)) {
   console.error(
     "Legacy roles (viewer, admin or staff) are still in the database. Back up, then run `pnpm db:migrate --dry-run` and `pnpm db:migrate --apply` before starting the server.",
+  );
+  process.exit(1);
+}
+// Schema version 3: timestamp ordering needs its unique/TTL indexes before serving writes.
+if (!(await timestampOrderingReady(db))) {
+  console.error(
+    "Timestamp-ordering collections or indexes are missing (schema version 3). Back up, then run `pnpm db:migrate --dry-run` and `pnpm db:migrate --apply` before starting the server.",
   );
   process.exit(1);
 }

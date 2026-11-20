@@ -5,6 +5,7 @@ import { alumniController } from "./controller";
 
 export const alumniRoutes = Router();
 alumniRoutes.use(authenticate);
+alumniRoutes.post("/timestamp-edits", alumniController.beginEdit);
 alumniRoutes.get("/", authorize("alumni.read"), alumniController.list);
 alumniRoutes.get("/pending-accounts", authorize("alumni.read"), alumniController.pendingAccounts);
 alumniRoutes.get("/archived", authorize("alumni.read"), alumniController.archived);

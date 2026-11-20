@@ -5,6 +5,7 @@ import { requestContext } from "../../middleware/request-context";
 import { validatedInput } from "../../middleware/validate";
 import { SESSION_COOKIE, sessionCookieOptions } from "../../context";
 import { authService } from "./service";
+import { timestampedService } from "../alumni/timestamp-service";
 
 export function authController(secureCookies: boolean) {
   const login: RequestHandler = async (request, response) => {
@@ -83,7 +84,11 @@ export function authController(secureCookies: boolean) {
       "body",
     ),
     completeProfile: controller(authSchemas.completeProfile, authService.completeProfile, "body"),
-    updateProfile: controller(authSchemas.updateProfile, authService.updateProfile, "body"),
+    updateProfile: controller(
+      authSchemas.updateProfile,
+      timestampedService("account", authService.updateProfile),
+      "body",
+    ),
     changePassword: controller(authSchemas.changePassword, authService.changePassword, "body"),
     requestEmailChange: controller(
       authSchemas.requestEmailChange,

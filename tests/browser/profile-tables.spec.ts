@@ -145,10 +145,22 @@ test("background profile refresh preserves an open student-details draft", async
     .getByRole("dialog", { name: "Edit Student Details", exact: true })
     .getByRole("textbox", { name: "Batch", exact: true });
   await batch.fill("My unsaved batch");
+  // A separate, newer timestamped edit commits in the background.
+  const background = await page.request.post(
+    "http://127.0.0.1:3101/api/v1/alumni/timestamp-edits",
+    {
+      headers: { Origin: "http://127.0.0.1:3101" },
+      data: { purpose: "details", alumniIds: ["000000000000000000000201"] },
+    },
+  );
+  expect(background.status()).toBe(201);
   const changed = await page.request.patch(
     "http://127.0.0.1:3101/api/v1/alumni/000000000000000000000201",
     {
-      headers: { Origin: "http://127.0.0.1:3101" },
+      headers: {
+        Origin: "http://127.0.0.1:3101",
+        "X-Timestamp-Edit": (await background.json()).token,
+      },
       data: {
         studentNumber: "SYNTHETIC-OWN",
         programId: "000000000000000000000302",

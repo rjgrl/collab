@@ -143,7 +143,13 @@ export const usersService = {
         ),
       );
       if (Object.keys(names).length)
-        await updateAccountNames(tx, input.id, names, passwordHash ? { passwordHash } : {});
+        await updateAccountNames(
+          tx,
+          input.id,
+          names,
+          passwordHash ? { passwordHash } : {},
+          context.timestampWrite,
+        );
       else {
         const claimed = await tx.User.updateOne(
           { _id: input.id, updatedAt: current.updatedAt },

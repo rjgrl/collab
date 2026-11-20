@@ -91,8 +91,15 @@ test("Alumni save country-specific phone numbers and use focused profile and acc
     expect(stored.phoneVerified).toBe(false);
     expect((await (await page.request.get("/api/me/profile")).json()).mobileNumber).toBe(canonical);
   }
-  const direct = await page.request.patch("/api/auth/profile", {
+  // A linked alumni account edits protected names, so a direct API save needs an edit context.
+  const ownId = (await (await page.request.get("/api/auth/me")).json()).alumniId as string;
+  const edit = await page.request.post("/api/v1/alumni/timestamp-edits", {
     headers: { Origin: "http://127.0.0.1:3101" },
+    data: { purpose: "account", alumniIds: [ownId] },
+  });
+  expect(edit.status()).toBe(201);
+  const direct = await page.request.patch("/api/auth/profile", {
+    headers: { Origin: "http://127.0.0.1:3101", "X-Timestamp-Edit": (await edit.json()).token },
     data: { firstName: "Test", lastName: "Alumni", phoneNumber: "+63 (0)917.123-4567" },
   });
   expect(direct.status()).toBe(200);

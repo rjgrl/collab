@@ -20,4 +20,6 @@ refresh the query after an isolated synthetic record update while the dialog rem
 ## Boundary
 
 This changes client draft ownership, not server authorization, audit semantics or account data
-ownership. It introduces no automatic concurrent-edit merge or optimistic concurrency guarantee.
+ownership. Opening the editor begins a timestamp-ordered edit whose snapshot seeds the draft;
+concurrency rules and conflict handling live in [alumni-timestamp-ordering](timestamp-ordering.md).
+There is no automatic merge of concurrent edits.

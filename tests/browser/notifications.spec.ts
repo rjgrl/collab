@@ -93,6 +93,8 @@ test("Alumni evidence uploads notify Staff for review without marking the profil
     await expect(staff.getByTestId("notifications-bell")).toHaveAccessibleName(
       "Notifications, 1 unread",
     );
+    // Scan after the sign-in toast has finished its exit animation (a fading toast blends colors).
+    await expect(staff.locator('[data-sonner-toast][data-removed="true"]')).toHaveCount(0);
     expect((await new AxeBuilder({ page: staff }).analyze()).violations).toEqual([]);
     await staff.screenshot({
       path: info.outputPath("staff-evidence-notification.png"),

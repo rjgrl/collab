@@ -7,6 +7,7 @@ import { seedDatabase } from "@Alumni-Tracking-Ss/db/seed-data";
 import { createSession } from "@Alumni-Tracking-Ss/api/services/session";
 import { createApp } from "../../src/app";
 import { adminCookie } from "./local-admin";
+import { protectedRequest } from "./timestamp-helper";
 
 // Contacts (validation, primary rule, scope), profile editing with account name sync, and the
 // field-level change history with its Admin/heads-only, in-scope visibility.
@@ -35,14 +36,12 @@ try {
   }
   cookies.admin = await adminCookie(db);
 
+  const send = protectedRequest(app, db, origin);
   const as = (name: string) => ({
     get: (url: string) => request(app).get(url).set("Cookie", cookies[name]!),
-    post: (url: string, body: object) =>
-      request(app).post(url).set("Cookie", cookies[name]!).set("Origin", origin).send(body),
-    patch: (url: string, body: object) =>
-      request(app).patch(url).set("Cookie", cookies[name]!).set("Origin", origin).send(body),
-    delete: (url: string) =>
-      request(app).delete(url).set("Cookie", cookies[name]!).set("Origin", origin),
+    post: (url: string, body: object) => send(cookies[name]!, "post", url, body),
+    patch: (url: string, body: object) => send(cookies[name]!, "patch", url, body),
+    delete: (url: string) => send(cookies[name]!, "delete", url),
   });
   const alumni = async (studentNumber: string) =>
     (await db.Alumni.findOne({ studentNumber }).orFail().lean())._id.toString();

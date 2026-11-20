@@ -6,6 +6,7 @@ import path from "node:path";
 import { generate } from "otplib";
 import { createApp } from "../../src/app";
 import { acceptanceRequest } from "./local-rest";
+import { bearerTimestampHeaders } from "./timestamp-helper";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { createDatabase, hashPassword } from "@Alumni-Tracking-Ss/db";
 import type { Database } from "@Alumni-Tracking-Ss/db";
@@ -226,8 +227,15 @@ try {
   const perms = await Promise.all(PERMISSIONS.map((p) => db.Permission.create(p)));
   const password = "Synthetic role verification passphrase 872!";
   const passwordHash = await hashPassword(password);
+  const edit = (token: string) =>
+    bearerTimestampHeaders(db, async (path, method, input) => {
+      const result = await acceptanceRequest(base, path, input ?? {}, token, {}, method);
+      return { status: result.response.status, body: result.body };
+    });
   async function rest(route: string, token: string, input: unknown = {}) {
-    const result = await acceptanceRequest(base, route, input, token);
+    const headers =
+      route === "auth/updateProfile" ? await edit(token)("PATCH", "/api/auth/profile", input) : {};
+    const result = await acceptanceRequest(base, route, input, token, headers);
     return { status: result.response.status, body: result.body as Record<string, unknown> };
   }
   const users: Record<string, { id: string; token: string }> = {};

@@ -11,6 +11,7 @@ import { integrationsSchemas } from "./integrations";
 import { auditSchemas } from "./audit";
 import { notificationsSchemas } from "./notifications";
 import { backupsSchemas } from "./backups";
+import { timestampEditSchemas } from "./timestamp";
 
 /**
  * The JSON API in one table: contract, method and path (relative to API_PREFIX). The web client
@@ -29,15 +30,18 @@ export type ApiRoute<C extends ApiContract = ApiContract> = {
   path: string;
   /** Callable without a session cookie. Everything else needs a signed-in session. */
   public?: true;
+  timestamp?: "required" | "linked-account";
 };
 
 const route = <C extends ApiContract>(
   contract: C,
   method: HttpMethod,
   path: string,
-  options: { public?: true } = {},
+  options: { public?: true; timestamp?: "required" | "linked-account" } = {},
 ): ApiRoute<C> => ({ contract, method, path, ...options });
 const open = { public: true } as const;
+const timestamped = { timestamp: "required" } as const;
+const linkedTimestamp = { timestamp: "linked-account" } as const;
 
 export const API_ROUTES = {
   notifications: {
@@ -76,7 +80,7 @@ export const API_ROUTES = {
     ),
     createGooglePassword: route(authSchemas.createGooglePassword, "POST", "/auth/password"),
     completeProfile: route(authSchemas.completeProfile, "PATCH", "/auth/profile-completion"),
-    updateProfile: route(authSchemas.updateProfile, "PATCH", "/auth/profile"),
+    updateProfile: route(authSchemas.updateProfile, "PATCH", "/auth/profile", linkedTimestamp),
     changePassword: route(authSchemas.changePassword, "PATCH", "/auth/password"),
     requestEmailChange: route(
       authSchemas.requestEmailChange,
@@ -92,7 +96,7 @@ export const API_ROUTES = {
   users: {
     list: route(usersSchemas.list, "GET", "/users"),
     create: route(usersSchemas.create, "POST", "/users"),
-    update: route(usersSchemas.update, "PATCH", "/users/:id"),
+    update: route(usersSchemas.update, "PATCH", "/users/:id", linkedTimestamp),
     setStatus: route(usersSchemas.setStatus, "PATCH", "/users/:id/status"),
   },
   roles: {
@@ -113,7 +117,7 @@ export const API_ROUTES = {
     list: route(facultySchemas.list, "GET", "/faculty"),
     create: route(facultySchemas.create, "POST", "/faculty"),
     update: route(facultySchemas.update, "PATCH", "/faculty/:id"),
-    assign: route(assignSchemas.assign, "POST", "/alumni/assign"),
+    assign: route(assignSchemas.assign, "POST", "/alumni/assign", timestamped),
   },
   departments: {
     list: route(departmentsSchemas.list, "GET", "/departments"),
@@ -130,20 +134,36 @@ export const API_ROUTES = {
     delete: route(programsSchemas.delete, "DELETE", "/programs/:id"),
   },
   alumni: {
+    beginEdit: route(timestampEditSchemas.begin, "POST", "/alumni/timestamp-edits"),
     pendingAccounts: route(alumniSchemas.pendingAccounts, "GET", "/alumni/pending-accounts"),
     list: route(alumniSchemas.list, "GET", "/alumni"),
     archived: route(alumniSchemas.archived, "GET", "/alumni/archived"),
     restore: route(alumniSchemas.restore, "POST", "/alumni/:id/restore"),
     get: route(alumniSchemas.get, "GET", "/alumni/:id"),
     history: route(alumniSchemas.history, "GET", "/alumni/:id/history"),
-    update: route(alumniSchemas.update, "PATCH", "/alumni/:id"),
+    update: route(alumniSchemas.update, "PATCH", "/alumni/:id", timestamped),
     addContact: route(contactsSchemas.create, "POST", "/alumni/:alumniId/contacts"),
     updateContact: route(contactsSchemas.update, "PATCH", "/alumni/:alumniId/contacts/:id"),
     deleteContact: route(contactsSchemas.delete, "DELETE", "/alumni/:alumniId/contacts/:id"),
     delete: route(alumniSchemas.delete, "DELETE", "/alumni/:id"),
-    addEmployment: route(alumniSchemas.addEmployment, "POST", "/alumni/:alumniId/employments"),
-    deleteEmployment: route(alumniSchemas.deleteEmployment, "DELETE", "/employments/:id"),
-    updateEmployment: route(alumniSchemas.updateEmployment, "PATCH", "/employments/:id"),
+    addEmployment: route(
+      alumniSchemas.addEmployment,
+      "POST",
+      "/alumni/:alumniId/employments",
+      timestamped,
+    ),
+    deleteEmployment: route(
+      alumniSchemas.deleteEmployment,
+      "DELETE",
+      "/employments/:id",
+      timestamped,
+    ),
+    updateEmployment: route(
+      alumniSchemas.updateEmployment,
+      "PATCH",
+      "/employments/:id",
+      timestamped,
+    ),
     addTracking: route(alumniSchemas.addTracking, "POST", "/alumni/:alumniId/tracking-events"),
     trackingEvents: route(alumniSchemas.trackingEvents, "GET", "/alumni/:alumniId/tracking-events"),
     removePhoto: route(alumniSchemas.removePhoto, "DELETE", "/alumni/:alumniId/photo"),
@@ -151,9 +171,9 @@ export const API_ROUTES = {
   me: {
     statistics: route(aggregateSchemas.summary, "GET", "/me/statistics"),
     employment: {
-      create: route(selfEmploymentSchemas.create, "POST", "/me/employments"),
-      update: route(selfEmploymentSchemas.update, "PATCH", "/me/employments/:id"),
-      remove: route(selfEmploymentSchemas.remove, "DELETE", "/me/employments/:id"),
+      create: route(selfEmploymentSchemas.create, "POST", "/me/employments", timestamped),
+      update: route(selfEmploymentSchemas.update, "PATCH", "/me/employments/:id", timestamped),
+      remove: route(selfEmploymentSchemas.remove, "DELETE", "/me/employments/:id", timestamped),
     },
     removeFile: route(filesSchemas.remove, "DELETE", "/me/files/:id"),
     profile: {

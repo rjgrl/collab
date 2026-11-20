@@ -4,6 +4,7 @@ import type { Types } from "mongoose";
 import { academicProfileSchema, type AuthInput } from "@Alumni-Tracking-Ss/contracts/auth";
 import { ApiError } from "../http-error";
 import { writeAudit } from "../audit";
+import { protectAlumniWrite } from "./timestamp-writes";
 
 /** An unconfirmed self-registration can be replaced by a new sign-up after this long. */
 export const UNCONFIRMED_REGISTRATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -56,6 +57,7 @@ export async function releaseUnconfirmedRegistration(
       (await db.AlumniContact.exists({ alumniId })) ||
       (await db.User.exists({ alumniId, _id: { $ne: userId } }));
     if (!touched) {
+      await protectAlumniWrite(db, [String(alumniId)]);
       await db.Alumni.deleteOne({ _id: alumniId }).exec();
       profileReleased = true;
     }

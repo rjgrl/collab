@@ -43,16 +43,24 @@ test("one alumnus cannot flood uploads, jobs or staff notifications", async ({ r
   // At most 20 uploads in any 10 minutes, then a clear "wait" answer.
   expect(tally(uploads)).toEqual({ 201: 20, 429: 5 });
 
+  // Each job is its own timestamped edit of this alumnus (docs/specs/timestamp-ordering.md).
+  const ownId = (await (await alumni.get(`${API}/auth/me`)).json()).alumniId as string;
   const jobs: number[] = [];
-  for (let i = 0; i < 32; i++)
+  for (let i = 0; i < 32; i++) {
+    const edit = await alumni.post(`${API}/alumni/timestamp-edits`, {
+      headers: ORIGIN,
+      data: { purpose: "employment", alumniIds: [ownId] },
+    });
+    expect(edit.status()).toBe(201);
     jobs.push(
       (
         await alumni.post(`${API}/me/employments`, {
-          headers: ORIGIN,
+          headers: { ...ORIGIN, "X-Timestamp-Edit": (await edit.json()).token },
           data: { employer: `Employer ${i}` },
         })
       ).status(),
     );
+  }
   expect(tally(jobs)).toEqual({ 201: 30, 400: 2 });
 
   // Twenty uploads became one unread notice for the assigned tracker.

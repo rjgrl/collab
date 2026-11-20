@@ -347,3 +347,18 @@ Append-only. Format: date, decision, why, alternatives rejected.
   Faculty/custom role may split that member; the original full Super Admin role cannot be emptied.
 - Signup regression fixtures now use institutional addresses, preserving duplicate/race/recovery
   assertions rather than weakening the new validation. Other existing seeded login fixtures remain.
+
+## 2026-11-20: Scoped alumni timestamp ordering (Group 5)
+
+- Owner chose core alumni details, assignments, tracking and employment, with all indirect
+  writers included where they change protected data; ordinary browsing/reports do not participate.
+  One alumnus is one ordering boundary and interactive edit contexts last 30 minutes.
+- Use genuine read/write timestamp rules with a MongoDB-issued logical clock. A newer participating
+  read can reject an older write; do not label updatedAt-only optimistic checks as timestamp ordering.
+  Retain drafts and require explicit confirmed reload after conflict/expiry. Preserve row-wise
+  imports and all-or-nothing head assignments. See [the boundary](specs/timestamp-ordering.md).
+- Schema 3 is additive: persistent clock/resource state plus hashed, session-bound ephemeral edit
+  contexts. Only those contexts get TTL; migration inspection must compare TTL options as well
+  as uniqueness. Existing accounts, domain records, audit, keys and uploads must not be rewritten.
+- Persistence/rule infrastructure is verified independently before wiring application paths.
+  No claim that existing endpoints are protected until their integration and browser tests pass.
