@@ -131,6 +131,42 @@ test("staff see a tidy profile with paginated employment and change history", as
   await expect(entry).not.toContainText(/none →|T00:00|[a-f\d]{24}/);
 });
 
+test("background profile refresh preserves an open student-details draft", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${FIXTURE}/reset`);
+  await request.post(`${FIXTURE}/staff`);
+  await signIn(page, "staff@example.test", "dashboard");
+  await page.goto(PROFILE);
+  await openProfileTab(page, "Details");
+  await page.getByRole("button", { name: "Edit details", exact: true }).click();
+  const batch = page
+    .getByRole("dialog", { name: "Edit Student Details", exact: true })
+    .getByRole("textbox", { name: "Batch", exact: true });
+  await batch.fill("My unsaved batch");
+  const changed = await page.request.patch(
+    "http://127.0.0.1:3101/api/v1/alumni/000000000000000000000201",
+    {
+      headers: { Origin: "http://127.0.0.1:3101" },
+      data: {
+        studentNumber: "SYNTHETIC-OWN",
+        programId: "000000000000000000000302",
+        graduationYear: 2020,
+        batch: "Background update",
+      },
+    },
+  );
+  expect(changed.status()).toBe(200);
+  // Exercise the same background invalidation used after saves without closing the dialog.
+  await page.evaluate(async () => {
+    const modulePath = "/src/lib/api.ts";
+    const { queryClient } = await import(modulePath);
+    await queryClient.invalidateQueries();
+  });
+  await expect(batch).toHaveValue("My unsaved batch");
+});
+
 test("faculty list defaults to 10 rows with a rows-per-page choice", async ({ page, request }) => {
   await request.post(`${FIXTURE}/reset`);
   await request.post(`${FIXTURE}/staff`);

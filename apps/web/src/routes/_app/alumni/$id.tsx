@@ -8,7 +8,7 @@ import { Input } from "@Alumni-Tracking-Ss/ui/components/input";
 import { Textarea } from "@Alumni-Tracking-Ss/ui/components/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
@@ -75,23 +75,6 @@ function AlumniDetailPage() {
   const [editingDetails, setEditingDetails] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [trackingPage, setTrackingPage] = useState(1);
-
-  useEffect(() => {
-    if (!record) {
-      return;
-    }
-    setForm({
-      firstName: record.firstName,
-      middleName: record.middleName ?? "",
-      lastName: record.lastName,
-      suffix: record.suffix ?? "",
-      gender: record.gender ?? "",
-      batch: record.batch ?? "",
-      studentNumber: record.studentNumber,
-      graduationYear: record.graduationYear ? String(record.graduationYear) : "",
-      programId: record.programId,
-    });
-  }, [record]);
 
   const save = useMutation({
     mutationFn: () =>
@@ -196,6 +179,7 @@ function AlumniDetailPage() {
           <SummaryCard
             title="Student Details"
             actionLabel={canWrite ? "Edit details" : undefined}
+            actionDisabled={save.isPending || alumni.isFetching}
             onAction={
               canWrite
                 ? () => {

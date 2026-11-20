@@ -305,6 +305,13 @@ Append-only. Format: date, decision, why, alternatives rejected.
 - Test adapters capture SMTP messages without external delivery; no real App Password is used or
   stored by the agent. The owner must verify live Gmail auth, port reachability and inbox delivery.
 
+## 2026-11-19: Student Details drafts belong to the open editor
+
+- Initialize managed-profile drafts only on opening; background data refresh cannot replace
+  unsaved edits. Wait for previous saves/refetches before starting another edit. This fixes the
+  Windows CI no-op audit race without weakening audit expectations or changing backend scope.
+  See [profile-editing boundary](specs/profile-editing.md).
+
 ## 2026-11-19: Google sign-in requires BukSU Workspace in every environment
 
 - Reuse the configured/enabled Google OAuth flow, not a separate provider or a Gmail App Password.

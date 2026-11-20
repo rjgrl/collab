@@ -2,6 +2,19 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-19 (Windows CI profile-draft race)
+
+- The remaining Windows profile-history failure was a real editor race: record-refresh effects
+  overwrote an open Student Details draft after the previous save, so the next request could
+  become a no-op rather than the expected Batch A to Batch B change.
+- Removed continuous record-to-form synchronization; the existing edit action now owns the
+  initial snapshot, and is disabled while a save/refetch is pending. Backend audit and scope
+  guards are unchanged. Draft ownership is recorded in docs/specs/profile-editing.md.
+- Added a deterministic regression that updates an isolated synthetic profile and refreshes the
+  query while its dialog remains open. It failed against the old behavior (draft overwritten)
+  and passes with the fix. All 8 profile-table tests passed desktop/mobile, including unchanged
+  audit-transition assertions. Required CI still gates the main merge.
+
 ## 2026-11-19 (BukSU-only Google sign-in)
 
 - Reused the existing Sign In/Sign Up with Google buttons and OAuth flow. Exact BukSU/student

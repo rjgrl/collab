@@ -108,6 +108,7 @@ playwright-report/
 !/docs/specs/
 /docs/specs/*
 !/docs/specs/account-access.md
+!/docs/specs/profile-editing.md
 !/docs/system/
 /docs/system/*
 !/docs/system/installation.md
