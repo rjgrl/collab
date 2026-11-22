@@ -15,7 +15,7 @@ async function signIn(page: Page, email: string, password = "BrowserTest123!") {
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
 }
 
-test("Super Admin is full access and members can be moved to a limited Super Admin role", async ({
+test("Super Admin permissions are configurable per role without full or limited tiers", async ({
   page,
   request,
 }) => {
@@ -38,11 +38,12 @@ test("Super Admin is full access and members can be moved to a limited Super Adm
   const secondId = (await created.json()).id as string;
   await request.post(`${FIXTURE}/complete-account`, { data: { email: SECOND.email } });
 
-  // The original Super Admin role shows every permission on and cannot be changed itself.
+  // Defaults still grant every permission, but the original configuration is editable.
   await page.goto("/settings/roles");
   await page.getByRole("button", { name: /^Test Admin Synthetic administrator/ }).click();
   const dialog = page.getByRole("dialog", { name: "Test Admin", exact: true });
-  await expect(dialog.getByText(/Super Admin always has full access/)).toBeVisible();
+  await expect(dialog.getByText(/Super Admins always require MFA/)).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Name", exact: true })).toBeEnabled();
   await expect(dialog.getByRole("switch").first()).toBeVisible();
   await expect(dialog.getByRole("switch", { checked: false })).toHaveCount(0);
   await expect(dialog.getByText("Super Admin only", { exact: true })).toHaveCount(0);
@@ -96,7 +97,7 @@ test("Super Admin is full access and members can be moved to a limited Super Adm
   expect(limitedKeys).not.toContain("integrations.write");
   expect(limitedKeys).toContain("users.write");
 
-  // A full Super Admin cannot split themself off or empty the full role.
+  // Selected-member editing still cannot move the current editor out of their own role.
   const fullVersion = new Date(
     (await (await page.request.get(`${API}/roles`)).json()).find(
       (role: { key: string }) => role.key === "super_admin",
@@ -113,7 +114,7 @@ test("Super Admin is full access and members can be moved to a limited Super Adm
   });
   expect(self.status()).toBe(400);
 
-  // The limited admin is still an administrator but cannot manage Super Admin access.
+  // A customized Super Admin has the same account type and can manage access when granted RBAC.
   await page.context().clearCookies();
   await signIn(page, SECOND.email, SECOND.password);
   await enrollAdministrator(page);
@@ -132,7 +133,7 @@ test("Super Admin is full access and members can be moved to a limited Super Adm
       description: "self-edit",
     },
   });
-  expect(escalate.status()).toBe(403);
+  expect(escalate.status()).toBe(200);
 });
 
 test("Faculty changes can apply to selected members only", async ({ page, request }) => {

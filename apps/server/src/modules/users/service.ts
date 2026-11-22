@@ -8,11 +8,11 @@ import {
 } from "@Alumni-Tracking-Ss/contracts/names";
 import { hashPassword, toEntity } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
-import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/access";
+import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { writeAudit, describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
 import {
-  assertFullSuperAdmin,
+  assertSuperAdmin,
   assertRoleScope,
   authorizationTransaction,
   isSuperAdminKind,
@@ -22,10 +22,13 @@ import {
 } from "@Alumni-Tracking-Ss/api/services/authorization";
 import { updateAccountNames } from "@Alumni-Tracking-Ss/api/services/account-names";
 import { assertPasswordSafe } from "@Alumni-Tracking-Ss/api/services/password-security";
+import {
+  lockAccessManagers,
+  assertAccessManagerRemains,
+} from "@Alumni-Tracking-Ss/api/services/access-managers";
 
 export const usersService = {
   async list(context: Context, input: UserInput<"list">) {
-    rejectAlumniManagement(context);
     requireAccess(context, "users.read");
     const search = input.search?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const rows = await context.db.User.find(
@@ -47,7 +50,6 @@ export const usersService = {
     return Promise.all(rows.map((row) => publicUser(context.db, String(row._id))));
   },
   async create(context: Context, input: UserInput<"create">) {
-    rejectAlumniManagement(context);
     const actor = requireAccess(context, "users.write");
     if (!isAdministrator(actor))
       throw new ApiError("FORBIDDEN", {
@@ -61,7 +63,7 @@ export const usersService = {
       if (!roleIds?.length)
         throw new ApiError("BAD_REQUEST", { message: "Choose a role for the new account." });
       const roles = await validateRoleIds(tx, actor, roleIds);
-      if (roles.some((role) => role.key !== ROLE.superAdmin))
+      if (roles.some((role) => !isSuperAdminKind(role)))
         throw new ApiError("BAD_REQUEST", {
           message:
             "Managed accounts may only have the Super Admin role. Create faculty and heads from the Faculty page; alumni must self-register.",
@@ -103,7 +105,6 @@ export const usersService = {
     });
   },
   async update(context: Context, input: UserInput<"update">) {
-    rejectAlumniManagement(context);
     const actor = requireAccess(context, "users.write");
     if (input.password) await assertPasswordSafe(input.password);
     const passwordHash = input.password ? await hashPassword(input.password) : undefined;
@@ -113,16 +114,19 @@ export const usersService = {
       const current = toEntity(row);
       const roles = await loadUserRoles(tx, input.id);
       let nextRolesForAudit = roles;
-      // Limited Super Admins are managed only by a full Super Admin.
-      if (roles.some(isSuperAdminKind)) await assertFullSuperAdmin(tx, actor);
+      let protectsAccess = roles.some(isSuperAdminKind);
+      if (protectsAccess) {
+        assertSuperAdmin(actor);
+        await lockAccessManagers(tx);
+      }
       assertRoleScope(actor, roles);
       if (input.roleIds) {
-        if (roles.some((role) => role.key === ROLE.superAdmin))
-          throw new ApiError("FORBIDDEN", {
-            message: "Super administrator role assignments are protected.",
-          });
         const nextRoles = await validateRoleIds(tx, actor, input.roleIds);
-        if (nextRoles.some(isSuperAdminKind)) await assertFullSuperAdmin(tx, actor);
+        if (nextRoles.some(isSuperAdminKind)) {
+          assertSuperAdmin(actor);
+          if (!protectsAccess) await lockAccessManagers(tx);
+          protectsAccess = true;
+        }
         nextRolesForAudit = nextRoles;
         const currentKeys = roles.map((role) => role.key);
         const nextKeys = nextRoles.map((role) => role.key);
@@ -172,6 +176,7 @@ export const usersService = {
             { ordered: true },
           );
       }
+      if (protectsAccess && input.roleIds) await assertAccessManagerRemains(tx);
       if (passwordHash || input.roleIds) await tx.Session.deleteMany({ userId: input.id }).exec();
       await writeAudit(tx, {
         actor,
@@ -185,18 +190,16 @@ export const usersService = {
     });
   },
   async setStatus(context: Context, input: UserInput<"setStatus">) {
-    rejectAlumniManagement(context);
     const actor = requireAccess(context, "users.delete");
     return authorizationTransaction(context.db, async (tx) => {
       const target = await tx.User.findById(input.id).lean().exec();
       if (!target) throw new ApiError("NOT_FOUND", { message: "User not found." });
       const roles = await loadUserRoles(tx, input.id);
-      if (roles.some(isSuperAdminKind)) await assertFullSuperAdmin(tx, actor);
+      if (roles.some(isSuperAdminKind)) {
+        assertSuperAdmin(actor);
+        await lockAccessManagers(tx);
+      }
       assertRoleScope(actor, roles);
-      if (roles.some((role) => role.key === ROLE.superAdmin))
-        throw new ApiError("FORBIDDEN", {
-          message: "Super administrator accounts cannot be disabled here.",
-        });
       const changed = await tx.User.updateOne(
         { _id: input.id, updatedAt: target.updatedAt },
         {
@@ -209,6 +212,7 @@ export const usersService = {
       ).exec();
       if (changed.modifiedCount !== 1)
         throw new ApiError("CONFLICT", { message: "Account changed. Reload before saving." });
+      if (roles.some(isSuperAdminKind)) await assertAccessManagerRemains(tx);
       if (input.status === "disabled") await tx.Session.deleteMany({ userId: input.id }).exec();
       await writeAudit(tx, {
         actor,

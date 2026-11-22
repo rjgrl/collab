@@ -91,10 +91,20 @@ export function AppShell() {
   const alumniAccount = session.data ? isAlumniAccount(session.data) : false;
   const items = NAV.filter((item) =>
     alumniAccount
-      ? ["/my-profile", "/statistics", "/settings", "/audit"].includes(item.to)
+      ? ["/my-profile", "/statistics", "/settings", "/audit"].includes(item.to) ||
+        canOpenPage(item.to, session.data)
       : !["/my-profile", "/statistics"].includes(item.to) && canOpenPage(item.to, session.data),
   );
-  const sections = (alumniAccount ? ALUMNI_SECTIONS : STAFF_SECTIONS)
+  const sectionDefinitions = alumniAccount
+    ? [
+        ...ALUMNI_SECTIONS,
+        ...STAFF_SECTIONS.map((section) => ({
+          ...section,
+          paths: section.paths.filter((path) => !["/settings", "/audit"].includes(path)),
+        })),
+      ]
+    : STAFF_SECTIONS;
+  const sections = sectionDefinitions
     .map((section) => ({
       label: section.label,
       items: section.paths

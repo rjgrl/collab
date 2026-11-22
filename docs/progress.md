@@ -2,6 +2,31 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-22 (permission delegation, unified administrators and environment discoverability)
+
+- Owner approved assigning every catalog permission to any editable role, retaining alumni and
+  academic scope. Removed the fixed Super Admin-only grant filter in the editor, validation and
+  session loading; delegated operations and navigation now follow permissions.
+- One Super Admin identity replaces full/limited tiers. The original configuration is editable;
+  existing administrator roles, names, memberships and grants are retained. A transaction-safe
+  last-access-manager safeguard covers permission changes, splits, deletion, membership and status.
+- Super Admins require MFA; delegated administrative permissions also require it and display a
+  per-permission note. Ordinary Faculty tracking remains unchanged. See account-access for policy.
+- Scoped academic mutations, delegated import source/destination checks and audit scoping preserve
+  record boundaries. Reports.export now covers Google Sheets without a role-name gate.
+- Environment discoverability: setup appends optional limits as comments; existing/Atlas setups
+  can use pnpm env:rate-limits without database access. Doctor prints effective non-secret values.
+  This laptop's reference was appended and doctor verified it without changing any active setting.
+- Verified: 475 unit tests, check 7/7, browser types, secret scan, scope/faculty/integration/timestamp
+  real-DB checks, and independent-client last-manager races (including synchronized transaction
+  snapshots). Focused delegated MFA/browser checks passed 10/10; settings/role checks passed 22 with
+  2 intentional duplicate skips. Full browser run: 168 passed, 5 intentional skips, 5 failures;
+  those five cases all passed on rerun after correcting old-policy assertions and a live-network
+  dependency in the reports UI mock. Superseded role-based denials were replaced with explicit
+  grant/MFA/scope checks; all export-disabled and cross-scope denial checks remain.
+- Nothing from this session has been pushed or merged. CLAUDE.md is unchanged pending explicit
+  approval of its now-outdated role-policy wording.
+
 ## 2026-11-20 (scoped timestamp ordering — application integration)
 
 - POST /alumni/timestamp-edits issues an authorized snapshot plus a one-shot context; student details,

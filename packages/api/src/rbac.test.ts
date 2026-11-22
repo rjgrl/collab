@@ -470,8 +470,14 @@ describe("RBAC: protected administration", () => {
     rolePermissions: [],
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
   };
-  const target = { id: "admin-1", email: "admin@example.test", userRoles: [{ role }] };
-  it("rejects changing the protected administrator permission set", async () => {
+  const target = {
+    id: "admin-1",
+    email: "admin@example.test",
+    status: "active",
+    updatedAt: role.updatedAt,
+    userRoles: [{ role }],
+  };
+  it("rejects an administrator permission change without a remaining access manager", async () => {
     const { db, reads } = stubDb({ role });
     await expectCode(
       "FORBIDDEN",
@@ -480,12 +486,9 @@ describe("RBAC: protected administration", () => {
       { id: "r1", permissionIds: [], expectedUpdatedAt: role.updatedAt.toISOString() },
       db,
     );
-    assert.equal(
-      reads.some((r) => r.method === "deleteMany"),
-      false,
-    );
+    assert.ok(reads.some((r) => r.model === "AuthThrottle" && r.method === "findOneAndUpdate"));
   });
-  it("rejects removal of administrator role assignments", async () => {
+  it("rejects removing administrator assignments without a remaining access manager", async () => {
     const { db, reads } = stubDb({ user: target });
     await expectCode(
       "FORBIDDEN",
@@ -494,12 +497,9 @@ describe("RBAC: protected administration", () => {
       { id: target.id, roleIds: [] },
       db,
     );
-    assert.equal(
-      reads.some((r) => r.method === "deleteMany"),
-      false,
-    );
+    assert.ok(reads.some((r) => r.model === "AuthThrottle" && r.method === "findOneAndUpdate"));
   });
-  it("rejects disabling protected administrator accounts", async () => {
+  it("rejects disabling administrators without a remaining access manager", async () => {
     const { db } = stubDb({ user: target });
     await expectCode(
       "FORBIDDEN",

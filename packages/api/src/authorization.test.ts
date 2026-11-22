@@ -118,7 +118,7 @@ it("production registration fails closed before database access unless explicitl
     else process.env.ALLOW_PUBLIC_SIGNUP = previousSignup;
   }
 });
-it("rejects permission escalation and delegated system-role editing", () => {
+it("rejects permission escalation and protects Super Admin roles during delegated editing", () => {
   const delegated = { ...actor, roles: ["custom"], permissions: ["roles.write" as const] };
   assert.throws(
     () =>
@@ -132,8 +132,8 @@ it("rejects permission escalation and delegated system-role editing", () => {
     /beyond your own/,
   );
   assert.throws(
-    () => assertRoleScope(delegated, [{ key: "alumni", isSystem: true, rolePermissions: [] }]),
-    /system roles/,
+    () => assertRoleScope(delegated, [{ key: "super_admin", isSystem: true, rolePermissions: [] }]),
+    /Super Admin roles/,
   );
 });
 it("claims the expected role version before replacing permissions and auditing in a transaction", async () => {

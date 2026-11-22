@@ -77,10 +77,11 @@ async function enrolled() {
     ...result,
   };
 }
-it("blocks Administrator roles until MFA while delegated Staff permissions do not impose MFA", async () => {
+it("requires MFA for Super Admins and delegated administrative permissions", async () => {
   const f = await fixture();
   assert.throws(() => requireAccess(f.context, "dashboard.read"), /Verify your authenticator/);
-  assert.equal(privilegedAccount({ roles: ["staff"], permissions: ["users.write"] }), false);
+  assert.equal(privilegedAccount({ roles: ["staff"], permissions: ["users.write"] }), true);
+  assert.equal(privilegedAccount({ roles: ["faculty"], permissions: ["tracking.write"] }), false);
   assert.equal(privilegedAccount({ roles: ["staff", "admin"], permissions: [] }), false);
   assert.equal(privilegedAccount({ roles: ["staff", "super_admin"], permissions: [] }), true);
   f.context.user!.mfaVerified = true;

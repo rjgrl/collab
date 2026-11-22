@@ -13,12 +13,7 @@ import { ErrorAlert } from "@/components/feedback/error-alert";
 import { can, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/lib/api";
 import { useConfirm } from "@/components/feedback/confirm-provider";
-import {
-  PermissionControls,
-  AddRoleDialog,
-  duplicateRoleName,
-  grantablePermissionIds,
-} from "./role-dialogs";
+import { PermissionControls, AddRoleDialog, duplicateRoleName } from "./role-dialogs";
 
 type Role = Awaited<ReturnType<typeof client.roles.list>>[number];
 const version = (role: { updatedAt: Date }) => new Date(role.updatedAt).toISOString();
@@ -109,7 +104,6 @@ export function RolesPage() {
             ) : null}
             <span className="mt-2 block text-sm tabular-nums text-muted-foreground">
               {role._count.userRoles} members | {role.rolePermissions.length} permissions
-              {role.key === ROLE.superAdmin ? " | Protected" : ""}
             </span>
           </button>
         ))}
@@ -199,12 +193,12 @@ function RoleEditor({
   const stale = version(role) > baseline.version;
   const editable =
     can(session.data?.permissions, "roles.write") &&
-    role.key !== ROLE.superAdmin &&
     (!superAdminRole || (session.data ? isAdministrator(session.data) : false)) &&
-    (!role.isSystem || (session.data ? isAdministrator(session.data) : false)) &&
-    role.rolePermissions.every(({ permission }) => can(session.data?.permissions, permission.key));
-  // Splitting is offered for Faculty, custom and Super Admin roles (not Alumni), even when the
-  // role itself is protected: only the moved members get the new permissions.
+    (Boolean(session.data && isAdministrator(session.data)) ||
+      role.rolePermissions.every(({ permission }) =>
+        can(session.data?.permissions, permission.key),
+      ));
+  // Selected-member changes remain role variants, not per-user overrides.
   const canSplit =
     can(session.data?.permissions, "roles.write") &&
     role.key !== ROLE.alumni &&
@@ -219,7 +213,7 @@ function RoleEditor({
         userIds: picked,
         name: splitName,
         description,
-        permissionIds: grantablePermissionIds(ids, permissions, superAdminRole),
+        permissionIds: ids,
       }),
     onSuccess: async (created) => {
       toast.success(`Moved ${pickedNames.join(", ")} to "${created.name}"`);
@@ -235,7 +229,7 @@ function RoleEditor({
         expectedUpdatedAt: baseline.version,
         name: name !== baseline.name ? name : undefined,
         description: description !== baseline.description ? description : undefined,
-        permissionIds: grantablePermissionIds(ids, permissions, superAdminRole),
+        permissionIds: ids,
       }),
     onSuccess: async (saved) => {
       const savedIds = saved.rolePermissions.map((item) => item.permissionId);
@@ -316,11 +310,9 @@ function RoleEditor({
       }
       title={role.name}
       description={
-        role.key === ROLE.superAdmin
-          ? "Super Admin always has full access. To give someone limited access, select a member from Apply Changes To."
-          : editable
-            ? "Edit the name, note, and permissions, then save."
-            : "This role is read-only for your account."
+        editable
+          ? "Edit the name, note, and permissions, then save. Super Admins always require MFA."
+          : "This role is read-only for your account."
       }
     >
       <div className="flex flex-col gap-5">
@@ -404,9 +396,9 @@ function RoleEditor({
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    {role.key === ROLE.superAdmin
-                      ? "Full Super Admin always keeps all permissions. Select another member to limit their access."
-                      : "Changes apply to everyone in this role. Select a member to change only their permissions."}
+                    Changes apply to everyone in this role. Select a member to change only their
+                    permissions. At least one active Super Admin must retain access-management
+                    permissions.
                   </p>
                 )}
               </div>
@@ -433,13 +425,7 @@ function RoleEditor({
             )}
           </FormField>
         </div>
-        <PermissionControls
-          permissions={permissions}
-          ids={ids}
-          setIds={setIds}
-          locked={locked}
-          superAdminRole={superAdminRole}
-        />
+        <PermissionControls permissions={permissions} ids={ids} setIds={setIds} locked={locked} />
       </div>
     </FormDialog>
   );

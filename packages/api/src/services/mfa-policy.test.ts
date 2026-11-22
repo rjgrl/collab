@@ -112,16 +112,21 @@ it("returns matching frontend/status flags without deleting enrollment or invent
   assert.equal(credential.secretCipher, "synthetic-encrypted-secret");
 });
 
-it("never gates Staff or Alumni with old enrollment or stale required flags, but gates mixed Administrator roles", () => {
+it("gates delegated administrative permissions and every Super Admin, not stale required flags", () => {
   for (const roles of [["staff"], ["alumni"], ["admin"], ["alumni", "staff"]]) {
     assert.equal(
       requiresMfa(
-        { roles, permissions: ["users.write"], mfaEnrolled: true, mfaRequired: true },
+        { roles, permissions: ["tracking.write"], mfaEnrolled: true, mfaRequired: true },
         { NODE_ENV: "production" },
       ),
       false,
     );
   }
+  for (const key of ["users.write", "roles.write", "integrations.write", "programs.write"] as const)
+    assert.equal(
+      requiresMfa({ roles: ["alumni"], permissions: [key] }, { NODE_ENV: "production" }),
+      true,
+    );
   for (const roles of [["super_admin"], ["alumni", "super_admin"], ["staff", "super_admin"]]) {
     assert.equal(
       requiresMfa({ roles, permissions: [], mfaEnrolled: false }, { NODE_ENV: "production" }),

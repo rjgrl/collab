@@ -9,15 +9,11 @@ import {
   type TransactionTimestamp,
 } from "@Alumni-Tracking-Ss/db/timestamp-ordering";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
-import {
-  requireAccess,
-  requireAdministrator,
-  rejectAlumniManagement,
-} from "@Alumni-Tracking-Ss/api/access";
+import { requireAccess, requireAdministrator } from "@Alumni-Tracking-Ss/api/access";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { alumniScopeFilter, assignmentScope } from "@Alumni-Tracking-Ss/api/scope";
 import {
-  assertFullSuperAdmin,
+  assertSuperAdmin,
   assertRoleScope,
   isSuperAdminKind,
   loadUserRoles,
@@ -54,7 +50,6 @@ async function resources(context: Context, tx: Database, kind: Kind, input: unkn
   if (kind === "account" || kind === "member") {
     const actor = requireAccess(context);
     if (kind === "member") {
-      rejectAlumniManagement(context);
       requireAccess(context, "users.write");
       if (
         !["firstName", "middleName", "lastName", "suffix"].some((key) => fields[key] !== undefined)
@@ -94,10 +89,9 @@ async function authorizeResources(
     const user = await tx.User.findOne({ alumniId: alumniIds[0] }).lean();
     if (!user) throw new ApiError("NOT_FOUND", { message: "Account link not found." });
     if (String(user._id) !== actor.id) {
-      rejectAlumniManagement(context);
       requireAccess(context, "users.write");
       const roles = await loadUserRoles(tx, String(user._id));
-      if (roles.some(isSuperAdminKind)) await assertFullSuperAdmin(tx, actor);
+      if (roles.some(isSuperAdminKind)) assertSuperAdmin(actor);
       assertRoleScope(actor, roles);
     }
   } else if (

@@ -2,7 +2,8 @@ import { toEntity } from "@Alumni-Tracking-Ss/db";
 import type { Database, PermissionKey } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
-import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/access";
+import { alumniScope } from "@Alumni-Tracking-Ss/api/scope";
+import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
 import {
   collegesSchemas,
   departmentsSchemas,
@@ -13,9 +14,22 @@ import { writeAudit, describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit"
 export const active = { deletedAt: null };
 export const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function management(context: Context, permission: PermissionKey) {
-  const user = requireAccess(context, permission);
-  rejectAlumniManagement(context);
-  return user;
+  return requireAccess(context, permission);
+}
+async function academicWriteScope(
+  context: Context,
+  target: { departmentId: string } | { collegeId: string } | null,
+) {
+  const scope = await alumniScope(context);
+  if (scope.kind === "all") return;
+  const allowed =
+    target &&
+    scope.kind !== "none" &&
+    ("departmentId" in target
+      ? scope.departmentIds.includes(target.departmentId)
+      : scope.kind === "college" && scope.collegeId === target.collegeId);
+  if (!allowed)
+    throw new ApiError("FORBIDDEN", { message: "That academic change is outside your scope." });
 }
 export async function audit(
   db: Database,
@@ -93,6 +107,7 @@ export const collegeWriteService = {
     management(context, "departments.write");
     const data = collegesSchemas.create.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await academicWriteScope({ ...context, db: tx }, null);
       const row = toEntity((await tx.College.create(data)).toObject());
       await audit(
         tx,
@@ -109,6 +124,7 @@ export const collegeWriteService = {
     management(context, "departments.write");
     const { id, ...data } = collegesSchemas.update.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await academicWriteScope({ ...context, db: tx }, { collegeId: id });
       const before = await activeCollege(tx, id);
       const row = await tx.College.findOneAndUpdate(
         { _id: id, ...active },
@@ -134,6 +150,7 @@ export const collegeWriteService = {
     management(context, "departments.delete");
     const { id } = collegesSchemas.delete.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await academicWriteScope({ ...context, db: tx }, { collegeId: id });
       const college = await activeCollege(tx, id);
       await blockIfInUse(
         [[await tx.Department.countDocuments({ collegeId: id, ...active }), "department"]],
@@ -214,6 +231,7 @@ export const departmentsService = {
     management(context, "departments.write");
     const data = departmentsSchemas.create.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await academicWriteScope({ ...context, db: tx }, { collegeId: data.collegeId });
       await activeCollege(tx, data.collegeId);
       const row = toEntity((await tx.Department.create(data)).toObject());
       await audit(
@@ -231,7 +249,12 @@ export const departmentsService = {
     management(context, "departments.write");
     const { id, ...data } = departmentsSchemas.update.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await academicWriteScope({ ...context, db: tx }, { departmentId: id });
       const before = await activeDepartment(tx, id);
+      if (data.collegeId && data.collegeId !== String(before.collegeId)) {
+        await academicWriteScope({ ...context, db: tx }, { collegeId: String(before.collegeId) });
+        await academicWriteScope({ ...context, db: tx }, { collegeId: data.collegeId });
+      }
       if (data.collegeId) await activeCollege(tx, data.collegeId);
       const row = await tx.Department.findOneAndUpdate(
         { _id: id, ...active },
@@ -254,6 +277,7 @@ export const departmentsService = {
     management(context, "departments.delete");
     const { id } = departmentsSchemas.delete.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await academicWriteScope({ ...context, db: tx }, { departmentId: id });
       const department = await activeDepartment(tx, id);
       await blockIfInUse(
         [
@@ -326,6 +350,7 @@ export const programsService = {
     management(context, "programs.write");
     const data = programsSchemas.create.input.parse(input);
     return context.db.transaction(async (tx) => {
+      await academicWriteScope({ ...context, db: tx }, { departmentId: data.departmentId });
       const department = await activeDepartment(tx, data.departmentId);
       await uniqueProgram(tx, data.code, data.departmentId);
       const p = toEntity((await tx.Program.create(data)).toObject());
@@ -345,6 +370,11 @@ export const programsService = {
     const { id, ...data } = programsSchemas.update.input.parse(input);
     return context.db.transaction(async (tx) => {
       const before = await activeProgram(tx, id);
+      await academicWriteScope(
+        { ...context, db: tx },
+        { departmentId: String(before.departmentId) },
+      );
+      await academicWriteScope({ ...context, db: tx }, { departmentId: data.departmentId });
       const department = await activeDepartment(tx, data.departmentId);
       await uniqueProgram(tx, data.code, data.departmentId, id);
       const row = await tx.Program.findOneAndUpdate(
@@ -368,6 +398,11 @@ export const programsService = {
     management(context, "programs.delete");
     const { id } = programsSchemas.delete.input.parse(input);
     return context.db.transaction(async (tx) => {
+      const before = await activeProgram(tx, id);
+      await academicWriteScope(
+        { ...context, db: tx },
+        { departmentId: String(before.departmentId) },
+      );
       await blockIfInUse(
         [[await tx.Alumni.countDocuments({ programId: id, ...active }), "alumni record"]],
         "program",

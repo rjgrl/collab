@@ -753,10 +753,10 @@ it("completion logs exclude queries, credentials and caller-controlled request I
     else process.env.HTTP_LOGGING = previous;
   }
 });
-it("HTTP rejects Alumni directory access despite broad permissions and requires explicit linking for My Profile", async () => {
+it("HTTP rejects undelegated Alumni directory access and requires explicit linking for My Profile", async () => {
   const app = fixture({
     roles: ["alumni"],
-    permissions: [...PERMISSION_KEYS],
+    permissions: ["files.read"],
     db: { User: { findOne: () => query({ _id: userId, alumniId: null }) } },
   });
   for (const path of [
@@ -779,14 +779,22 @@ it("HTTP rejects Alumni directory access despite broad permissions and requires 
   assert.match(String(bodyOf(response).error), /linked/);
 });
 it("HTTP validates ObjectIds and rejects body-supplied owners, roles and URL IDs", async () => {
-  const app = fixture({ roles: ["staff"], permissions: [...PERMISSION_KEYS] });
+  const app = fixture({
+    roles: ["staff"],
+    permissions: [...PERMISSION_KEYS],
+    overrides: { mfaVerified: true },
+  });
   for (const path of ["/api/alumni/bad", "/api/programs/$ne", "/api/files/not-an-id"])
     assert.equal(
       (await request(app).get(path).set("Authorization", "Bearer synthetic")).status,
       400,
       path,
     );
-  const alumniApp = fixture({ roles: ["alumni"], permissions: [...PERMISSION_KEYS] });
+  const alumniApp = fixture({
+    roles: ["alumni"],
+    permissions: [...PERMISSION_KEYS],
+    overrides: { mfaVerified: true },
+  });
   for (const field of [
     "alumniId",
     "programId",
@@ -852,9 +860,9 @@ it("HTTP private evidence rejects another alumni owner's file without reading st
   assert.match(String(bodyOf(response).error), /own linked profile/);
 });
 
-it("integrations are Admin-only even when Staff have all permissions", async () => {
+it("integrations reject accounts without integration permissions", async () => {
   const app = fixture({
-    permissions: [...PERMISSION_KEYS],
+    permissions: [],
     db: { IntegrationSetting: { find: () => query([]) } },
   });
   assert.equal(

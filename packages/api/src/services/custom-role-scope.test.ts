@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { PERMISSION_KEYS } from "@Alumni-Tracking-Ss/db";
-import { SUPER_ADMIN_ONLY_PERMISSIONS } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import type { Context } from "../context";
 import { modelFixture } from "../test-utils/model-test-fixture";
 import { rolesService } from "../../../../apps/server/src/modules/roles/service";
@@ -28,21 +27,21 @@ function accounts() {
     Permission: permissionRows,
     // An older custom role that still stores university-wide permissions.
     RolePermission: [
-      ...roleGrants("r-custom", ["alumni.read", "reports.export", ...SUPER_ADMIN_ONLY_PERMISSIONS]),
+      ...roleGrants("r-custom", PERMISSION_KEYS),
       ...roleGrants("r-super", PERMISSION_KEYS),
     ],
   });
 }
 
-it("gives a custom role no university-wide permission, even one it stores", async () => {
+it("honors every explicitly stored permission regardless of role name", async () => {
   const f = accounts();
   const manager = await loadAuthUser(f.db, "manager");
-  assert.deepEqual([...manager!.permissions].sort(), ["alumni.read", "reports.export"]);
+  assert.deepEqual([...manager!.permissions].sort(), [...PERMISSION_KEYS].sort());
   const admin = await loadAuthUser(f.db, "admin");
-  for (const key of SUPER_ADMIN_ONLY_PERMISSIONS) assert.ok(admin!.permissions.includes(key), key);
+  for (const key of PERMISSION_KEYS) assert.ok(admin!.permissions.includes(key), key);
 });
 
-it("refuses to give any role a university-wide permission", async () => {
+it("allows a full administrator to grant every catalog permission to a custom role", async () => {
   const f = accounts();
   const context = {
     db: f.db,
@@ -56,17 +55,15 @@ it("refuses to give any role a university-wide permission", async () => {
     userAgent: null,
     integrationEnv: {},
   } as Context;
-  for (const key of SUPER_ADMIN_ONLY_PERMISSIONS)
-    await assert.rejects(
-      () =>
-        rolesService.create(context, {
-          key: "sneaky",
-          name: "Sneaky",
-          permissionIds: [`p-${key}`],
-        }),
-      /Super Admins only/,
-      key,
-    );
+  const delegated = await rolesService.create(context, {
+    key: "trusted_operator",
+    name: "Trusted operator",
+    permissionIds: PERMISSION_KEYS.map((key) => `p-${key}`),
+  });
+  assert.deepEqual(
+    delegated.rolePermissions.map(({ permission }) => permission.key).sort(),
+    [...PERMISSION_KEYS].sort(),
+  );
   const ok = await rolesService.create(context, {
     key: "records_clerk",
     name: "Records clerk",

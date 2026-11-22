@@ -34,14 +34,15 @@ export function UsersPage() {
   const [page, setPage] = useState(1);
   const users = useQuery(api.users.list.queryOptions({ input: { search, page, pageSize: 20 } }));
   const roles = useQuery(api.roles.list.queryOptions());
-  const canWrite = Boolean(
-    session.data && isAdministrator(session.data) && can(session.data.permissions, "users.write"),
-  );
+  const canWrite = can(session.data?.permissions, "users.write");
+  const canCreate = Boolean(session.data && isAdministrator(session.data) && canWrite);
   const permissions = useQuery({
     ...api.permissions.list.queryOptions(),
     enabled: canWrite && can(session.data?.permissions, "permissions.read"),
   });
-  const managedRoles = roles.data?.filter((role) => role.key === ROLE.superAdmin);
+  const managedRoles = roles.data?.filter(
+    (role) => role.key === ROLE.superAdmin || role.baseRole === ROLE.superAdmin,
+  );
   const [draft, setDraft] = useState({
     ...emptyName,
     email: "",
@@ -75,7 +76,7 @@ export function UsersPage() {
         title="Members"
         description="Manage accounts and their roles."
         actions={
-          canWrite ? (
+          canCreate ? (
             <PrimaryButton
               disabled={roles.isPending || roles.isError}
               onClick={() => {

@@ -411,7 +411,11 @@ const HEAD_PERMISSIONS = PERMISSION_KEYS.filter(
     !key.startsWith("roles.") &&
     !key.startsWith("integrations.") &&
     key !== "permissions.read" &&
-    key !== "audit.read",
+    key !== "audit.read" &&
+    key !== "departments.write" &&
+    key !== "departments.delete" &&
+    key !== "programs.write" &&
+    key !== "programs.delete",
 );
 app.post("/__test/staff", async (request, response) => {
   await ensureAcademicFixtures();
@@ -460,7 +464,7 @@ app.post("/__test/staff", async (request, response) => {
     },
     { upsert: true },
   ).exec();
-  await historicalEnrollment(ids.staff);
+  if (request.body?.unenrolled !== true) await historicalEnrollment(ids.staff);
   response.json({
     email: "staff@example.test",
     password,

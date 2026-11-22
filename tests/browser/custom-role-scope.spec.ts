@@ -1,12 +1,17 @@
-import { test, expect, request as newRequest } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { enrollAdministrator } from "./security-helper";
 
 const API = "http://127.0.0.1:3101/api/v1";
 const ORIGIN = { Origin: "http://127.0.0.1:3101" };
 const FIXTURE = "http://127.0.0.1:3100/__test";
 
-test("custom roles never get university-wide permissions", async ({ page, request }) => {
+test("custom roles honor explicit grants and MFA without acquiring Super Admin scope", async ({
+  page,
+  request,
+  browser,
+}) => {
   test.skip(test.info().project.name !== "desktop", "API check; one run is enough");
+  test.setTimeout(120_000);
   await request.post(`${FIXTURE}/reset`);
   await page.goto("/login");
   await page.locator("#email").fill("admin@example.test");
@@ -18,13 +23,17 @@ test("custom roles never get university-wide permissions", async ({ page, reques
   ).json();
   const ids = (keys: string[]) => perms.filter((p) => keys.includes(p.key)).map((p) => p.id);
 
-  // Even a Super Admin cannot put a university-wide permission on a role.
+  // Every catalog permission is explicitly delegatable by a Super Admin.
   for (const key of ["users.write", "roles.write", "audit.read", "departments.delete"]) {
-    const refused = await page.request.post(`${API}/roles`, {
+    const granted = await page.request.post(`${API}/roles`, {
       headers: ORIGIN,
-      data: { key: "sneaky_role", name: "Sneaky", permissionIds: ids([key]) },
+      data: { key: `grant_${key.replace(".", "_")}`, name: key, permissionIds: ids([key]) },
     });
-    expect(refused.status(), key).toBe(400);
+    expect(granted.status(), key).toBe(201);
+    const created = await granted.json();
+    expect(
+      created.rolePermissions.map((link: { permission: { key: string } }) => link.permission.key),
+    ).toEqual([key]);
   }
 
   // A scoped custom role can still be created and given to a member.
@@ -39,7 +48,9 @@ test("custom roles never get university-wide permissions", async ({ page, reques
     })
   ).json();
   expect(role.key).toBe("records_officer");
-  const staff = await (await request.post(`${FIXTURE}/staff`)).json();
+  const staff = await (
+    await request.post(`${FIXTURE}/staff`, { data: { unenrolled: true } })
+  ).json();
   expect(
     (
       await page.request.patch(`${API}/users/${staff.id}`, {
@@ -49,25 +60,40 @@ test("custom roles never get university-wide permissions", async ({ page, reques
     ).status(),
   ).toBe(200);
 
-  // An older role that already stores university-wide grants gives the member none of them.
+  // Stored grants are effective, but sensitive grants require an authenticator.
   await request.post(`${FIXTURE}/grant-role-permissions`, {
     data: { roleId: role.id, keys: ["users.read", "audit.read", "departments.write"] },
   });
-  const member = await newRequest.newContext({ baseURL: "http://127.0.0.1:3101" });
-  await member.post(`${API}/auth/login`, {
-    headers: ORIGIN,
-    data: { email: "staff@example.test", password: "BrowserTest123!", recaptchaFallback: true },
-  });
-  const me = await (await member.get(`${API}/auth/me`)).json();
-  expect([...me.permissions].sort()).toEqual(["alumni.read", "dashboard.read", "reports.read"]);
-  expect((await member.get(`${API}/users`)).status()).toBe(403);
-  expect(
-    (
-      await member.post(`${API}/colleges`, {
-        headers: ORIGIN,
-        data: { name: "Unauthorised college" },
-      })
-    ).status(),
-  ).toBe(403);
-  expect((await member.get(`${API}/dashboard`)).status()).toBe(200);
+  const member = await browser.newContext({ baseURL: "http://127.0.0.1:3101" });
+  try {
+    const memberPage = await member.newPage();
+    await memberPage.goto("/login");
+    await memberPage.locator("#email").fill("staff@example.test");
+    await memberPage.locator("#password").fill("BrowserTest123!");
+    await memberPage.getByRole("button", { name: "Sign In", exact: true }).click();
+    await memberPage.waitForURL("**/security");
+    expect((await member.request.get(`${API}/users`)).status()).toBe(403);
+    await enrollAdministrator(memberPage);
+    const me = await (await member.request.get(`${API}/auth/me`)).json();
+    expect([...me.permissions].sort()).toEqual([
+      "alumni.read",
+      "audit.read",
+      "dashboard.read",
+      "departments.write",
+      "reports.read",
+      "users.read",
+    ]);
+    expect(me.roles).not.toContain("super_admin");
+    expect((await member.request.get(`${API}/users`)).status()).toBe(200);
+    expect((await member.request.get(`${API}/roles`)).status()).toBe(403);
+    const outsideScope = await member.request.post(`${API}/colleges`, {
+      headers: ORIGIN,
+      data: { name: "Unauthorised college" },
+    });
+    expect(outsideScope.status()).toBe(403);
+    expect(JSON.stringify(await outsideScope.json())).toMatch(/outside your scope/);
+    expect((await member.request.get(`${API}/dashboard`)).status()).toBe(200);
+  } finally {
+    await member.close();
+  }
 });

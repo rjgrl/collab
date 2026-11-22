@@ -27,7 +27,7 @@ const PAGE_RULES: { path: string; allows: (user: SessionUser) => boolean }[] = [
   { path: "/settings/roles", allows: (user) => can(user.permissions, "roles.read") },
   {
     path: "/settings/integrations",
-    allows: (user) => isAdministrator(user) && can(user.permissions, "integrations.read"),
+    allows: (user) => can(user.permissions, "integrations.read"),
   },
   { path: "/settings/backups", allows: (user) => isAdministrator(user) },
 ];

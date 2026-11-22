@@ -3,11 +3,11 @@ import { ROLE, formatDisplayName } from "@Alumni-Tracking-Ss/contracts/names";
 import type { RoleInput } from "@Alumni-Tracking-Ss/contracts/roles";
 import { toEntity, isPermissionKey, RESERVED_ROLE_KEYS } from "@Alumni-Tracking-Ss/db";
 import type { Context } from "@Alumni-Tracking-Ss/api/context";
-import { requireAccess, rejectAlumniManagement } from "@Alumni-Tracking-Ss/api/access";
+import { requireAccess } from "@Alumni-Tracking-Ss/api/access";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { writeAudit, describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
 import {
-  assertFullSuperAdmin,
+  assertSuperAdmin,
   assertRoleScope,
   authorizationTransaction,
   isSuperAdminKind,
@@ -15,6 +15,11 @@ import {
   validatePermissionIds,
 } from "@Alumni-Tracking-Ss/api/services/authorization";
 import type { Database } from "@Alumni-Tracking-Ss/db";
+import {
+  lockAccessManagers,
+  assertAccessManagerRemains,
+  roleAffectsSuperAdmins,
+} from "@Alumni-Tracking-Ss/api/services/access-managers";
 
 /** Member names for roles that can be split; Alumni is excluded (one entry per graduate). */
 async function roleMembers(db: Database, roleId: string) {
@@ -44,7 +49,6 @@ function baseOf(role: { key: string; baseRole?: string | null }) {
 
 export const rolesService = {
   async list(context: Context, _input: RoleInput<"list">) {
-    rejectAlumniManagement(context);
     requireAccess(context, "roles.read");
     const roles = await loadRoles(context.db);
     return Promise.all(
@@ -59,7 +63,6 @@ export const rolesService = {
     );
   },
   async create(context: Context, input: RoleInput<"create">) {
-    rejectAlumniManagement(context);
     const actor = requireAccess(context, "roles.write");
     return authorizationTransaction(context.db, async (tx) => {
       // System roles keep their keys; removed keys (admin, staff, viewer) can never return.
@@ -89,16 +92,17 @@ export const rolesService = {
     });
   },
   async update(context: Context, input: RoleInput<"update">) {
-    rejectAlumniManagement(context);
     const actor = requireAccess(context, "roles.write");
     return authorizationTransaction(context.db, async (tx) => {
       const current = (await loadRoles(tx, [input.id]))[0];
       if (!current) throw new ApiError("NOT_FOUND", { message: "Role not found." });
       assertRoleScope(actor, [current]);
-      if (current.key === ROLE.superAdmin)
-        throw new ApiError("FORBIDDEN", { message: "The super administrator role is protected." });
-      if (isSuperAdminKind(current)) await assertFullSuperAdmin(tx, actor);
-      if (input.permissionIds) await validatePermissionIds(tx, actor, input.permissionIds, current);
+      const affectsAdmins =
+        isSuperAdminKind(current) || (await roleAffectsSuperAdmins(tx, current.id));
+      if (affectsAdmins) assertSuperAdmin(actor);
+      const protectsAccess = affectsAdmins && input.permissionIds !== undefined;
+      if (protectsAccess) await lockAccessManagers(tx);
+      if (input.permissionIds) await validatePermissionIds(tx, actor, input.permissionIds);
       const updatedAt = new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1));
       const set = {
         updatedAt,
@@ -122,6 +126,7 @@ export const rolesService = {
             { ordered: true },
           );
       }
+      if (protectsAccess) await assertAccessManagerRemains(tx);
       const role = (await loadRoles(tx, [input.id]))[0]!;
       const beforePermissionKeys = current.rolePermissions
         .map(({ permission }) => permission.key)
@@ -168,16 +173,18 @@ export const rolesService = {
     });
   },
   async split(context: Context, input: RoleInput<"split">) {
-    rejectAlumniManagement(context);
     const actor = requireAccess(context, "roles.write");
     return authorizationTransaction(context.db, async (tx) => {
       const current = (await loadRoles(tx, [input.id]))[0];
       if (!current) throw new ApiError("NOT_FOUND", { message: "Role not found." });
       if (current.key === ROLE.alumni)
         throw new ApiError("BAD_REQUEST", { message: "Alumni accounts cannot be split." });
-      // The full Super Admin role holds every permission, which assertRoleScope requires of the
-      // actor; limited Super Admins therefore cannot split it. Variants need a full one too.
-      if (isSuperAdminKind(current)) await assertFullSuperAdmin(tx, actor);
+      const protectsAccess =
+        isSuperAdminKind(current) || (await roleAffectsSuperAdmins(tx, current.id));
+      if (protectsAccess) {
+        assertSuperAdmin(actor);
+        await lockAccessManagers(tx);
+      }
       assertRoleScope(actor, [current]);
       if (current.updatedAt.toISOString() !== input.expectedUpdatedAt)
         throw new ApiError("CONFLICT", {
@@ -194,12 +201,8 @@ export const rolesService = {
         throw new ApiError("BAD_REQUEST", {
           message: "One or more selected people are no longer members of this role.",
         });
-      if (current.key === ROLE.superAdmin && userIds.length === members.length)
-        throw new ApiError("BAD_REQUEST", {
-          message: "Every member is selected. Choose All members to change the role itself.",
-        });
       const baseRole = baseOf(current);
-      await validatePermissionIds(tx, actor, input.permissionIds, { key: current.key, baseRole });
+      await validatePermissionIds(tx, actor, input.permissionIds);
       const row = await tx.Role.create({
         key: `${current.key.slice(0, 50)}_${randomBytes(4).toString("hex")}`,
         name: input.name,
@@ -222,6 +225,7 @@ export const rolesService = {
         { $set: { updatedAt: new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1)) } },
         { timestamps: false },
       ).exec();
+      if (protectsAccess) await assertAccessManagerRemains(tx);
       await tx.Session.deleteMany({ userId: { $in: userIds } }).exec();
       const moved = await roleMembers(tx, roleId);
       const role = (await loadRoles(tx, [roleId]))[0]!;
@@ -248,7 +252,6 @@ export const rolesService = {
     });
   },
   async delete(context: Context, input: RoleInput<"delete">) {
-    rejectAlumniManagement(context);
     const actor = requireAccess(context, "roles.delete");
     return authorizationTransaction(context.db, async (tx) => {
       const role = (await loadRoles(tx, [input.id]))[0];
@@ -256,13 +259,18 @@ export const rolesService = {
       assertRoleScope(actor, [role]);
       if (role.isSystem)
         throw new ApiError("BAD_REQUEST", { message: "System roles cannot be deleted." });
-      if (isSuperAdminKind(role)) await assertFullSuperAdmin(tx, actor);
+      const protectsAccess = isSuperAdminKind(role) || (await roleAffectsSuperAdmins(tx, role.id));
+      if (protectsAccess) {
+        assertSuperAdmin(actor);
+        await lockAccessManagers(tx);
+      }
       const assigned = await tx.UserRole.find({ roleId: input.id }).lean().exec();
       const claimed = await tx.Role.deleteOne({ _id: input.id, updatedAt: role.updatedAt }).exec();
       if (claimed.deletedCount !== 1)
         throw new ApiError("CONFLICT", { message: "Role changed. Reload before deleting." });
       await tx.RolePermission.deleteMany({ roleId: input.id }).exec();
       await tx.UserRole.deleteMany({ roleId: input.id }).exec();
+      if (protectsAccess) await assertAccessManagerRemains(tx);
       if (assigned.length)
         await tx.Session.deleteMany({
           userId: { $in: assigned.map((link) => link.userId) },
@@ -281,7 +289,6 @@ export const rolesService = {
 };
 export const permissionsService = {
   async list(context: Context, _input: Record<string, never>) {
-    rejectAlumniManagement(context);
     requireAccess(context, "permissions.read");
     return (await context.db.Permission.find({}).sort({ module: 1, key: 1 }).lean().exec())
       .filter((item) => isPermissionKey(item.key))

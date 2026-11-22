@@ -10,7 +10,6 @@ import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { QuietButton } from "@/components/data/data-table";
-import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { can, useSession } from "@/lib/session";
 import { client, api, downloadPdf } from "@/lib/api";
 import { useCollegeOptions, useProgramOptions } from "@/lib/academic-options";
@@ -242,22 +241,17 @@ function ReportsPage() {
                 Assignment Report (PDF)
               </QuietButton>
             </div>
-            {session.data && isAdministrator(session.data) ? (
-              <div className="flex flex-col items-start gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Google Sheets</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Uses Department and Tracking Status only.
-                  </p>
-                </div>
-                <QuietButton
-                  onClick={() => exportSheets.mutate()}
-                  disabled={exportSheets.isPending}
-                >
-                  {exportSheets.isPending ? "Exporting..." : "Export to Google Sheets"}
-                </QuietButton>
+            <div className="flex flex-col items-start gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Google Sheets</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Uses Department and Tracking Status only.
+                </p>
               </div>
-            ) : null}
+              <QuietButton onClick={() => exportSheets.mutate()} disabled={exportSheets.isPending}>
+                {exportSheets.isPending ? "Exporting..." : "Export to Google Sheets"}
+              </QuietButton>
+            </div>
           </CardContent>
         </Card>
       ) : null}
