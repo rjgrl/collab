@@ -362,3 +362,14 @@ Append-only. Format: date, decision, why, alternatives rejected.
   as uniqueness. Existing accounts, domain records, audit, keys and uploads must not be rewritten.
 - Persistence/rule infrastructure is verified independently before wiring application paths.
   No claim that existing endpoints are protected until their integration and browser tests pass.
+
+## 2026-11-22: Explicit permission delegation and one Super Admin identity
+
+- Owner explicitly superseded the fixed Super Admin-only permission ceiling and full/limited
+  administrator tiers. The governing policy, scope limits, MFA requirements and transactional
+  last-access-manager safeguard are recorded in [account-access](specs/account-access.md).
+- This is permission-based delegation, not automatic grant expansion or per-user overrides.
+  Existing role configurations and memberships are retained. Previously filtered stored grants
+  become effective and require an operator review before rollout.
+- Optional environment limits remain default-backed. Setup may append commented references,
+  and doctor reports effective non-secret values; neither mechanism changes active budgets.

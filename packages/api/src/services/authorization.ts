@@ -1,4 +1,3 @@
-import { isSuperAdminOnlyPermission } from "@Alumni-Tracking-Ss/contracts/permission-scope";
 import { isPermissionKey, toEntity, type Database } from "@Alumni-Tracking-Ss/db";
 import type { Role } from "@Alumni-Tracking-Ss/contracts/roles";
 import type { PublicUser } from "@Alumni-Tracking-Ss/contracts/users";
@@ -60,27 +59,14 @@ export function roleKeys(roles: { key: string; baseRole?: string | null }[]) {
     ...new Set(roles.flatMap((role) => (role.baseRole ? [role.key, role.baseRole] : [role.key]))),
   ];
 }
-/** The original Super Admin role or a limited one split from it. */
+/** Any role configuration giving the Super Admin account identity. */
 export function isSuperAdminKind(role: { key: string; baseRole?: string | null }) {
   return role.key === ROLE.superAdmin || role.baseRole === ROLE.superAdmin;
 }
-/** A member of the original, full-access Super Admin role (not a limited one). */
-export async function isFullSuperAdmin(db: Database, userId: string) {
-  const links = await db.UserRole.find({ userId }).select("roleId").lean().exec();
-  return (
-    links.length > 0 &&
-    Boolean(
-      await db.Role.exists({
-        key: ROLE.superAdmin,
-        _id: { $in: links.map((link) => link.roleId) },
-      }),
-    )
-  );
-}
-export async function assertFullSuperAdmin(db: Database, actor: AuthUser) {
-  if (!(await isFullSuperAdmin(db, actor.id)))
+export function assertSuperAdmin(actor: AuthUser) {
+  if (!isAdministrator(actor))
     throw new ApiError("FORBIDDEN", {
-      message: "Only a full Super Admin can manage Super Admin access.",
+      message: "Only a Super Admin can manage Super Admin access.",
     });
 }
 export async function loadUserRoles(db: Database, userId: string) {
@@ -122,11 +108,12 @@ export async function publicUser(db: Database, userId: string): Promise<PublicUs
 }
 export function assertRoleScope(actor: AuthUser, roles: RoleScope[]) {
   for (const role of roles) {
-    if ((isSuperAdminKind(role) || role.isSystem) && !isAdministrator(actor))
+    if (isSuperAdminKind(role) && !isAdministrator(actor))
       throw new ApiError("FORBIDDEN", {
-        message: "Only a super administrator can manage system roles.",
+        message: "Only a super administrator can manage Super Admin roles.",
       });
     if (
+      !isAdministrator(actor) &&
       role.rolePermissions.some(
         ({ permission }) =>
           !permission.key.startsWith("faculties.") && !actor.permissions.includes(permission.key),
@@ -146,12 +133,7 @@ export async function validateRoleIds(db: Database, actor: AuthUser, ids: string
   assertRoleScope(actor, roles);
   return roles;
 }
-export async function validatePermissionIds(
-  db: Database,
-  actor: AuthUser,
-  ids: string[],
-  target?: { key: string; baseRole?: string | null },
-) {
+export async function validatePermissionIds(db: Database, actor: AuthUser, ids: string[]) {
   const permissions = await db.Permission.find({ _id: { $in: ids } })
     .lean()
     .exec();
@@ -159,18 +141,13 @@ export async function validatePermissionIds(
     throw new ApiError("BAD_REQUEST", {
       message: "One or more permissions no longer exist or were repeated.",
     });
-  if (permissions.some(({ key }) => !isPermissionKey(key) || !actor.permissions.includes(key)))
-    throw new ApiError("FORBIDDEN", { message: "You cannot grant permissions you do not hold." });
-  // Only Super Admin roles (the original or a limited one split from it) may hold
-  // university-wide permissions.
   if (
-    !(target && isSuperAdminKind(target)) &&
-    permissions.some(({ key }) => isSuperAdminOnlyPermission(key))
+    permissions.some(
+      ({ key }) =>
+        !isPermissionKey(key) || (!isAdministrator(actor) && !actor.permissions.includes(key)),
+    )
   )
-    throw new ApiError("BAD_REQUEST", {
-      message:
-        "Managing members, roles, academic structure, integrations and the full audit log is for Super Admins only. Remove those permissions from this role.",
-    });
+    throw new ApiError("FORBIDDEN", { message: "You cannot grant permissions you do not hold." });
 }
 export async function authorizationTransaction<T>(
   db: Database,

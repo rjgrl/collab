@@ -3,6 +3,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/app-shell";
 import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
 import { markSessionEnded, safeReturnPath } from "@/lib/session-ended";
+import { canOpenPage } from "@/lib/page-access";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context, location }) => {
@@ -21,7 +22,8 @@ export const Route = createFileRoute("/_app")({
       isAlumniAccount(user) &&
       !["/my-profile", "/statistics", "/settings", "/settings/", "/audit"].includes(
         location.pathname,
-      )
+      ) &&
+      !canOpenPage(location.pathname, user)
     )
       throw redirect({ to: "/my-profile" });
     return { user };

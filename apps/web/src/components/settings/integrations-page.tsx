@@ -17,7 +17,6 @@ import {
   type CredentialField,
   type IntegrationKey,
 } from "@Alumni-Tracking-Ss/contracts/integration-credentials";
-import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -55,7 +54,7 @@ export function IntegrationsPage() {
   const confirm = useConfirm();
   const list = useQuery(api.integrations.list.queryOptions());
   const canWrite = can(session.data?.permissions, "integrations.write");
-  const canManage = Boolean(session.data && isAdministrator(session.data) && canWrite);
+  const canManage = canWrite;
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [revealed, setRevealed] = useState<string | null>(null);
   const [csv, setCsv] = useState(

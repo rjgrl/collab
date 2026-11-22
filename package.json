@@ -55,6 +55,7 @@
     "test:timestamp-local": "tsx apps/server/test/local/timestamp-local.ts && tsx apps/server/test/local/timestamp-api-local.ts",
     "test:reports-local": "tsx apps/server/test/local/reports-local.ts",
     "test:roles-local": "tsx scripts/check-local-roles.ts",
+    "test:access-managers-local": "tsx apps/server/test/local/access-managers-local.ts",
     "test:integrations-local": "tsx apps/server/test/local/integrations-local.ts",
     "test:backup-local": "tsx apps/server/test/local/backup-local.ts",
     "test:integrity-local": "tsx apps/server/test/local/integrity-local.ts",

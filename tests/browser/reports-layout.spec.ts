@@ -150,10 +150,9 @@ for (const theme of ["light", "dark"] as const) {
       tracked: "tracked",
     });
 
+    const user = await (await page.request.get("/api/v1/auth/me")).json();
     let readOnly = true;
     await page.route(/\/auth\/me$/, async (route) => {
-      const response = await route.fetch();
-      const user = await response.json();
       await route.fulfill({
         json: {
           ...user,
@@ -184,6 +183,6 @@ for (const theme of ["light", "dark"] as const) {
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Export to Google Sheets", exact: true }),
-    ).toHaveCount(0);
+    ).toBeVisible();
   });
 }

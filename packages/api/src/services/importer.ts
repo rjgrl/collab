@@ -1,4 +1,7 @@
 import type { Database } from "@Alumni-Tracking-Ss/db";
+import type { Context } from "../context";
+import { alumniScope, scopedAlumni, assertProgramInScope } from "../scope";
+import { ApiError } from "../http-error";
 import { toEntity } from "@Alumni-Tracking-Ss/db";
 import { alumniImportRowSchema } from "../validation";
 import type { AlumniImportRow } from "../validation";
@@ -15,7 +18,7 @@ export class ImportRowError extends Error {}
 export async function importAlumniRows(
   db: Database,
   rows: unknown[],
-  options: { markTrackedFromRow?: boolean; actorId?: string } = {},
+  options: { markTrackedFromRow?: boolean; actorId?: string; context?: Context } = {},
 ) {
   const errors: Array<{ row: number; message: string }> = [];
   let successCount = 0;
@@ -30,14 +33,22 @@ export async function importAlumniRows(
     }
     try {
       await db.transaction((tx) =>
-        upsertImportedAlumni(tx, parsed.data, options.markTrackedFromRow ?? true, options.actorId),
+        upsertImportedAlumni(
+          tx,
+          parsed.data,
+          options.markTrackedFromRow ?? true,
+          options.actorId,
+          options.context ? { ...options.context, db: tx } : undefined,
+        ),
       );
       successCount++;
     } catch (error) {
       errors.push({
         row: index + 1,
         message:
-          error instanceof ImportRowError || error instanceof TimestampConflictError
+          error instanceof ImportRowError ||
+          error instanceof TimestampConflictError ||
+          error instanceof ApiError
             ? error.message
             : "Unable to import row. Try again or contact an administrator.",
       });
@@ -50,6 +61,7 @@ export async function upsertImportedAlumni(
   row: AlumniImportRow,
   useTrackedFlag: boolean,
   actorId?: string,
+  context?: Context,
 ) {
   const namesValid = structuredNameSchema.safeParse(row);
   if (!namesValid.success)
@@ -81,6 +93,13 @@ export async function upsertImportedAlumni(
     );
   const raw = await db.Alumni.findOne({ studentNumber: row.studentNumber }).lean();
   const existing = raw ? toEntity(raw) : null;
+  if (context) {
+    await assertProgramInScope(context, String(program._id));
+    const scope = await alumniScope(context);
+    if (existing && scope.kind !== "all") await scopedAlumni(context, existing.id, db);
+    else if (!existing && scope.kind === "assigned")
+      throw new ImportRowError("New alumni imports require department or college scope.");
+  }
   if (existing?.deletedAt)
     throw new ImportRowError("This alumni record is archived. Ask an administrator to review it.");
   const linked = existing ? await db.User.findOne({ alumniId: existing.id }).lean() : null;

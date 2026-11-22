@@ -14,7 +14,7 @@ import { importAlumniRows } from "@Alumni-Tracking-Ss/api/services/importer";
 import { csvToObjects } from "@Alumni-Tracking-Ss/api/validation";
 import { integrationsSchemas } from "@Alumni-Tracking-Ss/contracts/integrations";
 import type { z } from "zod";
-import { requireAdministrator, requireUser } from "@Alumni-Tracking-Ss/api/access";
+import { requireAccess, requireUser } from "@Alumni-Tracking-Ss/api/access";
 import { audit } from "../academic/service";
 import { activeAlumni } from "../alumni/service";
 import { exportAlumniRows } from "../reports/service";
@@ -36,7 +36,7 @@ async function importRows(context: Context, source: "csv" | "google_sheets", row
   const signedIn = requireUser(context);
   if (rows.length > 10000)
     throw new ApiError("BAD_REQUEST", { message: "An import may contain at most 10,000 rows." });
-  const result = await importAlumniRows(context.db, rows, { actorId: signedIn.id });
+  const result = await importAlumniRows(context.db, rows, { actorId: signedIn.id, context });
   await context.db.transaction(async (tx) => {
     const job = toEntity(
       (
@@ -63,14 +63,14 @@ async function importRows(context: Context, source: "csv" | "google_sheets", row
 
 export const integrationsService = {
   async list(context: Context) {
-    requireAdministrator(context, "integrations.read");
+    requireAccess(context, "integrations.read");
     const key = integrationKey(context.integrationEnv);
     return listIntegrations(context.db, context.integrationEnv, { keyBuffer: key ?? undefined });
   },
 
   async enable(context: Context, input: z.input<typeof integrationsSchemas.enable.input>) {
     const signedIn = requireUser(context);
-    requireAdministrator(context, "integrations.write");
+    requireAccess(context, "integrations.write");
     const p = integrationsSchemas.enable.input.parse(input);
     const key = integrationKey(context.integrationEnv);
     if (!key) {
@@ -162,7 +162,7 @@ export const integrationsService = {
     input: z.input<typeof integrationsSchemas.update.input>,
   ) {
     const signedIn = requireUser(context);
-    requireAdministrator(context, "integrations.write");
+    requireAccess(context, "integrations.write");
     const p = integrationsSchemas.update.input.parse(input);
     const key = integrationKey(context.integrationEnv);
     if (!key) {
@@ -261,7 +261,7 @@ export const integrationsService = {
 
   async disable(context: Context, input: z.input<typeof integrationsSchemas.disable.input>) {
     const signedIn = requireUser(context);
-    requireAdministrator(context, "integrations.write");
+    requireAccess(context, "integrations.write");
     const p = integrationsSchemas.disable.input.parse(input);
     const key = integrationKey(context.integrationEnv);
 
@@ -293,7 +293,7 @@ export const integrationsService = {
     context: Context,
     input: z.input<typeof integrationsSchemas.sendTestEmail.input>,
   ) {
-    requireAdministrator(context, "integrations.write");
+    requireAccess(context, "integrations.write");
     const p = integrationsSchemas.sendTestEmail.input.parse(input);
     await requireIntegration(context.db, "email");
     return sendEmail(context.integrationEnv, {
@@ -307,7 +307,7 @@ export const integrationsService = {
     context: Context,
     input: z.input<typeof integrationsSchemas.notifyAlumni.input>,
   ) {
-    requireAdministrator(context, "integrations.write");
+    requireAccess(context, "integrations.write");
     const p = integrationsSchemas.notifyAlumni.input.parse(input);
     await requireIntegration(context.db, "email");
     const alumni = await activeAlumni(context.db, p.alumniId);
@@ -321,13 +321,13 @@ export const integrationsService = {
   },
 
   async importCsv(context: Context, input: z.input<typeof integrationsSchemas.importCsv.input>) {
-    requireAdministrator(context, "integrations.write");
+    requireAccess(context, "integrations.write");
     const p = integrationsSchemas.importCsv.input.parse(input);
     return importRows(context, "csv", csvToObjects(p.csv));
   },
 
   async importSheets(context: Context) {
-    requireAdministrator(context, "integrations.write");
+    requireAccess(context, "integrations.write");
     await requireIntegration(context.db, "google_sheets");
     const rows = await readSheetRows(context.integrationEnv);
     const header = rows[0] ?? [];
@@ -345,7 +345,7 @@ export const integrationsService = {
     context: Context,
     input?: z.input<typeof integrationsSchemas.exportSheets.input>,
   ) {
-    requireAdministrator(context, "reports.export");
+    requireAccess(context, "reports.export");
     await requireIntegration(context.db, "google_sheets");
     const rows = await exportAlumniRows(context, input);
     await appendSheetRows(context.integrationEnv, [

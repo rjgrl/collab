@@ -214,9 +214,10 @@ it("prevents managed accounts from becoming Alumni while preserving historical A
   assert.equal(f.tables.User[0]?.alumniId, "profile");
 });
 
-it("denies Alumni access to other pending accounts even with a legacy management grant", async () => {
+it("denies Alumni access to pending accounts without delegated permissions", async () => {
   const f = fixture();
   f.context.user!.roles = ["alumni"];
+  f.context.user!.permissions = [];
   await assert.rejects(() => alumniService.pendingAccounts(f.context, { page: 1, pageSize: 20 }), {
     code: "FORBIDDEN",
   });

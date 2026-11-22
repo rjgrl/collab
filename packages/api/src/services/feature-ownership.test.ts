@@ -102,18 +102,20 @@ function linkedDb() {
     AlumniContact: { find: () => query([]) },
   };
 }
-it("blocks Alumni directory and management APIs even with every permission", async () => {
-  for (const roles of [["alumni"], ["alumni"]]) {
-    const c = context({}, roles);
-    for (const operation of [
-      () => alumniService.list(c),
-      () => alumniService.get(c, { id: alumniId }),
-      () => departmentsService.list(c),
-      () => programsService.list(c),
-      () => filesService.remove(c, { id: otherId }),
-    ])
-      await assert.rejects(operation, /only access My Profile/);
-  }
+it("delegated Alumni permissions do not grant another alumnus's record scope", async () => {
+  const f = modelFixture({
+    Alumni: [{ ...alumni, deletedAt: null }],
+    Department: [{ ...department, deletedAt: null }],
+    Program: [{ ...program, deletedAt: null }],
+    EvidenceFile: [{ _id: otherId, alumniId, kind: "evidence", deletedAt: null }],
+  });
+  const c = context(f.db);
+  assert.deepEqual(await alumniService.list(c), []);
+  await assert.rejects(() => alumniService.get(c, { id: alumniId }), /not found/i);
+  assert.equal((await departmentsService.list(c)).length, 1);
+  assert.equal((await programsService.list(c)).length, 1);
+  await assert.rejects(() => filesService.remove(c, { id: otherId }), /not found/i);
+  assert.equal(f.tables.EvidenceFile![0]!.deletedAt, null);
 });
 it("unlinked profile requires explicit administrator linking without email/name lookup", async () => {
   let filter: unknown;

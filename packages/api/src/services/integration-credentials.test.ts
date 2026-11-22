@@ -325,11 +325,25 @@ describe("integration credentials", () => {
     assert(!tablesJson.includes(keyBase64), "DB does not contain key in base64");
   });
 
-  it("rejects non-administrator", async () => {
+  it("honors delegated integration writes while keeping secrets encrypted and audited", async () => {
     const f = modelFixture();
     const context = adminContext(f);
     context.user!.roles = ["faculty"];
-    // Still has integrations.write permission, but not super_admin role
+    context.integrationEnv.connectionTester = async () => {};
+    const result = await integrationsService.enable(context, {
+      key: "google_forms",
+      credentials: {},
+    });
+    assert.match(result.webhookSecret!, /^[a-f0-9]{64}$/);
+    assert(!JSON.stringify(f.tables.IntegrationSetting).includes(result.webhookSecret!));
+    assert(f.tables.AuditLog!.some((row) => row.action === "integrations.enable"));
+  });
+
+  it("rejects a non-administrator without delegated integration write permission", async () => {
+    const f = modelFixture();
+    const context = adminContext(f);
+    context.user!.roles = ["faculty"];
+    context.user!.permissions = [];
 
     await assert.rejects(
       () =>

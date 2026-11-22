@@ -3,7 +3,7 @@ import type { Context } from "@Alumni-Tracking-Ss/api/context";
 import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { alumniScopeFilter, managerScope } from "@Alumni-Tracking-Ss/api/scope";
 import { requireUser, requireAccess } from "@Alumni-Tracking-Ss/api/access";
-import { isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
+import { isAdministrator, isAlumniAccount } from "@Alumni-Tracking-Ss/contracts/names";
 import { auditSchemas, auditActorSchema } from "@Alumni-Tracking-Ss/contracts/audit";
 import {
   AUDIT_ACTION_LABELS,
@@ -31,8 +31,11 @@ export const STAFF_ONLY_AUDIT_ACTIONS = [
 ];
 
 async function auditScope(context: Context): Promise<Record<string, unknown>> {
-  if (requireUser(context).permissions.includes("audit.read")) {
-    management(context, "audit.read");
+  if (
+    isAdministrator(requireUser(context)) &&
+    requireUser(context).permissions.includes("audit.read")
+  ) {
+    requireAccess(context, "audit.read");
     return {};
   }
   const user = requireUser(context);
@@ -48,8 +51,10 @@ async function auditScope(context: Context): Promise<Record<string, unknown>> {
     // recorded and visible to staff, but are never shown to the alumnus.
     return { $and: [{ $or: filter }, { action: { $nin: STAFF_ONLY_AUDIT_ACTIONS } }] };
   }
-  management(context, "alumni.read");
+  management(context, user.permissions.includes("audit.read") ? "audit.read" : "alumni.read");
   const manager = await managerScope(context);
+  if (!manager && user.permissions.includes("audit.read"))
+    return headAuditFilter(context.db, await alumniScopeFilter(context), []);
   if (!manager || manager.level === "admin")
     throw new ApiError("FORBIDDEN", { message: "Missing permission: audit.read" });
   return headAuditFilter(context.db, await alumniScopeFilter(context), manager.departmentIds);

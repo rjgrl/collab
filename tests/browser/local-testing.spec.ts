@@ -47,7 +47,7 @@ test("local Admin first login enters without an authenticator and strict mode re
 });
 
 for (const legacyIntegrations of [false, true]) {
-  test(`Staff cannot see or reach integrations (${legacyIntegrations ? "historical grants" : "default permissions"})`, async ({
+  test(`Faculty integration access requires ${legacyIntegrations ? "MFA for stored grants" : "an explicit grant"}`, async ({
     page,
     request,
   }, info) => {
@@ -56,6 +56,19 @@ for (const legacyIntegrations of [false, true]) {
     await page.locator("#email").fill("staff@example.test");
     await page.locator("#password").fill("BrowserTest123!");
     await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    if (legacyIntegrations) {
+      await page.waitForURL("**/security");
+      const status = await (await page.request.get("/api/v1/auth/mfa")).json();
+      expect(status.required).toBe(true);
+      expect(status.enrolled).toBe(true);
+      const denied = await page.request.get("/api/v1/integrations");
+      expect(denied.status()).toBe(403);
+      expect(JSON.stringify(await denied.json())).toMatch(/authenticator/i);
+      await expect(
+        page.getByRole("button", { name: "Verify Authenticator", exact: true }),
+      ).toBeVisible();
+      return;
+    }
     await page.waitForURL("**/dashboard");
     await expect(page.getByTestId("account-role")).toHaveText("Faculty");
     await page.goto("/settings");
@@ -76,7 +89,7 @@ for (const legacyIntegrations of [false, true]) {
     await expect(page.getByRole("button", { name: "Download CSV", exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Export to Google Sheets", exact: true }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     expect((await page.request.get("/api/faculty")).status()).toBe(200);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
