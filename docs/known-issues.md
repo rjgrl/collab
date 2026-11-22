@@ -4,6 +4,8 @@
 
 Format: symptom, cause, workaround. Remove an entry when it is fixed.
 
+- A Faculty/custom account can be redirected to Authenticator Security after a permission change or upgrade. Sensitive delegated user/role/catalog, integration and academic-write grants now require MFA, including previously stored grants that used to be filtered. Review the role's grants, then enroll or verify the account's own authenticator; do not erase existing factors or try to use the loopback-only MFA pause on Atlas. Super Admins require MFA regardless of their selected permissions. No additional database migration is needed for this policy update.
+
 - `docs/` is an allowlist in `.gitignore`. A new doc stays untracked until it gets a `!/docs/<file>` entry.
 - Only `.claude/agents/` and `.claude/skills/` are tracked. New shared Claude config elsewhere under `.claude/` needs its own `!` entry in `.gitignore`.
 - The GateGuard hook blocks the first Bash call of each session until the request and the command's purpose are stated. Workers will hit it too: state both, then retry.
