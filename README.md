@@ -342,6 +342,16 @@ Google sign-in verifies Google's signed ID token on the server (signature agains
 
 ## Environment variables (apps/server/.env)
 
+Optional limits have built-in defaults; absence from `.env` does not disable protection.
+Run `pnpm env:rate-limits` to append a commented rate-limit/session reference to an existing
+private server `.env` (safe for Atlas configurations; no database access or active setting changes).
+`setup:local` adds the same reference for local setups; do not run local setup against Atlas.
+`pnpm run doctor` prints effective limits and whether they are defaults or configured values.
+The full setting catalog is `apps/server/.env.schema`. Invalid numeric ranges are rejected,
+not silently ignored. Global API counters default to MongoDB; auth IP counters default to memory
+in development and MongoDB in production. For shared counters, explicitly use MongoDB on every
+instance and keep budgets consistent.
+
 | Variable                                                | Purpose                                                                                                    |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `STAFF_EMAIL_DOMAINS`                                   | Allowed email domains for every account, e.g. `buksu.edu.ph,student.buksu.edu.ph`. Required in production. |

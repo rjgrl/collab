@@ -6,6 +6,7 @@ import path from "node:path";
 import { checkToolchain } from "./development.mjs";
 import { readLocalConfig, isManagedLocalDatabase } from "./local-env.mjs";
 import { projectRoot, runTsx } from "./local-tools.mjs";
+import { effectiveRateLimits } from "./rate-limit-settings.mjs";
 
 async function portAvailable(port) {
   return new Promise((resolve) => {
@@ -30,6 +31,18 @@ async function main() {
       );
   }
   const config = await readLocalConfig(projectRoot);
+  // Effective limits work for any database (Atlas included); only values, never secrets, print.
+  const limits = effectiveRateLimits(config.effective);
+  for (const row of limits.rows)
+    console.log(`INFO ${row.key}=${row.value} (${row.source}): ${row.about}.`);
+  if (limits.errors.length)
+    throw Error(
+      "Invalid optional limits in apps/server/.env; the server would reject them: " +
+        limits.errors.join(" "),
+    );
+  console.log(
+    "PASS optional limits are valid. Run pnpm env:rate-limits to list them as comments in apps/server/.env.",
+  );
   console.log(
     config.effective.NODE_ENV === "development" && config.effective.LOCAL_DISABLE_MFA === "true"
       ? "INFO authenticator requirement paused for local testing; unset LOCAL_DISABLE_MFA to restore it."

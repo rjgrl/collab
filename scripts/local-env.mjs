@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { addRateLimitReference } from "./rate-limit-settings.mjs";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -127,6 +128,7 @@ export async function prepareLocalEnv(root, { demo = false, inherited = process.
     MFA_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
     INTEGRATION_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
   });
+  await addRateLimitReference(path.join(root, "apps/server/.env"));
   await fillMissingEnv(path.join(root, "apps/web/.env"), {
     NODE_ENV: "development",
     VITE_SERVER_URL: "http://localhost:3001",

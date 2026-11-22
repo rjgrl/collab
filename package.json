@@ -28,6 +28,7 @@
     "db:seed": "node scripts/local-workflow.mjs db:seed",
     "test": "node scripts/test-local.mjs",
     "test:all": "node scripts/test-all.mjs",
+    "env:rate-limits": "node scripts/rate-limit-settings.mjs",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "test:browser": "playwright test",
