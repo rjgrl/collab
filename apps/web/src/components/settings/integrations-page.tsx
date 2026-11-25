@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { FormSelect } from "@/components/forms/form-select";
+import { PasswordInput } from "@/components/forms/password-input";
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
 import { useConfirm } from "@/components/feedback/confirm-provider";
@@ -449,18 +450,23 @@ function CredentialsDialog({
                   onChange={(event) => set(event.target.value)}
                   aria-describedby={hintId}
                 />
+              ) : field.secret ? (
+                // Masked while typed or pasted; "new-password" stops browsers autofilling a login.
+                <PasswordInput
+                  id={id}
+                  visibilityLabel={formatUiLabel(field.label)}
+                  autoComplete="new-password"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  placeholder={keep}
+                  value={values[field.name] ?? ""}
+                  onChange={(event) => set(event.target.value)}
+                  aria-describedby={hintId}
+                />
               ) : (
                 <Input
                   id={id}
-                  type={
-                    field.secret
-                      ? "password"
-                      : field.kind === "email"
-                        ? "email"
-                        : field.kind === "url"
-                          ? "url"
-                          : "text"
-                  }
+                  type={field.kind === "email" ? "email" : field.kind === "url" ? "url" : "text"}
                   autoComplete="off"
                   placeholder={keep}
                   value={values[field.name] ?? ""}

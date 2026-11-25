@@ -43,12 +43,13 @@ describe("integration credentials", () => {
           key: "recaptcha",
           credentials: {
             siteKey: "test-site-key",
-            // secretKey missing
+            projectId: "project-1",
+            // apiKey missing
           },
         }),
       (error: any) => {
         assert.equal(error.code, "BAD_REQUEST");
-        assert(error.message.includes("Secret key is required"));
+        assert(error.message.includes("API key is required"));
         return true;
       },
     );
@@ -117,7 +118,8 @@ describe("integration credentials", () => {
           key: "recaptcha",
           credentials: {
             siteKey: "test-site-key",
-            secretKey: "test-secret-key",
+            projectId: "project-1",
+            apiKey: "test-secret-key",
           },
         }),
       (error: any) => {
@@ -189,8 +191,8 @@ describe("integration credentials", () => {
           key: "recaptcha",
           enabled: true,
           notes: "",
-          credentials: { siteKey: "sealed", secretKey: "sealed" },
-          credentialHints: { siteKey: null, secretKey: "12345" },
+          credentials: { siteKey: "sealed", projectId: "sealed", apiKey: "sealed" },
+          credentialHints: { siteKey: "0001", apiKey: "12345" },
           keyFingerprint: "abc123",
           credentialsUpdatedAt: new Date(),
         },
@@ -265,7 +267,8 @@ describe("integration credentials", () => {
       key: "recaptcha",
       credentials: {
         siteKey: "site-key",
-        secretKey: testValues.recaptchaSecret,
+        projectId: "project-1",
+        apiKey: testValues.recaptchaSecret,
       },
     });
 
@@ -315,7 +318,8 @@ describe("integration credentials", () => {
       key: "recaptcha",
       credentials: {
         siteKey: "site-key",
-        secretKey: "secret-key",
+        projectId: "project-1",
+        apiKey: "secret-key",
       },
     });
 
@@ -351,7 +355,8 @@ describe("integration credentials", () => {
           key: "recaptcha",
           credentials: {
             siteKey: "test",
-            secretKey: "test",
+            projectId: "project-1",
+            apiKey: "test",
           },
         }),
       (error: any) => {
@@ -375,7 +380,8 @@ describe("integration credentials", () => {
           key: "recaptcha",
           credentials: {
             siteKey: "test",
-            secretKey: "test",
+            projectId: "project-1",
+            apiKey: "test",
           },
         }),
       (error: any) => {
@@ -398,7 +404,8 @@ describe("integration credentials", () => {
           key: "recaptcha",
           credentials: {
             siteKey: "test",
-            secretKey: "test",
+            projectId: "project-1",
+            apiKey: "test",
           },
         }),
       (error: any) => {
@@ -418,7 +425,7 @@ describe("integration credentials", () => {
     const secret = "recaptcha-secret-value-0042";
     const enabled = await integrationsService.enable(context, {
       key: "recaptcha",
-      credentials: { siteKey: "public-site-key-1", secretKey: secret },
+      credentials: { siteKey: "public-site-key-1", projectId: "project-1", apiKey: secret },
     });
     assert.ok(!JSON.stringify(enabled).includes(secret));
     const row = f.tables.IntegrationSetting!.find((item: any) => item.key === "recaptcha")!;
@@ -430,8 +437,9 @@ describe("integration credentials", () => {
     assert.deepEqual(
       listed.fields.map((field) => [field.name, field.set, field.hint, field.value]),
       [
-        ["siteKey", true, null, "public-site-key-1"],
-        ["secretKey", true, "0042", null],
+        ["siteKey", true, "ey-1", null],
+        ["projectId", true, null, "project-1"],
+        ["apiKey", true, "0042", null],
       ],
     );
     assert.equal(listed.credentialStatus, "ok");
@@ -447,15 +455,20 @@ describe("integration credentials", () => {
     };
     await integrationsService.enable(context, {
       key: "recaptcha",
-      credentials: { siteKey: "site-key-before", secretKey: "secret-key-unchanged-77" },
+      credentials: {
+        siteKey: "site-key-before",
+        projectId: "project-1",
+        apiKey: "secret-key-unchanged-77",
+      },
     });
     const updated = await integrationsService.updateCredentials(context, {
       key: "recaptcha",
-      credentials: { siteKey: "site-key-after", secretKey: "" },
+      credentials: { siteKey: "site-key-after", projectId: "project-2", apiKey: "" },
     });
     assert.deepEqual(tested.at(-1), {
       siteKey: "site-key-after",
-      secretKey: "secret-key-unchanged-77",
+      projectId: "project-2",
+      apiKey: "secret-key-unchanged-77",
     });
     assert.ok(!JSON.stringify(updated).includes("secret-key-unchanged-77"));
     const audit = f.tables.AuditLog!.find(
@@ -473,7 +486,7 @@ describe("integration credentials", () => {
     const responses: unknown[] = [
       await integrationsService.enable(context, {
         key: "recaptcha",
-        credentials: { siteKey: "site-key-public", secretKey: secrets[0]! },
+        credentials: { siteKey: "site-key-public", projectId: "project-1", apiKey: secrets[0]! },
       }),
       await integrationsService.enable(context, {
         key: "google_auth",

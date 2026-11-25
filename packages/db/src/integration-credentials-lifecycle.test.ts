@@ -86,7 +86,8 @@ function sealedRow(id: string, key: Buffer) {
     key: "recaptcha",
     ...sealIntegrationCredentials(key, "recaptcha", {
       siteKey: "site-key-value-1",
-      secretKey: "secret-key-value-2",
+      projectId: "project-1",
+      apiKey: "secret-key-value-2",
     }),
   };
 }
@@ -99,12 +100,10 @@ it("re-seals every credential with the new key and updates the fingerprint", asy
   assert.equal(row.keyFingerprint, keyFingerprint(newKey));
   const credentials = row.credentials as Record<string, SealedValue>;
   assert.equal(
-    open(newKey, credentialAad("recaptcha", "secretKey"), credentials.secretKey!),
+    open(newKey, credentialAad("recaptcha", "apiKey"), credentials.apiKey!),
     "secret-key-value-2",
   );
-  assert.throws(() =>
-    open(oldKey, credentialAad("recaptcha", "secretKey"), credentials.secretKey!),
-  );
+  assert.throws(() => open(oldKey, credentialAad("recaptcha", "apiKey"), credentials.apiKey!));
 });
 
 it("aborts without changes when any row was sealed with another key, and dry-run writes nothing", async () => {

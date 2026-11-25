@@ -313,7 +313,12 @@ function LoginPage() {
           </>
         )}
         {signup && finalStep && recaptcha?.enabled && recaptcha.live && recaptcha.siteKey ? (
-          <Recaptcha key={captchaAttempt} siteKey={recaptcha.siteKey} onToken={setRecaptchaToken} />
+          <Recaptcha
+            key={captchaAttempt}
+            siteKey={recaptcha.siteKey}
+            action="SIGNUP"
+            onToken={setRecaptchaToken}
+          />
         ) : null}
         {!signup ? (
           <div className="-mt-1 flex flex-wrap items-center justify-between gap-2">
@@ -321,6 +326,7 @@ function LoginPage() {
               <Recaptcha
                 key={captchaAttempt}
                 siteKey={recaptcha.siteKey}
+                action="LOGIN"
                 onToken={setRecaptchaToken}
               />
             ) : needsCheckbox ? (

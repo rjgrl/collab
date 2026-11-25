@@ -9,8 +9,8 @@ export const facultyRoleLevelSchema = z.enum(FACULTY_LEVELS);
 export type FacultyLevel = z.infer<typeof facultyRoleLevelSchema>;
 export const FACULTY_LEVEL_LABELS: Record<FacultyLevel, string> = {
   faculty: "Faculty",
-  department: "Department head",
-  college: "College head",
+  department: "Department Head",
+  college: "College Dean",
 };
 
 const employeeNumberSchema = z.string().trim().min(1).max(40);
@@ -59,6 +59,7 @@ export const facultyOutputSchema = z.object({
   roleLevel: facultyRoleLevelSchema,
   active: z.boolean(),
   assignedCount: z.number().int(),
+  trackedCount: z.number().int(),
 });
 
 export const facultySchemas = {

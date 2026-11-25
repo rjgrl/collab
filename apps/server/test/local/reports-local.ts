@@ -26,7 +26,7 @@ try {
   await seedDatabase(db);
   const app = createApp({ db, config: { nodeEnv: "test", origin }, integrationEnv: {} });
   const cookies: Record<string, string> = {};
-  for (const name of ["college.head", "department.head", "faculty.it", "faculty.education"]) {
+  for (const name of ["college.head", "department.head", "faculty.it", "faculty.emc"]) {
     const user = await db.User.findOne({ email: `${name}@collab.test` })
       .orFail()
       .lean();
@@ -59,13 +59,27 @@ try {
 
   assert.equal(await pdfRows("faculty.it"), 1);
   assert.equal(await pdfRows("department.head"), 2);
-  assert.equal(await pdfRows("college.head"), 3);
+  assert.equal(await pdfRows("college.head"), 4);
   assert.equal(await pdfRows("admin"), 4);
-  const coe = String(
-    (await db.College.findOne({ name: "College of Education" }).orFail().lean())._id,
+  // A college outside every demo head's scope (the demo data has only one college).
+  const other = String((await db.College.create({ name: "Synthetic other college" }))._id);
+  const otherDepartment = await db.Department.create({ collegeId: other, name: "Other" });
+  await db.Alumni.updateOne(
+    { studentNumber: "2019-0144" },
+    {
+      $set: {
+        programId: (
+          await db.Program.create({ departmentId: otherDepartment._id, code: "OTH", name: "Other" })
+        )._id,
+      },
+    },
   );
-  assert.equal(await pdfRows("admin", `?collegeId=${coe}`), 1, "college filter");
-  assert.equal(await pdfRows("college.head", `?collegeId=${coe}`), 0, "filters never widen scope");
+  assert.equal(await pdfRows("admin", `?collegeId=${other}`), 1, "college filter");
+  assert.equal(
+    await pdfRows("college.head", `?collegeId=${other}`),
+    0,
+    "filters never widen scope",
+  );
   assert.equal(await pdfRows("admin", "?graduationYear=2023"), 1, "batch year filter");
   const bsat = String((await db.Program.findOne({ code: "BSAT" }).orFail().lean())._id);
   assert.equal(await pdfRows("admin", `?programId=${bsat}`), 1, "program filter");
@@ -81,10 +95,7 @@ try {
     404,
     "cross-department",
   );
-  assert.equal(
-    (await get("faculty.education", `/api/reports/alumni/${g3}/profile.pdf`)).status,
-    200,
-  );
+  assert.equal((await get("faculty.emc", `/api/reports/alumni/${g3}/profile.pdf`)).status, 200);
 
   const assignmentRows = async (who: string) => {
     const response = await get(who, "/api/reports/assignments.pdf");

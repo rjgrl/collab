@@ -82,7 +82,7 @@ export function EvidencePanel({
         fixedKind === "image"
           ? "Profile photo associated with this alumni record. Supporting documents are listed separately."
           : fixedKind === "evidence"
-            ? "Share documents for review by your assigned faculty and department heads."
+            ? "Share documents for review by your assigned faculty and Department Heads."
             : "Keep your profile photo separate from confidential employment evidence. Files remain protected by account access."
       }
     >

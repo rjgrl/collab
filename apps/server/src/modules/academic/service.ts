@@ -31,6 +31,18 @@ async function academicWriteScope(
   if (!allowed)
     throw new ApiError("FORBIDDEN", { message: "That academic change is outside your scope." });
 }
+/**
+ * Which academic units a caller may read: permissions decide whether they may read at all, and
+ * their faculty assignment decides which units. A College Dean reads their college, a Department
+ * Head or Faculty member their department, and an account without an active, placed faculty
+ * record nothing. null = every unit (Super Admins).
+ */
+async function academicReadScope(context: Context) {
+  const scope = await alumniScope(context);
+  if (scope.kind === "all") return null;
+  if (scope.kind === "none") return { collegeIds: [] as string[], departmentIds: [] as string[] };
+  return { collegeIds: [scope.collegeId], departmentIds: scope.departmentIds };
+}
 export async function audit(
   db: Database,
   context: Context,
@@ -84,7 +96,12 @@ export const collegesService = {
     management(context, "departments.read");
     const p = collegesSchemas.list.input.parse(input) ?? { page: 1, pageSize: 20 };
     const q = p.search ? { name: { $regex: escapeRegex(p.search), $options: "i" } } : {};
-    const rows = await context.db.College.find({ ...active, ...q })
+    const scope = await academicReadScope(context);
+    const rows = await context.db.College.find({
+      ...active,
+      ...q,
+      ...(scope ? { _id: { $in: scope.collegeIds } } : {}),
+    })
       .sort({ name: 1, _id: 1 })
       .skip((p.page - 1) * p.pageSize)
       .limit(p.pageSize)
@@ -95,7 +112,11 @@ export const collegesService = {
         return {
           ...c,
           _count: {
-            departments: await context.db.Department.countDocuments({ collegeId: c.id, ...active }),
+            departments: await context.db.Department.countDocuments({
+              collegeId: c.id,
+              ...active,
+              ...(scope ? { _id: { $in: scope.departmentIds } } : {}),
+            }),
           },
         };
       }),
@@ -188,10 +209,12 @@ export const departmentsService = {
           $or: [{ name: { $regex: escapeRegex(p.search), $options: "i" } }],
         }
       : {};
+    const scope = await academicReadScope(context);
     const rows = await context.db.Department.find({
       ...active,
       ...(p.collegeId ? { collegeId: p.collegeId } : {}),
       ...q,
+      ...(scope ? { _id: { $in: scope.departmentIds } } : {}),
     })
       .sort({ name: 1, _id: 1 })
       .skip((p.page - 1) * p.pageSize)
@@ -220,8 +243,11 @@ export const departmentsService = {
   async get(context: Context, input: z.input<typeof departmentsSchemas.get.input>) {
     management(context, "departments.read");
     const { id } = departmentsSchemas.get.input.parse(input);
+    const scope = await academicReadScope(context);
     const d = await context.db.Department.findOne({ _id: id, ...active }).lean();
-    if (!d) throw new ApiError("NOT_FOUND", { message: "Department not found." });
+    // Out-of-scope departments get the same 404 so their existence is not revealed.
+    if (!d || (scope && !scope.departmentIds.includes(String(d._id))))
+      throw new ApiError("NOT_FOUND", { message: "Department not found." });
     const programs = await context.db.Program.find({ departmentId: id, ...active })
       .sort({ name: 1, _id: 1 })
       .lean();
@@ -306,9 +332,13 @@ export const programsService = {
   async list(context: Context, input?: z.input<typeof programsSchemas.list.input>) {
     management(context, "programs.read");
     const p = programsSchemas.list.input.parse(input) ?? { page: 1, pageSize: 20 };
+    const scope = await academicReadScope(context);
     const departments = await context.db.Department.find({
-      ...active,
-      ...(p.departmentId ? { _id: p.departmentId } : {}),
+      $and: [
+        active,
+        p.departmentId ? { _id: p.departmentId } : {},
+        scope ? { _id: { $in: scope.departmentIds } } : {},
+      ],
     })
       .select("_id")
       .lean();
@@ -344,7 +374,12 @@ export const programsService = {
   async get(context: Context, input: z.input<typeof programsSchemas.get.input>) {
     management(context, "programs.read");
     const { id } = programsSchemas.get.input.parse(input);
-    return activeProgram(context.db, id);
+    const program = await activeProgram(context.db, id);
+    const scope = await academicReadScope(context);
+    if (scope && !scope.departmentIds.includes(String(program.departmentId)))
+      // Same error as a missing program, so out-of-scope ids are not revealed.
+      throw new ApiError("BAD_REQUEST", { message: "Active program not found." });
+    return program;
   },
   async create(context: Context, input: z.input<typeof programsSchemas.create.input>) {
     management(context, "programs.write");

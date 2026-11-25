@@ -217,6 +217,15 @@
                 "needs_reassignment"
               ]
             }
+          },
+          {
+            "name": "assignedFacultyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
           }
         ],
         "responses": {
@@ -9976,6 +9985,11 @@
                         "type": "integer",
                         "minimum": -9007199254740991,
                         "maximum": 9007199254740991
+                      },
+                      "trackedCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
                       }
                     },
                     "required": [
@@ -9989,7 +10003,8 @@
                       "department",
                       "roleLevel",
                       "active",
-                      "assignedCount"
+                      "assignedCount",
+                      "trackedCount"
                     ],
                     "additionalProperties": false
                   }
@@ -10184,6 +10199,11 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "trackedCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -10197,7 +10217,8 @@
                     "department",
                     "roleLevel",
                     "active",
-                    "assignedCount"
+                    "assignedCount",
+                    "trackedCount"
                   ],
                   "additionalProperties": false
                 }
@@ -10389,6 +10410,11 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "trackedCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": [
@@ -10402,7 +10428,8 @@
                     "department",
                     "roleLevel",
                     "active",
-                    "assignedCount"
+                    "assignedCount",
+                    "trackedCount"
                   ],
                   "additionalProperties": false
                 }

@@ -112,8 +112,9 @@ it("delegated Alumni permissions do not grant another alumnus's record scope", a
   const c = context(f.db);
   assert.deepEqual(await alumniService.list(c), []);
   await assert.rejects(() => alumniService.get(c, { id: alumniId }), /not found/i);
-  assert.equal((await departmentsService.list(c)).length, 1);
-  assert.equal((await programsService.list(c)).length, 1);
+  // Academic reads follow faculty assignment too: an Alumni account has none.
+  assert.equal((await departmentsService.list(c)).length, 0);
+  assert.equal((await programsService.list(c)).length, 0);
   await assert.rejects(() => filesService.remove(c, { id: otherId }), /not found/i);
   assert.equal(f.tables.EvidenceFile![0]!.deletedAt, null);
 });

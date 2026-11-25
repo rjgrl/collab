@@ -22,8 +22,9 @@ function envString(key: string) {
 
 export function readIntegrationEnv(): IntegrationEnv {
   return {
-    recaptchaSecretKey: envString("RECAPTCHA_SECRET_KEY"),
     recaptchaSiteKey: envString("RECAPTCHA_SITE_KEY"),
+    recaptchaProjectId: envString("RECAPTCHA_PROJECT_ID"),
+    recaptchaApiKey: envString("RECAPTCHA_API_KEY"),
     googleClientId: envString("GOOGLE_CLIENT_ID"),
     googleClientSecret: envString("GOOGLE_CLIENT_SECRET"),
     googleServiceAccountJson: envString("GOOGLE_SERVICE_ACCOUNT_JSON"),

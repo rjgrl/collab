@@ -27,7 +27,7 @@ The hosted frontend and API share one exact HTTPS origin. CORS reflects only the
 
 `SERVE_WEB` opts into serving only the compiled `apps/web/dist` tree. Missing builds or symlinked assets stop startup. Static/deep-link handling never replaces API authentication/errors, retired RPC/API-reference paths, private-upload paths or missing asset responses with HTML.
 
-Private upload and backup storage cannot overlap the public build; canonical existing parents detect symlink/junction aliases. Evidence remains private filesystem/provider data accessed through authorized API routes, not an alumni-profile storage fallback. The build exposes only public frontend environment values, never database credentials or encryption keys. CSP accommodates the existing CAPTCHA and photo-preview resources without enabling arbitrary script execution.
+Private upload and backup storage cannot overlap the public build; canonical existing parents detect symlink/junction aliases. Evidence remains private filesystem/provider data accessed through authorized API routes, not an alumni-profile storage fallback. The build exposes only public frontend environment values, never database credentials or encryption keys. CSP accommodates the Fraud Defense (reCAPTCHA Enterprise) widget under the existing `www.google.com/recaptcha/` and `www.gstatic.com/recaptcha/` sources and photo-preview resources without enabling arbitrary script execution.
 
 ## Health and Release Safety
 

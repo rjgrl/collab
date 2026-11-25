@@ -11,7 +11,7 @@ Rotation intervals below are recommended operating policy, not provider-enforced
 | API                                    | Enabled via                                                          | Auth type                                                                | Env var                                                                | Scopes                                                                    | Rotation                                                              |
 | -------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | MongoDB Atlas                          | Atlas database user + Network Access                                 | Database username/password over TLS; not an Atlas administration API key | `MONGO_URI`                                                            | `readWrite` on `alumni_tracking` for core CRUD                            | 90 days / incident                                                    |
-| reCAPTCHA v2 Checkbox                  | reCAPTCHA registration console                                       | Public site key + backend secret                                         | `RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`                           | Exact authorized hostnames                                                | 90 days / incident                                                    |
+| reCAPTCHA (Fraud Defense checkbox)     | Google Cloud: reCAPTCHA Enterprise API + Fraud Defense key           | Site key + **restricted API key** (`projects.assessments.create`)        | `RECAPTCHA_SITE_KEY`, `RECAPTCHA_PROJECT_ID`, `RECAPTCHA_API_KEY`      | API key restricted to reCAPTCHA Enterprise API; site key to exact hosts   | API key: 90 days / incident                                           |
 | Google Sign-In                         | Google Auth Platform                                                 | **OAuth 2.0 authorization code / OIDC**, not a static API key            | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                             | `openid email profile`                                                    | Client secret: 90 days / incident                                     |
 | Google Drive                           | Cloud API Library + Workspace Shared Drive                           | **Service-account JWT → OAuth access token**                             | `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`                | Runtime `drive.file`, `drive.readonly`; connection check requests `drive` | JSON key: at most 90 days; access tokens short-lived                  |
 | Google Sheets                          | Cloud API Library + share target spreadsheet                         | **Separate service-account JWT → OAuth access token**                    | `GOOGLE_SHEETS_SPREADSHEET_ID`; JSON entered in its own Settings field | `spreadsheets.readonly` / `spreadsheets`                                  | Separate JSON key: at most 90 days                                    |
@@ -104,13 +104,15 @@ Run only with a separately approved target/environment. Ping proves connectivity
 
 **Rotation/revocation:** Every 90 days, provision a replacement least-privilege database user, privately update the Render URI, redeploy only with approval, verify connectivity/core CRUD, then delete the old user. Changing the existing user's password can interrupt pooled connections; plan the transition. Immediately revoke compromised access. See [Atlas operations](MONGODB_ATLAS.md).
 
-## 2. reCAPTCHA v2 Checkbox
+## 2. reCAPTCHA (Google Cloud Fraud Defense checkbox)
 
-**Enable:** Register a **v2 “I'm not a robot” checkbox** site at the [registration console](https://www.google.com/recaptcha/admin/create). Use different site/secret pairs for each environment. Allow only the production hostname for production and the intended local/staging hostnames on separate keys. Keep domain validation enabled; do not add unrelated domains or treat the public site key as a secret.
+**Enable:** In the Google Cloud console for an environment-specific project: enable the **reCAPTCHA Enterprise API**, then **Fraud Defense › Create key** → platform **Website** → choose the **checkbox challenge** (not score-based). Allow only the production hostname for the production key and the intended local/staging hostnames on separate keys; keep domain verification on. A score-based key will not render the checkbox.
 
-The application uses `/recaptcha/api/siteverify`, not the Enterprise `CreateAssessment` API. An Enterprise-only key or API key is not a drop-in replacement. If the console no longer offers a compatible setup, stop and review an adapter change rather than substituting credentials.
+Create the server API key under **APIs & Services › Credentials › Create credentials › API key**, then **Edit API key**: set **API restrictions → Restrict key → reCAPTCHA Enterprise API only**, and if the server has fixed outbound addresses add **Application restrictions → IP addresses** for them. Never reuse a Maps/Firebase/browser key: this key authorizes assessments for the whole project and must stay server-side.
 
-**Storage/config/test:** UI fields `siteKey` / `secretKey`; legacy names `RECAPTCHA_SITE_KEY` / `RECAPTCHA_SECRET_KEY`.
+The application verifies tokens with `projects.assessments.create`. It sends the API key in the `x-goog-api-key` header (never in the URL), and accepts a token only when Google reports it valid and its action matches the form (`LOGIN` or `SIGNUP`). Google errors and timeouts fail closed. Classic v2 site/secret pairs and `siteverify` are no longer used; schema version 4 disables and erases any stored v2 pair.
+
+**Storage/config/test:** UI fields **Site key** (stored write-only; only its last four characters are shown), **Google Cloud project ID**, **API key** (secret). Legacy development names `RECAPTCHA_SITE_KEY` / `RECAPTCHA_PROJECT_ID` / `RECAPTCHA_API_KEY`. Enter values only in Settings › Integrations; never commit them or paste them into chat or tickets.
 
 ```ts
 import { testIntegrationConnection } from "@Alumni-Tracking-Ss/api/integrations/connection-test";
@@ -119,7 +121,8 @@ await withProvider("recaptcha", async (env) => {
     "recaptcha",
     {
       siteKey: required(env.recaptchaSiteKey),
-      secretKey: required(env.recaptchaSecretKey),
+      projectId: required(env.recaptchaProjectId),
+      apiKey: required(env.recaptchaApiKey),
     },
     { env, adminEmail: required(process.env.API_TEST_RECIPIENT) },
   );
@@ -127,11 +130,11 @@ await withProvider("recaptcha", async (env) => {
 });
 ```
 
-This intentionally submits a dummy token: a valid secret should produce `invalid-input-response`, not `invalid-input-secret`. It does not prove the hostname/site-key pair works. Complete one real browser challenge in staging; tokens are short-lived and single-use.
+This intentionally submits a dummy token: a working project and API key answer HTTP 200 with `tokenProperties.valid: false` and an invalid reason (for example `MALFORMED`); a wrong key, wrong project, disabled API or over-restricted key answers 400/403. It does not prove the hostname/site-key pair works. Complete one real browser challenge in staging; tokens are short-lived and single-use.
 
-**Quotas/billing:** Review the key's actual product tier. The current Cloud billing page describes a 10,000-assessment monthly organization allowance and paid tiers; do not assume this is an unlimited legacy allowance or that Enterprise credentials are compatible. Over-quota errors can prevent registration/login. Obtain billing approval before upgrading.
+**Quotas/billing:** The current Cloud billing page describes a monthly no-cost assessment allowance per organization and paid tiers above it. Over-quota or billing errors make the assessment fail, which blocks sign-in and sign-up (fail closed). Set a budget alert and obtain billing approval before exceeding the free tier.
 
-**Rotation/revocation:** At 90 days or an incident, replace/rotate the pair using the console's supported flow, update both UI fields, reload clients and test a real challenge before retiring the old pair. Delete compromised registrations/keys. Never enable a production checkbox fallback.
+**Rotation/revocation:** At 90 days or an incident, create a new restricted API key, save it through **Update reCAPTCHA Credentials** (it is tested before saving), verify a real sign-in, then delete the old key in Cloud Credentials. Rotate the site key the same way if its domains change. Disabling the integration erases the stored keys but does not revoke them at Google; do both when retiring access. Never enable a production checkbox fallback.
 
 ## 3. Google Sign-In: OAuth required
 
@@ -443,7 +446,7 @@ Provider documentation checked 2026-11-15; quotas/prices and console labels can 
 
 - [Render environment variables and secrets](https://render.com/docs/configure-environment-variables)
 - [MongoDB Atlas database access](https://www.mongodb.com/docs/atlas/security-add-mongodb-users/) and [IP access lists](https://www.mongodb.com/docs/atlas/security/ip-access-list/)
-- [reCAPTCHA setup](https://developers.google.com/recaptcha/intro), [verification](https://developers.google.com/recaptcha/docs/verify), [Cloud billing](https://cloud.google.com/recaptcha/docs/billing-information)
+- [Fraud Defense website keys](https://cloud.google.com/recaptcha/docs/create-key-website), [create assessments](https://cloud.google.com/recaptcha/docs/create-assessment-website), [API key restrictions](https://cloud.google.com/docs/authentication/api-keys), [Cloud billing](https://cloud.google.com/recaptcha/docs/billing-information)
 - [Google OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server)
 - [Service-account key security](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys)
 - [Drive quotas](https://developers.google.com/workspace/drive/api/guides/limits), [Shared Drives](https://developers.google.com/workspace/drive/api/guides/about-shareddrives)

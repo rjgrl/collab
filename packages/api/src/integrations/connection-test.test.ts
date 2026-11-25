@@ -6,6 +6,23 @@ import { isPrivateAddress, testIntegrationConnection } from "./connection-test";
 // Response bodies below follow each provider's documented format. Keep them that way: a mock
 // using a made-up field name ("error_codes") once let the reCAPTCHA check accept any secret.
 const SITE_KEY = "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI";
+const RECAPTCHA = { siteKey: SITE_KEY, projectId: "alumni-tracking-1", apiKey: "AIzaSyTestKey" };
+// projects.assessments.create for an unusable token: HTTP 200, tokenProperties.valid false.
+const ASSESSMENT_MALFORMED = {
+  name: "projects/123456789/assessments/abc",
+  event: { token: "connection-test", siteKey: SITE_KEY, expectedAction: "" },
+  riskAnalysis: { score: 0, reasons: [] },
+  tokenProperties: { valid: false, invalidReason: "MALFORMED", hostname: "", action: "" },
+};
+// Google API error envelope (google.rpc.Status with ErrorInfo).
+const GOOGLE_ERROR = (code: number, status: string, reason: string) => ({
+  error: {
+    code,
+    message: "Request rejected.",
+    status,
+    details: [{ "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason }],
+  },
+});
 const reply = (status: number, body: unknown) =>
   (async () => Response.json(body, { status })) as unknown as typeof fetch;
 const options = (fetcher: typeof fetch) => ({
@@ -21,43 +38,49 @@ const rejectsWith = (work: Promise<unknown>, text: string) =>
   });
 
 describe("connection-test", () => {
-  it("reCAPTCHA accepts a secret Google recognises (invalid-input-response for the dummy token)", async () => {
-    await testIntegrationConnection(
-      "recaptcha",
-      { siteKey: SITE_KEY, secretKey: "valid" },
-      options(reply(200, { success: false, "error-codes": ["invalid-input-response"] })),
+  it("reCAPTCHA accepts a project and API key Google recognises (MALFORMED dummy token)", async () => {
+    let url = "";
+    let headers: Headers | undefined;
+    const fetcher = (async (input: string, init?: RequestInit) => {
+      url = input;
+      headers = new Headers(init?.headers);
+      return Response.json(ASSESSMENT_MALFORMED);
+    }) as unknown as typeof fetch;
+    await testIntegrationConnection("recaptcha", RECAPTCHA, options(fetcher));
+    assert.equal(
+      url,
+      "https://recaptchaenterprise.googleapis.com/v1/projects/alumni-tracking-1/assessments",
     );
+    // The API key travels in a header so it never appears in a URL or request log.
+    assert.equal(headers?.get("x-goog-api-key"), RECAPTCHA.apiKey);
+    assert(!url.includes(RECAPTCHA.apiKey));
   });
 
-  it("reCAPTCHA rejects an unknown secret, a missing error list and a malformed site key", async () => {
+  it("reCAPTCHA rejects a bad API key, a disabled API, a missing verdict and malformed values", async () => {
+    for (const [status, body] of [
+      [400, GOOGLE_ERROR(400, "INVALID_ARGUMENT", "API_KEY_INVALID")],
+      [403, GOOGLE_ERROR(403, "PERMISSION_DENIED", "SERVICE_DISABLED")],
+      [200, {}],
+    ] as const)
+      await rejectsWith(
+        testIntegrationConnection("recaptcha", RECAPTCHA, options(reply(status, body))),
+        "Google rejected",
+      );
     await rejectsWith(
       testIntegrationConnection(
         "recaptcha",
-        { siteKey: SITE_KEY, secretKey: "wrong" },
-        options(
-          reply(200, {
-            success: false,
-            "error-codes": ["invalid-input-response", "invalid-input-secret"],
-          }),
-        ),
-      ),
-      "Google rejected",
-    );
-    await rejectsWith(
-      testIntegrationConnection(
-        "recaptcha",
-        { siteKey: SITE_KEY, secretKey: "x" },
-        options(reply(200, { success: false })),
-      ),
-      "Google rejected",
-    );
-    await rejectsWith(
-      testIntegrationConnection(
-        "recaptcha",
-        { siteKey: "not-a-site-key", secretKey: "x" },
-        options(reply(200, {})),
+        { ...RECAPTCHA, siteKey: "not-a-site-key" },
+        options(reply(200, ASSESSMENT_MALFORMED)),
       ),
       "site key",
+    );
+    await rejectsWith(
+      testIntegrationConnection(
+        "recaptcha",
+        { ...RECAPTCHA, projectId: "Not A Project" },
+        options(reply(200, ASSESSMENT_MALFORMED)),
+      ),
+      "project ID",
     );
   });
 
@@ -188,11 +211,7 @@ describe("connection-test", () => {
       throw new Error("TIMEOUT");
     }) as typeof fetch;
     await rejectsWith(
-      testIntegrationConnection(
-        "recaptcha",
-        { siteKey: SITE_KEY, secretKey: "x" },
-        options(failing),
-      ),
+      testIntegrationConnection("recaptcha", RECAPTCHA, options(failing)),
       "Could not reach",
     );
   });

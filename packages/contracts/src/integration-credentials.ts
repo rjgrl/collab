@@ -25,20 +25,31 @@ export type CredentialField = {
 export const INTEGRATION_CREDENTIAL_FIELDS: Record<IntegrationKey, readonly CredentialField[]> = {
   recaptcha: [
     {
+      // Public in the sign-in page, but write-only here so administrators only see its last 4.
       name: "siteKey",
       label: "Site key",
-      secret: false,
-      kind: "text",
-      required: true,
-      env: "RECAPTCHA_SITE_KEY",
-    },
-    {
-      name: "secretKey",
-      label: "Secret key",
       secret: true,
       kind: "text",
       required: true,
-      env: "RECAPTCHA_SECRET_KEY",
+      hint: "A checkbox-type key from Google Cloud › Fraud Defense.",
+      env: "RECAPTCHA_SITE_KEY",
+    },
+    {
+      name: "projectId",
+      label: "Google Cloud project ID",
+      secret: false,
+      kind: "text",
+      required: true,
+      env: "RECAPTCHA_PROJECT_ID",
+    },
+    {
+      name: "apiKey",
+      label: "API key",
+      secret: true,
+      kind: "text",
+      required: true,
+      hint: "Restrict it to the reCAPTCHA Enterprise API in Google Cloud › Credentials.",
+      env: "RECAPTCHA_API_KEY",
     },
   ],
   google_auth: [

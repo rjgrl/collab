@@ -34,7 +34,7 @@ try {
     return `ats_session=${(await createSession(db, String(user._id), {})).token}`;
   };
   const cookies: Record<string, string> = {};
-  for (const name of ["college.head", "department.head", "faculty.it", "faculty.education"])
+  for (const name of ["college.head", "department.head", "faculty.it", "faculty.emc"])
     cookies[name] = await cookieFor(`${name}@collab.test`);
   cookies.admin = await adminCookie(db);
   const send = protectedRequest(app, db, origin);
@@ -49,11 +49,11 @@ try {
     String((await db.Department.findOne({ name }).orFail().lean())._id);
   const it = await dept("Information Technology");
   const auto = await dept("Automotive Technology");
-  const secEd = await dept("Secondary Education");
+  const emc = await dept("Entertainment and Multimedia Computing");
   const facultyId = async (email: string) =>
     String((await db.Faculty.findOne({ email }).orFail().lean())._id);
   const fIt = await facultyId("faculty.it@collab.test");
-  const fEdu = await facultyId("faculty.education@collab.test");
+  const fEmc = await facultyId("faculty.emc@collab.test");
   const fCollege = await facultyId("college.head@collab.test");
   const alumniId = async (studentNumber: string) =>
     String((await db.Alumni.findOne({ studentNumber }).orFail().lean())._id);
@@ -73,6 +73,7 @@ try {
   assert.deepEqual(await names("college.head"), [
     "college.head@collab.test",
     "department.head@collab.test",
+    "faculty.emc@collab.test",
     "faculty.it@collab.test",
   ]);
   assert.deepEqual(await names("department.head"), [
@@ -139,21 +140,14 @@ try {
     403,
   );
   assert.equal(
-    (
-      await as("college.head").post(
-        "/api/faculty",
-        draft("n6@collab.test", secEd, "faculty", "N-6"),
-      )
-    ).status,
-    403,
+    (await as("college.head").post("/api/faculty", draft("n6@collab.test", emc, "faculty", "N-6")))
+      .status,
+    201,
+    "EMC is a department of the Dean's college",
   );
   assert.equal(
-    (
-      await as("faculty.education").post(
-        "/api/faculty",
-        draft("n7@collab.test", it, "faculty", "N-7"),
-      )
-    ).status,
+    (await as("faculty.emc").post("/api/faculty", draft("n7@collab.test", it, "faculty", "N-7")))
+      .status,
     403,
   );
   assert.equal(
@@ -194,7 +188,7 @@ try {
     404,
   );
   assert.equal(
-    (await as("department.head").patch(`/api/faculty/${fEdu}`, { lastName: "X" })).status,
+    (await as("department.head").patch(`/api/faculty/${fEmc}`, { lastName: "X" })).status,
     404,
   );
   assert.equal(
@@ -224,7 +218,7 @@ try {
     404,
   );
   assert.equal(
-    (await as("department.head").post("/api/alumni/assign", { alumniIds: [g1], facultyId: fEdu }))
+    (await as("department.head").post("/api/alumni/assign", { alumniIds: [g1], facultyId: fEmc }))
       .status,
     404,
   );

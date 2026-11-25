@@ -38,7 +38,7 @@ try {
     rows.map((a) => [a.lastName.replace("Graduate ", "G"), a]),
   ) as Record<"GOne" | "GTwo" | "GThree" | "GFour", Row>;
   const id = (key: keyof typeof alumni) => String(alumni[key]._id);
-  const bsed = String(alumni.GThree.programId);
+  const bsemc = String(alumni.GThree.programId);
 
   // Extra accounts: a Faculty-role account with no faculty record (sees nothing; the retired
   // Staff role used to make such accounts unscoped) and a deactivated faculty member.
@@ -91,7 +91,7 @@ try {
     "college.head@collab.test",
     "department.head@collab.test",
     "faculty.it@collab.test",
-    "faculty.education@collab.test",
+    "faculty.emc@collab.test",
     "unplaced@collab.test",
     "inactive@collab.test",
   ]) {
@@ -109,10 +109,10 @@ try {
   };
 
   const visible: Record<string, (keyof typeof alumni)[]> = {
-    "college.head@collab.test": ["GOne", "GTwo", "GFour"],
+    "college.head@collab.test": ["GOne", "GTwo", "GThree", "GFour"],
     "department.head@collab.test": ["GOne", "GTwo"],
     "faculty.it@collab.test": ["GOne"],
-    "faculty.education@collab.test": ["GThree"],
+    "faculty.emc@collab.test": ["GThree"],
     "unplaced@collab.test": [],
     "inactive@collab.test": [],
   };
@@ -189,7 +189,7 @@ try {
   // A head cannot move an in-scope alumnus into another department's program.
   const moved = await as("department.head@collab.test").patch(`/api/alumni/${id("GOne")}`, {
     studentNumber: alumni.GOne.studentNumber,
-    programId: bsed,
+    programId: bsemc,
     graduationYear: 2024,
   });
   assert.equal(moved.status, 403);
@@ -205,22 +205,14 @@ try {
   );
 
   // Reassignment takes effect on the next request: scope is resolved per request.
-  const educationFaculty = await db.Faculty.findOne({ email: "faculty.education@collab.test" })
-    .orFail()
-    .lean();
+  const emcFaculty = await db.Faculty.findOne({ email: "faculty.emc@collab.test" }).orFail().lean();
   await db.Alumni.updateOne(
     { _id: alumni.GFour._id },
-    { $set: { assignedFacultyId: educationFaculty._id } },
+    { $set: { assignedFacultyId: emcFaculty._id } },
   );
-  assert.equal(
-    (await as("faculty.education@collab.test").get(`/api/alumni/${id("GFour")}`)).status,
-    200,
-  );
-  await db.Faculty.updateOne({ _id: educationFaculty._id }, { $set: { active: false } });
-  assert.equal(
-    (await as("faculty.education@collab.test").get(`/api/alumni/${id("GFour")}`)).status,
-    404,
-  );
+  assert.equal((await as("faculty.emc@collab.test").get(`/api/alumni/${id("GFour")}`)).status, 200);
+  await db.Faculty.updateOne({ _id: emcFaculty._id }, { $set: { active: false } });
+  assert.equal((await as("faculty.emc@collab.test").get(`/api/alumni/${id("GFour")}`)).status, 404);
 
   // Administrators are unscoped (service level; HTTP would also require authenticator MFA).
   const admin = await db.User.findOne({ email: "synthetic-admin@example.test" }).orFail().lean();

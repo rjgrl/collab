@@ -2,6 +2,62 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-25 (Demo seed: EMC replaces Secondary Education)
+
+- Demo seed drops College of Education/Secondary Education/BSED. The College of Technologies now
+  has three departments: IT, Automotive Technology, Entertainment and Multimedia Computing (BSEMC).
+  Graduate Three moves to BSEMC; `faculty.education@collab.test` is now `faculty.emc@collab.test`.
+- Seeding is additive: existing local databases keep their old College of Education records.
+- Local checks updated: the Dean now sees all four demo alumni and may create EMC faculty;
+  cross-college checks in `reports-local` create their own synthetic second college. Unit tests
+  keep two-college fixtures for cross-college scope.
+- Verified: `pnpm check`, `pnpm test` (486), local scope/faculty/contacts/timestamp/reports/
+  access-managers/integrations/integrity/pentest. Not run here: `recovery-local` (needs
+  `MONGODB_TOOLS_DIR`), `roles-local` (needs provisioned test accounts).
+
+## 2026-11-25 (Local sign-in for seeded demo accounts)
+
+- Local `apps/server/.env` (gitignored) now allows `collab.test` in `STAFF_EMAIL_DOMAINS`, so the
+  seeded demo accounts can sign in. Temporary; remove it before any shared or staging use.
+  Production ignores this and always requires BukSU domains. No code changed.
+
+## 2026-11-25 (Head labels and academic read scope)
+
+- Renamed role-level labels: College head → College Dean, Department head → Department Head
+  (labels, seed account descriptions, scope error messages, evidence hint). Stored values unchanged.
+- Colleges/departments/programs list and get now follow faculty assignment for every
+  non-Super-Admin: Dean → college, Department Head/Faculty → department, no placed faculty
+  record (Alumni, delegated accounts) → nothing. Permissions still gate access to the endpoints.
+- Verified: `pnpm test` (486 pass; new `academic-read-scope.test.ts` fails with the restriction
+  disabled; `feature-ownership.test.ts` updated to the new rule), `pnpm check`,
+  `test:scope-local`, `test:faculty-local`, browser permission-delegation and admin-copy specs.
+
+## 2026-11-25 (Faculty page: View Alumni modal)
+
+- No branch, PR head (`refs/pull/1..17`), stash or dangling commit held this feature; built new.
+- Faculty table: Assigned (total count) is kept; new Tracked and Untracked columns hold only the
+  buttons, and their headings show the % across the faculty on the current page. Tracked holds "View Alumni" (all assigned); Untracked holds "View Untracked".
+  Both open a modal table (Name, Student Number, Program, Graduation Year, Status, profile link)
+  with 10/25/50 pagination and an Assigned/Tracked/Untracked summary footer.
+- `alumni.list` accepts `assignedFacultyId`; results stay bounded by `alumniScopeFilter`.
+  Faculty output gains `trackedCount`. OpenAPI regenerated.
+- Verified: `pnpm test` (483 pass, includes a new filter + scope test), `pnpm check`, browser
+  spec "faculty list defaults to 10 rows" (desktop + mobile). Modal not covered by a browser test.
+
+## 2026-11-23 (reCAPTCHA → Google Cloud Fraud Defense checkbox)
+
+- Sign-in/sign-up render the Fraud Defense (Enterprise) checkbox with actions LOGIN/SIGNUP; the
+  server verifies via CreateAssessment (valid token + matching action; Google errors fail closed).
+  v2 secret/siteverify removed. Integrations now ask for site key, Cloud project ID and a
+  restricted API key; every saved key shows only its last 4; secret inputs are masked with Show/Hide.
+- Schema 4 disables reCAPTCHA rows still holding v2 keys (audited, not reversible); server refuses
+  to start until `pnpm db:migrate --apply`. Local dev DB dry-run: nothing to retire.
+- Verified: see this session's checks (unit, check, integrations-local on a real replica set, and
+  browser settings/password/recaptcha/signup specs).
+- Remaining: the owner must create a **checkbox-type** Fraud Defense key (the earlier score key
+  will not render a checkbox) and a restricted API key, then enable reCAPTCHA in Settings ›
+  Integrations and complete one real challenge in staging. Not pushed or merged.
+
 ## 2026-11-22 (permission delegation, unified administrators and environment discoverability)
 
 - Owner approved assigning every catalog permission to any editable role, retaining alumni and

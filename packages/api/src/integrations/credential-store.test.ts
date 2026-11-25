@@ -100,7 +100,8 @@ describe("Credential Store", () => {
     it("removes all integration credential fields", () => {
       const env: IntegrationEnv = {
         recaptchaSiteKey: "site",
-        recaptchaSecretKey: "secret",
+        recaptchaProjectId: "project",
+        recaptchaApiKey: "secret",
         googleClientId: "id",
         googleClientSecret: "secret",
         googleServiceAccountJson: '{"key": "value"}',
@@ -125,6 +126,8 @@ describe("Credential Store", () => {
 
       // Check that credential fields are removed
       assert(!("recaptchaSiteKey" in result));
+      assert(!("recaptchaProjectId" in result));
+      assert(!("recaptchaApiKey" in result));
       assert(!("googleClientSecret" in result));
       assert(!("gmailAppPassword" in result));
       assert(!("imgbbApiKey" in result));
@@ -218,7 +221,11 @@ describe("Credential Store", () => {
 describe("resolveIntegrationEnv with stored credentials", () => {
   const keyHex = "3a".repeat(32);
   const key = Buffer.from(keyHex, "hex");
-  const recaptcha = { siteKey: "stored-site-key-0001", secretKey: "stored-recaptcha-secret-9876" };
+  const recaptcha = {
+    siteKey: "stored-site-key-0001",
+    projectId: "stored-project-1",
+    apiKey: "stored-recaptcha-api-key-9876",
+  };
   const driveJson = JSON.stringify({
     client_email: "drive@example.iam.gserviceaccount.com",
     // Assembled at runtime so the repository secret scanner does not flag this fake key.
@@ -228,7 +235,7 @@ describe("resolveIntegrationEnv with stored credentials", () => {
   const base: IntegrationEnv = {
     integrationEncryptionKey: keyHex,
     recaptchaSiteKey: "env-site-key",
-    recaptchaSecretKey: "env-recaptcha-secret",
+    recaptchaApiKey: "env-recaptcha-api-key",
     googleClientId: "env-client-id",
     smtpUrl: "https://env-gateway.example.test",
     uploadDir: "/uploads",
@@ -304,7 +311,8 @@ describe("resolveIntegrationEnv with stored credentials", () => {
     const f = await storedFixture();
     const env = await resolveIntegrationEnv(f.db, { ...base }, { production: false });
     assert.equal(env.recaptchaSiteKey, recaptcha.siteKey);
-    assert.equal(env.recaptchaSecretKey, recaptcha.secretKey);
+    assert.equal(env.recaptchaProjectId, recaptcha.projectId);
+    assert.equal(env.recaptchaApiKey, recaptcha.apiKey);
     assert.equal(env.googleClientId, "env-client-id");
     assert.equal(env.uploadDir, "/uploads");
   });
@@ -312,7 +320,7 @@ describe("resolveIntegrationEnv with stored credentials", () => {
   it("ignores env credentials in production but applies stored values", async () => {
     const f = await storedFixture();
     const env = await resolveIntegrationEnv(f.db, { ...base }, { production: true });
-    assert.equal(env.recaptchaSecretKey, recaptcha.secretKey);
+    assert.equal(env.recaptchaApiKey, recaptcha.apiKey);
     assert.equal(env.googleClientId, undefined);
     assert.equal(env.smtpUrl, undefined);
     assert.equal(env.uploadDir, "/uploads");
@@ -325,7 +333,7 @@ describe("resolveIntegrationEnv with stored credentials", () => {
       { ...base, integrationEncryptionKey: "4b".repeat(32) },
       { production: true },
     );
-    assert.equal(env.recaptchaSecretKey, undefined);
+    assert.equal(env.recaptchaApiKey, undefined);
     const row = f.tables.IntegrationSetting!.find((item) => item.key === "recaptcha")!;
     assert.equal(
       (await readStoredCredentials(row, Buffer.from("4b".repeat(32), "hex"))).status,
@@ -350,15 +358,16 @@ describe("resolveIntegrationEnv with stored credentials", () => {
     assert.equal(row.keyFingerprint, undefined);
     invalidateIntegrationEnvCache();
     const env = await resolveIntegrationEnv(f.db, { ...base }, { production: true });
-    assert.equal(env.recaptchaSecretKey, undefined);
+    assert.equal(env.recaptchaApiKey, undefined);
   });
 
   it("stores no plaintext secret and no key material in any document", async () => {
     const f = await storedFixture();
     const stored = JSON.stringify(f.tables);
     for (const secret of [
-      recaptcha.secretKey,
+      recaptcha.apiKey,
       recaptcha.siteKey,
+      recaptcha.projectId,
       "drive-folder-1",
       "BEGIN PRIVATE KEY",
     ])
@@ -371,7 +380,7 @@ describe("resolveIntegrationEnv with stored credentials", () => {
     const f = await storedFixture();
     const rows = f.tables.IntegrationSetting!;
     const recaptchaRow = rows.find((item) => item.key === "recaptcha")!;
-    assert.deepEqual(recaptchaRow.credentialHints, { secretKey: "9876" });
+    assert.deepEqual(recaptchaRow.credentialHints, { siteKey: "0001", apiKey: "9876" });
     const driveRow = rows.find((item) => item.key === "google_drive")!;
     assert.deepEqual(driveRow.credentialHints, { serviceAccountJson: "wxyz" });
     await storeCredentials(f.db, {

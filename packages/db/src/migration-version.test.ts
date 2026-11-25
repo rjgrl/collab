@@ -13,6 +13,8 @@ const reviewedPipelineHashes: Record<number, string> = {
   2: "f8c691cc14806b91a68d05f6b7885790b08480d0cf2944eead0906032f543cd7",
   // 3: Additive timestamp-ordering metadata and TTL only for ephemeral edit contexts.
   3: "e86a14be23cdbe243c9c4dd73981548bf1c794838f411e7db6bc80c20464f049",
+  // 4: reCAPTCHA rows holding classic v2 keys are disabled and erased (retire-recaptcha-v2.ts).
+  4: "bbe198f2eda6cc5d05a8f04f2601b6ec756f9d09749d98a1772db98255fd5179",
 };
 
 it("requires a schema-version bump whenever the migration pipeline changes", async () => {

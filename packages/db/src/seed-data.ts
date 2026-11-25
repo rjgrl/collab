@@ -152,13 +152,16 @@ async function seedDemo(db: Database, password: string) {
       async () => (await db.Program.create({ departmentId, code, name })).toObject(),
     );
   const cot = await college("College of Technologies");
-  const coe = await college("College of Education");
   const it = await department(cot._id, "Information Technology");
   const auto = await department(cot._id, "Automotive Technology");
-  const secEd = await department(coe._id, "Secondary Education");
+  const emc = await department(cot._id, "Entertainment and Multimedia Computing");
   const bsit = await program(it._id, "BSIT", "Bachelor of Science in Information Technology");
   const bsat = await program(auto._id, "BSAT", "Bachelor of Science in Automotive Technology");
-  const bsed = await program(secEd._id, "BSED", "Bachelor of Secondary Education");
+  const bsemc = await program(
+    emc._id,
+    "BSEMC",
+    "Bachelor of Science in Entertainment and Multimedia Computing",
+  );
   const samples = [
     {
       studentNumber: "2020-0001",
@@ -193,9 +196,9 @@ async function seedDemo(db: Database, password: string) {
       personalEmail: "graduate.three@collab.test",
       employmentStatus: "employed",
       isTracked: true,
-      programId: bsed._id,
-      employer: "Synthetic Test School",
-      jobTitle: "Teacher I",
+      programId: bsemc._id,
+      employer: "Synthetic Test Studio",
+      jobTitle: "Multimedia Artist",
     },
     {
       studentNumber: "2021-0210",
@@ -257,11 +260,11 @@ async function seedDemo(db: Database, password: string) {
       assign: "2020-0001",
     },
     {
-      email: "faculty.education@collab.test",
+      email: "faculty.emc@collab.test",
       first: "Synthetic",
-      last: "Education Faculty",
+      last: "EMC Faculty",
       roleLevel: "faculty",
-      departmentId: secEd._id,
+      departmentId: emc._id,
       assign: "2019-0144",
     },
   ] as const;
@@ -438,15 +441,15 @@ export async function seedIntegrationCredentials(db: Database) {
 }
 
 export const DEMO_ACCOUNTS = [
-  { email: "college.head@collab.test", role: "College head (College of Technologies)" },
-  { email: "department.head@collab.test", role: "Department head (Information Technology)" },
+  { email: "college.head@collab.test", role: "College Dean (College of Technologies)" },
+  { email: "department.head@collab.test", role: "Department Head (Information Technology)" },
   { email: "faculty.it@collab.test", role: "Faculty, IT (assigned Graduate One)" },
   {
-    email: "faculty.education@collab.test",
-    role: "Faculty, Secondary Education (assigned Graduate Three)",
+    email: "faculty.emc@collab.test",
+    role: "Faculty, Entertainment and Multimedia Computing (assigned Graduate Three)",
   },
   { email: "graduate.one@collab.test", role: "Alumni, BSIT" },
   { email: "graduate.two@collab.test", role: "Alumni, BSIT" },
-  { email: "graduate.three@collab.test", role: "Alumni, BSED" },
+  { email: "graduate.three@collab.test", role: "Alumni, BSEMC" },
   { email: "graduate.four@collab.test", role: "Alumni, BSAT" },
 ] as const;
