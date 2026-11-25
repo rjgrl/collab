@@ -128,3 +128,22 @@ it("rejects oversized exports instead of silently returning partial data", async
   );
   assert.equal(calls.limit, 10001);
 });
+it("filters alumni by assigned faculty while keeping the scope filter", async () => {
+  let filter: { $and: Record<string, unknown>[] } | undefined;
+  const db = {
+    Department: { find: () => query([]) },
+    Program: { find: () => query([]) },
+    Alumni: {
+      find: (value: typeof filter) => {
+        filter = value;
+        return query([]);
+      },
+    },
+    User: { find: () => query([]) },
+    AlumniContact: { find: () => query([]) },
+  };
+  await alumniService.list(context(db), { assignedFacultyId: d1 });
+  assert.equal(filter?.$and.length, 2);
+  assert.equal(filter?.$and[0]?.assignedFacultyId, d1);
+  await assert.rejects(() => alumniService.list(context(db), { assignedFacultyId: "nope" }));
+});

@@ -373,3 +373,37 @@ Append-only. Format: date, decision, why, alternatives rejected.
   become effective and require an operator review before rollout.
 - Optional environment limits remain default-backed. Setup may append commented references,
   and doctor reports effective non-secret values; neither mechanism changes active budgets.
+
+## 2026-11-23: reCAPTCHA moves to Google Cloud Fraud Defense (checkbox)
+
+- Decision: sign-in and sign-up verify a Fraud Defense (reCAPTCHA Enterprise) **checkbox** token
+  with `projects.assessments.create`; accept only a valid token whose action matches the form
+  (`LOGIN`/`SIGNUP`). Google errors fail closed. Classic v2 `api.js`/`siteverify` are removed.
+- Why: the owner created a Fraud Defense key, and Google directs new integrations to assessments.
+  The owner chose a visible checkbox over invisible score-based checks.
+- Credentials: site key (write-only in the admin UI), project ID, and an API key restricted to the
+  reCAPTCHA Enterprise API, sent in `x-goog-api-key` rather than the URL so it stays out of logs.
+- Upgrade: schema 4 disables and erases stored v2 pairs (with an audit entry) and the server refuses
+  to start until it has run. Otherwise an enabled v2 pair would reject every sign-in, Super Admins
+  included.
+- Rejected: keeping v2 and Enterprise side by side (two verification paths to secure and test);
+  silently skipping the check for old keys (lets bots in unnoticed); score-based invisible checks
+  (owner preferred a visible checkbox).
+- Integration secret inputs everywhere use the masked Show/Hide control with
+  `autocomplete="new-password"`, so browsers do not autofill a login password into a key field.
+
+## 2026-11-25: Academic reads follow faculty assignment; head labels renamed
+
+- Decision (owner): what an account sees is decided by its faculty assignment; what it may do is
+  decided by its role's permissions. The colleges, departments and programs read endpoints (list
+  and get) therefore narrow every non-Super-Admin account: a College Dean to their college, a
+  Department Head or Faculty member to their department, and an account without an active, placed
+  faculty record (including Alumni and delegated accounts given `departments.read` or
+  `programs.read`) to nothing. Out-of-scope ids return the same error as missing ones.
+- This supersedes the 2026-11-22 behavior where a delegated read permission exposed the whole
+  academic catalog. Alumni and faculty record scope (`alumniScope`) is unchanged.
+- Labels: "College head" is now **College Dean** and "Department head" is **Department Head**.
+  Only display labels changed; the stored `roleLevel` values (`college`, `department`) did not, so
+  no migration is needed.
+- Why: the system serves one college (College of Technologies), so a College Dean already
+  oversees every department and faculty member; everyone else sees only their own department.

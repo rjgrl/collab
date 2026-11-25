@@ -246,6 +246,8 @@ export const alumniService = {
       programId: { $in: programs.map((r) => r._id) },
       ...(p.graduationYear ? { graduationYear: p.graduationYear } : {}),
       ...(p.tracked && p.tracked !== "all" ? { isTracked: p.tracked === "tracked" } : {}),
+      // Before `assignment` so "mine" still narrows; alumniScopeFilter below bounds it either way.
+      ...(p.assignedFacultyId ? { assignedFacultyId: p.assignedFacultyId } : {}),
       ...(p.assignment === "mine"
         ? signedIn.faculty
           ? { assignedFacultyId: signedIn.faculty.id }

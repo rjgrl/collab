@@ -7,9 +7,9 @@ import {
   FACULTY_LEVELS,
   type FacultyLevel,
 } from "@Alumni-Tracking-Ss/contracts/faculty";
-import { isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
+import { formatDisplayName, isAdministrator } from "@Alumni-Tracking-Ss/contracts/names";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -25,8 +25,9 @@ import { FilterBar } from "@/components/data/filter-bar";
 import { FormField, PrimaryButton } from "@/components/forms/form-layout";
 import { PageHeader, PageShell } from "@/components/layout/page";
 import { ErrorAlert } from "@/components/feedback/error-alert";
+import { StatusBadge } from "@/components/data/status-badge";
 import { useDepartmentOptions } from "@/lib/academic-options";
-import { managesFaculty, useSession } from "@/lib/session";
+import { can, managesFaculty, useSession } from "@/lib/session";
 import { client, api, queryClient } from "@/lib/api";
 import { useConfirm } from "@/components/feedback/confirm-provider";
 
@@ -54,6 +55,7 @@ function FacultyPage() {
   const [pageSize, setPageSize] = useState<PageSize>(10);
   const [status, setStatus] = useState<"" | "true" | "false">("true");
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [viewing, setViewing] = useState<Viewing | null>(null);
   const departments = useDepartmentOptions();
   const list = useQuery(
     api.faculty.list.queryOptions({
@@ -61,6 +63,16 @@ function FacultyPage() {
     }),
   );
   const canManage = managesFaculty(user);
+  const canReadAlumni = can(user?.permissions, "alumni.read");
+  // shortcut: totals cover the faculty on this page only; add a server aggregate if a
+  // university-wide figure is needed.
+  const pageTotals = (list.data ?? []).reduce(
+    (sum, row) => ({
+      assigned: sum.assigned + row.assignedCount,
+      tracked: sum.tracked + row.trackedCount,
+    }),
+    { assigned: 0, tracked: 0 },
+  );
   const admin = user ? isAdministrator(user) : false;
 
   // The server enforces the same limits; these only keep impossible choices out of the form.
@@ -231,12 +243,22 @@ function FacultyPage() {
           </form>
         </FormDialog>
       ) : null}
+      {viewing ? <AssignedAlumniDialog viewing={viewing} onClose={() => setViewing(null)} /> : null}
       {list.isError ? (
         <ErrorAlert onRetry={() => void list.refetch()}>{list.error.message}</ErrorAlert>
       ) : null}
       <DataTable
         label="Faculty Members"
-        headers={["Name", "Department", "Role Level", "Assigned", "Status", "Actions"]}
+        headers={[
+          "Name",
+          "Department",
+          "Role Level",
+          "Assigned",
+          `Tracked ${percent(pageTotals.tracked, pageTotals.assigned)}%`,
+          `Untracked ${percent(pageTotals.assigned - pageTotals.tracked, pageTotals.assigned)}%`,
+          "Status",
+          "Actions",
+        ]}
         search={search}
         onSearch={(value) => {
           setSearch(value);
@@ -286,6 +308,28 @@ function FacultyPage() {
               <TableCell>{row.department?.name ?? "Unplaced"}</TableCell>
               <TableCell>{FACULTY_LEVEL_LABELS[row.roleLevel]}</TableCell>
               <TableCell className="text-right tabular-nums">{row.assignedCount}</TableCell>
+              <TableCell>
+                {canReadAlumni ? (
+                  <QuietButton
+                    aria-label={`View alumni assigned to ${row.firstName} ${row.lastName}`}
+                    disabled={row.assignedCount === 0}
+                    onClick={() => setViewing({ ...row, untrackedOnly: false })}
+                  >
+                    View Alumni
+                  </QuietButton>
+                ) : null}
+              </TableCell>
+              <TableCell>
+                {canReadAlumni ? (
+                  <QuietButton
+                    aria-label={`View untracked alumni assigned to ${row.firstName} ${row.lastName}`}
+                    disabled={row.assignedCount === row.trackedCount}
+                    onClick={() => setViewing({ ...row, untrackedOnly: true })}
+                  >
+                    View Untracked
+                  </QuietButton>
+                ) : null}
+              </TableCell>
               <TableCell>{row.active ? "Active" : "Inactive"}</TableCell>
               <TableCell>
                 <RowActions>
@@ -344,5 +388,115 @@ function FacultyPage() {
         pending={list.isFetching}
       />
     </PageShell>
+  );
+}
+
+type Viewing = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  assignedCount: number;
+  trackedCount: number;
+  untrackedOnly: boolean;
+};
+
+const percent = (count: number, total: number) => (total ? Math.round((count / total) * 100) : 0);
+
+function AssignedAlumniDialog({ viewing, onClose }: { viewing: Viewing; onClose: () => void }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(10);
+  const alumni = useQuery(
+    api.alumni.list.queryOptions({
+      input: {
+        assignedFacultyId: viewing.id,
+        tracked: viewing.untrackedOnly ? "untracked" : undefined,
+        page,
+        pageSize,
+      },
+    }),
+  );
+  const name = `${viewing.firstName} ${viewing.lastName}`;
+  const untracked = viewing.assignedCount - viewing.trackedCount;
+  return (
+    <FormDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={`${viewing.untrackedOnly ? "Untracked Alumni" : "Alumni"} Assigned to ${name}`}
+      footer={
+        <dl
+          aria-label="Assignment Summary"
+          className="mr-auto flex flex-wrap gap-x-6 gap-y-1 text-sm tabular-nums"
+        >
+          <div className="flex gap-1.5">
+            <dt className="text-muted-foreground">Assigned</dt>
+            <dd className="font-medium">{viewing.assignedCount}</dd>
+          </div>
+          <div className="flex gap-1.5">
+            <dt className="text-muted-foreground">Tracked</dt>
+            <dd className="font-medium">
+              {viewing.trackedCount} ({percent(viewing.trackedCount, viewing.assignedCount)}%)
+            </dd>
+          </div>
+          <div className="flex gap-1.5">
+            <dt className="text-muted-foreground">Untracked</dt>
+            <dd className="font-medium">
+              {untracked} ({percent(untracked, viewing.assignedCount)}%)
+            </dd>
+          </div>
+        </dl>
+      }
+    >
+      <div className="grid gap-4">
+        {alumni.isError ? (
+          <ErrorAlert onRetry={() => void alumni.refetch()}>{alumni.error.message}</ErrorAlert>
+        ) : null}
+        <DataTable
+          label={viewing.untrackedOnly ? "Untracked Assigned Alumni" : "Assigned Alumni"}
+          headers={["Name", "Student Number", "Program", "Graduation Year", "Status", "Actions"]}
+          loading={alumni.isPending}
+          isEmpty={alumni.data?.length === 0}
+          emptyTitle={viewing.untrackedOnly ? "No Untracked Alumni" : "No Assigned Alumni"}
+          emptyDescription={
+            viewing.untrackedOnly
+              ? "Every alumnus assigned to this faculty member is tracked."
+              : "No alumni are assigned to this faculty member."
+          }
+        >
+          {alumni.data?.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell className="font-medium">{formatDisplayName(row)}</TableCell>
+              <TableCell>{row.studentNumber}</TableCell>
+              <TableCell>{row.program.name}</TableCell>
+              <TableCell className="tabular-nums">{row.graduationYear ?? "—"}</TableCell>
+              <TableCell>
+                <StatusBadge tone={row.isTracked ? "tracked" : "untracked"} />
+              </TableCell>
+              <TableCell>
+                <QuietButton
+                  nativeButton={false}
+                  render={<Link to="/alumni/$id" params={{ id: row.id }} />}
+                >
+                  View Profile
+                </QuietButton>
+              </TableCell>
+            </TableRow>
+          ))}
+        </DataTable>
+        <TablePagination
+          label="Assigned Alumni Pagination"
+          page={page}
+          onPage={setPage}
+          hasNext={alumni.data?.length === pageSize}
+          pageSize={pageSize}
+          onPageSize={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          pending={alumni.isFetching}
+        />
+      </div>
+    </FormDialog>
   );
 }

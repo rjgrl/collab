@@ -44,6 +44,11 @@ async function present(db: Database, row: FacultyRecord) {
     roleLevel: f.roleLevel ?? "faculty",
     active: f.active ?? false,
     assignedCount: await db.Alumni.countDocuments({ assignedFacultyId: f.id, deletedAt: null }),
+    trackedCount: await db.Alumni.countDocuments({
+      assignedFacultyId: f.id,
+      deletedAt: null,
+      isTracked: true,
+    }),
   };
 }
 

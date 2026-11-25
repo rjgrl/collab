@@ -91,15 +91,15 @@ Open **http://localhost:3001**. The API runs on **http://localhost:3000**. Keep 
 5. Initializes a new, randomly named database for this checkout, adds missing Mongoose collections/indexes without removing records or indexes, then seeds permissions, roles and the local administrator. An existing populated database is verified without schema/seed writes; updates require explicit `--update-existing` after review and backup.
 6. Checks the administrator account and performs a real MongoDB transaction/rollback probe, so replication failures are caught before you start the app.
 
-**Demo data is on by default for local setup.** `pnpm setup:local` adds two colleges (College of Technologies with Information Technology and Automotive Technology; College of Education with Secondary Education), one program each, four synthetic alumni, and demo logins for every role. It does this on new databases and, as additive `@collab.test`-only upserts, on existing ones. Every demo login uses the administrator's initial password and is listed in `.tools/local-login.txt`:
+**Demo data is on by default for local setup.** `pnpm setup:local` adds the College of Technologies with three departments (Information Technology, Automotive Technology, and Entertainment and Multimedia Computing), one program each, four synthetic alumni, and demo logins for every role. It does this on new databases and, as additive `@collab.test`-only upserts, on existing ones. Every demo login uses the administrator's initial password and is listed in `.tools/local-login.txt`:
 
-| Email                                                     | Signs in as                                            |
-| --------------------------------------------------------- | ------------------------------------------------------ |
-| `college.head@collab.test`                                | College head, College of Technologies                  |
-| `department.head@collab.test`                             | Department head, Information Technology                |
-| `faculty.it@collab.test`                                  | Faculty (IT), assigned Graduate One                    |
-| `faculty.education@collab.test`                           | Faculty (Secondary Education), assigned Graduate Three |
-| `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles               |
+| Email                                                     | Signs in as                                                               |
+| --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `college.head@collab.test`                                | College Dean, College of Technologies                                     |
+| `department.head@collab.test`                             | Department Head, Information Technology                                   |
+| `faculty.it@collab.test`                                  | Faculty (IT), assigned Graduate One                                       |
+| `faculty.emc@collab.test`                                 | Faculty (Entertainment and Multimedia Computing), assigned Graduate Three |
+| `graduate.one@collab.test` to `graduate.four@collab.test` | Alumni, linked to the four demo profiles                                  |
 
 Use `pnpm setup:local --no-demo` to skip demo data. `pnpm setup:local` sets `STAFF_EMAIL_DOMAINS=buksu.edu.ph,student.buksu.edu.ph,collab.test` when it is missing, so generated `collab.test` accounts can still sign in locally. Public sign-up independently accepts only `buksu.edu.ph` and `student.buksu.edu.ph`, never `collab.test`. An existing value is never overwritten; if you set it yourself, include `collab.test` or every demo login is refused. Hosted deployments get demo data only from `pnpm deploy:init --demo`, which is refused when `NODE_ENV=production`.
 

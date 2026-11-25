@@ -47,7 +47,7 @@ try {
     (await db.Alumni.findOne({ studentNumber }).orFail().lean())._id.toString();
   const g1 = await alumni("2020-0001"); // IT, assigned to faculty.it
   const g2 = await alumni("2020-0002"); // IT, unassigned
-  const g3 = await alumni("2019-0144"); // Education
+  const g3 = await alumni("2019-0144"); // EMC
   const tracker = as("faculty.it");
 
   // Validation per type.
@@ -179,7 +179,7 @@ try {
   assert.ok(entries.some((e) => e.action === "contacts.update"));
   assert.equal((await tracker.get(`/api/alumni/${g1}/history`)).status, 403, "faculty-level");
   assert.equal(
-    (await as("college.head").get(`/api/alumni/${g3}/history`)).status,
+    (await as("department.head").get(`/api/alumni/${g3}/history`)).status,
     404,
     "out of scope",
   );

@@ -149,7 +149,7 @@ export async function requireManager(context: Context) {
   const manager = await managerScope(context);
   if (!manager)
     throw new ApiError("FORBIDDEN", {
-      message: "Only administrators and college or department heads can manage faculty.",
+      message: "Only administrators, College Deans and Department Heads can manage faculty.",
     });
   return manager;
 }
@@ -174,6 +174,6 @@ export async function assignmentScope(context: Context): Promise<string[] | null
   if (scope.kind === "all") return null;
   if (scope.kind === "college" || scope.kind === "department") return scope.departmentIds;
   throw new ApiError("FORBIDDEN", {
-    message: "Only administrators and college or department heads can assign faculty.",
+    message: "Only administrators, College Deans and Department Heads can assign faculty.",
   });
 }

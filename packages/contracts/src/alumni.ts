@@ -78,6 +78,7 @@ export const alumniListInputSchema = paginationSchema
     tracked: z.enum(["all", "tracked", "untracked"]).optional(),
     graduationYear: z.coerce.number().int().min(1950).max(2100).optional(),
     assignment: z.enum(["all", "mine", "unassigned", "needs_reassignment"]).optional(),
+    assignedFacultyId: objectIdSchema.optional(),
   })
   .strict()
   .optional();
