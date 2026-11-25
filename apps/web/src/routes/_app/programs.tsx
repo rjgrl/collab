@@ -29,7 +29,6 @@ export const Route = createFileRoute("/_app/programs")({
 
 type Draft = {
   id?: string;
-  code: string;
   name: string;
   description: string;
   departmentId: string;
@@ -82,7 +81,6 @@ function ProgramsPage() {
             <PrimaryButton
               onClick={() =>
                 setDraft({
-                  code: "",
                   name: "",
                   description: "",
                   departmentId: departments.data?.[0]?.id ?? "",
@@ -135,18 +133,6 @@ function ProgramsPage() {
                   })) ?? []),
                 ]}
               />
-            </FormField>
-            <FormField id="code" label="Code">
-              <Input
-                id="code"
-                value={draft.code}
-                onChange={(event) => setDraft({ ...draft, code: event.target.value })}
-                placeholder={draft.id ? "Leave blank to keep the current code" : "e.g. BSIT"}
-                aria-describedby="code-hint"
-              />
-              <p id="code-hint" className="text-xs text-muted-foreground">
-                Optional. Left blank, a code is made from the name (e.g. BSIT).
-              </p>
             </FormField>
             <FormField id="name" label="Name" required>
               <Input
@@ -203,7 +189,6 @@ function ProgramsPage() {
                     onClick={() =>
                       setDraft({
                         id: row.id,
-                        code: row.code,
                         name: row.name,
                         description: row.description,
                         departmentId: row.departmentId,

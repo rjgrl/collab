@@ -199,7 +199,7 @@ test("creation dialogs contain forms, trap focus and return focus to the add but
   for (const [path, title, field] of [
     ["/settings/users", "Add User", "First Name"],
     ["/departments", "Add Department", "Name"],
-    ["/programs", "Add Program", "Code"],
+    ["/programs", "Add Program", "Name"],
   ] as const) {
     await page.goto(path);
     const add = page.getByRole("button", { name: title, exact: true });
