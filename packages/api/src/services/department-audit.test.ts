@@ -35,20 +35,21 @@ function fixture() {
   return { ...f, context };
 }
 
-it("creates departments without codes and keeps program codes required", async () => {
+it("creates departments without codes and accepts programs without codes", async () => {
   const f = fixture();
   assert.equal(departmentInputSchema.safeParse({ name: "Science", code: "" }).success, false);
   const first = await departmentsService.create(f.context, { collegeId, name: "Science" });
   const second = await departmentsService.create(f.context, { collegeId, name: "Arts" });
   assert.equal(Object.hasOwn(first, "code"), false);
   assert.equal(Object.hasOwn(second, "code"), false);
+  // Program codes are optional; programs.create generates one from the name (program-code.test.ts).
   assert.equal(
     programInputSchema.safeParse({ name: "Degree", departmentId: actorId }).success,
-    false,
+    true,
   );
   assert.equal(
     programInputSchema.safeParse({ name: "Degree", departmentId: actorId, code: "" }).success,
-    false,
+    true,
   );
 });
 

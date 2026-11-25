@@ -2,6 +2,17 @@
 
 Newest first. One entry per session: date, what changed, what was verified, what remains.
 
+## 2026-11-25 (Program code no longer required)
+
+- Programs: the Add/Edit form has no Code field (owner: avoid confusion); the table still shows
+  each program's code. The API still accepts an optional code. On create, a blank code is generated from
+  the name ("Bachelor of Science in Information Technology" → BSIT; `-2`, `-3` if taken in that
+  department). On edit, a blank code keeps the current one. No migration: the unique
+  (department, code) index and code-based imports/reports are unchanged.
+- Verified: `pnpm test` (489; new `program-code.test.ts`, updated `department-audit.test.ts`),
+  `pnpm check`, browser "creation dialogs" spec (now focuses Name).
+- PR #18 was squash-merged before the first program-code commit; it ships in a follow-up PR.
+
 ## 2026-11-25 (Demo seed: EMC replaces Secondary Education)
 
 - Demo seed drops College of Education/Secondary Education/BSED. The College of Technologies now

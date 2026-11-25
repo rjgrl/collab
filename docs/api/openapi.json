@@ -14814,7 +14814,6 @@
                 },
                 "required": [
                   "name",
-                  "code",
                   "departmentId"
                 ],
                 "additionalProperties": false
@@ -15279,7 +15278,6 @@
                 },
                 "required": [
                   "name",
-                  "code",
                   "departmentId"
                 ],
                 "additionalProperties": false

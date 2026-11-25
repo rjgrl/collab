@@ -29,7 +29,6 @@ export const Route = createFileRoute("/_app/programs")({
 
 type Draft = {
   id?: string;
-  code: string;
   name: string;
   description: string;
   departmentId: string;
@@ -82,7 +81,6 @@ function ProgramsPage() {
             <PrimaryButton
               onClick={() =>
                 setDraft({
-                  code: "",
                   name: "",
                   description: "",
                   departmentId: departments.data?.[0]?.id ?? "",
@@ -134,14 +132,6 @@ function ProgramsPage() {
                     label: department.name,
                   })) ?? []),
                 ]}
-              />
-            </FormField>
-            <FormField id="code" label="Code" required>
-              <Input
-                id="code"
-                value={draft.code}
-                onChange={(event) => setDraft({ ...draft, code: event.target.value })}
-                required
               />
             </FormField>
             <FormField id="name" label="Name" required>
@@ -199,7 +189,6 @@ function ProgramsPage() {
                     onClick={() =>
                       setDraft({
                         id: row.id,
-                        code: row.code,
                         name: row.name,
                         description: row.description,
                         departmentId: row.departmentId,
