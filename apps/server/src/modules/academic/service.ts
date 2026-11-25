@@ -91,6 +91,29 @@ async function uniqueProgram(db: Database, code: string, departmentId: string, i
   if (await db.Program.exists({ code, departmentId, ...(id ? { _id: { $ne: id } } : {}) }))
     throw new ApiError("CONFLICT", { message: "Program code already exists in this department." });
 }
+const CODE_STOP_WORDS = new Set(["a", "an", "and", "at", "for", "in", "of", "on", "the", "to"]);
+/** "Bachelor of Science in Information Technology" → "BSIT"; a single word is kept whole. */
+export function programCodeFromName(name: string) {
+  const words = name
+    .normalize("NFKD")
+    .replace(/[^A-Za-z0-9\s-]/g, "")
+    .split(/[\s-]+/)
+    .filter(Boolean);
+  const kept = words.filter((word) => !CODE_STOP_WORDS.has(word.toLowerCase()));
+  const parts = kept.length ? kept : words;
+  const code =
+    parts.length === 1 ? parts[0]! : parts.map((w) => (/^\d+$/.test(w) ? w : w[0])).join("");
+  // 28 leaves room for a "-NN" suffix within the 32-character limit.
+  return code.toUpperCase().slice(0, 28) || "PROGRAM";
+}
+async function generatedProgramCode(db: Database, name: string, departmentId: string) {
+  const base = programCodeFromName(name);
+  for (let n = 1; n <= 99; n++) {
+    const code = n === 1 ? base : `${base}-${n}`;
+    if (!(await db.Program.exists({ code, departmentId }))) return code;
+  }
+  throw new ApiError("CONFLICT", { message: "Enter a program code; none could be generated." });
+}
 export const collegesService = {
   async list(context: Context, input?: z.input<typeof collegesSchemas.list.input>) {
     management(context, "departments.read");
@@ -387,8 +410,9 @@ export const programsService = {
     return context.db.transaction(async (tx) => {
       await academicWriteScope({ ...context, db: tx }, { departmentId: data.departmentId });
       const department = await activeDepartment(tx, data.departmentId);
-      await uniqueProgram(tx, data.code, data.departmentId);
-      const p = toEntity((await tx.Program.create(data)).toObject());
+      const code = data.code ?? (await generatedProgramCode(tx, data.name, data.departmentId));
+      await uniqueProgram(tx, code, data.departmentId);
+      const p = toEntity((await tx.Program.create({ ...data, code })).toObject());
       await audit(
         tx,
         context,
@@ -411,7 +435,9 @@ export const programsService = {
       );
       await academicWriteScope({ ...context, db: tx }, { departmentId: data.departmentId });
       const department = await activeDepartment(tx, data.departmentId);
-      await uniqueProgram(tx, data.code, data.departmentId, id);
+      // A blank code on edit keeps the current one.
+      if (data.code === undefined) delete data.code;
+      await uniqueProgram(tx, data.code ?? before.code, data.departmentId, id);
       const row = await tx.Program.findOneAndUpdate(
         { _id: id, ...active },
         { $set: data },

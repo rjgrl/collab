@@ -26,7 +26,11 @@ export const departmentListInputSchema = paginationSchema
   .strict()
   .optional();
 export const programInputSchema = orgUnitInputSchema.extend({
-  code: codeSchema,
+  // Optional: a blank code is generated from the name on create and kept as-is on update.
+  code: z.preprocess(
+    (value) => (typeof value === "string" && !value.trim() ? undefined : value),
+    codeSchema.optional(),
+  ),
   departmentId: objectIdSchema,
 });
 export const programUpdateInputSchema = programInputSchema.extend({ id: objectIdSchema });
