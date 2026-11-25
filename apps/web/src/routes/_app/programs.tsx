@@ -136,13 +136,17 @@ function ProgramsPage() {
                 ]}
               />
             </FormField>
-            <FormField id="code" label="Code" required>
+            <FormField id="code" label="Code">
               <Input
                 id="code"
                 value={draft.code}
                 onChange={(event) => setDraft({ ...draft, code: event.target.value })}
-                required
+                placeholder={draft.id ? "Leave blank to keep the current code" : "e.g. BSIT"}
+                aria-describedby="code-hint"
               />
+              <p id="code-hint" className="text-xs text-muted-foreground">
+                Optional. Left blank, a code is made from the name (e.g. BSIT).
+              </p>
             </FormField>
             <FormField id="name" label="Name" required>
               <Input
