@@ -5,6 +5,7 @@ import type { IntegrationEnv } from "../context";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { googleAccessToken } from "./files";
+import { createAssessment, PROJECT_ID_PATTERN } from "./recaptcha";
 
 function privateIPv4(address: string) {
   const [a, b, c] = address.split(".").map(Number) as [number, number, number];
@@ -113,52 +114,49 @@ export async function testIntegrationConnection(
 
   switch (key) {
     case "recaptcha": {
-      const secret = values.secretKey?.trim();
-      // reCAPTCHA v2/v3 site keys are 40 characters beginning with "6L".
-      if (!/^6L[0-9A-Za-z_-]{38}$/.test(values.siteKey?.trim() ?? ""))
+      const siteKey = values.siteKey?.trim() ?? "";
+      const projectId = values.projectId?.trim() ?? "";
+      const apiKey = values.apiKey?.trim();
+      // reCAPTCHA site keys are 40 characters beginning with "6L".
+      if (!/^6L[0-9A-Za-z_-]{38}$/.test(siteKey))
         throw new ApiError("BAD_REQUEST", {
           message: "That does not look like a reCAPTCHA site key.",
         });
-      if (!secret)
+      if (!PROJECT_ID_PATTERN.test(projectId))
         throw new ApiError("BAD_REQUEST", {
-          message: "Secret key is required for testing.",
+          message: "That does not look like a Google Cloud project ID.",
+        });
+      if (!apiKey)
+        throw new ApiError("BAD_REQUEST", {
+          message: "API key is required for testing.",
         });
 
+      let response: Response;
       try {
-        const body = new URLSearchParams({
-          secret,
-          response: "connection-test",
-        });
-
-        const response = await fetcher("https://www.google.com/recaptcha/api/siteverify", {
-          method: "POST",
-          signal: timeout,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body,
-        });
-
-        if (!response.ok) {
-          throw new ApiError("BAD_REQUEST", {
-            message: "Google rejected the reCAPTCHA secret key.",
-          });
-        }
-
-        // Google's field is "error-codes" (hyphen). With a valid secret and a dummy token Google
-        // answers invalid-input-response; an unknown secret gives invalid-input-secret.
-        const payload = (await response.json()) as { success?: boolean; "error-codes"?: unknown };
-        const codes = Array.isArray(payload["error-codes"]) ? payload["error-codes"] : [];
-        if (
-          payload.success !== true &&
-          !(codes.includes("invalid-input-response") && !codes.includes("invalid-input-secret"))
-        ) {
-          throw new ApiError("BAD_REQUEST", {
-            message: "Google rejected the reCAPTCHA secret key.",
-          });
-        }
-      } catch (error) {
-        if (error instanceof ApiError) throw error;
+        response = await createAssessment(
+          { projectId, apiKey, siteKey, token: "connection-test" },
+          fetcher,
+        );
+      } catch {
         throw new ApiError("BAD_REQUEST", {
           message: "Could not reach the provider. Try again.",
+        });
+      }
+      // A recognised project and key answer 200 with an invalid-token verdict for the dummy
+      // token; a wrong key, wrong project or disabled API answers 400/403.
+      const payload = response.ok
+        ? ((await response.json().catch(() => null)) as {
+            tokenProperties?: { valid?: boolean; invalidReason?: string };
+          } | null)
+        : null;
+      if (
+        !payload?.tokenProperties ||
+        payload.tokenProperties.valid !== false ||
+        !payload.tokenProperties.invalidReason
+      ) {
+        throw new ApiError("BAD_REQUEST", {
+          message:
+            "Google rejected the project ID or API key. Check the project, that the reCAPTCHA Enterprise API is enabled, and the key's API restrictions.",
         });
       }
       break;

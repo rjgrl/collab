@@ -8,9 +8,10 @@ import {
   type OrgMigrationReport,
 } from "./org-migration";
 import { createIntegrationDefaults, type IntegrationDefaultsReport } from "./integration-defaults";
+import { retireRecaptchaV2, type RetiredRecaptchaReport } from "./retire-recaptcha-v2";
 
 /** Schema version; must be incremented whenever a migration step is added. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type MigrationMode = "dry-run" | "apply" | "rollback";
 export interface ExistingIndex {
@@ -45,6 +46,7 @@ export interface MigrationReport {
   orgStructure?: OrgMigrationReport;
   retiredRoles?: RetiredRolesReport;
   integrationDefaults?: IntegrationDefaultsReport;
+  retiredRecaptcha?: RetiredRecaptchaReport;
   rollback: string;
 }
 function stable(value: unknown): string {
@@ -226,7 +228,7 @@ export async function migrateDatabase(
     createdCollections: [],
     createdIndexes: [],
     rollback:
-      "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact. Removed roles (Staff, Admin) and the Viewer-to-Alumni rename are not reverted.",
+      "Pause writers and run --rollback. It first undoes the College/Department restructure (placeholder departments, program links, migrated faculty fields and imported contacts) and refuses if departments or faculty placements were added afterwards; then it restores the backed-up Department_code_key if all code values (including missing values) remain unique. Other additive collections and indexes remain intact. Removed roles (Staff, Admin) and the Viewer-to-Alumni rename are not reverted, and erased classic v2 reCAPTCHA keys cannot be restored.",
   };
   if (mode === "rollback") {
     report.integrationDefaults = await createIntegrationDefaults(db, "rollback");
@@ -247,6 +249,8 @@ export async function migrateDatabase(
   if (report.orgStructure.state === "conflict") report.conflicts.push(report.orgStructure.reason!);
   report.integrationDefaults = await createIntegrationDefaults(db, "dry-run");
   if (collections.includes("Role")) report.retiredRoles = await retireRoles(db, false);
+  if (collections.includes("IntegrationSetting"))
+    report.retiredRecaptcha = await retireRecaptchaV2(db, false);
   // Until the rename runs, the legacy top-level units still live in `Department`.
   const legacyName = (collection: string) =>
     report.orgStructure?.state === "pending" && !collections.includes("College")
@@ -332,5 +336,7 @@ export async function migrateDatabase(
   report.retiredRoles = await db.transaction((tx) => retireRoles(tx));
   // Add explicit defaults for any missing integration settings.
   report.integrationDefaults = await createIntegrationDefaults(db, "apply");
+  // Schema 4: disables reCAPTCHA if it still holds classic v2 keys (not reversible).
+  report.retiredRecaptcha = await retireRecaptchaV2(db);
   return report;
 }

@@ -107,7 +107,8 @@ export async function eraseCredentials(
 export function withoutIntegrationCredentials(env: IntegrationEnv): IntegrationEnv {
   const credentialFields = [
     "recaptchaSiteKey",
-    "recaptchaSecretKey",
+    "recaptchaProjectId",
+    "recaptchaApiKey",
     "googleClientId",
     "googleClientSecret",
     "googleServiceAccountJson",
@@ -167,7 +168,8 @@ export async function resolveIntegrationEnv(
       switch (integrationKey) {
         case "recaptcha":
           if (stored.values.siteKey) env.recaptchaSiteKey = stored.values.siteKey;
-          if (stored.values.secretKey) env.recaptchaSecretKey = stored.values.secretKey;
+          if (stored.values.projectId) env.recaptchaProjectId = stored.values.projectId;
+          if (stored.values.apiKey) env.recaptchaApiKey = stored.values.apiKey;
           break;
         case "google_auth":
           if (stored.values.clientId) env.googleClientId = stored.values.clientId;

@@ -4,7 +4,7 @@ import { createApp } from "./app";
 import { readIntegrationEnv } from "./context";
 import { ENV } from "./env.server";
 import { db, databaseUrl } from "./services";
-import { hasLegacyRoles } from "@Alumni-Tracking-Ss/db";
+import { hasLegacyRecaptchaKeys, hasLegacyRoles } from "@Alumni-Tracking-Ss/db";
 import { timestampOrderingReady } from "@Alumni-Tracking-Ss/db/timestamp-ordering";
 import { drainAndDisconnect } from "./shutdown";
 import { listenerOptions, validateRuntimeConfig } from "./runtime-config";
@@ -80,6 +80,14 @@ if (await hasLegacyRoles(db)) {
 if (!(await timestampOrderingReady(db))) {
   console.error(
     "Timestamp-ordering collections or indexes are missing (schema version 3). Back up, then run `pnpm db:migrate --dry-run` and `pnpm db:migrate --apply` before starting the server.",
+  );
+  process.exit(1);
+}
+// Schema version 4: classic v2 reCAPTCHA keys cannot verify Fraud Defense tokens; an enabled v2
+// row would reject every sign-in, Super Admins included.
+if (await hasLegacyRecaptchaKeys(db)) {
+  console.error(
+    "reCAPTCHA still holds classic v2 keys (schema version 4). Back up, then run `pnpm db:migrate --dry-run` and `pnpm db:migrate --apply`, and re-enable reCAPTCHA with Fraud Defense keys in Settings › Integrations.",
   );
   process.exit(1);
 }

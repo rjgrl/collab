@@ -111,7 +111,7 @@ export async function listIntegrations(
 export function isConfigured(key: IntegrationKey, env: IntegrationEnv) {
   switch (key) {
     case "recaptcha":
-      return Boolean(env.recaptchaSecretKey && env.recaptchaSiteKey);
+      return Boolean(env.recaptchaSiteKey && env.recaptchaProjectId && env.recaptchaApiKey);
     case "google_auth":
       return Boolean(env.googleClientId && env.googleClientSecret);
     case "google_drive":

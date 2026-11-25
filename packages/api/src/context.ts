@@ -4,8 +4,9 @@ import type { TransactionTimestamp } from "@Alumni-Tracking-Ss/db/timestamp-orde
 export type { AuthUser } from "@Alumni-Tracking-Ss/contracts/auth";
 
 export type IntegrationEnv = {
-  recaptchaSecretKey?: string;
   recaptchaSiteKey?: string;
+  recaptchaProjectId?: string;
+  recaptchaApiKey?: string;
   googleClientId?: string;
   googleClientSecret?: string;
   googleServiceAccountJson?: string;

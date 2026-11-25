@@ -135,12 +135,21 @@ test("settings and grouped controls pass automated accessibility and fit the vie
   await page.getByRole("button", { name: "Enable reCAPTCHA", exact: true }).click();
   const recaptchaDialog = page.getByRole("dialog", { name: "Enable reCAPTCHA", exact: true });
   await expect(recaptchaDialog).toBeVisible();
+  const siteKey = recaptchaDialog.getByRole("textbox", { name: "Site Key", exact: true });
+  await siteKey.fill("synthetic-site-key");
   await recaptchaDialog
-    .getByRole("textbox", { name: "Site Key", exact: true })
-    .fill("synthetic-site-key");
-  await recaptchaDialog
-    .getByRole("textbox", { name: "Secret Key", exact: true })
-    .fill("reject-this-secret-1234");
+    .getByRole("textbox", { name: "Google Cloud Project ID", exact: true })
+    .fill("synthetic-project");
+  // Keys stay masked when typed or pasted, with an explicit Show/Hide toggle.
+  const apiKey = recaptchaDialog.getByRole("textbox", { name: "API Key", exact: true });
+  await apiKey.fill("reject-this-secret-1234");
+  await expect(siteKey).toHaveAttribute("type", "password");
+  await expect(apiKey).toHaveAttribute("type", "password");
+  await expect(apiKey).toHaveAttribute("autocomplete", "new-password");
+  await recaptchaDialog.getByRole("button", { name: "Show API Key", exact: true }).click();
+  await expect(apiKey).toHaveAttribute("type", "text");
+  await recaptchaDialog.getByRole("button", { name: "Hide API Key", exact: true }).click();
+  await expect(apiKey).toHaveAttribute("type", "password");
   await recaptchaDialog.getByRole("button", { name: "Test and Enable", exact: true }).click();
   await expect(recaptchaDialog).toContainText("Synthetic provider rejected the credentials.");
   await recaptchaDialog.getByRole("button", { name: "Close dialog" }).click();

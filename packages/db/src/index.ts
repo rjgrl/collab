@@ -63,6 +63,7 @@ export type * from "./models";
 export { BACKUP_STATE_COLLECTION } from "./models";
 export { SCHEMA_VERSION } from "./migration";
 export { hasLegacyRoles } from "./retire-roles";
+export { hasLegacyRecaptchaKeys } from "./retire-recaptcha-v2";
 
 export {
   PERMISSIONS,

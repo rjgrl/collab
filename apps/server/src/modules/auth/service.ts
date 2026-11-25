@@ -8,8 +8,11 @@ import { ApiError } from "@Alumni-Tracking-Ss/api/http-error";
 import { requireAccess, requireUser } from "@Alumni-Tracking-Ss/api/access";
 import { writeAudit, describeAuditChanges } from "@Alumni-Tracking-Ss/api/audit";
 import { isDatabaseUnavailable } from "@Alumni-Tracking-Ss/api/errors";
-import { isIntegrationEnabled } from "@Alumni-Tracking-Ss/api/integrations/registry";
-import { verifyRecaptcha } from "@Alumni-Tracking-Ss/api/integrations/recaptcha";
+import { isConfigured, isIntegrationEnabled } from "@Alumni-Tracking-Ss/api/integrations/registry";
+import {
+  verifyRecaptcha,
+  type RecaptchaAction,
+} from "@Alumni-Tracking-Ss/api/integrations/recaptcha";
 import { authorizationTransaction } from "@Alumni-Tracking-Ss/api/services/authorization";
 import { updateAccountNames } from "@Alumni-Tracking-Ss/api/services/account-names";
 import { assertPasswordSafe } from "@Alumni-Tracking-Ss/api/services/password-security";
@@ -36,16 +39,19 @@ import {
   publicSignupEnabled,
 } from "@Alumni-Tracking-Ss/api/services/session";
 
-async function checkCaptcha(context: Context, input: AuthInput<"login">) {
-  if (await isIntegrationEnabled(context.db, "recaptcha")) {
-    if (
-      !(await verifyRecaptcha(context.integrationEnv, {
-        token: input.recaptchaToken,
-        fallback: input.recaptchaFallback,
-      }))
-    )
-      throw new ApiError("BAD_REQUEST", { message: "Complete the reCAPTCHA check." });
-  }
+async function checkCaptcha(context: Context, input: AuthInput<"login">, action: RecaptchaAction) {
+  if (!(await isIntegrationEnabled(context.db, "recaptcha"))) return;
+  const verdict = await verifyRecaptcha(context.integrationEnv, {
+    token: input.recaptchaToken,
+    fallback: input.recaptchaFallback,
+    action,
+  });
+  if (verdict === "unavailable")
+    throw new ApiError("SERVICE_UNAVAILABLE", {
+      message: "The bot check is unavailable. Try again in a moment.",
+    });
+  if (verdict === "rejected")
+    throw new ApiError("BAD_REQUEST", { message: "Complete the reCAPTCHA check again." });
 }
 async function sessionResult(context: Context, userId: string) {
   const session = await createSession(context.db, userId, {
@@ -92,9 +98,7 @@ export const authService = {
         contactVerification: contactVerificationPolicy(),
         recaptcha: {
           enabled: recaptchaEnabled,
-          live: Boolean(
-            context.integrationEnv.recaptchaSecretKey && context.integrationEnv.recaptchaSiteKey,
-          ),
+          live: isConfigured("recaptcha", context.integrationEnv),
           siteKey: recaptchaEnabled ? (context.integrationEnv.recaptchaSiteKey ?? null) : null,
         },
         google: {
@@ -119,7 +123,7 @@ export const authService = {
     return context.user;
   },
   async login(context: Context, input: AuthInput<"login">) {
-    await checkCaptcha(context, input);
+    await checkCaptcha(context, input, "LOGIN");
     const user = await authenticateWithPassword(context.db, {
       ...input,
       ipAddress: context.ipAddress,
@@ -127,7 +131,7 @@ export const authService = {
     return sessionResult(context, user.id);
   },
   async signup(context: Context, input: AuthInput<"signup">) {
-    await checkCaptcha(context, input);
+    await checkCaptcha(context, input, "SIGNUP");
     const user = await registerUser(context.db, { ...input, ipAddress: context.ipAddress });
     return sessionResult(context, user.id);
   },

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import request from "supertest";
-import { createDatabase } from "@Alumni-Tracking-Ss/db";
+import { createDatabase, hasLegacyRecaptchaKeys } from "@Alumni-Tracking-Ss/db";
 import { migrateDatabase } from "@Alumni-Tracking-Ss/db/migration";
 import { seedDatabase, seedIntegrationCredentials } from "@Alumni-Tracking-Ss/db/seed-data";
 import { rotateIntegrationKey } from "@Alumni-Tracking-Ss/db/integration-key-rotation";
@@ -55,7 +55,11 @@ try {
   assert.equal(
     track(
       await send("post", "/api/integrations/recaptcha/enable", {
-        credentials: { siteKey: "public-site-key", secretKey: secrets.recaptcha },
+        credentials: {
+          siteKey: "public-site-key",
+          projectId: "alumni-tracking-1",
+          apiKey: secrets.recaptcha,
+        },
       }),
     ).status,
     201,
@@ -122,7 +126,8 @@ try {
   const seededSecret = `seeded-secret-${randomBytes(6).toString("hex")}`;
   process.env.INTEGRATION_ENCRYPTION_KEY = keyHex;
   process.env.RECAPTCHA_SITE_KEY = "seeded-site-key";
-  process.env.RECAPTCHA_SECRET_KEY = seededSecret;
+  process.env.RECAPTCHA_PROJECT_ID = "alumni-tracking-1";
+  process.env.RECAPTCHA_API_KEY = seededSecret;
   await seedIntegrationCredentials(db);
   const seeded = await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean().orFail();
   assert.equal(seeded.enabled, true);
@@ -144,16 +149,43 @@ try {
   );
   await rotateIntegrationKey(db, Buffer.from(keyHex, "hex"), Buffer.from(nextKeyHex, "hex"));
   const rotated = await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean().orFail();
-  const rotatedSecret = (rotated.credentials as Record<string, SealedValue>).secretKey!;
+  const rotatedSecret = (rotated.credentials as Record<string, SealedValue>).apiKey!;
   assert.equal(
-    open(Buffer.from(nextKeyHex, "hex"), credentialAad("recaptcha", "secretKey"), rotatedSecret),
+    open(Buffer.from(nextKeyHex, "hex"), credentialAad("recaptcha", "apiKey"), rotatedSecret),
     seededSecret,
   );
   assert.throws(() =>
-    open(Buffer.from(keyHex, "hex"), credentialAad("recaptcha", "secretKey"), rotatedSecret),
+    open(Buffer.from(keyHex, "hex"), credentialAad("recaptcha", "apiKey"), rotatedSecret),
   );
+
+  // Schema 4 on a real replica set: an enabled row still holding classic v2 keys is reported by
+  // dry-run without changes, then disabled and erased (with one audit entry) by apply.
+  await db.IntegrationSetting.updateOne(
+    { key: "recaptcha" },
+    { $set: { enabled: true, "credentials.secretKey": rotatedSecret } },
+  );
+  assert.equal(await hasLegacyRecaptchaKeys(db), true);
+  const v2Before = JSON.stringify(await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean());
+  const v2DryRun = await migrateDatabase(db, "dry-run");
+  assert.deepEqual(v2DryRun.retiredRecaptcha, { found: true, wasEnabled: true, applied: false });
+  assert.equal(
+    JSON.stringify(await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean()),
+    v2Before,
+  );
+  const v2Apply = await migrateDatabase(db, "apply");
+  assert.equal(v2Apply.retiredRecaptcha?.applied, true);
+  const v2After = await db.IntegrationSetting.findOne({ key: "recaptcha" }).lean().orFail();
+  assert.equal(v2After.enabled, false);
+  assert.equal(v2After.credentials, undefined);
+  assert.equal(v2After.keyFingerprint, undefined);
+  assert.equal(await hasLegacyRecaptchaKeys(db), false);
+  assert.equal(
+    await db.AuditLog.countDocuments({ summary: /classic v2 keys erased by migration/ }),
+    1,
+  );
+  assert.equal((await migrateDatabase(db, "apply")).retiredRecaptcha?.found, false);
   console.log(
-    "PASS integrations: encrypted enable/update/disable over HTTP, no secret in responses or documents, disable erases credentials, env seed encrypts, dry-run is read-only, and real key rotation re-seals atomically.",
+    "PASS integrations: encrypted enable/update/disable over HTTP, no secret in responses or documents, disable erases credentials, env seed encrypts, dry-run is read-only, real key rotation re-seals atomically, and schema 4 retires classic v2 reCAPTCHA keys.",
   );
 } finally {
   await db.connection.dropDatabase().catch(() => undefined);

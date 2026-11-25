@@ -873,7 +873,7 @@ it("integrations reject accounts without integration permissions", async () => {
     [
       "post",
       "/api/integrations/recaptcha/enable",
-      { credentials: { siteKey: "a", secretKey: "b" } },
+      { credentials: { siteKey: "a", projectId: "b", apiKey: "c" } },
     ],
     ["put", "/api/integrations/recaptcha/credentials", { credentials: {} }],
     ["post", "/api/integrations/recaptcha/disable", {}],

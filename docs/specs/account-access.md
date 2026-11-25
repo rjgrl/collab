@@ -43,6 +43,23 @@ formatting broke pasted-country detection, so the library retains that responsib
 national-field adapter handles the Philippine zero. Sign-in CAPTCHA and Forgot Password share
 a compact, wrapping row; controls retain accessible touch sizes. Signup's checkbox is compact too.
 
+## Bot check (reCAPTCHA)
+
+Sign-in and sign-up use a Google Cloud Fraud Defense (reCAPTCHA Enterprise) **checkbox** key;
+the owner chose a visible checkbox over invisible scoring. The browser renders the Enterprise
+widget with action `LOGIN` or `SIGNUP`; the server creates an assessment and accepts only a valid
+token whose action matches the endpoint, so a token cannot be replayed on the other form. A
+rejected token rejects that attempt only; nothing is recorded against the account or address.
+Google errors, timeouts and quota failures fail closed with a retryable message. Credentials are
+the site key (write-only in administration, though public in the page), the Cloud project ID and a
+restricted API key, sent only in a request header. Classic v2 keys and `siteverify` were retired:
+an enabled v2 pair would reject every sign-in, so schema version 4 disables and erases it, and the
+server refuses to start until that migration has run. The development-only local checkbox remains
+when no credentials exist outside production.
+
+Integration key inputs are masked while typed or pasted, with a Show/Hide toggle; saved secrets
+show only their last four characters.
+
 ## Permission delegation and administrator identity
 
 Every catalog permission may be explicitly assigned to an editable role. A role's name or base

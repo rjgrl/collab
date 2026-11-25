@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
-type CaptchaApi = {
+type EnterpriseApi = {
   render: (
     element: HTMLElement,
     options: {
       sitekey: string;
+      action: string;
       callback: (token: string) => void;
       "expired-callback": () => void;
       "error-callback": () => void;
@@ -14,20 +15,20 @@ type CaptchaApi = {
 };
 declare global {
   interface Window {
-    grecaptcha?: CaptchaApi;
+    grecaptcha?: { enterprise?: EnterpriseApi };
     collabCaptchaReady?: () => void;
   }
 }
-let sdk: Promise<CaptchaApi> | undefined;
+let sdk: Promise<EnterpriseApi> | undefined;
 function loadCaptcha() {
-  if (window.grecaptcha?.render) return Promise.resolve(window.grecaptcha);
-  return (sdk ??= new Promise<CaptchaApi>((resolve, reject) => {
+  if (window.grecaptcha?.enterprise?.render) return Promise.resolve(window.grecaptcha.enterprise);
+  return (sdk ??= new Promise<EnterpriseApi>((resolve, reject) => {
     const script = document.createElement("script");
     window.collabCaptchaReady = () => {
-      if (window.grecaptcha) resolve(window.grecaptcha);
+      if (window.grecaptcha?.enterprise) resolve(window.grecaptcha.enterprise);
     };
     script.src =
-      "https://www.google.com/recaptcha/api.js?onload=collabCaptchaReady&render=explicit";
+      "https://www.google.com/recaptcha/enterprise.js?onload=collabCaptchaReady&render=explicit";
     script.async = true;
     script.defer = true;
     script.onerror = () => {
@@ -39,11 +40,14 @@ function loadCaptcha() {
   }));
 }
 
+/** Google Cloud Fraud Defense (reCAPTCHA Enterprise) checkbox; the server verifies the action. */
 export function Recaptcha({
   siteKey,
+  action,
   onToken,
 }: {
   siteKey: string;
+  action: "LOGIN" | "SIGNUP";
   onToken: (token: string | undefined) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -56,6 +60,7 @@ export function Recaptcha({
         if (disposed || !element) return;
         api.render(element, {
           sitekey: siteKey,
+          action,
           callback: onToken,
           "expired-callback": () => onToken(undefined),
           "error-callback": () => {
@@ -72,7 +77,7 @@ export function Recaptcha({
       disposed = true;
       element?.replaceChildren();
     };
-  }, [siteKey, onToken]);
+  }, [siteKey, action, onToken]);
   return (
     <div>
       <div ref={container} aria-label="Google reCAPTCHA" />
